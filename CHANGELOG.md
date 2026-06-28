@@ -136,3 +136,10 @@
 - **观战模式**：自动连续对局直至一方超过 A（14→15），无需人工干预。全程数据导出到单个 `saves/match-<时间戳>.json` 文件。
 - **移除**：`startNewRound()` 内部重复调用 `showRoundResult`，统一由 `gameLoop` 管理。
 - **影响文件**：`packages/cli/src/index.ts` — `main()`、`gameLoop()`、`showRoundResult()`、`sleep()`
+
+## 2026-06-28 23:00
+
+### AI 主牌跟牌策略：默认出最小，仅必要时出大
+- **修复**：`aiFollowTrumpOnly` 的主牌排序从降序改为升序（弱牌优先）。单张主牌跟牌时先尝试最小能盖过的，盖不过出最小；多张跟牌时优先匹配最小拖拉机/对子。
+- 消除了「浪费大王跟大王」的问题——AI 现在只在需要盖过对方时才出强牌。
+- **影响文件**：`packages/engine/src/ai/index.ts`

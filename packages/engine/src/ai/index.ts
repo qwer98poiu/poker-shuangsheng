@@ -289,61 +289,67 @@ function aiFollowTrumpOnly(
 ): { cards: Card[]; reason: string } {
   const leadLen = leadCards.length;
   const leadCombo = classifyCombo(leadCards, config);
-  const sorter = discardSort(!!tmWin);
-
   const jokers = hand.filter(c => c.suit === SpecialSuit.Joker);
   const trump = hand.filter(c => isTrump(c, config) && c.suit !== SpecialSuit.Joker);
   const allTrump = [...jokers, ...trump];
-  allTrump.sort((a, b) => getEffectiveRank(b, config) - getEffectiveRank(a, config));
+  // sort by effective rank ASCENDING (weakest first) — only pick strongest when needed
+  allTrump.sort((a, b) => getEffectiveRank(a, config) - getEffectiveRank(b, config));
 
   if (leadLen === 1) {
     if (allTrump.length > 0) {
-      return { cards: [allTrump[0]], reason: '用主牌跟牌' };
+      const leadMax = Math.max(...leadCards.map(c => getEffectiveRank(c, config)));
+      const canBeat = allTrump.filter(c => getEffectiveRank(c, config) > leadMax);
+      if (canBeat.length > 0) {
+        return { cards: [canBeat[0]], reason: '用最小能盖过的主牌' };
+      }
+      return { cards: [allTrump[0]], reason: tmWin ? '队友已大，垫小主牌' : '盖不过，出最小主牌' };
     }
     const nonTrump = hand.filter(c => !isTrump(c, config));
-    nonTrump.sort((a, b) => (isPointCard(a.rank) ? 100 : 0) + a.rank - (isPointCard(b.rank) ? 100 : 0) - b.rank);
-    return { cards: [nonTrump[0] || hand[0]], reason: '无主牌，垫牌' };
+    nonTrump.sort(discardSort(!!tmWin));
+    return { cards: [nonTrump[0] || hand[0]], reason: tmWin ? '队友已大，垫分' : '无主牌，垫牌' };
   }
 
-  // multi-card lead: must match pattern exactly
+  // multi-card lead: try to match pattern with smallest possible cards
   if (leadCombo.hasTractor) {
     const myTractors = detectTractor(allTrump, config);
     if (myTractors.length > 0) {
-      return { cards: myTractors[0], reason: '用主牌拖拉机跟牌' };
+      // pick the smallest tractor (lowest max effective rank)
+      myTractors.sort((a, b) =>
+        Math.max(...a.map(c => getEffectiveRank(c, config))) -
+        Math.max(...b.map(c => getEffectiveRank(c, config))),
+      );
+      return { cards: myTractors[0], reason: '用最小主牌拖拉机跟牌' };
     }
-    // can't match tractor — play smallest same-count trump cards
-    allTrump.sort((a, b) => getEffectiveRank(a, config) - getEffectiveRank(b, config));
     if (allTrump.length >= leadLen) {
       return { cards: allTrump.slice(0, leadLen), reason: '无拖拉机，出最小主牌' };
     }
   }
 
-  // pair/tractor pattern: try to match pairs
+  // pair pattern: try smallest pairs first
   const myPairs = findAllPairs(allTrump);
   const leadPairs = findAllPairs(leadCards);
 
   if (leadPairs.length > 0) {
     if (myPairs.length >= leadPairs.length) {
-      myPairs.sort((a, b) => getEffectiveRank(b[0], config) - getEffectiveRank(a[0], config));
+      myPairs.sort((a, b) => getEffectiveRank(a[0], config) - getEffectiveRank(b[0], config));
       const picked = myPairs.slice(0, leadPairs.length).flat();
       if (picked.length === leadLen) {
-        return { cards: picked, reason: `用${leadPairs.length}个主牌对子跟牌` };
+        return { cards: picked, reason: `用${leadPairs.length}个最小主牌对子跟牌` };
       }
     }
-    // have some pairs but not enough, or not exact match
     if (myPairs.length > 0) {
+      myPairs.sort((a, b) => getEffectiveRank(a[0], config) - getEffectiveRank(b[0], config));
       const picked = myPairs.flat();
       const usedIds = new Set(picked.map(c => c.id));
       const remaining = allTrump.filter(c => !usedIds.has(c.id));
       return {
         cards: [...picked, ...remaining.slice(0, leadLen - picked.length)],
-        reason: `部分主牌对子跟牌(${myPairs.length}对可用)`,
+        reason: `用最小主牌对子跟牌(${myPairs.length}对)`,
       };
     }
   }
 
   // can't match any pattern — play smallest trump cards
-  allTrump.sort((a, b) => getEffectiveRank(a, config) - getEffectiveRank(b, config));
   if (allTrump.length >= leadLen) {
     return { cards: allTrump.slice(0, leadLen), reason: `出${leadLen}张最小主牌` };
   }
