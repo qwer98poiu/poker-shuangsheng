@@ -80,6 +80,13 @@ function cardKeepScore(card: Card, config: TrumpDeclaration): number {
   return score;
 }
 
+/** add final-hand suffix to reason if applicable */
+function maybeAppendFinal(selected: Card[], fullHand: Card[], baseReason: string): string {
+  if (selected.length === fullHand.length && fullHand.length === 1) return '最后一张手牌，必出';
+  if (selected.length === fullHand.length) return `最后${fullHand.length}张手牌，必出`;
+  return baseReason;
+}
+
 /** decide what to lead */
 export function aiLeadPlay(
   hand: Card[],
@@ -87,13 +94,15 @@ export function aiLeadPlay(
 ): { cards: Card[]; reason: string } {
   const tractors = detectTractor(hand, config);
   if (tractors.length > 0) {
-    return { cards: tractors[0], reason: `领出拖拉机(${tractors[0].length / 2}对)，清主牌` };
+    const cards = tractors[0];
+    return { cards, reason: maybeAppendFinal(cards, hand, `领出拖拉机(${tractors[0].length / 2}对)，清主牌`) };
   }
 
   const pairs = findAllPairs(hand);
   if (pairs.length > 0) {
     pairs.sort((a, b) => getEffectiveRank(b[0], config) - getEffectiveRank(a[0], config));
-    return { cards: pairs[0], reason: '领出对子，试探牌力' };
+    const cards = pairs[0];
+    return { cards, reason: maybeAppendFinal(cards, hand, '领出对子，试探牌力') };
   }
 
   const trumpCards = hand.filter(c => isTrump(c, config));
@@ -101,23 +110,29 @@ export function aiLeadPlay(
 
   if (trumpCards.length > 6) {
     trumpCards.sort((a, b) => getEffectiveRank(b, config) - getEffectiveRank(a, config));
-    return { cards: [trumpCards[0]], reason: `主牌多(${trumpCards.length}张)，出主牌清主` };
+    const cards = [trumpCards[0]];
+    return { cards, reason: maybeAppendFinal(cards, hand, `主牌多(${trumpCards.length}张)，出主牌清主`) };
   }
 
   const aces = nonTrump.filter(c => c.rank === Rank.Ace);
-  if (aces.length > 0) return { cards: [aces[0]], reason: '领出A，清副牌' };
+  if (aces.length > 0) {
+    const cards = [aces[0]];
+    return { cards, reason: maybeAppendFinal(cards, hand, '领出A，清副牌') };
+  }
 
   const bySuit = groupBySuit(nonTrump);
-  const longestSuit = bySuit.reduce((best, cards) =>
-    cards.length > best.length ? cards : best, bySuit[0] || [],
+  const longestSuit = bySuit.reduce((best, cds) =>
+    cds.length > best.length ? cds : best, bySuit[0] || [],
   );
   if (longestSuit.length > 0) {
     longestSuit.sort((a, b) => a.rank - b.rank);
-    return { cards: [longestSuit[0]], reason: `出${suitLabelCn(longestSuit[0].suit as Suit)}小牌，长套引诱对手出分` };
+    const cards = [longestSuit[0]];
+    return { cards, reason: maybeAppendFinal(cards, hand, `出${suitLabelCn(longestSuit[0].suit as Suit)}小牌，长套引诱对手出分`) };
   }
 
   const sorted = sortHand(hand, config);
-  return { cards: [sorted[sorted.length - 1]], reason: '出最小牌' };
+  const c = [sorted[sorted.length - 1]];
+  return { cards: c, reason: maybeAppendFinal(c, hand, '出最小牌') };
 }
 
 /** sort comparator: when teammateWinning, prefer point cards; otherwise avoid them, prefer smallest */
@@ -152,8 +167,11 @@ export function aiFollowPlay(
   const tmWin = teammateWins(myIdx, bestSoFar);
   const leadIsTrump = leadCards.every(c => isTrump(c, config));
 
+  let result: { cards: Card[]; reason: string };
+
   if (!leadSuit || leadSuit === SpecialSuit.Joker) {
-    return aiFollowTrumpOnly(hand, leadCards, config, tmWin);
+    result = aiFollowTrumpOnly(hand, leadCards, config, tmWin);
+    return { cards: result.cards, reason: maybeAppendFinal(result.cards, hand, result.reason) };
   }
 
   const leadSuitCards = hand.filter(
@@ -163,51 +181,59 @@ export function aiFollowPlay(
 
   if (leadIsTrump) {
     if (leadLen > 1) {
-      return aiFollowTrumpOnly(hand, leadCards, config, tmWin);
+      result = aiFollowTrumpOnly(hand, leadCards, config, tmWin);
+      return { cards: result.cards, reason: maybeAppendFinal(result.cards, hand, result.reason) };
     }
 
-    // single trump lead: play smallest trump we have (must follow with trump)
     if (trumpCards.length > 0) {
       const leadMax = Math.max(...leadCards.map(c => getEffectiveRank(c, config)));
       const canBeat = trumpCards.filter(c => getEffectiveRank(c, config) > leadMax);
       if (canBeat.length > 0) {
         canBeat.sort((a, b) => getEffectiveRank(a, config) - getEffectiveRank(b, config));
-        return { cards: [canBeat[0]], reason: '用最小能盖过的主牌' };
+        result = { cards: [canBeat[0]], reason: '用最小能盖过的主牌' };
+      } else {
+        trumpCards.sort((a, b) => getEffectiveRank(a, config) - getEffectiveRank(b, config));
+        result = { cards: [trumpCards[0]], reason: '主牌不够大，出最小主牌' };
       }
-      trumpCards.sort((a, b) => getEffectiveRank(a, config) - getEffectiveRank(b, config));
-      return { cards: [trumpCards[0]], reason: '主牌不够大，出最小主牌' };
+      return { cards: result.cards, reason: maybeAppendFinal(result.cards, hand, result.reason) };
     }
-    // truly no trump — discard
     const nonTrump0 = hand.filter(c => !isTrump(c, config));
     if (nonTrump0.length > 0) {
       nonTrump0.sort(discardSort(tmWin));
-      return { cards: [nonTrump0[0]], reason: tmWin ? '队友已大，垫分' : '无主牌，垫副牌' };
+      result = { cards: [nonTrump0[0]], reason: tmWin ? '队友已大，垫分' : '无主牌，垫副牌' };
+    } else {
+      result = { cards: [hand[0]], reason: '无牌可选' };
     }
-    return { cards: [hand[0]], reason: '无牌可选' };
+    return { cards: result.cards, reason: maybeAppendFinal(result.cards, hand, result.reason) };
   }
 
   if (leadSuitCards.length >= leadLen) {
-    if (leadLen === 1) return aiFollowSingle(leadSuitCards, config, bestSoFar, tmWin);
-    return aiFollowMulti(leadSuitCards, leadCards, config, bestSoFar, tmWin);
+    result = leadLen === 1
+      ? aiFollowSingle(leadSuitCards, config, bestSoFar, tmWin)
+      : aiFollowMulti(leadSuitCards, leadCards, config, bestSoFar, tmWin);
+    return { cards: result.cards, reason: maybeAppendFinal(result.cards, hand, result.reason) };
   }
 
   // void in lead suit
   if (trumpCards.length >= leadLen) {
     trumpCards.sort((a, b) => getEffectiveRank(a, config) - getEffectiveRank(b, config));
-    return { cards: trumpCards.slice(-leadLen), reason: tmWin ? '队友已大，用小主牌' : '无领出花色，用主牌毙' };
+    result = { cards: trumpCards.slice(-leadLen), reason: tmWin ? '队友已大，用小主牌' : '无领出花色，用主牌毙' };
+    return { cards: result.cards, reason: maybeAppendFinal(result.cards, hand, result.reason) };
   }
 
   // can't fully trump — discard
   const nonTrump2 = hand.filter(c => !isTrump(c, config));
   nonTrump2.sort(discardSort(tmWin));
   if (nonTrump2.length >= leadLen) {
-    return { cards: nonTrump2.slice(0, leadLen), reason: tmWin ? '队友已大，垫分' : '垫低分牌' };
+    result = { cards: nonTrump2.slice(0, leadLen), reason: tmWin ? '队友已大，垫分' : '垫低分牌' };
+  } else {
+    trumpCards.sort((a, b) => getEffectiveRank(a, config) - getEffectiveRank(b, config));
+    result = {
+      cards: [...nonTrump2, ...trumpCards.slice(0, leadLen - nonTrump2.length)],
+      reason: tmWin ? '队友已大' : '垫牌(含主牌)',
+    };
   }
-  trumpCards.sort((a, b) => getEffectiveRank(a, config) - getEffectiveRank(b, config));
-  return {
-    cards: [...nonTrump2, ...trumpCards.slice(0, leadLen - nonTrump2.length)],
-    reason: tmWin ? '队友已大' : '垫牌(含主牌)',
-  };
+  return { cards: result.cards, reason: maybeAppendFinal(result.cards, hand, result.reason) };
 }
 
 function aiFollowSingle(
