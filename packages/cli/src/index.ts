@@ -60,7 +60,12 @@ async function main() {
     console.log('\n可用的存档:');
     saveFiles.forEach((f, i) => {
       const s = JSON.parse(fs.readFileSync(f, 'utf-8'));
-      console.log(`  [${i + 1}] ${path.basename(f)} — ${new Date(s.t).toLocaleString()} — ${s.players.length}人 — 墩${s.tricksPlayed}`);
+      // handle both single-round dumps and multi-round match exports
+      const isMatch = Array.isArray(s);
+      const playerCount = isMatch ? 4 : (s.aiPlayers?.length ?? s.players?.length ?? 4);
+      const trickCount = isMatch ? (s[0]?.tricksPlayed ?? '?') : (s.tricksPlayed ?? '?');
+      const roundCount = isMatch ? `${s.length}局` : '1局';
+      console.log(`  [${i + 1}] ${path.basename(f)} — ${new Date(isMatch ? s[0]?.t : s.t).toLocaleString()} — ${playerCount}人 — ${roundCount} — 墩${trickCount}`);
     });
     const loadChoice = await q('加载存档? (输入编号, 回车跳过): ');
     if (loadChoice) {
