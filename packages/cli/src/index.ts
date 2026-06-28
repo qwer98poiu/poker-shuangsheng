@@ -51,7 +51,6 @@ async function main() {
   rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   const q = (prompt: string): Promise<string> => new Promise(r => rl.question(prompt, r));
 
-  // setup
   // check for saved game
   const saveFiles = getSaveFiles();
   let resumeFile: string | null = null;
@@ -68,7 +67,7 @@ async function main() {
       const idx = parseInt(loadChoice) - 1;
       if (idx >= 0 && idx < saveFiles.length) {
         resumeFile = saveFiles[idx];
-        const trickInput = await q(`从第几墩继续? (默认 ${JSON.parse(fs.readFileSync(resumeFile, 'utf-8')).tricksPlayed}, 回车=从当前): `);
+        const trickInput = await q(`从第几墩继续? (回车=从当前): `);
         if (trickInput) {
           resumeFromTrickNum = parseInt(trickInput);
           if (isNaN(resumeFromTrickNum)) resumeFromTrickNum = 0;
@@ -80,41 +79,32 @@ async function main() {
   }
 
   if (resumeFile) {
-    // load saved game
     const data = deserialize(fs.readFileSync(resumeFile, 'utf-8'));
     const resumed = resumeFromTrick(data, resumeFromTrickNum);
     gameState = resumed.state;
     aiPlayers = resumed.aiPlayers;
     DEBUG = resumed.debug;
     console.log(GREEN + `存档已加载，从第 ${resumed.state.tricksPlayed} 墩继续` + RESET);
-
-    if (DEBUG) {
-      console.log(CYAN + '调试模式已开启。可用命令: /hand <0-3>, /history, /score, /hint, /bottom, /trick, /dump' + RESET);
-    }
-
-    // skip dealing/reveal/bottom exchange — go straight to play
     await doPlayPhase();
-    autoDumpIfSpectator();
+    // after one round from resume, show result and end
+    showRoundResult(gameState.dealerIndex);
   } else {
+    // new game: setup players and loop
     const hc = await q('人类玩家数量 (0-4, 默认1): ');
     const parsed = parseInt(hc);
     HUMAN_COUNT = isNaN(parsed) ? 1 : Math.max(0, Math.min(4, parsed));
-
     const dbg = await q('调试模式? (y/n, 默认n): ');
     DEBUG = dbg.toLowerCase() === 'y';
-
-    // build ai config
     const humanSeats: number[] = [];
     for (let i = 0; i < HUMAN_COUNT; i++) humanSeats.push(i);
     aiPlayers = [0, 1, 2, 3].map(i => !humanSeats.includes(i));
 
-    if (DEBUG) {
-      console.log(CYAN + '调试模式已开启。可用命令: /hand <0-3>, /history, /score, /hint, /bottom' + RESET);
-    }
+    if (DEBUG) console.log(CYAN + '调试模式已开启。可用命令: /hand <0-3>, /history, /score, /hint, /bottom, /dump' + RESET);
 
-    // start game
-    await startNewRound(0, 2);
-    autoDumpIfSpectator();
+    const spectator = aiPlayers.every(v => v);
+
+    // continuous game loop
+    await gameLoop(0, 2, spectator);
   }
 
   rl.close();
@@ -132,18 +122,6 @@ function getSaveFiles(): string[] {
   } catch { return []; }
 }
 
-function autoDumpIfSpectator() {
-  const isSpectator = aiPlayers.every(v => v);
-  if (isSpectator && gameState) {
-    if (!fs.existsSync(SAVE_DIR)) fs.mkdirSync(SAVE_DIR, { recursive: true });
-    const name = `shengji-auto-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
-    const file = path.join(SAVE_DIR, name);
-    const json = serialize(gameState, aiPlayers, DEBUG);
-    fs.writeFileSync(file, json, 'utf-8');
-    console.log(`\n📼 观战模式：对局已自动存档 → ${file}`);
-  }
-}
-
 function handleDump() {
   try {
     if (!fs.existsSync(SAVE_DIR)) fs.mkdirSync(SAVE_DIR, { recursive: true });
@@ -156,6 +134,62 @@ function handleDump() {
   } catch (e) {
     console.log(`${RED}保存失败: ${e}${RESET}`);
   }
+}
+
+// ---- continuous game loop ----
+async function gameLoop(dealerIndex: number, currentLevel: number, spectator: boolean): Promise<void> {
+  let dealer = dealerIndex;
+  let level = currentLevel;
+  let gameOver = false;
+  const matchLogs: string[] = []; // accumulate dump data for spectator mode
+
+  while (!gameOver) {
+    await startNewRound(dealer, level);
+
+    const result = showRoundResult(dealer);
+    const nextLevel = result.newLevel;
+    const nextDealer = (dealer + 1) % 4;
+
+    // game ends when someone surpasses A (level 14→15)
+    if (nextLevel > 14) {
+      console.log('\n' + GREEN + BOLD + '🏆 比赛结束！一方已超过A（升级到' + rankLabel(nextLevel) + '）!' + RESET);
+      gameOver = true;
+    }
+
+    if (gameOver) {
+      // still dump this round for spectator
+      if (spectator) {
+        const snapshot = serialize(gameState, aiPlayers, DEBUG);
+        matchLogs.push(snapshot);
+      }
+      break;
+    }
+
+    if (spectator) {
+      const snapshot = serialize(gameState, aiPlayers, DEBUG);
+      matchLogs.push(snapshot);
+      console.log(`📼 观战记录: 第 ${gameState.trickHistory.length || '?'} 墩`);
+      await sleep(1500);
+    } else {
+      const ans = await ask(`\n继续下一局? (y/n, 默认y): `);
+      if (ans.toLowerCase() === 'n') break;
+    }
+
+    dealer = nextDealer;
+    level = nextLevel;
+  }
+
+  // spectator mode: write full match to single file
+  if (spectator && matchLogs.length > 0) {
+    const matchFile = path.join(SAVE_DIR, `match-${new Date().toISOString().replace(/[:.]/g, '-')}.json`);
+    if (!fs.existsSync(SAVE_DIR)) fs.mkdirSync(SAVE_DIR, { recursive: true });
+    fs.writeFileSync(matchFile, '[\n' + matchLogs.join(',\n') + '\n]', 'utf-8');
+    console.log(`\n📼 比赛数据已导出: ${matchFile}`);
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(r => setTimeout(r, ms));
 }
 
 // ---- game round ----
@@ -184,9 +218,6 @@ async function startNewRound(dealerIndex: number, currentLevel: number) {
 
   // --- playing phase ---
   await doPlayPhase();
-
-  // --- round end ---
-  showRoundResult();
 }
 
 // ---- deal ----
@@ -751,7 +782,7 @@ function showHumanHands() {
   }
 }
 
-function showRoundResult() {
+function showRoundResult(oldDealer: number): { newLevel: number } {
   console.log('\n' + BOLD + '=== 本局结束 ===' + RESET);
   console.log(`闲家得分: ${gameState.attackerPoints}`);
 
@@ -763,12 +794,19 @@ function showRoundResult() {
   console.log(`底牌分数: ${bp} ×2 = ${bp * 2}`);
 
   const changes = computeLevelChange(gameState.attackerPoints);
-  const attackerTeam = gameState.dealerIndex % 2 === 0 ? 1 : 0;
+  const defenderTeam = gameState.trumpDeclaration?.declarerIndex !== undefined
+    ? gameState.trumpDeclaration.declarerIndex % 2
+    : oldDealer % 2;
+  const attackerTeam = defenderTeam === 0 ? 1 : 0;
+  const newLevel = gameState.currentLevel + (attackerTeam === 1 ? changes.attackerChange : changes.defenderChange);
+
   if (changes.attackerChange > 0) {
-    console.log(GREEN + '闲家升级! 新级别: ' + rankLabel(gameState.currentLevel + changes.attackerChange) + RESET);
+    console.log(GREEN + '闲家升级! 新级别: ' + rankLabel(newLevel) + RESET);
   } else {
-    console.log(`庄家${changes.defenderChange > 1 ? '跳' : ''}升级 ${changes.defenderChange}级`);
+    console.log(`庄家${changes.defenderChange > 1 ? '跳' : ''}升级 ${changes.defenderChange}级 → 新级别: ${rankLabel(newLevel)}`);
   }
+
+  return { newLevel };
 }
 
 // ---- helpers ----

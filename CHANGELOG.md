@@ -127,3 +127,12 @@
 - **引擎**：`aiFollowPlay()` 新增可选参数 `bestSoFar` 和 `myIdx`，分发到 `aiFollowSingle`、`aiFollowMulti`、`aiFollowTrumpOnly` 子函数。
 - **CLI**：新增 `computeBestSoFar()`，在 AI 跟牌和提示时传入当前墩最优信息。
 - **影响文件**：`packages/engine/src/ai/index.ts`、`packages/cli/src/index.ts`
+
+## 2026-06-28 22:45
+
+### 连续对局 + 观战完整比赛流程
+- **新增**：`gameLoop()` — 单局结束后自动进入下一局循环。
+- **人类模式**：每局结束显示升级结果，询问「继续下一局？」（回车默认继续，n 退出）。只要人类都同意，可无限进行。
+- **观战模式**：自动连续对局直至一方超过 A（14→15），无需人工干预。全程数据导出到单个 `saves/match-<时间戳>.json` 文件。
+- **移除**：`startNewRound()` 内部重复调用 `showRoundResult`，统一由 `gameLoop` 管理。
+- **影响文件**：`packages/cli/src/index.ts` — `main()`、`gameLoop()`、`showRoundResult()`、`sleep()`
