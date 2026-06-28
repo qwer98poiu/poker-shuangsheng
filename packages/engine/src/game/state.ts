@@ -402,8 +402,37 @@ function endRound(state: GameState): GameState {
   return { ...state, phase: GamePhase.RoundEnd, attackerPoints: finalAttackerPoints };
 }
 
+/**
+ * Compute level change based on attacker (闲家) score vs defender (庄家).
+ *
+ *  0 分       = 大光，庄家升3级
+ *  1-35 分    = 小光，庄家升2级
+ *  40-75 分   = 保级，庄家升1级
+ *  80-115 分  = 闲家上台，双方不升级
+ *  ≥ 120 分   = 闲家上台，每40分一个台阶多升1级（不封顶）
+ *
+ * Formula: n = floor(attackerPoints / 40)
+ *   n=0 → 大光 def+3
+ *   n=1 → 保级 def+1  (小光 def+2 is between, see below)
+ *   n≥2 → 上台 atk + (n-2)
+ *
+ * Note: 小光 (def+2) is 1-35 points, not tied to the 40-step formula.
+ */
 export function computeLevelChange(attackerPoints: number): { defenderChange: number; attackerChange: number } {
-  if (attackerPoints >= 80) return { defenderChange: 0, attackerChange: 1 };
-  if (attackerPoints >= 40) return { defenderChange: 1, attackerChange: 0 };
-  return { defenderChange: 2, attackerChange: 0 };
+  const n = Math.floor(attackerPoints / 40);
+
+  if (n === 0) {
+    // 0 分 = 大光，庄家升3级
+    if (attackerPoints === 0) return { defenderChange: 3, attackerChange: 0 };
+    // 1-35 = 小光，庄家升2级
+    return { defenderChange: 2, attackerChange: 0 };
+  }
+
+  if (n === 1) {
+    // 40-75 = 保级，庄家升1级
+    return { defenderChange: 1, attackerChange: 0 };
+  }
+
+  // n >= 2: 闲家上台，每40分台阶升1级
+  return { defenderChange: 0, attackerChange: n - 2 };
 }

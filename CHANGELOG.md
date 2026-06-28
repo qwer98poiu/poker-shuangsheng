@@ -143,3 +143,13 @@
 - **修复**：`aiFollowTrumpOnly` 的主牌排序从降序改为升序（弱牌优先）。单张主牌跟牌时先尝试最小能盖过的，盖不过出最小；多张跟牌时优先匹配最小拖拉机/对子。
 - 消除了「浪费大王跟大王」的问题——AI 现在只在需要盖过对方时才出强牌。
 - **影响文件**：`packages/engine/src/ai/index.ts`
+
+## 2026-06-28 23:56
+
+### 计分规则重写 + 庄家轮换修正
+- **计分规则**：0 分=大光(庄+3)，1-35=小光(庄+2)，40-75=保级(庄+1)，80-115=上台不升级，≥120=上台每 40 分台阶多升 1 级(不封顶)。
+- **庄家轮换**：只有闲家 ≥80 才下台，否则守庄。
+- **两队级别独立追踪**：`gameLoop` 分别追踪 TeamAC 和 TeamBD 的级别，结束条件为任意一方超过 A(14)。
+- **影响文件**：`packages/engine/src/game/state.ts` — `computeLevelChange()`
+- **影响文件**：`packages/cli/src/index.ts` — `gameLoop()`、`showRoundResult()`
+- **影响文件**：`packages/cli/src/test-run.ts` — 庄家轮换逻辑

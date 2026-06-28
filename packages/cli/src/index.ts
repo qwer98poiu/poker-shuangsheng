@@ -87,7 +87,7 @@ async function main() {
     console.log(GREEN + `存档已加载，从第 ${resumed.state.tricksPlayed} 墩继续` + RESET);
     await doPlayPhase();
     // after one round from resume, show result and end
-    showRoundResult(gameState.dealerIndex);
+    showRoundResult();
   } else {
     // new game: setup players and loop
     const hc = await q('人类玩家数量 (0-4, 默认1): ');
@@ -139,44 +139,64 @@ function handleDump() {
 // ---- continuous game loop ----
 async function gameLoop(dealerIndex: number, currentLevel: number, spectator: boolean): Promise<void> {
   let dealer = dealerIndex;
-  let level = currentLevel;
+  // track each team's level separately
+  let levelAC = currentLevel; // TeamAC = indexes 0,2
+  let levelBD = currentLevel; // TeamBD = indexes 1,3
   let gameOver = false;
-  const matchLogs: string[] = []; // accumulate dump data for spectator mode
+  const matchLogs: string[] = [];
 
   while (!gameOver) {
-    await startNewRound(dealer, level);
+    // current defender's level depends on which team the dealer belongs to
+    const defenderLevel = dealer % 2 === 0 ? levelAC : levelBD;
 
-    const result = showRoundResult(dealer);
-    const nextLevel = result.newLevel;
-    const nextDealer = (dealer + 1) % 4;
+    await startNewRound(dealer, defenderLevel);
 
-    // game ends when someone surpasses A (level 14→15)
-    if (nextLevel > 14) {
-      console.log('\n' + GREEN + BOLD + '🏆 比赛结束！一方已超过A（升级到' + rankLabel(nextLevel) + '）!' + RESET);
+    const result = showRoundResult();
+    const changes = result.changes;
+    const attackerSits = gameState.attackerPoints >= 80;
+
+    // update levels
+    const defenderTeam = dealer % 2;
+    if (attackerSits) {
+      // 闲家上台：闲家升级，庄家不变
+      if (defenderTeam === 0) {
+        // TeamAC defends, TeamBD attacks
+        levelBD += changes.attackerChange;
+      } else {
+        // TeamBD defends, TeamAC attacks
+        levelAC += changes.attackerChange;
+      }
+    } else {
+      // 庄家守庄：庄家升级
+      if (defenderTeam === 0) {
+        levelAC += changes.defenderChange;
+      } else {
+        levelBD += changes.defenderChange;
+      }
+    }
+
+    // game ends when either team surpasses A (14)
+    if (levelAC > 14 || levelBD > 14) {
+      console.log('\n' + GREEN + BOLD + `🏆 比赛结束！TeamAC=${rankLabel(levelAC)} TeamBD=${rankLabel(levelBD)}` + RESET);
       gameOver = true;
     }
 
     if (gameOver) {
-      // still dump this round for spectator
-      if (spectator) {
-        const snapshot = serialize(gameState, aiPlayers, DEBUG);
-        matchLogs.push(snapshot);
-      }
+      if (spectator) { const s = serialize(gameState, aiPlayers, DEBUG); matchLogs.push(s); }
       break;
     }
 
     if (spectator) {
-      const snapshot = serialize(gameState, aiPlayers, DEBUG);
-      matchLogs.push(snapshot);
-      console.log(`📼 观战记录: 第 ${gameState.trickHistory.length || '?'} 墩`);
+      const snap = serialize(gameState, aiPlayers, DEBUG);
+      matchLogs.push(snap);
+      console.log(`📼 观战记录: 第 ${gameState.trickHistory.length || '?'} 墩 | TeamAC=${rankLabel(levelAC)} TeamBD=${rankLabel(levelBD)}`);
       await sleep(1500);
     } else {
-      const ans = await ask(`\n继续下一局? (y/n, 默认y): `);
+      const ans = await ask(`\n继续下一局? (TeamAC=${rankLabel(levelAC)} TeamBD=${rankLabel(levelBD)}) (y/n, 默认y): `);
       if (ans.toLowerCase() === 'n') break;
     }
 
-    dealer = nextDealer;
-    level = nextLevel;
+    dealer = attackerSits ? (dealer + 1) % 4 : dealer;
   }
 
   // spectator mode: write full match to single file
@@ -827,7 +847,7 @@ function showHumanHands() {
   }
 }
 
-function showRoundResult(oldDealer: number): { newLevel: number } {
+function showRoundResult(): { changes: { defenderChange: number; attackerChange: number } } {
   console.log('\n' + BOLD + '=== 本局结束 ===' + RESET);
   console.log(`闲家得分: ${gameState.attackerPoints}`);
 
@@ -839,19 +859,18 @@ function showRoundResult(oldDealer: number): { newLevel: number } {
   console.log(`底牌分数: ${bp} ×2 = ${bp * 2}`);
 
   const changes = computeLevelChange(gameState.attackerPoints);
-  const defenderTeam = gameState.trumpDeclaration?.declarerIndex !== undefined
-    ? gameState.trumpDeclaration.declarerIndex % 2
-    : oldDealer % 2;
-  const attackerTeam = defenderTeam === 0 ? 1 : 0;
-  const newLevel = gameState.currentLevel + (attackerTeam === 1 ? changes.attackerChange : changes.defenderChange);
+  const attackerSits = gameState.attackerPoints >= 80;
 
-  if (changes.attackerChange > 0) {
-    console.log(GREEN + '闲家升级! 新级别: ' + rankLabel(newLevel) + RESET);
+  if (attackerSits) {
+    const up = changes.attackerChange;
+    console.log(GREEN + `闲家上台！${up > 0 ? '升' + up + '级' : '不升级'}` + RESET);
   } else {
-    console.log(`庄家${changes.defenderChange > 1 ? '跳' : ''}升级 ${changes.defenderChange}级 → 新级别: ${rankLabel(newLevel)}`);
+    const up = changes.defenderChange;
+    const label = up === 3 ? '大光' : up === 2 ? '小光' : '保级';
+    console.log(`庄家${label}（升${up}级）`);
   }
 
-  return { newLevel };
+  return { changes };
 }
 
 // ---- helpers ----

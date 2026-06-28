@@ -196,7 +196,8 @@ async function runGame() {
       : dealer % 2;
     const atkTeam = defenderTeam === 0 ? 1 : 0;
     level += (atkTeam === 1) ? changes.attackerChange : changes.defenderChange;
-    level = Math.min(level, 14);
-    dealer = (dealer + 1) % 4;
+    level = Math.max(2, Math.min(level, 14));
+    // 闲家上台才轮换庄家
+    if (gameState.attackerPoints >= 80) dealer = (dealer + 1) % 4;
   }
 }
