@@ -1,0 +1,398 @@
+import type { Card, CardSuit } from '../types/card.js';
+import { Rank, SpecialSuit, Suit, SUIT_ORDER, cardPoints, isPointCard } from '../types/card.js';
+import type { TrumpDeclaration } from '../types/game.js';
+import { isTrump, getEffectiveRank, sortHand } from '../model/rank.js';
+import { findAllPairs, detectTractor, classifyCombo } from '../rules/tractor.js';
+
+export interface AIResult<T> {
+  decision: T;
+  reason: string;
+}
+
+/** try to reveal trump during dealing */
+export function aiTryReveal(
+  hand: Card[],
+  dealtCards: Card[],
+  playerIndex: number,
+  level: number,
+  currentReveal: { suit: Suit | null; strength: number } | null,
+): { suit: Suit | null; reason: string } | null {
+  // only consider newly dealt cards + existing hand for reveal
+  const allCards = hand;
+
+  // check for pair of same jokers (NT) — two BigJokers or two SmallJokers
+  const bigJokers = allCards.filter(c => c.rank === Rank.BigJoker);
+  const smallJokers = allCards.filter(c => c.rank === Rank.SmallJoker);
+  if (bigJokers.length >= 2 || smallJokers.length >= 2) {
+    if (!currentReveal || currentReveal.strength < 3) {
+      return { suit: null, reason: '有对王，亮无主' };
+    }
+  }
+
+  // check for pair of level cards per suit
+  for (const suit of SUIT_ORDER) {
+    const levelCards = allCards.filter(c => c.suit === suit && c.rank === level);
+    if (levelCards.length >= 2) {
+      if (!currentReveal || currentReveal.strength < 2) {
+        return { suit, reason: `有${suitLabelCn(suit)}级牌对，亮主` };
+      }
+    }
+  }
+
+  // single level card
+  for (const suit of SUIT_ORDER) {
+    const levelCards = allCards.filter(c => c.suit === suit && c.rank === level);
+    if (levelCards.length >= 1) {
+      if (!currentReveal) {
+        return { suit, reason: `有${suitLabelCn(suit)}级牌单张，亮主` };
+      }
+    }
+  }
+
+  return null;
+}
+
+/** pick 8 cards to discard to bottom */
+export function aiChooseBottomCards(
+  hand: Card[],
+  config: TrumpDeclaration,
+): { keep: Card[]; discard: Card[]; reason: string } {
+  const scored = hand.map(card => ({
+    card,
+    score: cardKeepScore(card, config),
+  }));
+  scored.sort((a, b) => a.score - b.score);
+  const discard = scored.slice(0, 8).map(s => s.card);
+  const keep = scored.slice(8).map(s => s.card);
+
+  const reason = `保留高分牌(主牌${keep.filter(c => isTrump(c, config)).length}张)，弃短套低分牌`;
+  return { keep, discard, reason };
+}
+
+function cardKeepScore(card: Card, config: TrumpDeclaration): number {
+  let score = 0;
+  if (isTrump(card, config)) score += 50 + getEffectiveRank(card, config);
+  if (card.rank === Rank.Ace) score += 35;
+  if (card.rank === Rank.King) score += 28;
+  if (card.rank === Rank.Ten) score += 22;
+  if (card.rank === Rank.Five) score += 18;
+  if (card.rank >= Rank.Queen) score += 10;
+  return score;
+}
+
+/** decide what to lead */
+export function aiLeadPlay(
+  hand: Card[],
+  config: TrumpDeclaration,
+): { cards: Card[]; reason: string } {
+  const tractors = detectTractor(hand, config);
+  if (tractors.length > 0) {
+    return { cards: tractors[0], reason: `领出拖拉机(${tractors[0].length / 2}对)，清主牌` };
+  }
+
+  const pairs = findAllPairs(hand);
+  if (pairs.length > 0) {
+    pairs.sort((a, b) => getEffectiveRank(b[0], config) - getEffectiveRank(a[0], config));
+    return { cards: pairs[0], reason: '领出对子，试探牌力' };
+  }
+
+  const trumpCards = hand.filter(c => isTrump(c, config));
+  const nonTrump = hand.filter(c => !isTrump(c, config));
+
+  if (trumpCards.length > 6) {
+    trumpCards.sort((a, b) => getEffectiveRank(b, config) - getEffectiveRank(a, config));
+    return { cards: [trumpCards[0]], reason: `主牌多(${trumpCards.length}张)，出主牌清主` };
+  }
+
+  const aces = nonTrump.filter(c => c.rank === Rank.Ace);
+  if (aces.length > 0) return { cards: [aces[0]], reason: '领出A，清副牌' };
+
+  const bySuit = groupBySuit(nonTrump);
+  const longestSuit = bySuit.reduce((best, cards) =>
+    cards.length > best.length ? cards : best, bySuit[0] || [],
+  );
+  if (longestSuit.length > 0) {
+    longestSuit.sort((a, b) => a.rank - b.rank);
+    return { cards: [longestSuit[0]], reason: `出${suitLabelCn(longestSuit[0].suit as Suit)}小牌，长套引诱对手出分` };
+  }
+
+  const sorted = sortHand(hand, config);
+  return { cards: [sorted[sorted.length - 1]], reason: '出最小牌' };
+}
+
+/** sort comparator: when teammateWinning, prefer point cards; otherwise avoid them, prefer smallest */
+function discardSort(teammateWinning: boolean): (a: Card, b: Card) => number {
+  if (teammateWinning) {
+    return (a, b) => (isPointCard(b.rank) ? 100 : 0) - (isPointCard(a.rank) ? 100 : 0) || b.rank - a.rank;
+  }
+  return (a, b) =>
+    (isPointCard(a.rank) ? 100 : 0) + a.rank - (isPointCard(b.rank) ? 100 : 0) - b.rank;
+}
+
+function canBeatBest(cards: Card[], best: { cards: Card[]; playerIdx: number } | null | undefined, config: TrumpDeclaration): boolean {
+  if (!best || best.cards.length === 0) return true;
+  return Math.max(...cards.map(c => getEffectiveRank(c, config))) > Math.max(...best.cards.map(c => getEffectiveRank(c, config)));
+}
+
+function teammateWins(myIdx: number | undefined, best: { cards: Card[]; playerIdx: number } | null | undefined): boolean {
+  if (myIdx === undefined || !best) return false;
+  return best.playerIdx === (myIdx + 2) % 4;
+}
+
+/** decide what to follow */
+export function aiFollowPlay(
+  hand: Card[],
+  leadCards: Card[],
+  leadSuit: CardSuit,
+  config: TrumpDeclaration,
+  bestSoFar?: { cards: Card[]; playerIdx: number } | null,
+  myIdx?: number,
+): { cards: Card[]; reason: string } {
+  const leadLen = leadCards.length;
+  const tmWin = teammateWins(myIdx, bestSoFar);
+  const leadIsTrump = leadCards.every(c => isTrump(c, config));
+
+  if (!leadSuit || leadSuit === SpecialSuit.Joker) {
+    return aiFollowTrumpOnly(hand, leadCards, config, tmWin);
+  }
+
+  const leadSuitCards = hand.filter(
+    c => c.suit === leadSuit && !isTrump(c, config),
+  );
+  const trumpCards = hand.filter(c => isTrump(c, config));
+
+  if (leadIsTrump) {
+    if (leadLen > 1) {
+      return aiFollowTrumpOnly(hand, leadCards, config, tmWin);
+    }
+
+    // single trump lead: play smallest trump we have (must follow with trump)
+    if (trumpCards.length > 0) {
+      const leadMax = Math.max(...leadCards.map(c => getEffectiveRank(c, config)));
+      const canBeat = trumpCards.filter(c => getEffectiveRank(c, config) > leadMax);
+      if (canBeat.length > 0) {
+        canBeat.sort((a, b) => getEffectiveRank(a, config) - getEffectiveRank(b, config));
+        return { cards: [canBeat[0]], reason: '用最小能盖过的主牌' };
+      }
+      trumpCards.sort((a, b) => getEffectiveRank(a, config) - getEffectiveRank(b, config));
+      return { cards: [trumpCards[0]], reason: '主牌不够大，出最小主牌' };
+    }
+    // truly no trump — discard
+    const nonTrump0 = hand.filter(c => !isTrump(c, config));
+    if (nonTrump0.length > 0) {
+      nonTrump0.sort(discardSort(tmWin));
+      return { cards: [nonTrump0[0]], reason: tmWin ? '队友已大，垫分' : '无主牌，垫副牌' };
+    }
+    return { cards: [hand[0]], reason: '无牌可选' };
+  }
+
+  if (leadSuitCards.length >= leadLen) {
+    if (leadLen === 1) return aiFollowSingle(leadSuitCards, config, bestSoFar, tmWin);
+    return aiFollowMulti(leadSuitCards, leadCards, config, bestSoFar, tmWin);
+  }
+
+  // void in lead suit
+  if (trumpCards.length >= leadLen) {
+    trumpCards.sort((a, b) => getEffectiveRank(a, config) - getEffectiveRank(b, config));
+    return { cards: trumpCards.slice(-leadLen), reason: tmWin ? '队友已大，用小主牌' : '无领出花色，用主牌毙' };
+  }
+
+  // can't fully trump — discard
+  const nonTrump2 = hand.filter(c => !isTrump(c, config));
+  nonTrump2.sort(discardSort(tmWin));
+  if (nonTrump2.length >= leadLen) {
+    return { cards: nonTrump2.slice(0, leadLen), reason: tmWin ? '队友已大，垫分' : '垫低分牌' };
+  }
+  trumpCards.sort((a, b) => getEffectiveRank(a, config) - getEffectiveRank(b, config));
+  return {
+    cards: [...nonTrump2, ...trumpCards.slice(0, leadLen - nonTrump2.length)],
+    reason: tmWin ? '队友已大' : '垫牌(含主牌)',
+  };
+}
+
+function aiFollowSingle(
+  leadSuitCards: Card[],
+  config: TrumpDeclaration,
+  bestSoFar?: { cards: Card[]; playerIdx: number } | null,
+  tmWin?: boolean,
+): { cards: Card[]; reason: string } {
+  leadSuitCards.sort((a, b) => getEffectiveRank(b, config) - getEffectiveRank(a, config));
+
+  if (tmWin) {
+    leadSuitCards.sort(discardSort(true));
+    return { cards: [leadSuitCards[0]], reason: '队友已大，垫分牌' };
+  }
+
+  if (bestSoFar && !canBeatBest([leadSuitCards[0]], bestSoFar, config)) {
+    leadSuitCards.sort(discardSort(false));
+    return { cards: [leadSuitCards[0]], reason: '盖不过，出最小牌' };
+  }
+
+  if (bestSoFar && bestSoFar.cards.length > 0) {
+    const bestRank = Math.max(...bestSoFar.cards.map(c => getEffectiveRank(c, config)));
+    const beaters = leadSuitCards.filter(c => getEffectiveRank(c, config) > bestRank);
+    if (beaters.length > 0) {
+      beaters.sort((a, b) => getEffectiveRank(a, config) - getEffectiveRank(b, config));
+      return { cards: [beaters[0]], reason: `用最小能盖过${cardName(beaters[0])}` };
+    }
+  }
+
+  return { cards: [leadSuitCards[0]], reason: `出同花色最大牌${cardName(leadSuitCards[0])}` };
+}
+
+function aiFollowMulti(
+  leadSuitCards: Card[],
+  leadCards: Card[],
+  config: TrumpDeclaration,
+  bestSoFar?: { cards: Card[]; playerIdx: number } | null,
+  tmWin?: boolean,
+): { cards: Card[]; reason: string } {
+  const leadLen = leadCards.length;
+  const leadPairs = findAllPairs(leadCards);
+  const myPairs = findAllPairs(leadSuitCards);
+  const leadTractors = detectTractor(leadCards, config);
+
+  if (leadTractors.length > 0) {
+    const myTractors = detectTractor(leadSuitCards, config);
+    if (myTractors.length > 0 && myTractors[0].length === leadLen) {
+      return { cards: myTractors[0], reason: '用拖拉机跟牌' };
+    }
+  }
+
+  if (leadPairs.length > 0 && myPairs.length >= leadPairs.length) {
+    myPairs.sort((a, b) => getEffectiveRank(b[0], config) - getEffectiveRank(a[0], config));
+    const chosen = myPairs.slice(0, leadPairs.length).flat();
+    if (chosen.length < leadLen) {
+      const used = new Set(chosen.map(c => c.id));
+      const remaining = leadSuitCards.filter(c => !used.has(c.id));
+      remaining.sort((a, b) => a.rank - b.rank);
+      chosen.push(...remaining.slice(0, leadLen - chosen.length));
+    }
+    return { cards: chosen.slice(0, leadLen), reason: '用对子跟牌' };
+  }
+
+  if (tmWin) {
+    leadSuitCards.sort(discardSort(true));
+    return { cards: leadSuitCards.slice(0, leadLen), reason: '队友已大，垫分牌' };
+  }
+
+  leadSuitCards.sort(discardSort(false));
+  return { cards: leadSuitCards.slice(0, leadLen), reason: '盖不过，出最小牌' };
+}
+
+/** follow when lead is all jokers or all trump */
+function aiFollowTrumpOnly(
+  hand: Card[],
+  leadCards: Card[],
+  config: TrumpDeclaration,
+  tmWin?: boolean,
+): { cards: Card[]; reason: string } {
+  const leadLen = leadCards.length;
+  const leadCombo = classifyCombo(leadCards, config);
+  const sorter = discardSort(!!tmWin);
+
+  const jokers = hand.filter(c => c.suit === SpecialSuit.Joker);
+  const trump = hand.filter(c => isTrump(c, config) && c.suit !== SpecialSuit.Joker);
+  const allTrump = [...jokers, ...trump];
+  allTrump.sort((a, b) => getEffectiveRank(b, config) - getEffectiveRank(a, config));
+
+  if (leadLen === 1) {
+    if (allTrump.length > 0) {
+      return { cards: [allTrump[0]], reason: '用主牌跟牌' };
+    }
+    const nonTrump = hand.filter(c => !isTrump(c, config));
+    nonTrump.sort((a, b) => (isPointCard(a.rank) ? 100 : 0) + a.rank - (isPointCard(b.rank) ? 100 : 0) - b.rank);
+    return { cards: [nonTrump[0] || hand[0]], reason: '无主牌，垫牌' };
+  }
+
+  // multi-card lead: must match pattern exactly
+  if (leadCombo.hasTractor) {
+    const myTractors = detectTractor(allTrump, config);
+    if (myTractors.length > 0) {
+      return { cards: myTractors[0], reason: '用主牌拖拉机跟牌' };
+    }
+    // can't match tractor — play smallest same-count trump cards
+    allTrump.sort((a, b) => getEffectiveRank(a, config) - getEffectiveRank(b, config));
+    if (allTrump.length >= leadLen) {
+      return { cards: allTrump.slice(0, leadLen), reason: '无拖拉机，出最小主牌' };
+    }
+  }
+
+  // pair/tractor pattern: try to match pairs
+  const myPairs = findAllPairs(allTrump);
+  const leadPairs = findAllPairs(leadCards);
+
+  if (leadPairs.length > 0) {
+    if (myPairs.length >= leadPairs.length) {
+      myPairs.sort((a, b) => getEffectiveRank(b[0], config) - getEffectiveRank(a[0], config));
+      const picked = myPairs.slice(0, leadPairs.length).flat();
+      if (picked.length === leadLen) {
+        return { cards: picked, reason: `用${leadPairs.length}个主牌对子跟牌` };
+      }
+    }
+    // have some pairs but not enough, or not exact match
+    if (myPairs.length > 0) {
+      const picked = myPairs.flat();
+      const usedIds = new Set(picked.map(c => c.id));
+      const remaining = allTrump.filter(c => !usedIds.has(c.id));
+      return {
+        cards: [...picked, ...remaining.slice(0, leadLen - picked.length)],
+        reason: `部分主牌对子跟牌(${myPairs.length}对可用)`,
+      };
+    }
+  }
+
+  // can't match any pattern — play smallest trump cards
+  allTrump.sort((a, b) => getEffectiveRank(a, config) - getEffectiveRank(b, config));
+  if (allTrump.length >= leadLen) {
+    return { cards: allTrump.slice(0, leadLen), reason: `出${leadLen}张最小主牌` };
+  }
+
+  // really can't — pad with non-trump
+  const nonTrump = hand.filter(c => !isTrump(c, config));
+  nonTrump.sort((a, b) => (isPointCard(a.rank) ? 100 : 0) + a.rank - (isPointCard(b.rank) ? 100 : 0) - b.rank);
+  return {
+    cards: [...allTrump, ...nonTrump.slice(0, leadLen - allTrump.length)],
+    reason: '主牌不足，补垫牌',
+  };
+}
+
+export function groupBySuit(cards: Card[]): Card[][] {
+  const groups = new Map<string, Card[]>();
+  for (const card of cards) {
+    const key = String(card.suit);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(card);
+  }
+  return Array.from(groups.values());
+}
+
+function suitLabelCn(suit: Suit): string {
+  return { S: '♠', H: '♥', C: '♣', D: '♦' }[suit] || suit;
+}
+
+function cardName(card: Card): string {
+  const rankMap: Record<number, string> = {
+    14: 'A', 13: 'K', 12: 'Q', 11: 'J', 15: 'joker', 16: 'JOKER',
+  };
+  const rank = rankMap[card.rank] || String(card.rank);
+  const suit = card.isJoker ? '' : { S: '♠', H: '♥', C: '♣', D: '♦' }[card.suit as Suit] || String(card.suit);
+  return suit + rank;
+}
+
+/** suggest plays for human in debug mode */
+export function suggestPlay(
+  hand: Card[],
+  isLeading: boolean,
+  leadCombo: import('../types/play.js').ComboClass | null,
+  leadSuit: CardSuit | null,
+  config: TrumpDeclaration,
+): { suggested: Card[]; reason: string } | null {
+  const result = isLeading ? aiLeadPlay(hand, config) : (
+    leadCombo && leadSuit
+      ? aiFollowPlay(hand, leadCombo.cards, leadSuit, config)
+      : null
+  );
+  if (!result) return null;
+  return { suggested: result.cards, reason: result.reason };
+}

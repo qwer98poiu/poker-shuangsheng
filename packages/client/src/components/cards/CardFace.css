@@ -1,0 +1,125 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  background: #fff;
+  border: 2px solid #333;
+  border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  transition: transform 0.15s, box-shadow 0.15s;
+  font-family: 'Georgia', 'Noto Sans SC', serif;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.card.size-small {
+  width: 50px;
+  height: 70px;
+  padding: 3px;
+  font-size: 12px;
+}
+
+.card.size-medium {
+  width: 70px;
+  height: 98px;
+  padding: 4px;
+  font-size: 14px;
+}
+
+.card.size-large {
+  width: 90px;
+  height: 126px;
+  padding: 6px;
+  font-size: 18px;
+}
+
+.card.selected {
+  transform: translateY(-12px);
+  border-color: #007aff;
+  box-shadow: 0 6px 20px rgba(0, 122, 255, 0.5);
+}
+
+.card.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.card.highlighted {
+  border-color: #ff9500;
+  box-shadow: 0 0 12px rgba(255, 149, 0, 0.5);
+}
+
+.card.red {
+  color: #d32f2f;
+}
+
+.card.black {
+  color: #212121;
+}
+
+.card.joker-card {
+  background: linear-gradient(135deg, #fff 0%, #ffe0b2 100%);
+}
+
+.card-corner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+}
+
+.card-corner.top-left {
+  position: absolute;
+  top: 4px;
+  left: 6px;
+}
+
+.card-corner.bottom-right {
+  position: absolute;
+  bottom: 4px;
+  right: 6px;
+  transform: rotate(180deg);
+}
+
+.card-rank {
+  font-weight: bold;
+}
+
+.card-suit {
+  font-size: 1.1em;
+}
+
+.card-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+}
+
+.card-suit-large {
+  font-size: 2em;
+}
+
+.card-joker-icon {
+  font-size: 2.5em;
+}
+
+.card-back {
+  background: linear-gradient(135deg, #1a237e 0%, #0d47a1 100%);
+  border-color: #0d47a1;
+}
+
+.card-back-pattern {
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 2em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}

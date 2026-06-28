@@ -1,0 +1,120 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: 'PingFang SC', 'Noto Sans SC', 'Microsoft YaHei', 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: #0a3d24;
+  color: #e0e0e0;
+}
+
+.app-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #0a3d24 0%, #1a5c3a 100%);
+}
+
+/* setup panel */
+.setup-panel {
+  text-align: center;
+  padding: 40px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  max-width: 420px;
+  width: 90%;
+}
+
+.setup-panel h1 {
+  font-size: 42px;
+  margin-bottom: 6px;
+}
+
+.setup-subtitle {
+  font-size: 14px;
+  opacity: 0.6;
+  margin-bottom: 28px;
+}
+
+.setup-players {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.setup-player-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+}
+
+.setup-player-pos {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.setup-toggle {
+  padding: 6px 18px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+  background: transparent;
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.setup-toggle:hover {
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.setup-toggle.human {
+  border-color: #4caf50;
+  color: #4caf50;
+}
+
+.setup-toggle.ai {
+  border-color: #ff9800;
+  color: #ff9800;
+}
+
+.setup-summary {
+  font-size: 14px;
+  opacity: 0.7;
+  margin-bottom: 20px;
+}
+
+.setup-start-btn {
+  padding: 14px 48px;
+  border: none;
+  border-radius: 12px;
+  background: #ffd740;
+  color: #1a1a1a;
+  font-size: 20px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.setup-start-btn:hover {
+  background: #ffc107;
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(255, 215, 0, 0.4);
+}

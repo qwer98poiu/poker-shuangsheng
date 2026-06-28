@@ -1,0 +1,13 @@
+{
+  "name": "@poker/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "npx tsx src/index.ts",
+    "dev": "npx tsx --watch src/index.ts"
+  },
+  "dependencies": {
+    "@poker/engine": "*"
+  }
+}
