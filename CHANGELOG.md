@@ -153,3 +153,35 @@
 - **影响文件**：`packages/engine/src/game/state.ts` — `computeLevelChange()`
 - **影响文件**：`packages/cli/src/index.ts` — `gameLoop()`、`showRoundResult()`
 - **影响文件**：`packages/cli/src/test-run.ts` — 庄家轮换逻辑
+
+## 2026-06-30 23:43
+
+### 大规模重构：engine 拆分为 10 个纯函数子模块
+
+**新结构**：
+- `types.ts` — 统一类型定义（ComboClass 新增 tractors 数组支持多拖拉机）
+- `model.ts` — 卡牌工厂、牌组、等级排序、手牌排序
+- `dealing/` — 发牌（随机/给定牌组）
+- `revealing/` — 亮主/反主（strength: 对大王4 > 对小王3 > 对级牌2 > 单张级牌1）
+- `bottom-exchange/` — 扣底策略 + 主牌警告检查
+- `leading/` — 领出验证 + 甩牌检测（validateThrow）
+- `following/` — 跟出验证（matchPattern 伪代码实现）
+- `pattern/` — 牌型检测（classify/detectTractors/findAllPairs，支持跨组拖拉机）
+- `comparing/` — 大小比较（compareTwo/determineWinner，完整甩牌+拖拉机比较逻辑）
+- `scoring/` — 得分管道（一墩得分、抠底倍率、闲家累积、升级规则）
+
+**升级规则修正**：
+- 0=大光(+3)，5-35=小光(+2)，40-75=保级(+1)，80-115=上台(0)，≥120=每40分台阶+1级(不封顶)
+
+**抠底倍率**：
+- 单张×2，对子×4，拖拉机(n对)×2^(n+1)，甩牌取子牌型最高倍率
+
+**庄家轮换**：
+- 只有闲家≥80才下台，<80守庄。gameLoop 独立追踪 TeamAC/TeamBD 级别。
+
+**新增 utility 包**：
+- `compact.ts` — JSON→紧凑文本转换工具（`shortCard`/`compactRound`/`compactMatch`/`convertFile`）
+
+**测试**：71 个新测试覆盖全部新模块（revealing/pattern/leading/following/comparing/scoring/throw-validation）。
+
+**影响文件**：packages/engine/src/ 全面重构，新增 packages/utility/，删除旧 test 文件。

@@ -1,34 +1,23 @@
-// types
-export { Suit, SpecialSuit, Rank, SUIT_ORDER, ALL_SUITS, cardId, rankLabel, suitLabel, suitName, isRed, cardPoints, isPointCard } from './types/card.js';
-export type { Card, CardSuit } from './types/card.js';
+/**
+ * @poker/engine — Refactored entry point.
+ *
+ * Types & model
+ */
+export * from './types.js';
+export * from './model.js';
 
-// model
-export { createCard, cardsEqual, cardKey } from './model/card.js';
-export { createFullDeck, shuffle, dealCards } from './model/deck.js';
-export { getEffectiveRank, isTrump, compareCards, sortHand } from './model/rank.js';
+// Core sub-modules (each with own tests)
+export * from './dealing/index.js';
+export * from './revealing/index.js';
+export * from './bottom-exchange/index.js';
+export * from './leading/index.js';
+export * from './following/index.js';
+export * from './pattern/index.js';
+export * from './comparing/index.js';
+export * from './scoring/index.js';
 
-// rules
-export { classifyCombo, detectTractor, findAllPairs } from './rules/tractor.js';
-export { compareInTrick, getPrimaryCard, getComboSuit } from './rules/comparison.js';
-export { validateFollowPlay, validateLeadPlay, getLeadSuit, findLegalPlays } from './rules/validation.js';
+// AI (reusing old ai/index.ts for now — will be ported later)
+export * from './ai/index.js';
 
-// game
-export { tryReveal, finalizeReveal, playCards, computeLevelChange } from './game/state.js';
-
-export {
-  GamePhase, Team, getTeam, teammateIndex, createInitialState,
-} from './types/game.js';
-export type {
-  GameState, PlayerState, TrumpDeclaration, Trick, Reveal, AIReason,
-} from './types/game.js';
-
-export {
-  PatternType, ComparisonResult,
-} from './types/play.js';
-export type { ComboClass, PlayedCards } from './types/play.js';
-
-// AI
-export { aiTryReveal, aiChooseBottomCards, aiLeadPlay, aiFollowPlay, suggestPlay } from './ai/index.js';
-
-// serialization
-export { serialize, deserialize, resumeFromTrick } from './model/serialize.js';
+// Serialization (reusing old model/serialize.ts)
+export * from './model/serialize.js';
