@@ -5,9 +5,7 @@
 import type { Card, ComboClass, PlayedCards, TrumpDeclaration } from '../types.js';
 import { isTrump, getEffectiveRank } from '../model.js';
 import { cardPointsFromRank } from '../types.js';
-import { findAllPairs, detectTractors } from '../pattern/index.js';
-
-function sameSuit(a: Card, b: Card): boolean { return a.suit === b.suit; }
+import { findAllPairs, detectTractors, classify } from '../pattern/index.js';
 
 export function cardGreater(a: Card, b: Card, config: TrumpDeclaration): boolean {
   const aT = isTrump(a, config), bT = isTrump(b, config);
@@ -16,36 +14,18 @@ export function cardGreater(a: Card, b: Card, config: TrumpDeclaration): boolean
   return getEffectiveRank(a, config) > getEffectiveRank(b, config);
 }
 
-// ---- Card type helpers ----
-
-function isPair(cards: Card[]): boolean {
-  return cards.length === 2 && cards[0].rank === cards[1].rank && sameSuit(cards[0], cards[1]);
-}
-
-function isTractor(cards: Card[], config: TrumpDeclaration): boolean {
-  if (cards.length < 4 || cards.length % 2 !== 0) return false;
-  const tractors = detectTractors(cards, config);
-  return tractors.length > 0 && tractors.some(t => t.length === cards.length);
-}
-
 function allTrump(cards: Card[], config: TrumpDeclaration): boolean {
   return cards.every(c => isTrump(c, config));
 }
 
-/** All cards in the same "suit group" (all trump or all same off-suit). */
 function allSameSuitGroup(cards: Card[], config: TrumpDeclaration): boolean {
   if (cards.length <= 1) return true;
   return cards.every(c => isTrump(c, config)) ||
     cards.every(c => !isTrump(c, config) && c.suit === cards[0].suit);
 }
 
-type LeadType = 'single' | 'pair' | 'tractor' | 'throw';
-
-function determineLeadType(cards: Card[], config: TrumpDeclaration): LeadType {
-  if (cards.length === 1) return 'single';
-  if (isPair(cards)) return 'pair';
-  if (isTractor(cards, config)) return 'tractor';
-  return 'throw';
+function getLeadType(cards: Card[], config: TrumpDeclaration): ComboClass['type'] {
+  return classify(cards, config).type;
 }
 
 // ---- Component extraction ----
@@ -86,12 +66,12 @@ export function matchPattern(
   // Follow must be same suit group
   if (!allSameSuitGroup(follow, config)) return false;
 
-  const leadType = determineLeadType(lead, config);
+  const leadType = getLeadType(lead, config);
 
   if (leadType === 'single') return follow.length === 1;
-  if (leadType === 'pair') return isPair(follow);
+  if (leadType === 'pair') return getLeadType(follow, config) === 'pair';
   if (leadType === 'tractor') {
-    return isTractor(follow, config) && tractorLen(follow) === tractorLen(lead);
+    return getLeadType(follow, config) === 'tractor' && tractorLen(follow) === tractorLen(lead);
   }
 
   // throw
@@ -132,7 +112,7 @@ function getMaxInTractors(tractors: Card[][], minLen: number, config: TrumpDecla
 }
 
 function getCompareKey(lead: Card[], follow: Card[], config: TrumpDeclaration): Card {
-  const leadType = determineLeadType(lead, config);
+  const leadType = getLeadType(lead, config);
   const fc = extractComponents(follow, config);
 
   if (leadType === 'single') return follow[0];

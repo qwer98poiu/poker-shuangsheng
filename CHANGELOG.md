@@ -185,3 +185,12 @@
 **测试**：71 个新测试覆盖全部新模块（revealing/pattern/leading/following/comparing/scoring/throw-validation）。
 
 **影响文件**：packages/engine/src/ 全面重构，新增 packages/utility/，删除旧 test 文件。
+
+## 2026-07-01 20:55
+
+### comparing/index.ts: replace LeadType with ComboClass['type']
+- **重构**：移除内联的 `LeadType` 类型别名和 `determineLeadType()`。
+- **重构**：移除 `isPair()` 和 `isTractor()` 内联函数。
+- 改用 `getLeadType()` 委托 `classify()` from pattern 模块。
+- `leadType` 现在类型为 `ComboClass['type']`，不再重复定义。
+- **影响文件**：`packages/engine/src/comparing/index.ts`
