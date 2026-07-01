@@ -236,3 +236,12 @@
 - 71 项测试全部通过
 - Engine 编译无错误
 - CLI 启动正常
+
+## 2026-07-02 00:20
+
+### 跟牌验证修复：主牌不足时必须出全部主牌
+- **修复**：领出多张主牌时，跟牌者主牌数不足领出张数的场景，之前完全跳过了主牌检测（`trumpInHand.length >= leadCards.length` 条件为 false 就直接放行），导致人类玩家可以用全副牌绕过规则。
+- **修复**：改为 `mustPlay = Math.min(trumpInHand.length, leadCards.length)`，手上有几主牌就必须出几主牌，不够的部分才能用副牌填补。
+- **新增测试**：`partial trump — must play all available trump when lead is multi-trump`（3张主牌面对4张主牌领出，打4张副牌被拒）
+- **新增测试**：`partial trump — allowed when all available trump are played`（3主+1副正确通过）
+- **影响文件**：`packages/engine/src/following/index.ts`、`__tests__/following.test.ts`

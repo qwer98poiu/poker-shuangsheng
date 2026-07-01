@@ -21,10 +21,12 @@ export function validateFollow(
   const trumpInHand = hand.filter(c => isTrump(c, config));
 
   if (leadIsTrump) {
-    if (trumpInHand.length >= leadCards.length) {
-      if (cards.filter(c => isTrump(c, config)).length < leadCards.length)
-        return { valid: false, error: 'lead is trump — must follow with trump' };
-    }
+    // Must play all available trump, up to the lead count.
+    // If you have 2 trump and lead is 4, you must play those 2 trump + 2 fillers.
+    const mustPlay = Math.min(trumpInHand.length, leadCards.length);
+    if (cards.filter(c => isTrump(c, config)).length < mustPlay)
+      return { valid: false, error: 'lead is trump — must follow with trump' };
+
     if (leadCards.length >= 2) return checkPatternMatch(cards, trumpInHand, leadPattern, config);
     return { valid: true };
   }
