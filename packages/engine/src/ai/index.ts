@@ -1,8 +1,8 @@
-import type { Card, CardSuit } from '../types.js';
-import { Rank, SpecialSuit, Suit, SUIT_ORDER, cardPointsFromRank as cardPoints, isPointRank as isPointCard } from '../types.js';
+import type { Card, CardSuit, ComboClass } from '../types.js';
+import { Rank, SpecialSuit, Suit, SUIT_ORDER, isPointRank as isPointCard } from '../types.js';
 import type { TrumpDeclaration } from '../types.js';
 import { isTrump, getEffectiveRank, sortHand } from '../model.js';
-import { findAllPairs, classify as classifyCombo } from '../pattern/index.js';
+import { findAllPairs, detectTractors, classify as classifyCombo } from '../pattern/index.js';
 
 export interface AIResult<T> {
   decision: T;
@@ -92,7 +92,7 @@ export function aiLeadPlay(
   hand: Card[],
   config: TrumpDeclaration,
 ): { cards: Card[]; reason: string } {
-  const tractors = detectTractor(hand, config);
+  const tractors = detectTractors(hand, config);
   if (tractors.length > 0) {
     const cards = tractors[0];
     return { cards, reason: maybeAppendFinal(cards, hand, `领出拖拉机(${tractors[0].length / 2}对)，清主牌`) };
@@ -276,10 +276,10 @@ function aiFollowMulti(
   const leadLen = leadCards.length;
   const leadPairs = findAllPairs(leadCards);
   const myPairs = findAllPairs(leadSuitCards);
-  const leadTractors = detectTractor(leadCards, config);
+  const leadTractors = detectTractors(leadCards, config);
 
   if (leadTractors.length > 0) {
-    const myTractors = detectTractor(leadSuitCards, config);
+    const myTractors = detectTractors(leadSuitCards, config);
     if (myTractors.length > 0 && myTractors[0].length === leadLen) {
       return { cards: myTractors[0], reason: '用拖拉机跟牌' };
     }
@@ -337,7 +337,7 @@ function aiFollowTrumpOnly(
 
   // multi-card lead: try to match pattern with smallest possible cards
   if (leadCombo.hasTractor) {
-    const myTractors = detectTractor(allTrump, config);
+    const myTractors = detectTractors(allTrump, config);
     if (myTractors.length > 0) {
       // pick the smallest tractor (lowest max effective rank)
       myTractors.sort((a, b) =>
@@ -416,7 +416,7 @@ function cardName(card: Card): string {
 export function suggestPlay(
   hand: Card[],
   isLeading: boolean,
-  leadCombo: import('../types/play.js').ComboClass | null,
+  leadCombo: ComboClass | null,
   leadSuit: CardSuit | null,
   config: TrumpDeclaration,
 ): { suggested: Card[]; reason: string } | null {

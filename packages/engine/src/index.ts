@@ -16,6 +16,9 @@ export * from './pattern/index.js';
 export * from './comparing/index.js';
 export * from './scoring/index.js';
 
+// State machine (glue layer)
+export * from './game/index.js';
+
 // AI (reusing old ai/index.ts for now — will be ported later)
 export * from './ai/index.js';
 

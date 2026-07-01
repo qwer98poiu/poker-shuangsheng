@@ -59,7 +59,7 @@ function cardFromJSON(j: CardJSON): Card {
 }
 
 function comboToJSON(p: ComboClass): PlayJSON['pattern'] {
-  return { type: p.type, pairCount: p.pairCount, hasTractor: p.hasTractor, tractors: p.tractors };
+  return { type: p.type, pairCount: p.pairCount, hasTractor: p.hasTractor, tractors: p.tractors as { pairCount: number }[] };
 }
 
 function comboFromJSON(j: PlayJSON['pattern'], cards: Card[]): ComboClass {

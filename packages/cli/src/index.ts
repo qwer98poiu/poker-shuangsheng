@@ -1,24 +1,24 @@
 /**
  * 双升 (拖拉机) CLI version
  * Commands: card indices like "1 3 5", or debug commands starting with /
- * Debug: /hand <0-3>, /history, /score, /hint, /bottom, /debug
+ * Debug: /hand <0-3>, /history, /score, /hint, /bottom, /dump
  */
 import * as readline from 'readline';
 import * as fs from 'fs';
 import * as path from 'path';
 import {
-  createFullDeck, shuffle, dealCards,
+  createFullDeck, shuffle,
   createInitialState, GamePhase,
   tryReveal, finalizeReveal, playCards, computeLevelChange,
-  sortHand, cardPoints, isPointCard,
+  sortHand, cardPointsFromRank as cardPoints, isPointRank as isPointCard,
   rankLabel, suitLabel, suitName, isRed, isTrump, getEffectiveRank,
   aiTryReveal, aiChooseBottomCards, aiLeadPlay, aiFollowPlay,
   serialize, deserialize, resumeFromTrick,
+  Suit, Rank,
 } from '@poker/engine';
 import type {
   GameState, PlayerState, TrumpDeclaration, Card, AIReason,
 } from '@poker/engine';
-import { Suit, Rank } from '@poker/engine';
 
 const SAVE_DIR = path.join(process.cwd(), 'saves');
 
@@ -60,7 +60,6 @@ async function main() {
     console.log('\n可用的存档:');
     saveFiles.forEach((f, i) => {
       const s = JSON.parse(fs.readFileSync(f, 'utf-8'));
-      // handle both single-round dumps and multi-round match exports
       const isMatch = Array.isArray(s);
       const playerCount = isMatch ? 4 : (s.aiPlayers?.length ?? s.players?.length ?? 4);
       const trickCount = isMatch ? (s[0]?.tricksPlayed ?? '?') : (s.tricksPlayed ?? '?');
@@ -91,10 +90,8 @@ async function main() {
     DEBUG = resumed.debug;
     console.log(GREEN + `存档已加载，从第 ${resumed.state.tricksPlayed} 墩继续` + RESET);
     await doPlayPhase();
-    // after one round from resume, show result and end
     showRoundResult();
   } else {
-    // new game: setup players and loop
     const hc = await q('人类玩家数量 (0-4, 默认1): ');
     const parsed = parseInt(hc);
     HUMAN_COUNT = isNaN(parsed) ? 1 : Math.max(0, Math.min(4, parsed));
@@ -107,8 +104,6 @@ async function main() {
     if (DEBUG) console.log(CYAN + '调试模式已开启。可用命令: /hand <0-3>, /history, /score, /hint, /bottom, /dump' + RESET);
 
     const spectator = aiPlayers.every(v => v);
-
-    // continuous game loop
     await gameLoop(0, 2, spectator);
   }
 
@@ -144,14 +139,12 @@ function handleDump() {
 // ---- continuous game loop ----
 async function gameLoop(dealerIndex: number, currentLevel: number, spectator: boolean): Promise<void> {
   let dealer = dealerIndex;
-  // track each team's level separately
-  let levelAC = currentLevel; // TeamAC = indexes 0,2
-  let levelBD = currentLevel; // TeamBD = indexes 1,3
+  let levelAC = currentLevel;
+  let levelBD = currentLevel;
   let gameOver = false;
   const matchLogs: string[] = [];
 
   while (!gameOver) {
-    // current defender's level depends on which team the dealer belongs to
     const defenderLevel = dealer % 2 === 0 ? levelAC : levelBD;
 
     await startNewRound(dealer, defenderLevel);
@@ -160,19 +153,14 @@ async function gameLoop(dealerIndex: number, currentLevel: number, spectator: bo
     const changes = result.changes;
     const attackerSits = gameState.attackerPoints >= 80;
 
-    // update levels
     const defenderTeam = dealer % 2;
     if (attackerSits) {
-      // 闲家上台：闲家升级，庄家不变
       if (defenderTeam === 0) {
-        // TeamAC defends, TeamBD attacks
         levelBD += changes.attackerChange;
       } else {
-        // TeamBD defends, TeamAC attacks
         levelAC += changes.attackerChange;
       }
     } else {
-      // 庄家守庄：庄家升级
       if (defenderTeam === 0) {
         levelAC += changes.defenderChange;
       } else {
@@ -180,7 +168,6 @@ async function gameLoop(dealerIndex: number, currentLevel: number, spectator: bo
       }
     }
 
-    // game ends when either team surpasses A (14)
     if (levelAC > 14 || levelBD > 14) {
       console.log('\n' + GREEN + BOLD + `🏆 比赛结束！TeamAC=${rankLabel(levelAC)} TeamBD=${rankLabel(levelBD)}` + RESET);
       gameOver = true;
@@ -204,7 +191,6 @@ async function gameLoop(dealerIndex: number, currentLevel: number, spectator: bo
     dealer = attackerSits ? (dealer + 1) % 4 : dealer;
   }
 
-  // spectator mode: write full match to single file
   if (spectator && matchLogs.length > 0) {
     const matchFile = path.join(SAVE_DIR, `match-${new Date().toISOString().replace(/[:.]/g, '-')}.json`);
     if (!fs.existsSync(SAVE_DIR)) fs.mkdirSync(SAVE_DIR, { recursive: true });
@@ -232,16 +218,9 @@ async function startNewRound(dealerIndex: number, currentLevel: number) {
     emptyPlayers as any, dealerIndex, currentLevel, DEBUG,
   );
 
-  // --- dealing phase ---
   await doDeal();
-
-  // --- reveal phase ---
   await doReveal();
-
-  // --- bottom exchange ---
   await doBottomExchange();
-
-  // --- playing phase ---
   await doPlayPhase();
 }
 
@@ -256,7 +235,6 @@ async function doDeal() {
     const card = deck[i];
     dealt[pi].push(card);
 
-    // update state
     gameState = {
       ...gameState,
       dealtCards: dealt.map(a => [...a]) as any,
@@ -266,7 +244,6 @@ async function doDeal() {
       })) as any,
     };
 
-    // show reveal opportunities
     if (i % 10 === 0 && i > 0) {
       process.stdout.write(`发牌... ${i}/100\r`);
     }
@@ -292,7 +269,6 @@ async function doDeal() {
     }
   }
 
-  // bottom cards
   const bottom = deck.slice(100, 108);
   gameState = {
     ...gameState,
@@ -302,8 +278,6 @@ async function doDeal() {
   };
 
   console.log(`\n发牌完成！每人 ${gameState.players[0].hand.length} 张，底牌 ${bottom.length} 张。`);
-
-  // show human their hand
   showHumanHands();
 }
 
@@ -323,13 +297,11 @@ async function doReveal() {
     console.log('无人亮主，将由庄家叫主。');
   }
 
-  // give humans a chance to reveal if they haven't
   for (const pi of [0, 1, 2, 3]) {
     if (!aiPlayers[pi]) {
       const player = gameState.players[pi];
       const level = gameState.currentLevel;
 
-      // check if player can reveal
       const bigJ = player.hand.filter(c => c.rank === Rank.BigJoker);
       const smallJ = player.hand.filter(c => c.rank === Rank.SmallJoker);
       const canNT = bigJ.length >= 2 || smallJ.length >= 2;
@@ -370,7 +342,6 @@ async function doReveal() {
     }
   }
 
-  // finalize
   gameState = finalizeReveal(gameState);
   console.log(`\n最终主牌: ${showTrump(gameState.trumpDeclaration!)}`);
   console.log(`庄家: ${playerName(gameState.trumpDeclaration!.declarerIndex)}`);
@@ -387,7 +358,6 @@ async function doBottomExchange() {
   console.log(`底牌 (8张): ${showCards(gameState.bottomCards)}`);
 
   if (aiPlayers[declarerIdx]) {
-    // AI: choose 8 from 25 originals to discard, then take bottom
     const { discard, reason } = aiChooseBottomCards(declarer.hand, gameState.trumpDeclaration!);
     const newHand = declarer.hand.filter(c => !discard.some(d => d.id === c.id));
     const newPlayers = gameState.players.map((p, i) =>
@@ -402,7 +372,6 @@ async function doBottomExchange() {
     };
     if (DEBUG) console.log(CYAN + `AI 扣底理由: ${reason}` + RESET);
   } else {
-    // Human: merge bottom into hand → 33 cards, pick 8 to discard
     const mergedHand = [...declarer.hand, ...gameState.bottomCards];
     gameState = {
       ...gameState,
@@ -441,7 +410,6 @@ async function doPlayPhase() {
   let trickNum = 0;
 
   while (gameState.tricksPlayed < 25) {
-    // all four hands empty = round naturally over
     const allEmpty = gameState.players.every(p => p.hand.length === 0);
     if (allEmpty) break;
 
@@ -451,7 +419,6 @@ async function doPlayPhase() {
     for (let i = 0; i < 4; i++) {
       const cp = gameState.currentPlayerIndex;
       if (gameState.players[cp].hand.length === 0) {
-        // shouldn't happen if allEmpty check works, but guard
         if (DEBUG) console.log(`⚠️ P${cp + 1} 手牌空但仍在回合中，跳过`);
         break;
       }
@@ -461,18 +428,15 @@ async function doPlayPhase() {
 
     if (gameState.phase === GamePhase.RoundEnd) break;
 
-    // show trick winner
     const lastTrick = gameState.trickHistory[gameState.trickHistory.length - 1];
     console.log(`${playerName(lastTrick.winnerIndex)} 赢了这一墩！(得分: ${lastTrick.points})`);
     console.log(`闲家累计得分: ${gameState.attackerPoints}`);
   }
 }
 
-/** figure out who is currently winning this trick and what they played */
 function computeBestSoFar(state: GameState): { cards: Card[]; playerIdx: number } | null {
   if (state.trickPlays.length === 0) return null;
   const config = state.trumpDeclaration!;
-  const leadSuit = state.trickPlays[0].leadSuit;
   const leadPlay = state.trickPlays[0];
   const leadIsTrump = leadPlay.cards.every(c => isTrump(c, config));
 
@@ -482,7 +446,7 @@ function computeBestSoFar(state: GameState): { cards: Card[]; playerIdx: number 
   for (let i = 1; i < state.trickPlays.length; i++) {
     const pi = (state.leadPlayerIndex + i) % 4;
     const play = state.trickPlays[i];
-    if (doesPlayBeat(play, bestPlay, leadSuit, config, leadIsTrump)) {
+    if (doesPlayBeat(play, bestPlay, leadPlay.leadSuit, config, leadIsTrump)) {
       bestIdx = pi;
       bestPlay = play;
     }
@@ -490,12 +454,11 @@ function computeBestSoFar(state: GameState): { cards: Card[]; playerIdx: number 
   return { cards: bestPlay.cards, playerIdx: bestIdx };
 }
 
-/** compare two plays in the current trick — mirrors engine's comparePlays */
 function doesPlayBeat(
-  challenger: { cards: Card[]; pattern: { pairCount: number; hasTractor: boolean } },
-  current: { cards: Card[]; pattern: { pairCount: number; hasTractor: boolean } },
+  challenger: { cards: Card[]; pattern: { pairCount: number; hasTractor: boolean; tractors?: readonly { pairCount: number }[] } },
+  current: { cards: Card[]; pattern: { pairCount: number; hasTractor: boolean; tractors?: readonly { pairCount: number }[] } },
   leadSuit: string | null,
-  config: import('@poker/engine').TrumpDeclaration,
+  config: TrumpDeclaration,
   leadIsTrump: boolean,
 ): boolean {
   const cTrump = challenger.cards.some(c => isTrump(c, config));
@@ -503,7 +466,6 @@ function doesPlayBeat(
   if (cTrump && !curTrump) return true;
   if (!cTrump && curTrump) return false;
   if (cTrump && curTrump) {
-    // both trump: tractor > pair > single, then effective rank
     if (challenger.pattern.hasTractor && !current.pattern.hasTractor) return true;
     if (!challenger.pattern.hasTractor && current.pattern.hasTractor) return false;
     if (challenger.pattern.pairCount > current.pattern.pairCount) return true;
@@ -512,7 +474,6 @@ function doesPlayBeat(
     const curMax = Math.max(...current.cards.map(c => getEffectiveRank(c, config)));
     return cMax > curMax;
   }
-  // both non-trump
   const cInLead = leadSuit ? challenger.cards.every(c => c.suit === leadSuit) : false;
   const curInLead = leadSuit ? current.cards.every(c => c.suit === leadSuit) : false;
   if (cInLead && !curInLead) return true;
@@ -526,7 +487,7 @@ function doesPlayBeat(
     const curMax = Math.max(...current.cards.map(c => c.rank));
     return cMax > curMax;
   }
-  return false; // discarding never beats previous
+  return false;
 }
 
 async function doPlayerTurn(playerIndex: number) {
@@ -546,7 +507,7 @@ async function doPlayerTurn(playerIndex: number) {
       reason = r.reason;
     } else {
       const leadPlay = gameState.trickPlays[0];
-      const leadSuit = leadPlay.leadSuit ?? leadPlay.pattern?.cards?.[0]?.suit ?? leadPlay.cards[0]?.suit;
+      const leadSuit = leadPlay.leadSuit ?? leadPlay.cards[0]?.suit;
       if (!leadSuit) {
         cards = [player.hand[0]];
         reason = '异常领出，随便跟';
@@ -558,7 +519,6 @@ async function doPlayerTurn(playerIndex: number) {
       }
     }
 
-    // clamp card count to required
     if (!cards || cards.length === 0 || cards.some(c => !c)) {
       cards = player.hand.slice(0, Math.max(1, leadLen));
       reason = '空手牌降级';
@@ -571,7 +531,6 @@ async function doPlayerTurn(playerIndex: number) {
 
     const result = playCards(gameState, playerIndex, cards);
     if (result.error) {
-      // fallback chain
       const fb = playCards(gameState, playerIndex, player.hand.slice(0, Math.max(1, leadLen)));
       if (fb.error) {
         const fb2 = playCards(gameState, playerIndex, [player.hand[0]]);
@@ -619,7 +578,6 @@ async function doPlayerTurn(playerIndex: number) {
 
       if (input.startsWith('/')) {
         await handleDebugCommand(input, playerIndex);
-        // reprint context
         if (!isLeading) {
           console.log(`仍需跟 ${leadLen} 张牌:`);
         }
@@ -671,7 +629,6 @@ async function handleDebugCommand(cmd: string, playerIndex: number) {
     console.log(`DEBUG=${DEBUG}  人类=${HUMAN_COUNT}  主牌=${showTrump(gameState.trumpDeclaration!)}`);
     console.log(`墩数=${gameState.tricksPlayed}/25  闲家得分=${gameState.attackerPoints}`);
     console.log(`当前玩家=${playerName(gameState.currentPlayerIndex)}`);
-    // show AI reasons log
     if (gameState.aiReasons.length > 0) {
       console.log('\nAI 日志:');
       for (const r of gameState.aiReasons.slice(-10)) {
@@ -691,7 +648,6 @@ function showHand(playerIndex: number, highlight: Card[] = []) {
   const sorted = sortHand(player.hand, gameState.trumpDeclaration);
   console.log(`\n${BOLD}${playerName(playerIndex)} 的手牌 (${player.hand.length}张):${RESET}`);
 
-  // group by sort groups
   const groups: { label: string; cards: Card[] }[] = [];
   let currentLabel = '';
   let currentGroup: Card[] = [];
@@ -792,7 +748,6 @@ function showScoreDetail() {
   const defenderTeam = gameState.trumpDeclaration!.declarerIndex % 2;
   const attackerTeam = defenderTeam === 0 ? 1 : 0;
 
-  // count all point cards won by attacker
   const pointCardsWon = gameState.trickHistory
     .filter(t => t.winnerIndex % 2 === attackerTeam && t.points > 0)
     .flatMap(t => t.plays.flatMap(p => p.cards))
@@ -802,12 +757,10 @@ function showScoreDetail() {
   console.log(`已拿分数牌 (${pointCardsWon.length}张): ${showCards(pointCardsWon)}`);
   console.log(`底牌: ${showCards(gameState.bottomCards)}`);
 
-  // compute bottom potential
   let bp = 0;
   for (const c of gameState.bottomCards) bp += cardPoints(c.rank);
   console.log(`底牌分数: ${bp} (×2 = ${bp * 2})`);
 
-  // threshold
   if (gameState.attackerPoints >= 80) console.log(GREEN + '闲家已够80分，升级!' + RESET);
   else if (gameState.attackerPoints >= 40) console.log('闲家40+分，庄家保级');
   else console.log(YELLOW + '闲家不足40分，庄家跳级(小光)!' + RESET);
@@ -827,7 +780,7 @@ function showHint(playerIndex: number) {
     reason = r.reason;
   } else if (gameState.trickPlays.length > 0 && gameState.trickPlays[0]?.cards?.length > 0) {
     const leadPlay = gameState.trickPlays[0];
-    const suit = leadPlay.leadSuit || leadPlay.pattern?.cards?.[0]?.suit || leadPlay.cards[0]?.suit;
+    const suit = leadPlay.leadSuit || leadPlay.cards[0]?.suit;
     const bestSoFar = computeBestSoFar(gameState);
     const r = aiFollowPlay(player.hand, leadPlay.cards, suit, config, bestSoFar, playerIndex);
     suggested = r.cards;
@@ -839,8 +792,6 @@ function showHint(playerIndex: number) {
 
   console.log(GREEN + `💡 建议出: ${showCards(suggested)}` + RESET);
   console.log(GREEN + `   理由: ${reason}` + RESET);
-
-  // show highlighted hand
   showHand(playerIndex, suggested);
 }
 
@@ -856,7 +807,6 @@ function showRoundResult(): { changes: { defenderChange: number; attackerChange:
   console.log('\n' + BOLD + '=== 本局结束 ===' + RESET);
   console.log(`闲家得分: ${gameState.attackerPoints}`);
 
-  // bottom reveal
   console.log('底牌翻出:');
   showBottom();
   let bp = 0;

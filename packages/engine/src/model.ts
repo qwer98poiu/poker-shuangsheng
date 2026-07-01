@@ -6,13 +6,13 @@ import { Rank, Suit, SpecialSuit, SUIT_ORDER, cardId } from './types.js';
 
 // ---- Card factory ----
 
-export function createCard(suit: CardSuit | 'J', rank: Rank, idx: number): Card {
+export function createCard(suit: CardSuit, rank: Rank, idx: number): Card {
   return Object.freeze({
     id: cardId(suit, rank, idx),
-    suit,
+    suit: suit as CardSuit,
     rank,
-    isJoker: suit === SpecialSuit.Joker,
-  });
+    isJoker: suit === (SpecialSuit.Joker as CardSuit),
+  } as Card);
 }
 
 // ---- Deck ----

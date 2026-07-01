@@ -5,12 +5,10 @@
  * Throw check (甩牌): the thrown cards must be the highest remaining
  * of their suit group. No other player can have a higher sub-pattern.
  */
-import type { Card } from '../types.js';
+import type { Card, ValidationResult } from '../types.js';
 import type { TrumpDeclaration } from '../types.js';
 import { isTrump } from '../model.js';
 import { extractComponents, cardGreater } from '../comparing/index.js';
-
-export interface ValidationResult { readonly valid: boolean; readonly error?: string; }
 
 export function validateLead(cards: Card[], hand: Card[], config: TrumpDeclaration): ValidationResult {
   if (cards.length === 0) return { valid: false, error: 'must play at least one card' };

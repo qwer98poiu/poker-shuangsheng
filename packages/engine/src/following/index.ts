@@ -2,12 +2,10 @@
  * Module 5 — Following (跟出).
  * Validates a follow play against the current trick's lead.
  */
-import type { Card, CardSuit } from '../types.js';
+import type { Card, CardSuit, ValidationResult } from '../types.js';
 import type { TrumpDeclaration, ComboClass } from '../types.js';
 import { isTrump } from '../model.js';
 import { findAllPairs, detectTractors } from '../pattern/index.js';
-
-export interface ValidationResult { readonly valid: boolean; readonly error?: string; }
 
 export function validateFollow(
   cards: Card[], hand: Card[], leadCards: Card[],

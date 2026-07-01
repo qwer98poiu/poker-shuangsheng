@@ -1,17 +1,14 @@
 # Changelog
 
-## 2026-06-28 19:27
+## 2026-06-28 13:00
 
-### 扣底庄家手牌修正
-- **修复**：人类庄家扣底时手牌只有25张的问题。现在先合并底牌（25+8=33张），展示后再选8张扣入，剩余25张。
-- **影响文件**：`packages/cli/src/index.ts` - `doBottomExchange()`
-
-### CLI 人类出牌鲁棒性
-- 出牌输入支持空格分隔编号（如 `5 8`）
-- 出牌前显示已选牌和张数
-- 非领出时提示需跟牌张数
-- 引擎拒绝时打印原因，回到选牌循环
-- AI 出牌加三层降级：补/裁张数 → 手牌前N张 → 单张 → 跳过
+### 项目初始化
+- Monorepo 结构（engine + client + cli）
+- 双升引擎核心：Card 模型、Deck、等级排序、拖拉机检测、牌型比较、跟牌验证
+- 状态机：发牌→亮主→扣底→出牌→算分
+- AI 规则引擎：亮主、扣底、领出、跟牌
+- React 前端：牌桌布局、牌面渲染、调试面板
+- CLI 版本：交互式人类/AI 混战 + 调试命令（`/hand`, `/history`, `/score`, `/hint`）
 
 ## 2026-06-28 17:52
 
@@ -40,15 +37,18 @@
 - 去除无意义的 suit 判断，主牌 vs 主牌用 effective rank，副牌 discarding 先出者胜。
 - **影响文件**：`packages/engine/src/game/state.ts` - `comparePlays()`
 
-## 2026-06-28 13:00
+## 2026-06-28 19:27
 
-### 项目初始化
-- Monorepo 结构（engine + client + cli）
-- 双升引擎核心：Card 模型、Deck、等级排序、拖拉机检测、牌型比较、跟牌验证
-- 状态机：发牌→亮主→扣底→出牌→算分
-- AI 规则引擎：亮主、扣底、领出、跟牌
-- React 前端：牌桌布局、牌面渲染、调试面板
-- CLI 版本：交互式人类/AI 混战 + 调试命令（`/hand`, `/history`, `/score`, `/hint`）
+### 扣底庄家手牌修正
+- **修复**：人类庄家扣底时手牌只有25张的问题。现在先合并底牌（25+8=33张），展示后再选8张扣入，剩余25张。
+- **影响文件**：`packages/cli/src/index.ts` - `doBottomExchange()`
+
+### CLI 人类出牌鲁棒性
+- 出牌输入支持空格分隔编号（如 `5 8`）
+- 出牌前显示已选牌和张数
+- 非领出时提示需跟牌张数
+- 引擎拒绝时打印原因，回到选牌循环
+- AI 出牌加三层降级：补/裁张数 → 手牌前N张 → 单张 → 跳过
 
 ## 2026-06-28 19:58
 
@@ -202,3 +202,37 @@
 - **更新**：`ai/index.ts` 和 `model/serialize.ts` 改为从新 `types.ts` 和 `model.ts` 导入。
 - **更新**：`serialize.ts` 中 ComboClass 的序列化适配新的 `tractors` 数组字段。
 - **影响文件**：`packages/engine/src/ai/index.ts`、`packages/engine/src/model/serialize.ts`
+
+## 2026-07-01 22:00
+
+### 创建 game 状态转换模块
+- 新建 `engine/src/game/index.ts` — 纯函数状态胶水层：
+  - `tryReveal(state, playerIndex, suit)` — 亮主/反主
+  - `finalizeReveal(state)` — 结束亮主阶段，无人亮则庄家自动叫主
+  - `playCards(state, playerIndex, cards)` — 领出/跟牌验证 + 牌型分类 + 墩结算
+- **影响文件**：`packages/engine/src/game/index.ts`、`packages/engine/src/index.ts`
+
+### 统一 ValidationResult 类型
+- 将 `ValidationResult` 接口从 `leading` 和 `following` 的本地定义移至 `types.ts` 作为共享导出，消除两个模块重复导出的歧义。
+- **影响文件**：`packages/engine/src/types.ts`、`leading/index.ts`、`following/index.ts`
+
+### 类型修复
+- `model.ts` — `createCard` 签名收紧为 `CardSuit`（移除字面量 `'J'`）
+- `model/serialize.ts` — `comboToJSON` 修复 readonly tractors 类型错误
+- **影响文件**：`packages/engine/src/model.ts`、`model/serialize.ts`
+
+### AI 模块适配
+- 修复 `ai/index.ts` 对已删除模块 `../types/play.js` 的残留引用
+- 函数名 `detectTractor` → `detectTractors`（匹配 pattern 模块导出）
+- 添加缺失的 `ComboClass` 和 `detectTractors` 导入
+- **影响文件**：`packages/engine/src/ai/index.ts`
+
+### CLI 适配新 engine API
+- 重写 `packages/cli/src/index.ts`：函数名对齐（`cardPointsFromRank` as `cardPoints`，`isPointRank` as `isPointCard`），导入显式指定 `Suit`、`Rank`，移除废弃的 `dealCards` 导入
+- 新建 `tsconfig.json`（cli、utility）支持类型检查
+- **影响文件**：`packages/cli/src/index.ts`、`tsconfig.json`、`packages/utility/tsconfig.json`
+
+### 验证
+- 71 项测试全部通过
+- Engine 编译无错误
+- CLI 启动正常

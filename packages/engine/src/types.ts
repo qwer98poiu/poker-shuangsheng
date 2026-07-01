@@ -79,6 +79,8 @@ export function isPointRank(rank: Rank): boolean {
 
 // ---- Game State ----
 
+export interface ValidationResult { readonly valid: boolean; readonly error?: string; }
+
 export enum GamePhase {
   Dealing = 'dealing',
   Revealing = 'revealing',
