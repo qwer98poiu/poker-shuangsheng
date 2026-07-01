@@ -1,9 +1,7 @@
-import type { Card, CardSuit } from '../types/card.js';
-import { Suit } from '../types/card.js';
-import type { GameState, PlayerState, TrumpDeclaration } from '../types/game.js';
-import { GamePhase } from '../types/game.js';
-import type { PlayedCards, ComboClass } from '../types/play.js';
-import { PatternType } from '../types/play.js';
+import type { Card, CardSuit } from '../types.js';
+import { Suit } from '../types.js';
+import type { GameState, PlayerState, TrumpDeclaration, PlayedCards, ComboClass } from '../types.js';
+import { GamePhase } from '../types.js';
 
 /** lightweight JSON shape for card */
 interface CardJSON {
@@ -43,7 +41,7 @@ interface TrickJSON {
 
 interface PlayJSON {
   cards: CardJSON[];
-  pattern: { type: string; pairCount: number; hasTractor: boolean; tractorPairCount: number };
+  pattern: { type: string; pairCount: number; hasTractor: boolean; tractors: { pairCount: number }[] };
   leadSuit: string | null;
 }
 
@@ -61,17 +59,17 @@ function cardFromJSON(j: CardJSON): Card {
 }
 
 function comboToJSON(p: ComboClass): PlayJSON['pattern'] {
-  return { type: p.type, pairCount: p.pairCount, hasTractor: p.hasTractor, tractorPairCount: p.tractorPairCount };
+  return { type: p.type, pairCount: p.pairCount, hasTractor: p.hasTractor, tractors: p.tractors };
 }
 
 function comboFromJSON(j: PlayJSON['pattern'], cards: Card[]): ComboClass {
   return {
-    type: j.type as PatternType,
+    type: j.type as ComboClass['type'],
     cards,
     length: cards.length,
     pairCount: j.pairCount,
     hasTractor: j.hasTractor,
-    tractorPairCount: j.tractorPairCount,
+    tractors: j.tractors,
   };
 }
 

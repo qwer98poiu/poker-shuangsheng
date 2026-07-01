@@ -194,3 +194,11 @@
 - 改用 `getLeadType()` 委托 `classify()` from pattern 模块。
 - `leadType` 现在类型为 `ComboClass['type']`，不再重复定义。
 - **影响文件**：`packages/engine/src/comparing/index.ts`
+
+## 2026-07-01 21:02
+
+### 清理旧 engine 文件
+- **删除**：旧 `types/card.ts`、`types/game.ts`、`types/play.ts`、`model/card.ts`、`model/deck.ts`、`model/rank.ts`、`rules/comparison.ts`、`rules/tractor.ts`、`rules/validation.ts`、`game/state.ts`（共 10 个文件）。
+- **更新**：`ai/index.ts` 和 `model/serialize.ts` 改为从新 `types.ts` 和 `model.ts` 导入。
+- **更新**：`serialize.ts` 中 ComboClass 的序列化适配新的 `tractors` 数组字段。
+- **影响文件**：`packages/engine/src/ai/index.ts`、`packages/engine/src/model/serialize.ts`

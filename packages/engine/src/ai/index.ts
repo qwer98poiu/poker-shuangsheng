@@ -1,8 +1,8 @@
-import type { Card, CardSuit } from '../types/card.js';
-import { Rank, SpecialSuit, Suit, SUIT_ORDER, cardPoints, isPointCard } from '../types/card.js';
-import type { TrumpDeclaration } from '../types/game.js';
-import { isTrump, getEffectiveRank, sortHand } from '../model/rank.js';
-import { findAllPairs, detectTractor, classifyCombo } from '../rules/tractor.js';
+import type { Card, CardSuit } from '../types.js';
+import { Rank, SpecialSuit, Suit, SUIT_ORDER, cardPointsFromRank as cardPoints, isPointRank as isPointCard } from '../types.js';
+import type { TrumpDeclaration } from '../types.js';
+import { isTrump, getEffectiveRank, sortHand } from '../model.js';
+import { findAllPairs, classify as classifyCombo } from '../pattern/index.js';
 
 export interface AIResult<T> {
   decision: T;
