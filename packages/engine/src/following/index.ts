@@ -1,56 +1,222 @@
 /**
  * Module 5 — Following (跟出).
+ *
  * Validates a follow play against the current trick's lead.
+ *
+ * General premise:
+ *  - hand cards in lead suit group ≤ lead count: play ALL of that suit, fill rest.
+ *  - hand cards in lead suit group > lead count: must play only from that suit,
+ *    match lead pattern as closely as possible.
+ *
+ * Pattern rules:
+ *  1. Tractor lead: must play same-length tractor (exact or extract from longer —
+ *     both equally valid).  If neither possible, play closest shorter tractor then
+ *     fill with pairs from other tractors (long→short) then regular pairs.
+ *  2. Pair lead: must play pairs if available.
+ *  3. Throw lead: decompose into tractors + pairs, apply 1 & 2.
  */
 import type { Card, CardSuit, ValidationResult } from '../types.js';
 import type { TrumpDeclaration, ComboClass } from '../types.js';
 import { isTrump } from '../model.js';
 import { findAllPairs, detectTractors } from '../pattern/index.js';
 
+// ---- helpers ----
+
+function followGroup(cards: Card[], config: TrumpDeclaration): string {
+  return cards.every(c => isTrump(c, config)) ? '_TRUMP_' : String(cards[0].suit);
+}
+
+/** Decompose a lead into ordered requirements:
+ *  tractor pair-counts (longest first) then standalone pair count. */
+interface LeadReqs {
+  tractorReqs: number[];
+  pairReqs: number;
+}
+function decomposeLead(lead: ComboClass): LeadReqs {
+  const tr = lead.tractors.map(t => t.pairCount);
+  tr.sort((a, b) => b - a);
+  return { tractorReqs: tr, pairReqs: lead.pairCount };
+}
+
+// ---- Main validation ----
+
 export function validateFollow(
   cards: Card[], hand: Card[], leadCards: Card[],
   leadPattern: ComboClass, leadSuit: CardSuit | null, config: TrumpDeclaration,
 ): ValidationResult {
   // Same count
-  if (cards.length !== leadCards.length) return { valid: false, error: `must play ${leadCards.length} cards` };
+  if (cards.length !== leadCards.length)
+    return { valid: false, error: `must play ${leadCards.length} cards` };
+
   // Cards in hand, no duplicates
-  for (const c of cards) { if (!c || !hand.some(h => h.id === c.id)) return { valid: false, error: 'card not in hand' }; }
-  if (new Set(cards.map(c => c.id)).size !== cards.length) return { valid: false, error: 'duplicate cards' };
+  const handIds = new Set(hand.map(c => c.id));
+  for (const c of cards) {
+    if (!c || !handIds.has(c.id)) return { valid: false, error: 'card not in hand' };
+  }
+  if (new Set(cards.map(c => c.id)).size !== cards.length)
+    return { valid: false, error: 'duplicate cards' };
 
-  const leadIsTrump = leadCards.every(c => isTrump(c, config));
-  const trumpInHand = hand.filter(c => isTrump(c, config));
+  const group = followGroup(leadCards, config);
+  const handInGroup = hand.filter(c => followGroup([c], config) === group);
+  const isTrumpLead = group === '_TRUMP_';
 
-  if (leadIsTrump) {
-    // Must play all available trump, up to the lead count.
-    // If you have 2 trump and lead is 4, you must play those 2 trump + 2 fillers.
-    const mustPlay = Math.min(trumpInHand.length, leadCards.length);
-    if (cards.filter(c => isTrump(c, config)).length < mustPlay)
-      return { valid: false, error: 'lead is trump — must follow with trump' };
+  // Void in lead suit — any play is legal
+  if (handInGroup.length === 0) return { valid: true };
 
-    if (leadCards.length >= 2) return checkPatternMatch(cards, trumpInHand, leadPattern, config);
+  // hand cards in group ≤ lead count: play ALL, fill rest with anything
+  if (handInGroup.length <= leadCards.length) {
+    const playedInGroup = cards.filter(c => followGroup([c], config) === group);
+    if (playedInGroup.length < handInGroup.length)
+      return { valid: false, error: isTrumpLead ? 'lead is trump — must follow with trump' : 'must follow suit' };
+    if (leadCards.length >= 2)
+      return matchPattern(playedInGroup, handInGroup, leadPattern, config);
     return { valid: true };
   }
 
-  // Off-suit lead
-  if (!leadSuit) return { valid: true };
-  const suitCards = hand.filter(c => c.suit === leadSuit && !isTrump(c, config));
-  if (suitCards.length >= leadCards.length) {
-    const playOff = cards.filter(c => !isTrump(c, config));
-    if (!playOff.every(c => c.suit === leadSuit)) return { valid: false, error: 'must follow suit' };
-    return checkPatternMatch(cards, suitCards, leadPattern, config);
-  }
-  return { valid: true }; // void — can trump or discard
+  // hand cards in group > lead count: must play ALL from this group
+  if (!cards.every(c => followGroup([c], config) === group))
+    return { valid: false, error: isTrumpLead ? 'lead is trump — must follow with trump' : 'must follow suit' };
+
+  return matchPattern(cards, handInGroup, leadPattern, config);
 }
 
-function checkPatternMatch(play: Card[], suitCards: Card[], lead: ComboClass, config: TrumpDeclaration): ValidationResult {
-  if (lead.type === 'pair' && play.length === 2) {
-    if (play[0].suit !== play[1].suit || play[0].rank !== play[1].rank) {
-      if (findAllPairs(suitCards).length > 0) return { valid: false, error: 'must play a pair' };
-    }
-  }
-  if (lead.hasTractor && suitCards.length >= 4) {
-    if (detectTractors(suitCards, config).length > 0 && detectTractors(play.filter(c => c.suit === suitCards[0].suit), config).length === 0)
-      return { valid: false, error: 'must play tractor' };
+// ---- Pattern matching ----
+
+function matchPattern(
+  played: Card[], handGroupCards: Card[], lead: ComboClass, config: TrumpDeclaration,
+): ValidationResult {
+  if (lead.type === 'single') return { valid: true };
+
+  if (lead.type === 'pair')
+    return checkPairFollow(played, handGroupCards, config);
+
+  // tractor or throw
+  return checkTractorOrThrowFollow(played, handGroupCards, lead, config);
+}
+
+// ---- Pair follow ----
+
+function checkPairFollow(
+  played: Card[], handGroupCards: Card[], config: TrumpDeclaration,
+): ValidationResult {
+  if (findAllPairs(handGroupCards).length > 0 ||
+      detectTractors(handGroupCards, config).length > 0) {
+    if (findAllPairs(played).length === 0)
+      return { valid: false, error: 'must play a pair' };
   }
   return { valid: true };
+}
+
+// ---- Tractor / throw follow ----
+
+function checkTractorOrThrowFollow(
+  played: Card[], handGroupCards: Card[], lead: ComboClass, config: TrumpDeclaration,
+): ValidationResult {
+  const leadReqs = decomposeLead(lead);
+  const ideal = computeIdealFollow(handGroupCards, leadReqs, config);
+
+  // Extract played structure
+  const playedTractors = detectTractors(played, config);
+  const playedTractorPairCounts = playedTractors.map(t => t.length / 2).sort((a, b) => b - a);
+  const playedPairIds = new Set(playedTractors.flat().map(c => c.id));
+  const playedPairs = findAllPairs(played).filter(p => !playedPairIds.has(p[0].id));
+
+  // 1. Tractor pair counts must match ideal
+  for (let i = 0; i < ideal.tractorPairCounts.length; i++) {
+    if (i >= playedTractorPairCounts.length)
+      return { valid: false, error: `must play a tractor (need ${ideal.tractorPairCounts[i]} pairs)` };
+    if (playedTractorPairCounts[i] !== ideal.tractorPairCounts[i])
+      return { valid: false, error: `tractor must have ${ideal.tractorPairCounts[i]} pairs, got ${playedTractorPairCounts[i]}` };
+  }
+
+  // 2. Total pair count must meet minimum
+  const playedTotal = playedTractorPairCounts.reduce((s, n) => s + n, 0) + playedPairs.length;
+  if (playedTotal < ideal.minTotalPairs)
+    return { valid: false, error: `must play at least ${ideal.minTotalPairs} pairs (only ${playedTotal})` };
+
+  return { valid: true };
+}
+
+// ---- Ideal follow computation ----
+
+interface FollowSpec {
+  tractorPairCounts: number[];  // required tractor pair counts, longest first
+  minTotalPairs: number;        // minimum total pair count (tractor + standalone)
+}
+
+function computeIdealFollow(
+  handCards: Card[], leadReqs: LeadReqs, config: TrumpDeclaration,
+): FollowSpec {
+  const totalReqPairs = leadReqs.tractorReqs.reduce((s, n) => s + n, 0) + leadReqs.pairReqs;
+
+  // Track available tractors and their used state
+  const handTractors = detectTractors(handCards, config);
+  const tracts: { cards: Card[]; used: boolean }[] = handTractors.map(t => ({ cards: t, used: false }));
+
+  const bestTractors: number[] = [];
+  const usedIds = new Set<string>();
+
+  for (const reqPairs of leadReqs.tractorReqs) {
+    const best = pickBestTractor(tracts, usedIds, reqPairs);
+    if (best) {
+      bestTractors.push(best.pairCount);
+      best.cards.forEach(c => usedIds.add(c.id));
+    }
+    // If no tractor available, stop trying to match more tractor slots
+  }
+
+  bestTractors.sort((a, b) => b - a); // longest first
+
+  // Fill capacity: pairs from unused tractors + regular pairs
+  const remaining = handCards.filter(c => !usedIds.has(c.id));
+  const remTractors = detectTractors(remaining, config);
+  const remPairIds = new Set(remTractors.flat().map(c => c.id));
+  const remPairs = findAllPairs(remaining).filter(p => !remPairIds.has(p[0].id));
+
+  const fillCap = remTractors.reduce((s, t) => s + t.length / 2, 0) + remPairs.length;
+  const played = bestTractors.reduce((s, n) => s + n, 0);
+  const needed = Math.max(0, totalReqPairs - played);
+
+  return {
+    tractorPairCounts: bestTractors,
+    minTotalPairs: played + Math.min(fillCap, needed),
+  };
+}
+
+// ---- Best tractor picker ----
+
+interface TractorSlot { cards: Card[]; used: boolean }
+
+function pickBestTractor(
+  tracts: TractorSlot[], usedIds: Set<string>, reqPairs: number,
+): { pairCount: number; cards: Card[] } | null {
+  const available = tracts
+    .filter(t => !t.used && t.cards.length >= 4)
+    .filter(t => t.cards.every(c => !usedIds.has(c.id)));
+
+  if (available.length === 0) return null;
+
+  // Exact match: same-length tractor
+  const exact = available.find(t => t.cards.length / 2 === reqPairs);
+  if (exact) {
+    exact.used = true;
+    return { pairCount: reqPairs, cards: exact.cards };
+  }
+
+  // Extract from longer: both equally valid as exact
+  const longer = available
+    .filter(t => t.cards.length / 2 > reqPairs)
+    .sort((a, b) => (a.cards.length / 2) - (b.cards.length / 2));
+  if (longer.length > 0) {
+    longer[0].used = true;
+    return { pairCount: reqPairs, cards: longer[0].cards.slice(0, reqPairs * 2) };
+  }
+
+  // Closest shorter: last resort
+  available.sort((a, b) => (b.cards.length / 2) - (a.cards.length / 2));
+  available[0].used = true;
+  return {
+    pairCount: available[0].cards.length / 2,
+    cards: available[0].cards,
+  };
 }

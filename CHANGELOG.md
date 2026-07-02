@@ -245,3 +245,25 @@
 - **新增测试**：`partial trump — must play all available trump when lead is multi-trump`（3张主牌面对4张主牌领出，打4张副牌被拒）
 - **新增测试**：`partial trump — allowed when all available trump are played`（3主+1副正确通过）
 - **影响文件**：`packages/engine/src/following/index.ts`、`__tests__/following.test.ts`
+
+## 2026-07-02 22:18
+
+### 跟牌规则全面重写
+
+**总前提**：
+- 同花色牌数 ≤ 领出张数：该花色全部打出，不足部分垫其他花色
+- 同花色牌数 > 领出张数：必须全出该花色，且牌型尽可能匹配领出牌型
+
+**拖拉机跟牌**：
+- 优先出相同对数的拖拉机（exact 或从 longer 截取，两者同等有效）
+- 都没有时出对数最接近的短拖拉机，再用其他拖拉机拆对、普通对牌补足
+
+**对牌跟牌**：
+- 手牌有对子（含拖拉机内的对子）则必须出对牌
+
+**甩牌跟牌**：
+- 将甩牌拆为拖拉机（从长到短）和对牌，依次应用上述规则
+
+**新增 `computeIdealFollow` / `pickBestTractor`**：计算手牌能达到的最佳跟牌结构（tractor 对数 + 最小总对数），然后与实际出牌比对验证。
+
+**影响文件**：`packages/engine/src/following/index.ts`
