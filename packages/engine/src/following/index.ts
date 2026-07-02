@@ -42,7 +42,7 @@ function decomposeLead(lead: ComboClass): LeadReqs {
 
 export function validateFollow(
   cards: Card[], hand: Card[], leadCards: Card[],
-  leadPattern: ComboClass, leadSuit: CardSuit | null, config: TrumpDeclaration,
+  leadPattern: ComboClass, _leadSuit: CardSuit | null, config: TrumpDeclaration,
 ): ValidationResult {
   // Same count
   if (cards.length !== leadCards.length)
