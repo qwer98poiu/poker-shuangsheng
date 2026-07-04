@@ -14,8 +14,9 @@ import {
   rankLabel, suitLabel, suitName, isRed, isTrump, getEffectiveRank,
   aiTryReveal, aiChooseBottomCards, aiLeadPlay, aiFollowPlay,
   serialize, deserialize, resumeFromTrick,
-  Suit, Rank,
+  Suit, Rank, validateFollow, validateLead,
 } from '@poker/engine';
+import { classify } from '@poker/engine';
 import type {
   GameState, PlayerState, TrumpDeclaration, Card, AIReason,
 } from '@poker/engine';
@@ -785,6 +786,35 @@ function showHint(playerIndex: number) {
     const r = aiFollowPlay(player.hand, leadPlay.cards, suit, config, bestSoFar, playerIndex);
     suggested = r.cards;
     reason = r.reason;
+
+    // Safety net: validate the suggestion against engine rules
+    const leadPattern = classify(leadPlay.cards, config);
+    const vr = validateFollow(suggested, player.hand, leadPlay.cards, leadPattern, suit as any, config);
+    if (!vr.valid) {
+      console.log(YELLOW + `⚠ 提示校验失败: ${vr.error}，重试...` + RESET);
+      // Fallback: just play all lead suit cards (if any) and fill with smallest
+      const leadSuitCards = player.hand.filter(c => c.suit === suit && !isTrump(c, config));
+      const trumpCards = player.hand.filter(c => isTrump(c, config));
+      const groupCards = suit === leadPlay.leadSuit ? [...leadSuitCards, ...trumpCards] : trumpCards;
+      if (groupCards.length > 0) {
+        groupCards.sort((a, b) => getEffectiveRank(a, config) - getEffectiveRank(b, config));
+        suggested = [...groupCards.slice(0, Math.min(groupCards.length, leadPlay.cards.length))];
+        if (suggested.length < leadPlay.cards.length) {
+          const other = player.hand.filter(c => !suggested.includes(c));
+          other.sort((a, b) => getEffectiveRank(a, config) - getEffectiveRank(b, config));
+          suggested.push(...other.slice(0, leadPlay.cards.length - suggested.length));
+        }
+      } else {
+        const sorted = [...player.hand].sort((a, b) => getEffectiveRank(a, config) - getEffectiveRank(b, config));
+        suggested = sorted.slice(0, leadPlay.cards.length);
+      }
+      reason = '(fallback)';
+      const vr2 = validateFollow(suggested, player.hand, leadPlay.cards, leadPattern, suit as any, config);
+      if (!vr2.valid) {
+        console.log(RED + `✗ 提示失败: ${vr2.error}` + RESET);
+        return;
+      }
+    }
   } else {
     console.log(YELLOW + '当前无可提示' + RESET);
     return;

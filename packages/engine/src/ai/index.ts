@@ -214,6 +214,17 @@ export function aiFollowPlay(
     return { cards: result.cards, reason: maybeAppendFinal(result.cards, hand, result.reason) };
   }
 
+  // short-suited: must play ALL lead suit cards, fill rest
+  if (leadSuitCards.length > 0) {
+    const otherCards = hand.filter(c => !leadSuitCards.includes(c));
+    otherCards.sort(discardSort(tmWin));
+    const fill = otherCards.slice(0, leadLen - leadSuitCards.length);
+    return {
+      cards: [...leadSuitCards, ...fill],
+      reason: maybeAppendFinal([...leadSuitCards, ...fill], hand, '同花色不足，全部打出'),
+    };
+  }
+
   // void in lead suit
   if (trumpCards.length >= leadLen) {
     trumpCards.sort((a, b) => getEffectiveRank(a, config) - getEffectiveRank(b, config));
@@ -276,13 +287,45 @@ function aiFollowMulti(
   const leadLen = leadCards.length;
   const leadPairs = findAllPairs(leadCards);
   const myPairs = findAllPairs(leadSuitCards);
-  const leadTractors = detectTractors(leadCards, config);
+  const leadCombo = classifyCombo(leadCards, config);
 
-  if (leadTractors.length > 0) {
+  // Tractor / throw: try to match tractor slots
+  if (leadCombo.hasTractor) {
     const myTractors = detectTractors(leadSuitCards, config);
-    if (myTractors.length > 0 && myTractors[0].length === leadLen) {
-      return { cards: myTractors[0], reason: '用拖拉机跟牌' };
+    if (myTractors.length > 0) {
+      myTractors.sort((a, b) => b.length - a.length);
+      const picked: Card[] = [];
+      const usedIds = new Set<string>();
+      for (const req of leadCombo.tractors.map(t => t.pairCount)) {
+        const available = myTractors.filter(t =>
+          t.every(c => !usedIds.has(c.id)) && t.length / 2 >= req,
+        );
+        if (available.length > 0) {
+          available.sort((a, b) => (a.length / 2) - (b.length / 2));
+          const selected = available[0].slice(0, req * 2);
+          picked.push(...selected);
+          selected.forEach(c => usedIds.add(c.id));
+        }
+      }
+      if (picked.length > 0) {
+        // Fill remaining slots: pairs first, then singles
+        const remaining = leadSuitCards.filter(c => !usedIds.has(c.id));
+        const remPairs = findAllPairs(remaining);
+        const remPairIds = new Set(remPairs.flat().map(c => c.id));
+        remPairs.sort((a, b) => getEffectiveRank(a[0], config) - getEffectiveRank(b[0], config));
+        const remSingles = remaining.filter(c => !remPairIds.has(c.id));
+        remSingles.sort((a, b) => a.rank - b.rank);
+        const fill: Card[] = [];
+        for (const p of remPairs) {
+          if (picked.length + fill.length + 2 > leadLen) break;
+          fill.push(...p);
+        }
+        const singleCount = leadLen - picked.length - fill.length;
+        fill.push(...remSingles.slice(0, singleCount));
+        return { cards: [...picked, ...fill], reason: '用拖拉机跟牌' };
+      }
     }
+    // No tractor available: fall through to pair/single filling
   }
 
   if (leadPairs.length > 0 && myPairs.length >= leadPairs.length) {
@@ -339,12 +382,37 @@ function aiFollowTrumpOnly(
   if (leadCombo.hasTractor) {
     const myTractors = detectTractors(allTrump, config);
     if (myTractors.length > 0) {
-      // pick the smallest tractor (lowest max effective rank)
-      myTractors.sort((a, b) =>
-        Math.max(...a.map(c => getEffectiveRank(c, config))) -
-        Math.max(...b.map(c => getEffectiveRank(c, config))),
-      );
-      return { cards: myTractors[0], reason: '用最小主牌拖拉机跟牌' };
+      myTractors.sort((a, b) => b.length - a.length);
+      const picked: Card[] = [];
+      const usedIds = new Set<string>();
+      // Match each tractor slot from the lead
+      for (const req of leadCombo.tractors.map(t => t.pairCount)) {
+        const available = myTractors.filter(t =>
+          t.every(c => !usedIds.has(c.id)) && t.length / 2 >= req,
+        );
+        if (available.length > 0) {
+          available.sort((a, b) => (a.length / 2) - (b.length / 2));
+          const selected = available[0].slice(0, req * 2);
+          picked.push(...selected);
+          selected.forEach(c => usedIds.add(c.id));
+        }
+      }
+      if (picked.length > 0) {
+        // Fill: pairs first, then singles
+        const remaining = allTrump.filter(c => !usedIds.has(c.id));
+        const remPairs = findAllPairs(remaining);
+        const remPairIds = new Set(remPairs.flat().map(c => c.id));
+        remPairs.sort((a, b) => getEffectiveRank(a[0], config) - getEffectiveRank(b[0], config));
+        const remSingles = remaining.filter(c => !remPairIds.has(c.id));
+        const fill: Card[] = [];
+        for (const p of remPairs) {
+          if (picked.length + fill.length + 2 > leadLen) break;
+          fill.push(...p);
+        }
+        const singleCount = leadLen - picked.length - fill.length;
+        fill.push(...remSingles.slice(0, singleCount));
+        return { cards: [...picked, ...fill], reason: '用最小主牌拖拉机跟牌' };
+      }
     }
     if (allTrump.length >= leadLen) {
       return { cards: allTrump.slice(0, leadLen), reason: '无拖拉机，出最小主牌' };

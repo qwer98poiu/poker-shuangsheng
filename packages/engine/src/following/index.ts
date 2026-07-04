@@ -140,12 +140,12 @@ function checkTractorOrThrowFollow(
 
 // ---- Ideal follow computation ----
 
-interface FollowSpec {
+export interface FollowSpec {
   tractorPairCounts: number[];  // required tractor pair counts, longest first
   minTotalPairs: number;        // minimum total pair count (tractor + standalone)
 }
 
-function computeIdealFollow(
+export function computeIdealFollow(
   handCards: Card[], leadReqs: LeadReqs, config: TrumpDeclaration,
 ): FollowSpec {
   const totalReqPairs = leadReqs.tractorReqs.reduce((s, n) => s + n, 0) + leadReqs.pairReqs;

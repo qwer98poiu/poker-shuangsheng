@@ -361,3 +361,24 @@
 测试文件同时清理了不必要的注释，保持代码简洁。
 
 - **影响文件**：`packages/engine/src/__tests__/throw-validation.test.ts`
+
+## 2026-07-04 17:39
+
+### AI 跟牌/hint 建议修复：确保建议始终符合跟牌规则
+
+**问题**：`/hint` 命令直接调用 AI 跟牌函数，但 AI 函数存在多处规则违反，未被验证就对用户输出错误建议。
+
+**AI 跟牌修复**（3 处）：
+
+- **`aiFollowMulti`**：拖拉机/甩牌领出时，原逻辑仅匹配第一条同长度拖拉机（`myTractors[0].length === leadLen`），无法处理多拖拉机甩牌和长截取。改为按 lead 的每个 tractor slot 依次匹配（优先最短可用拖拉机），并用对牌（非单牌）填充剩余位置。
+
+- **`aiFollowTrumpOnly`**：同上问题——多张主牌领出时只取第一条拖拉机，导致甩牌场景返回张数不足。改为按 slot 匹配 + 对牌填充。
+
+- **`aiFollowPlay`**：短牌场景（同花色牌数 < 领出张数）被当作缺花色处理，导致跟牌花色错误。新增短牌分支：全部同花色牌打出 + 垫其他花色。
+
+**hint 安全网**：
+
+- 在 `showHint` 中新增 `validateFollow` 验证层：AI 建议先经引擎规则校验，不通过则触发 fallback（打全部同花色牌 + 垫最小牌），fallback 也校验后再输出。
+- 导出 `validateFollow`、`validateLead`、`classify` 供 CLI 使用。
+
+- **影响文件**：`packages/engine/src/ai/index.ts`、`packages/engine/src/following/index.ts`、`packages/cli/src/index.ts`
