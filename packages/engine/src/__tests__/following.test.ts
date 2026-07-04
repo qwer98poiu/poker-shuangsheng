@@ -645,3 +645,151 @@ describe('validateFollow (basic)', () => {
     expect(r.error).toContain('pair');
   });
 });
+
+// ============================================================
+// Complex tractor follow: diamonds trump, Ace (14) is level.
+// All leads are diamonds (trump), so followGroup = '_TRUMP_'.
+// ============================================================
+const cfgDiamondA: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Diamonds, level: 14 };
+
+describe('complex tractor follow (diamonds trump, ace level)', () => {
+
+  // ==========================================================
+  // Case 1: Lead 4-pair tractor 7-7-6-6-5-5-4-4 (8 trump cards)
+  // ==========================================================
+  describe('lead: 4-pair tractor 77665544', () => {
+    const lead = [
+      c('D', 7, 200), c('D', 7, 201),
+      c('D', 6, 202), c('D', 6, 203),
+      c('D', 5, 204), c('D', 5, 205),
+      c('D', 4, 206), c('D', 4, 207),
+    ];
+
+    // Case 1.1: Hand has Big Joker pair, Small Joker pair, C-A pair, 88, 33, 22
+    describe('hand: Big Joker, Small Joker, C-A, 88, 33, 22', () => {
+      const hand = [
+        c('J', 16, 1), c('J', 16, 2),  // Big Joker pair
+        c('J', 15, 3), c('J', 15, 4),  // Small Joker pair
+        c('C', 14, 5), c('C', 14, 6),  // Club Ace pair (off-suit level, is trump)
+        c('D', 8, 7),  c('D', 8, 8),   // 88
+        c('D', 3, 9),  c('D', 3, 10),  // 33
+        c('D', 2, 11), c('D', 2, 12),  // 22
+      ];
+
+      it('must play Joker tractor + 3322 tractor (best match)', () => {
+        const lp = classify(lead, cfgDiamondA);
+        // Play: Big Joker pair + Small Joker pair + 33 + 22
+        const r = validateFollow([
+          c('J', 16, 1), c('J', 16, 2),
+          c('J', 15, 3), c('J', 15, 4),
+          c('D', 3, 9),  c('D', 3, 10),
+          c('D', 2, 11), c('D', 2, 12),
+        ], hand, lead, lp, null, cfgDiamondA);
+        expect(r.valid).toBe(true);
+      });
+
+      it('cannot play C-A pair + 88 + 3322 (insufficient pairs)', () => {
+        const lp = classify(lead, cfgDiamondA);
+        // Play: C-A pair + 88 + 33 + 22 (missing Joker tractor, not enough pairs)
+        const r = validateFollow([
+          c('C', 14, 5), c('C', 14, 6),
+          c('D', 8, 7),  c('D', 8, 8),
+          c('D', 3, 9),  c('D', 3, 10),
+          c('D', 2, 11), c('D', 2, 12),
+        ], hand, lead, lp, null, cfgDiamondA);
+        expect(r.valid).toBe(false);
+      });
+    });
+
+    // Case 1.2: Hand has KK, 1010, 99, 88, 33, 22 (all diamonds)
+    describe('hand: KK, 1010, 99, 88, 33, 22', () => {
+      const hand = [
+        c('D', 13, 1), c('D', 13, 2),  // KK
+        c('D', 10, 3), c('D', 10, 4),  // 1010
+        c('D', 9, 5),  c('D', 9, 6),   // 99
+        c('D', 8, 7),  c('D', 8, 8),   // 88
+        c('D', 3, 9),  c('D', 3, 10),  // 33
+        c('D', 2, 11), c('D', 2, 12),  // 22
+      ];
+
+      it('can play 1010-99-88 tractor + 22 pair', () => {
+        const lp = classify(lead, cfgDiamondA);
+        // Play: 1010 + 99 + 88 + 22 (3-pair tractor + standalone pair)
+        const r = validateFollow([
+          c('D', 10, 3), c('D', 10, 4),
+          c('D', 9, 5),  c('D', 9, 6),
+          c('D', 8, 7),  c('D', 8, 8),
+          c('D', 2, 11), c('D', 2, 12),
+        ], hand, lead, lp, null, cfgDiamondA);
+        expect(r.valid).toBe(true);
+      });
+
+      it('cannot play 99-88 + 33-22 (wrong tractor priority)', () => {
+        const lp = classify(lead, cfgDiamondA);
+        // Play: 99 + 88 + 33 + 22 (two 2-pair tractors, but should use the longer 10-9-8)
+        const r = validateFollow([
+          c('D', 9, 5),  c('D', 9, 6),
+          c('D', 8, 7),  c('D', 8, 8),
+          c('D', 3, 9),  c('D', 3, 10),
+          c('D', 2, 11), c('D', 2, 12),
+        ], hand, lead, lp, null, cfgDiamondA);
+        expect(r.valid).toBe(false);
+      });
+    });
+  });
+
+  // ==========================================================
+  // Case 2: Lead two 3-pair tractors: D-A+H-A+KK, 1010-99-88 (12 trump cards)
+  // ==========================================================
+  describe('lead: DA+HA+KK + 10109988 (two tractors)', () => {
+    const lead = [
+      c('D', 14, 200), c('D', 14, 201),  // D-A pair
+      c('H', 14, 202), c('H', 14, 203),  // H-A pair
+      c('D', 13, 204), c('D', 13, 205),  // KK
+      c('D', 10, 206), c('D', 10, 207),  // 1010
+      c('D', 9, 208),  c('D', 9, 209),   // 99
+      c('D', 8, 210),  c('D', 8, 211),   // 88
+    ];
+
+    // Hand: Big Joker, Small Joker, C-A, QQ, JJ, 77, 55, 33, 22
+    const hand = [
+      c('J', 16, 1), c('J', 16, 2),  // Big Joker pair
+      c('J', 15, 3), c('J', 15, 4),  // Small Joker pair
+      c('C', 14, 5), c('C', 14, 6),  // C-A pair (off-suit level, is trump)
+      c('D', 12, 7), c('D', 12, 8),  // QQ
+      c('D', 11, 9), c('D', 11, 10), // JJ
+      c('D', 7, 11), c('D', 7, 12),  // 77
+      c('D', 5, 13), c('D', 5, 14),  // 55
+      c('D', 3, 15), c('D', 3, 16),  // 33
+      c('D', 2, 17), c('D', 2, 18),  // 22
+    ];
+
+    it('can play QQ+JJ+77+55+33+22 (tractor QQJJ + fill pairs)', () => {
+      const lp = classify(lead, cfgDiamondA);
+      // Play: QQ + JJ + 77 + 55 + 33 + 22
+      const r = validateFollow([
+        c('D', 12, 7), c('D', 12, 8),
+        c('D', 11, 9), c('D', 11, 10),
+        c('D', 7, 11), c('D', 7, 12),
+        c('D', 5, 13), c('D', 5, 14),
+        c('D', 3, 15), c('D', 3, 16),
+        c('D', 2, 17), c('D', 2, 18),
+      ], hand, lead, lp, null, cfgDiamondA);
+      expect(r.valid).toBe(true);
+    });
+
+    it('can play Big Joker+Small Joker+QQ+JJ+33+22 (Joker tractor + QQJJ + fill)', () => {
+      const lp = classify(lead, cfgDiamondA);
+      // Play: Big Joker pair + Small Joker pair + QQ + JJ + 33 + 22
+      const r = validateFollow([
+        c('J', 16, 1), c('J', 16, 2),
+        c('J', 15, 3), c('J', 15, 4),
+        c('D', 12, 7), c('D', 12, 8),
+        c('D', 11, 9), c('D', 11, 10),
+        c('D', 3, 15), c('D', 3, 16),
+        c('D', 2, 17), c('D', 2, 18),
+      ], hand, lead, lp, null, cfgDiamondA);
+      expect(r.valid).toBe(true);
+    });
+  });
+});

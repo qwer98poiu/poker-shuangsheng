@@ -309,6 +309,32 @@
 
 ### checkTractorOrThrowFollow：拖拉机个数检查提前到循环外
 - **重构**：将「已出拖拉机个数 ≥ 理想个数」的检查从 for 循环内提到循环外，与逐个比对连对数的循环分离。
-- **之前**：循环内用 `i >= playedTractorPairCounts.length` 判断，语义上是「拖拉机数量不够」，但错误消息却是 `must play a tractor (need X pairs)`，混淆了「个数」与「对数」。
-- **之后**：循环前先判 `playedTractorPairCounts.length < ideal.tractorPairCounts.length`，消息直接说明需要几个拖拉机；循环内只做连对数的逐一比对。
 - **影响文件**：`packages/engine/src/following/index.ts`
+
+## 2026-07-04 16:24
+
+### 跟牌验证：复杂拖拉机跟牌 + 模式检测修复
+
+**新增 5 项复杂跟牌测试**（方块主，A 为等级）：
+
+1. 领出 4 连对拖拉机 77665544：
+   - 手牌对大王+对小王+对梅花A+883322 → 必须出对王+3322 拖拉机，不能出梅花A+88+3322
+   - 手牌 KK+1010+99+88+33+22 → 可出 1010+99+88 拖拉机+22 补对，不能出 99+88+33+22
+
+2. 领出 DA+HA+KK + 10109988 两套拖拉机（共 6 对）：
+   - 手牌对大王+对小王+对梅花A+QQJJ+77553322 → 可出 QQJJ77553322，也可出对王+QQJJ3322
+
+**模式检测修复**（3 处 bug）：
+
+- **mergeChains**：合并重叠链（如 10-9 + 9-8）时，共享的 9 对被重复计入，产生 4-pair 而非正确的 3-pair。新增 ID 去重逻辑，合并时跳过已存在的卡牌。
+
+- **crossGroupTractors**：当等级 = A 时，`tLev`（主牌级牌 A）与 `tA`（主牌 A）为同一对牌，导致 `tLev+offLev+tA` 链中 DA 被使用两次。新增 `tAisTLev` 检查，跳过重复链。
+
+- **classify**：计算 standalone 对数时使用了全部拖拉机（含重叠）的卡牌 ID，导致未被选中的对牌也被排除。改为仅使用 `distinctTractors` 的卡牌 ID。
+
+**computeIdealFollow 改进**：
+
+- 拖拉机槽位匹配改为循环填充：当手牌没有足够长的单条拖拉机时，用多条短拖拉机组合填充（`remaining >= 2` 时继续尝试），使 minTotalPairs 计算更准确。
+- 避免将 1-pair 的拖拉机截取（实质为普通对牌）当作拖拉机要求。
+
+- **影响文件**：`packages/engine/src/following/index.ts`、`packages/engine/src/pattern/index.ts`、`__tests__/following.test.ts`

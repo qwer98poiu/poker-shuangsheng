@@ -26,9 +26,9 @@ export function classify(cards: Card[], config: TrumpDeclaration): ComboClass {
     if (longest.length === cards.length) {
       return mk('tractor', cards, 0, [{ pairCount: longest.length / 2 }]);
     }
-    const tractorIds = new Set(tractors.flat().map(c => c.id));
-    const standalones = pairs.filter(p => !tractorIds.has(p[0].id));
     const distinct = distinctTractors(tractors);
+    const tractorIds = new Set(distinct.flat().map(c => c.id));
+    const standalones = pairs.filter(p => !tractorIds.has(p[0].id));
     return mk('throw', cards, standalones.length, distinct.map(t => ({ pairCount: t.length / 2 })));
   }
 
@@ -44,9 +44,16 @@ function distinctTractors(tractors: Card[][]): Card[][] {
   const result: Card[][] = [];
   const used = new Set<string>();
   for (const t of sorted) {
+    // Reject tractors with internal card duplication (e.g. cross-group bug)
+    if (!hasUniqueCards(t)) continue;
     if (t.every(c => !used.has(c.id))) { result.push(t); t.forEach(c => used.add(c.id)); }
   }
   return result;
+}
+
+function hasUniqueCards(tractor: Card[]): boolean {
+  const ids = tractor.map(c => c.id);
+  return new Set(ids).size === ids.length;
 }
 
 export function findAllPairs(cards: Card[]): Card[][] {
@@ -100,6 +107,7 @@ function mergeChains(chains: Card[][], config: TrumpDeclaration): Card[][] {
   const used = new Set<number>();
   for (let i = 0; i < chains.length; i++) {
     if (used.has(i)) continue;
+    const mergedIds = new Set(chains[i].map(c => c.id));
     let merged = [...chains[i]]; used.add(i);
     let extended = true;
     while (extended) {
@@ -109,7 +117,11 @@ function mergeChains(chains: Card[][], config: TrumpDeclaration): Card[][] {
         const last = [merged[merged.length - 2], merged[merged.length - 1]];
         const first = [chains[j][0], chains[j][1]];
         if (areConsecutiveSameSuit(last[0], first[0], config) && last[0].suit === first[0].suit) {
-          merged.push(...chains[j]); used.add(j); extended = true;
+          // Deduplicate: skip cards already in the merged chain
+          const newCards = chains[j].filter(c => !mergedIds.has(c.id));
+          newCards.forEach(c => mergedIds.add(c.id));
+          merged.push(...newCards);
+          used.add(j); extended = true;
         }
       }
     }
@@ -127,14 +139,16 @@ function crossGroupTractors(pairs: Card[][], config: TrumpDeclaration): Card[][]
     const tLev = pairs.find(p => p[0].suit === config.trumpSuit && p[0].rank === config.level);
     const offLev = pairs.find(p => p[0].suit !== config.trumpSuit && p[0].suit !== SpecialSuit.Joker && p[0].rank === config.level);
     const tA = pairs.find(p => p[0].suit === config.trumpSuit && p[0].rank === Rank.Ace);
+    // When level = Ace, tLev and tA are the same pair — avoid double-counting
+    const tAisTLev = tA && tLev && tA[0].id === tLev[0].id;
 
     if (bj && sj) res.push([...bj, ...sj]);
     if (sj && tLev) res.push([...sj, ...tLev]);
     if (tLev && offLev) res.push([...tLev, ...offLev]);
-    if (offLev && tA) res.push([...offLev, ...tA]);
+    if (offLev && tA && !tAisTLev) res.push([...offLev, ...tA]);
     if (bj && sj && tLev) res.push([...bj, ...sj, ...tLev]);
     if (sj && tLev && offLev) res.push([...sj, ...tLev, ...offLev]);
-    if (tLev && offLev && tA) res.push([...tLev, ...offLev, ...tA]);
+    if (tLev && offLev && tA && !tAisTLev) res.push([...tLev, ...offLev, ...tA]);
   } else {
     if (bj && sj) res.push([...bj, ...sj]);
     for (const p of pairs) {

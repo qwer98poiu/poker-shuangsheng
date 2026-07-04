@@ -158,12 +158,16 @@ function computeIdealFollow(
   const usedIds = new Set<string>();
 
   for (const reqPairs of leadReqs.tractorReqs) {
-    const best = pickBestTractor(tracts, usedIds, reqPairs);
-    if (best) {
+    let remaining = reqPairs;
+    // Keep filling this tractor slot with additional tractors as long as
+    // the deficit is ≥2 pairs (a 1-pair deficit is handled by fill capacity).
+    while (remaining >= 2) {
+      const best = pickBestTractor(tracts, usedIds, remaining);
+      if (!best) break;
       bestTractors.push(best.pairCount);
       best.cards.forEach(c => usedIds.add(c.id));
+      remaining -= best.pairCount;
     }
-    // If no tractor available, stop trying to match more tractor slots
   }
 
   bestTractors.sort((a, b) => b - a); // longest first
