@@ -338,3 +338,26 @@
 - 避免将 1-pair 的拖拉机截取（实质为普通对牌）当作拖拉机要求。
 
 - **影响文件**：`packages/engine/src/following/index.ts`、`packages/engine/src/pattern/index.ts`、`__tests__/following.test.ts`
+
+## 2026-07-04 17:14
+
+### 甩牌验证测试：全面覆盖副牌和主牌甩牌场景
+
+**新增 24 项 `validateThrow` 测试**（cfg5：红桃主，等级 5），覆盖 4 种甩牌类型 × 副牌/主牌两个维度，每种场景含 pass 和 fail 用例：
+
+| 甩牌类型 | 副牌（黑桃） | 主牌（红桃+王） |
+|----------|-------------|----------------|
+| 纯单牌 | 1 pass + 1 fail | 1 pass + 1 fail |
+| 对牌+单牌 | 1 pass + 2 fail | 1 pass + 2 fail |
+| 拖拉机+单牌 | 1 pass + 2 fail | 1 pass + 2 fail |
+| 拖拉机+独立对 | 1 pass + 3 fail | 1 pass + 3 fail |
+
+**失败场景覆盖 4 种被挡原因**：
+- 更高的同长度拖拉机
+- 更高的独立对牌
+- 更高拖拉机内的牌挡住独立对
+- 更高的单牌
+
+测试文件同时清理了不必要的注释，保持代码简洁。
+
+- **影响文件**：`packages/engine/src/__tests__/throw-validation.test.ts`
