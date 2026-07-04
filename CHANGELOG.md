@@ -382,3 +382,22 @@
 - 导出 `validateFollow`、`validateLead`、`classify` 供 CLI 使用。
 
 - **影响文件**：`packages/engine/src/ai/index.ts`、`packages/engine/src/following/index.ts`、`packages/cli/src/index.ts`
+
+## 2026-07-04 18:00
+
+### AI 跟牌合规性验证：新增 21 项测试确保建议始终符合规则
+
+**新增 `ai-follow.test.ts`**：21 项测试覆盖 AI 跟牌函数在所有场景下产出均通过 `validateFollow` 校验。
+
+| 场景分类 | 测试数 | 覆盖内容 |
+|----------|--------|----------|
+| 非主牌领出（黑桃） | 8 | 对牌/拖拉机/甩牌 领出，足够/短牌/缺花 |
+| 短牌/缺花 | 5 | 对牌/拖拉机 领出时的全部打出+垫牌 |
+| 主牌领出（cfg5） | 4 | 拖拉机领出、单张领出能盖/不能盖 |
+| 主牌甩牌（方块A级） | 1 | 12 张两套拖拉机甩牌 |
+| 单张非主牌 | 2 | 能盖/队友已大垫分 |
+| 王领出 | 1 | 单张大王者跟牌 |
+
+引擎层已有 `playCards` → `validateFollow`/`validateThrow` 验证层，AI 出牌失败会自动降级（lines 534-548），但此前 AI 函数无独立合规性测试，错误依赖降级掩盖。现在每个 AI 跟牌调用都先经引擎校验通过。
+
+- **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`（新增）

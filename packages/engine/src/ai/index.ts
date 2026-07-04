@@ -12,8 +12,8 @@ export interface AIResult<T> {
 /** try to reveal trump during dealing */
 export function aiTryReveal(
   hand: Card[],
-  dealtCards: Card[],
-  playerIndex: number,
+  _dealtCards: Card[],
+  _playerIndex: number,
   level: number,
   currentReveal: { suit: Suit | null; strength: number } | null,
 ): { suit: Suit | null; reason: string } | null {
