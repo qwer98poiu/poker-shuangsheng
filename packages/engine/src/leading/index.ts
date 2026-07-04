@@ -7,7 +7,7 @@
  */
 import type { Card, ValidationResult } from '../types.js';
 import type { TrumpDeclaration } from '../types.js';
-import { isTrump } from '../model.js';
+import { isTrump, getEffectiveRank } from '../model.js';
 import { extractComponents, cardGreater } from '../comparing/index.js';
 
 export function validateLead(cards: Card[], hand: Card[], config: TrumpDeclaration): ValidationResult {
@@ -36,12 +36,32 @@ export function validateThrow(
   const comps = extractComponents(thrown, config);
   const group = suitGroup(thrown[0], config);
 
-  // Collect all cards of this suit group from other players
-  const otherCards: Card[] = [];
-  for (const h of otherHands) for (const c of h) if (suitGroup(c, config) === group) otherCards.push(c);
+  const otherCards = collectOtherCards(otherHands, group, config);
   const otherComps = extractComponents(otherCards, config);
 
-  // 1. Tractors: same-length sub-tractor from others is higher
+  const t = checkTractorBlock(comps, otherComps, config);
+  if (t) return { valid: false, error: t };
+  const p = checkPairBlock(comps, otherComps, config, otherCards);
+  if (p) return { valid: false, error: p };
+  const s = checkSingleBlock(comps, otherCards, config);
+  if (s) return { valid: false, error: s };
+
+  return { valid: true };
+}
+
+// ---- Blocking checks (reused by resolveThrowFailure) ----
+
+function collectOtherCards(otherHands: Card[][], group: string, config: TrumpDeclaration): Card[] {
+  const cards: Card[] = [];
+  for (const h of otherHands) for (const c of h) if (suitGroup(c, config) === group) cards.push(c);
+  return cards;
+}
+
+function checkTractorBlock(
+  comps: ReturnType<typeof extractComponents>,
+  otherComps: ReturnType<typeof extractComponents>,
+  config: TrumpDeclaration,
+): string | null {
   for (const lt of comps.tractors) {
     const n = lt.length / 2;
     for (const ot of otherComps.tractors) {
@@ -49,32 +69,44 @@ export function validateThrow(
       for (let i = 0; i <= (ot.length / 2) - n; i++) {
         const sub = ot.slice(i * 2, (i + n) * 2);
         if (cardGreater(maxCard(sub, config), maxCard(lt, config), config)) {
-          return { valid: false, error: `another player has a higher ${n}-pair tractor` };
+          return `another player has a higher ${n}-pair tractor`;
         }
       }
     }
   }
+  return null;
+}
 
-  // 2. Pairs: higher pair (standalone or from any tractor)
+function checkPairBlock(
+  comps: ReturnType<typeof extractComponents>,
+  otherComps: ReturnType<typeof extractComponents>,
+  config: TrumpDeclaration,
+  _otherCards: Card[],
+): string | null {
   for (const lp of comps.pairs) {
     for (const op of otherComps.pairs) {
-      if (cardGreater(op[0], lp[0], config)) return { valid: false, error: 'another player has a higher pair' };
+      if (cardGreater(op[0], lp[0], config)) return 'another player has a higher pair';
     }
     for (const ot of otherComps.tractors) {
       for (const c of ot) {
-        if (cardGreater(c, lp[0], config)) return { valid: false, error: 'another player has a higher pair' };
+        if (cardGreater(c, lp[0], config)) return 'another player has a higher pair';
       }
     }
   }
+  return null;
+}
 
-  // 3. Singles: higher single
+function checkSingleBlock(
+  comps: ReturnType<typeof extractComponents>,
+  otherCards: Card[],
+  config: TrumpDeclaration,
+): string | null {
   for (const ls of comps.singles) {
     for (const oc of otherCards) {
-      if (cardGreater(oc, ls, config)) return { valid: false, error: 'another player has a higher single' };
+      if (cardGreater(oc, ls, config)) return 'another player has a higher single';
     }
   }
-
-  return { valid: true };
+  return null;
 }
 
 function maxCard(cards: Card[], config: TrumpDeclaration): Card {
@@ -83,4 +115,92 @@ function maxCard(cards: Card[], config: TrumpDeclaration): Card {
 
 export function suitGroup(card: Card, config: TrumpDeclaration): string {
   return isTrump(card, config) ? '_TRUMP_' : String(card.suit);
+}
+
+// ---- Throw failure resolution (甩牌失败强制出小) ----
+
+export interface ThrowFailureResult {
+  readonly forcedPlay: Card[];
+  readonly reason: string;
+}
+
+/**
+ * When a throw fails validation, determine the forced play.
+ *
+ * Only sub-patterns that are ACTUALLY BLOCKED are considered.
+ * Priority: tractors → pairs → singles.
+ * - Tractors: force the smallest longest blocked tractor.
+ * - Pairs: force the smallest blocked pair by rank.
+ * - Singles: force the smallest blocked single by rank.
+ */
+export function resolveThrowFailure(
+  thrown: Card[],
+  otherHands: Card[][],
+  config: TrumpDeclaration,
+): ThrowFailureResult {
+  const comps = extractComponents(thrown, config);
+  const group = suitGroup(thrown[0], config);
+  const otherCards = collectOtherCards(otherHands, group, config);
+  const otherComps = extractComponents(otherCards, config);
+
+  // Tractors: only force if at least one is blocked
+  if (comps.tractors.length > 0) {
+    const isBlocked = (lt: Card[]) => {
+      const n = lt.length / 2;
+      return otherComps.tractors.some(ot => {
+        if (ot.length / 2 < n) return false;
+        for (let i = 0; i <= (ot.length / 2) - n; i++) {
+          const sub = ot.slice(i * 2, (i + n) * 2);
+          if (cardGreater(maxCard(sub, config), maxCard(lt, config), config)) return true;
+        }
+        return false;
+      });
+    };
+    if (comps.tractors.some(isBlocked)) {
+      comps.tractors.sort((a, b) => {
+        const lenDiff = (b.length / 2) - (a.length / 2); // longest first
+        if (lenDiff !== 0) return lenDiff;
+        return getEffectiveRank(maxCard(a, config), config) -
+               getEffectiveRank(maxCard(b, config), config);
+      });
+      const picked = comps.tractors[0];
+      return {
+        forcedPlay: picked,
+        reason: `throw failed — must play longest tractor (${picked.length / 2} pairs)`,
+      };
+    }
+  }
+
+  // Pairs: only force if at least one is blocked
+  if (comps.pairs.length > 0) {
+    const isBlocked = (lp: Card[]) =>
+      otherComps.pairs.some(op => cardGreater(op[0], lp[0], config)) ||
+      otherComps.tractors.some(ot => ot.some(c => cardGreater(c, lp[0], config)));
+    if (comps.pairs.some(isBlocked)) {
+      comps.pairs.sort((a, b) =>
+        getEffectiveRank(a[0], config) - getEffectiveRank(b[0], config),
+      );
+      return {
+        forcedPlay: comps.pairs[0],
+        reason: 'throw failed — must play smallest pair',
+      };
+    }
+  }
+
+  // Singles: only force if at least one is blocked
+  const blockedSingles = comps.singles.filter(ls =>
+    otherCards.some(oc => cardGreater(oc, ls, config)),
+  );
+  if (blockedSingles.length > 0) {
+    blockedSingles.sort((a, b) =>
+      getEffectiveRank(a, config) - getEffectiveRank(b, config),
+    );
+    return {
+      forcedPlay: [blockedSingles[0]],
+      reason: 'throw failed — must play smallest single',
+    };
+  }
+
+  // Fallback
+  return { forcedPlay: [thrown[0]], reason: 'throw failed' };
 }

@@ -10,7 +10,7 @@ import { GamePhase, Suit } from '../types.js';
 import type { TrumpDeclaration } from '../types.js';
 import { isTrump } from '../model.js';
 import { classify } from '../pattern/index.js';
-import { validateLead, validateThrow } from '../leading/index.js';
+import { validateLead, validateThrow, resolveThrowFailure } from '../leading/index.js';
 import { validateFollow } from '../following/index.js';
 import { attemptReveal, finalize, getRevealOptions } from '../revealing/index.js';
 import { determineWinner } from '../comparing/index.js';
@@ -50,6 +50,9 @@ export function finalizeReveal(state: GameState): GameState {
 export interface PlayResult {
   readonly error?: string;
   readonly state: GameState;
+  /** When true, the throw was invalid and cards were force-changed. */
+  readonly forcedPlay?: Card[];
+  readonly forceReason?: string;
 }
 
 function removeFromHand(hand: Card[], cards: Card[]): Card[] {
@@ -87,7 +90,21 @@ function playLead(
       .filter((_, i) => i !== playerIndex)
       .map(p => p.hand);
     const tv = validateThrow(cards, hand, otherHands, config);
-    if (!tv.valid) return { error: tv.error, state };
+    if (!tv.valid) {
+      if (state.debug) return { error: tv.error, state };
+      // Force-play the smallest blocked sub-pattern
+      const resolved = resolveThrowFailure(cards, otherHands, config);
+      const rv = validateLead(resolved.forcedPlay, hand, config);
+      if (!rv.valid) return { error: rv.error, state };
+      const rp = classify(resolved.forcedPlay, config);
+      const leadSuit: CardSuit | null =
+        resolved.forcedPlay.every(c => isTrump(c, config)) ? null : (resolved.forcedPlay[0].suit as CardSuit);
+      return {
+        state: advanceAfterPlay(state, playerIndex, { cards: resolved.forcedPlay, pattern: rp, leadSuit }),
+        forcedPlay: resolved.forcedPlay,
+        forceReason: resolved.reason,
+      };
+    }
   }
 
   const leadSuit: CardSuit | null =

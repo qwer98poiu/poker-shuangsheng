@@ -401,3 +401,37 @@
 引擎层已有 `playCards` → `validateFollow`/`validateThrow` 验证层，AI 出牌失败会自动降级（lines 534-548），但此前 AI 函数无独立合规性测试，错误依赖降级掩盖。现在每个 AI 跟牌调用都先经引擎校验通过。
 
 - **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`（新增）
+
+## 2026-07-04 22:55
+
+### 甩牌失败强制出小规则
+
+**新增规则**：甩牌未通过 `validateThrow` 校验时，不再简单拒绝，而是强制打出被拦截子牌型中的最小项。
+
+**仅针对被拦截的牌型**：例：甩 A+55（等级 2），其他玩家有对 6 挡住 55，则强制出对 5，而不是 A。
+
+**优先级**（从高到低，仅限被拦截的牌型）：
+1. **拖拉机** → 强制出连对数最多的拖拉机（同长度取最低 rank）
+2. **对牌** → 强制出 rank 最小的被挡对牌
+3. **单牌** → 强制出 rank 最小的被挡单牌
+
+**调试模式 vs 正常模式**：
+- 调试模式：甩牌失败视为不符合出牌规则，返回 error 让玩家重新选择
+- 正常模式：甩牌失败不提示错误，直接强制打出被挡子牌型
+
+**引擎实现**：
+- **`validateThrow` 重构**：抽取 `collectOtherCards`、`checkTractorBlock`、`checkPairBlock`、`checkSingleBlock` 为可复用辅助函数
+- **`resolveThrowFailure(thrown, otherHands, config)`** — 新增函数，逐个判断子牌型是否被拦截，按优先级返回 `{ forcedPlay, reason }`
+- **`playCards`/`playLead`** — 甩牌失败时，`state.debug ? reject : forcePlay`
+
+**CLI 适配**：检测 `result.forcedPlay`，显示「甩牌失败」+ 实际打出的牌。
+
+**新增 6 项测试**（`leading.test.ts`）：
+- 拖拉机被挡 + 其他正常 → 强制出拖拉机
+- 两套拖拉机（3p+2p）均被挡 → 强制出 3-pair
+- 对牌被挡 + 顶单未挡 → 强制出最小被挡对牌
+- level=2 A+55 被 66 挡 → 强制出 55
+- 仅单牌被挡 → 强制出最小被挡单牌
+- 主牌拖拉机被挡 → 强制出拖拉机
+
+- **影响文件**：`packages/engine/src/leading/index.ts`、`packages/engine/src/game/index.ts`、`packages/cli/src/index.ts`、`packages/engine/src/__tests__/leading.test.ts`

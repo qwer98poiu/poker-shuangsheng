@@ -531,7 +531,13 @@ async function doPlayerTurn(playerIndex: number) {
     }
 
     const result = playCards(gameState, playerIndex, cards);
-    if (result.error) {
+    if (result.forcedPlay) {
+      // Throw was rejected — engine auto-forced the smallest sub-pattern
+      cards = result.forcedPlay;
+      reason = result.forceReason || reason;
+      gameState = result.state;
+      console.log(`${playerName(playerIndex)} 甩牌失败: ${showCards(cards)}`);
+    } else if (result.error) {
       const fb = playCards(gameState, playerIndex, player.hand.slice(0, Math.max(1, leadLen)));
       if (fb.error) {
         const fb2 = playCards(gameState, playerIndex, [player.hand[0]]);

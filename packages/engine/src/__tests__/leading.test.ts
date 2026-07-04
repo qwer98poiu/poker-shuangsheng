@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { Suit, Rank } from '../types.js';
 import { createCard } from '../model.js';
-import { validateLead } from '../leading/index.js';
-import type { TrumpDeclaration } from '../types.js';
+import { validateLead, resolveThrowFailure } from '../leading/index.js';
+import type { TrumpDeclaration, Card } from '../types.js';
+
+function ct(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
 
 describe('Leading — validateLead', () => {
   const trumpSuit: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 2 };
@@ -66,5 +68,82 @@ describe('Leading — validateLead', () => {
   it('rejects cards not in hand', () => {
     const c = createCard(Suit.Spades, Rank.Ace, 0);
     expect(validateLead([c], [], trumpSuit).valid).toBe(false);
+  });
+});
+
+describe('resolveThrowFailure', () => {
+  const cfg5: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 5 };
+
+  it('tractor blocked + pairs unblocked → forces longest tractor', () => {
+    const thrown = [
+      ct('S', 11, 0), ct('S', 11, 1), ct('S', 10, 2), ct('S', 10, 3),
+      ct('S', 8, 4),  ct('S', 8, 5),
+      ct('S', 6, 6),
+    ];
+    const other = [[
+      ct('S', 14, 7), ct('S', 14, 8), ct('S', 13, 9), ct('S', 13, 10),
+    ]];
+    const r = resolveThrowFailure(thrown, other, cfg5);
+    expect(r.forcedPlay.length).toBe(4);
+    expect(r.reason).toContain('longest tractor');
+  });
+
+  it('two tractors (3p + 2p) both blocked → forces 3-pair tractor', () => {
+    const thrown = [
+      ct('S', 10, 0), ct('S', 10, 1), ct('S', 9, 2), ct('S', 9, 3),
+      ct('S', 8, 4),  ct('S', 8, 5),
+      ct('S', 4, 6),  ct('S', 4, 7), ct('S', 3, 8), ct('S', 3, 9),
+    ];
+    const other = [[
+      ct('S', 14, 10), ct('S', 14, 11), ct('S', 13, 12), ct('S', 13, 13),
+    ]];
+    const r = resolveThrowFailure(thrown, other, cfg5);
+    expect(r.forcedPlay.length).toBe(6);
+    expect(r.reason).toContain('longest tractor');
+    expect(r.reason).toContain('3 pairs');
+  });
+
+  it('pair blocked + top single unblocked → forces smallest blocked pair', () => {
+    const thrown = [
+      ct('S', 14, 0), ct('S', 11, 1), ct('S', 11, 2),
+      ct('S', 9, 3),  ct('S', 9, 4),
+    ];
+    const other = [[ct('S', 10, 5), ct('S', 10, 6)]];
+    const r = resolveThrowFailure(thrown, other, cfg5);
+    expect(r.forcedPlay.length).toBe(2);
+    expect(r.reason).toContain('smallest pair');
+    expect(r.forcedPlay[0].rank).toBe(9);
+  });
+
+  it('pair blocked + single unblocked (level=2, A+55 vs 66) → forces pair', () => {
+    const cfg2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 2 };
+    const thrown = [ct('S', 14, 0), ct('S', 5, 1), ct('S', 5, 2)];
+    const other = [[ct('S', 6, 3), ct('S', 6, 4)]];
+    const r = resolveThrowFailure(thrown, other, cfg2);
+    expect(r.forcedPlay.length).toBe(2);
+    expect(r.reason).toContain('smallest pair');
+    expect(r.forcedPlay[0].rank).toBe(5);
+  });
+
+  it('only single blocked → forces smallest blocked single', () => {
+    const thrown = [ct('S', 11, 0), ct('S', 10, 1), ct('S', 8, 2)];
+    const other = [[ct('S', 14, 3)]];
+    const r = resolveThrowFailure(thrown, other, cfg5);
+    expect(r.forcedPlay.length).toBe(1);
+    expect(r.reason).toContain('smallest single');
+    expect(r.forcedPlay[0].rank).toBe(8);
+  });
+
+  it('trump tractor blocked + pair unblocked → forces tractor', () => {
+    const thrown = [
+      ct('H', 11, 0), ct('H', 11, 1), ct('H', 10, 2), ct('H', 10, 3),
+      ct('H', 6, 4),  ct('H', 6, 5),
+    ];
+    const other = [[
+      ct('H', 14, 6), ct('H', 14, 7), ct('H', 13, 8), ct('H', 13, 9),
+    ]];
+    const r = resolveThrowFailure(thrown, other, cfg5);
+    expect(r.forcedPlay.length).toBe(4);
+    expect(r.reason).toContain('longest tractor');
   });
 });
