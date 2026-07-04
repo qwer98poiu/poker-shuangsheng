@@ -433,6 +433,145 @@ describe('throw (tractor + standalone pair)', () => {
 });
 
 // ============================================================
+// Short-suited / exact-count: no pattern check required.
+// When handInGroup <= leadCards, the player MUST play all suit cards
+// and fills the rest with any other cards. No pattern matching applies
+// because the player has no choice in which suit cards to include.
+// ============================================================
+describe('short-suited / exact-count (no pattern check)', () => {
+
+  it('exact-count + tractor lead, suit cards are all singles → valid', () => {
+    // Lead: 2-pair tractor ♠A♠A♠K♠K (ranks 14,13).
+    // Hand: exactly 4 spades, all singles (no pairs at all).
+    const lead = [c('S', 14, 200), c('S', 14, 201), c('S', 13, 202), c('S', 13, 203)];
+    const hand = [
+      c('S', 12, 1), c('S', 11, 2), c('S', 10, 3), c('S', 9, 4),
+      c('C', 8, 5), c('C', 7, 6),
+    ];
+    const lp = classify(lead, cfg5);
+    // Play all 4 spade singles — valid because player must play all suit cards.
+    const r = validateFollow(
+      [c('S', 12, 1), c('S', 11, 2), c('S', 10, 3), c('S', 9, 4)],
+      hand, lead, lp, 'S' as any, cfg5,
+    );
+    expect(r.valid).toBe(true);
+  });
+
+  it('exact-count + pair lead, suit cards are singles (not a pair) → valid', () => {
+    // Lead: pair ♠A♠A (rank 14).
+    // Hand: exactly 2 spades, not a pair.
+    const lead = [c('S', 14, 200), c('S', 14, 201)];
+    const hand = [
+      c('S', 13, 1), c('S', 12, 2),
+      c('C', 10, 3),
+    ];
+    const lp = classify(lead, cfg5);
+    // Play both spades → valid even though they don't form a pair.
+    const r = validateFollow(
+      [c('S', 13, 1), c('S', 12, 2)],
+      hand, lead, lp, 'S' as any, cfg5,
+    );
+    expect(r.valid).toBe(true);
+  });
+
+  it('short-suited + tractor lead, suit portion has pairs but no tractor → valid', () => {
+    // Lead: 2-pair tractor ♠A♠A♠K♠K (ranks 14,13), 4 cards.
+    // Hand: only 2 spades forming a pair.
+    const lead = [c('S', 14, 200), c('S', 14, 201), c('S', 13, 202), c('S', 13, 203)];
+    const hand = [
+      c('S', 12, 1), c('S', 12, 2),
+      c('C', 10, 3), c('C', 9, 4), c('C', 8, 5),
+    ];
+    const lp = classify(lead, cfg5);
+    // Play both spades as a pair + 2 fillers → valid.
+    const r = validateFollow(
+      [c('S', 12, 1), c('S', 12, 2), c('C', 10, 3), c('C', 9, 4)],
+      hand, lead, lp, 'S' as any, cfg5,
+    );
+    expect(r.valid).toBe(true);
+  });
+
+  it('short-suited + throw (tractor+single), hand has only singles → valid', () => {
+    // Lead: tractor+single throw ♠A♠A♠K♠K♠Q (ranks 14,13,12), 5 cards.
+    // Hand: only 2 spade singles.
+    const lead = [
+      c('S', 14, 200), c('S', 14, 201),
+      c('S', 13, 202), c('S', 13, 203),
+      c('S', 12, 204),
+    ];
+    const hand = [
+      c('S', 11, 1), c('S', 10, 2),
+      c('C', 9, 3), c('C', 8, 4), c('C', 7, 5),
+    ];
+    const lp = classify(lead, cfg5);
+    // Play both spade singles + 3 fillers → valid.
+    const r = validateFollow(
+      [c('S', 11, 1), c('S', 10, 2), c('C', 9, 3), c('C', 8, 4), c('C', 7, 5)],
+      hand, lead, lp, 'S' as any, cfg5,
+    );
+    expect(r.valid).toBe(true);
+  });
+
+  it('short-suited + throw (tractor+pair), hand has pairs not forming tractor → valid', () => {
+    // Lead: throw with 2-pair tractor + standalone pair (6 cards).
+    // Hand: only 3 spades: 1 pair + 1 single.
+    const lead = [
+      c('S', 14, 200), c('S', 14, 201),
+      c('S', 13, 202), c('S', 13, 203),
+      c('S', 10, 205), c('S', 10, 206),
+    ];
+    const hand = [
+      c('S', 12, 1), c('S', 12, 2), c('S', 11, 3),
+      c('C', 9, 4), c('C', 8, 5), c('C', 7, 6), c('C', 6, 7),
+    ];
+    const lp = classify(lead, cfg5);
+    // Play pair + single + 3 fillers → valid.
+    const r = validateFollow(
+      [c('S', 12, 1), c('S', 12, 2), c('S', 11, 3), c('C', 9, 4), c('C', 8, 5), c('C', 7, 6)],
+      hand, lead, lp, 'S' as any, cfg5,
+    );
+    expect(r.valid).toBe(true);
+  });
+
+  it('short trump + tractor lead, trump are singles → valid', () => {
+    // Lead: 2-pair trump tractor ♥A♥A♥K♥K (ranks 14,13), 4 cards.
+    // Hand: only 2 trump singles + non-trump fillers.
+    const lead = [
+      c('H', 14, 200), c('H', 14, 201), c('H', 13, 202), c('H', 13, 203),
+    ];
+    const hand = [
+      c('H', 12, 1), c('H', 11, 2),
+      c('S', 10, 3), c('S', 9, 4), c('S', 8, 5),
+    ];
+    const lp = classify(lead, cfg5);
+    // Play both trump singles + 2 fillers → valid.
+    const r = validateFollow(
+      [c('H', 12, 1), c('H', 11, 2), c('S', 10, 3), c('S', 9, 4)],
+      hand, lead, lp, null, cfg5,
+    );
+    expect(r.valid).toBe(true);
+  });
+
+  it('exact-count + tractor lead, suit forms a tractor → valid (still no pattern check needed)', () => {
+    // Lead: 2-pair tractor ♠A♠A♠K♠K (ranks 14,13).
+    // Hand: exactly 4 spades forming a tractor.
+    const lead = [c('S', 14, 200), c('S', 14, 201), c('S', 13, 202), c('S', 13, 203)];
+    const hand = [
+      c('S', 12, 1), c('S', 12, 2), c('S', 11, 3), c('S', 11, 4),
+      c('C', 9, 5),
+    ];
+    const lp = classify(lead, cfg5);
+    // Play the tractor → valid (must play all suit cards).
+    const r = validateFollow(
+      [c('S', 12, 1), c('S', 12, 2), c('S', 11, 3), c('S', 11, 4)],
+      hand, lead, lp, 'S' as any, cfg5,
+    );
+    expect(r.valid).toBe(true);
+  });
+
+});
+
+// ============================================================
 // Basic / legacy tests
 // ============================================================
 describe('validateFollow (basic)', () => {

@@ -63,13 +63,12 @@ export function validateFollow(
   // Void in lead suit — any play is legal
   if (handInGroup.length === 0) return { valid: true };
 
-  // hand cards in group ≤ lead count: play ALL, fill rest with anything
+  // hand cards in group ≤ lead count: play ALL, fill rest with anything.
+  // No pattern check — the player has no choice in which suit cards to play.
   if (handInGroup.length <= leadCards.length) {
     const playedInGroup = cards.filter(c => followGroup([c], config) === group);
     if (playedInGroup.length < handInGroup.length)
       return { valid: false, error: isTrumpLead ? 'lead is trump — must follow with trump' : 'must follow suit' };
-    if (leadCards.length >= 2)
-      return matchPattern(playedInGroup, handInGroup, leadPattern, config);
     return { valid: true };
   }
 

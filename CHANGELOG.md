@@ -287,3 +287,20 @@
 - **修复**：「主牌拖拉机必须跟」拒绝用例中 hand 只有 1 张 ♥10 却试图构造 ♥1010 对子。改为 pair + 2 singles 作为拒绝场景。
 - 总计 34 项测试，100 项全部通过。
 - **影响文件**：`packages/engine/src/__tests__/following.test.ts`
+
+## 2026-07-04 13:11
+
+### 短牌/等牌跟牌：移除不必要的牌型检测
+- **修复**：当手牌中同花色数 ≤ 领出张数时，玩家必须打出该花色全部牌，不足部分垫其他花色。此场景下玩家对该花色牌的选择没有余地，不应进行牌型匹配检测。
+- **移除**：`handInGroup.length <= leadCards.length` 分支中错误的 `matchPattern` 调用——之前短牌时仍要求匹配拖拉机/对子，导致仅有单牌的玩家被错误拒绝。
+- **逻辑**：短牌/等牌分支现在只验证该花色牌是否全部打出，不检查牌型。
+- **新增测试**（7 项）：`short-suited / exact-count (no pattern check)` 分组：
+  - exact-count + 拖拉机领出，牌全是单牌 → 合法
+  - exact-count + 对牌领出，单牌 → 合法
+  - short + 拖拉机领出，只有一对不要求拖拉机 → 合法
+  - short + 甩牌（拖拉机+单）领出，只有单牌 → 合法
+  - short + 甩牌（拖拉机+对）领出，只有一对一单 → 合法
+  - short 主牌 + 拖拉机领出，主牌全是单牌 → 合法
+  - exact-count + 拖拉机领出，恰好成拖拉机 → 合法
+- 总计 41 项跟牌测试，107 项引擎测试全部通过。
+- **影响文件**：`packages/engine/src/following/index.ts`、`__tests__/following.test.ts`
