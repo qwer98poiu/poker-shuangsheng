@@ -433,5 +433,6 @@
 - level=2 A+55 被 66 挡 → 强制出 55
 - 仅单牌被挡 → 强制出最小被挡单牌
 - 主牌拖拉机被挡 → 强制出拖拉机
+- 梅花主K级：领出小王+方块K+梅花AAQQ7766553322，被 JJ10109988（4对拖拉机）拦截 → 强制出 776655（3对）
 
 - **影响文件**：`packages/engine/src/leading/index.ts`、`packages/engine/src/game/index.ts`、`packages/cli/src/index.ts`、`packages/engine/src/__tests__/leading.test.ts`

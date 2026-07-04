@@ -146,4 +146,30 @@ describe('resolveThrowFailure', () => {
     expect(r.forcedPlay.length).toBe(4);
     expect(r.reason).toContain('longest tractor');
   });
+
+  it('clubs trump K: small joker + DK + C-AAQQ7766553322, blocked by JJ10109988 → forces 776655', () => {
+    const cfgCK: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Clubs, level: 13 };
+    const thrown = [
+      ct('J', 15, 0),                                // small joker
+      ct('D', 13, 1),                                 // D-K (level card)
+      ct('C', 14, 2), ct('C', 14, 3),                 // C-AA
+      ct('C', 12, 4), ct('C', 12, 5),                 // C-QQ
+      ct('C', 7, 6),  ct('C', 7, 7),                  // C-77
+      ct('C', 6, 8),  ct('C', 6, 9),                  // C-66
+      ct('C', 5, 10), ct('C', 5, 11),                 // C-55
+      ct('C', 3, 12), ct('C', 3, 13),                 // C-33
+      ct('C', 2, 14), ct('C', 2, 15),                 // C-22
+    ];
+    const other = [[
+      ct('C', 11, 16), ct('C', 11, 17),               // C-JJ
+      ct('C', 10, 18), ct('C', 10, 19),               // C-1010
+      ct('C', 9, 20),  ct('C', 9, 21),                // C-99
+      ct('C', 8, 22),  ct('C', 8, 23),                // C-88
+    ]];
+    const r = resolveThrowFailure(thrown, other, cfgCK);
+    expect(r.forcedPlay.length).toBe(6);
+    expect(r.forcedPlay[0].rank).toBe(7);
+    expect(r.reason).toContain('longest tractor');
+    expect(r.reason).toContain('3 pairs');
+  });
 });
