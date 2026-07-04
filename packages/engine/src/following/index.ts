@@ -120,15 +120,17 @@ function checkTractorOrThrowFollow(
   const playedPairIds = new Set(playedTractors.flat().map(c => c.id));
   const playedPairs = findAllPairs(played).filter(p => !playedPairIds.has(p[0].id));
 
-  // 1. Tractor pair counts must match ideal
+  // 1. Must have enough tractors (check count before comparing pair counts)
+  if (playedTractorPairCounts.length < ideal.tractorPairCounts.length)
+    return { valid: false, error: `must play ${ideal.tractorPairCounts.length} tractor(s)` };
+
+  // 2. Each tractor must match the required pair count
   for (let i = 0; i < ideal.tractorPairCounts.length; i++) {
-    if (i >= playedTractorPairCounts.length)
-      return { valid: false, error: `must play a tractor (need ${ideal.tractorPairCounts[i]} pairs)` };
     if (playedTractorPairCounts[i] !== ideal.tractorPairCounts[i])
       return { valid: false, error: `tractor must have ${ideal.tractorPairCounts[i]} pairs, got ${playedTractorPairCounts[i]}` };
   }
 
-  // 2. Total pair count must meet minimum
+  // 3. Total pair count must meet minimum
   const playedTotal = playedTractorPairCounts.reduce((s, n) => s + n, 0) + playedPairs.length;
   if (playedTotal < ideal.minTotalPairs)
     return { valid: false, error: `must play at least ${ideal.minTotalPairs} pairs (only ${playedTotal})` };

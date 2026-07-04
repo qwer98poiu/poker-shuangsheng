@@ -304,3 +304,11 @@
   - exact-count + 拖拉机领出，恰好成拖拉机 → 合法
 - 总计 41 项跟牌测试，107 项引擎测试全部通过。
 - **影响文件**：`packages/engine/src/following/index.ts`、`__tests__/following.test.ts`
+
+## 2026-07-04 13:25
+
+### checkTractorOrThrowFollow：拖拉机个数检查提前到循环外
+- **重构**：将「已出拖拉机个数 ≥ 理想个数」的检查从 for 循环内提到循环外，与逐个比对连对数的循环分离。
+- **之前**：循环内用 `i >= playedTractorPairCounts.length` 判断，语义上是「拖拉机数量不够」，但错误消息却是 `must play a tractor (need X pairs)`，混淆了「个数」与「对数」。
+- **之后**：循环前先判 `playedTractorPairCounts.length < ideal.tractorPairCounts.length`，消息直接说明需要几个拖拉机；循环内只做连对数的逐一比对。
+- **影响文件**：`packages/engine/src/following/index.ts`
