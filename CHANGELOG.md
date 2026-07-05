@@ -644,3 +644,21 @@
 当人类玩家（P0）是第一局庄家时（`DEBUG && declarerIndex === 0`），AI 在发牌阶段不主动亮主，等人类在亮主阶段放弃亮主后，AI 才亮主。人类亮主后 AI 仍可反主。
 
 - **影响文件**：`packages/cli/src/index.ts`
+
+## 2026-07-06 00:08
+
+### 修复全主牌领出时 AI 跟牌崩溃
+
+**根因**：3 个 bug 叠加导致 AI 无法跟出合法牌型，进而触发降级链最终崩溃。
+
+1. **CLI `leadSuit` 空指针覆盖**：全主牌领出时 `leadSuit` 为 `null`，`null || cards[0].suit` 把 `null` 覆盖为方块花色，导致 AI 跟牌按「有方块牌必须跟」处理，只出了 4 张方块单牌。
+
+2. **`aiFollowTrumpOnly` 无拖拉机时不填对子**：领出拖拉机（2 对）但手牌只有 1 对小王无拖拉机时，直接出 4 张最小单牌，不符合「有对子必须尽力配对」的跟牌规则。
+
+3. **`aiFollowMulti` 同样问题**：纯拖拉机领出时 `leadPairs.length === 0`，无拖拉机可用后直接退到单牌路径。
+
+**修复**：
+- `leadSuit` 改用 `!= null` 判断避免空指针覆盖
+- 两个 AI 函数在无拖拉机可用时主动用对子填充
+
+- **影响文件**：`packages/cli/src/index.ts`、`packages/engine/src/ai/index.ts`

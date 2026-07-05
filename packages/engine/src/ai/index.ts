@@ -325,7 +325,15 @@ function aiFollowMulti(
         return { cards: [...picked, ...fill], reason: '用拖拉机跟牌' };
       }
     }
-    // No tractor available: fall through to pair/single filling
+    // No tractor available: fill with pairs then singles
+    if (myPairs.length > 0) {
+      myPairs.sort((a, b) => getEffectiveRank(b[0], config) - getEffectiveRank(a[0], config));
+      const chosen = myPairs.flat();
+      const used = new Set(chosen.map(c => c.id));
+      const remaining = leadSuitCards.filter(c => !used.has(c.id));
+      remaining.sort((a, b) => a.rank - b.rank);
+      return { cards: [...chosen, ...remaining].slice(0, leadLen), reason: '无拖拉机，用对子跟牌' };
+    }
   }
 
   if (leadPairs.length > 0 && myPairs.length >= leadPairs.length) {
@@ -414,7 +422,16 @@ function aiFollowTrumpOnly(
         return { cards: [...picked, ...fill], reason: '用最小主牌拖拉机跟牌' };
       }
     }
+    // No tractor available: fill with pairs then singles
     if (allTrump.length >= leadLen) {
+      const myPairsAll = findAllPairs(allTrump);
+      if (myPairsAll.length > 0) {
+        myPairsAll.sort((a, b) => getEffectiveRank(a[0], config) - getEffectiveRank(b[0], config));
+        const picked = myPairsAll.flat();
+        const usedIds2 = new Set(picked.map(c => c.id));
+        const rest = allTrump.filter(c => !usedIds2.has(c.id));
+        return { cards: [...picked, ...rest].slice(0, leadLen), reason: '无拖拉机，出最小主牌对子跟牌' };
+      }
       return { cards: allTrump.slice(0, leadLen), reason: '无拖拉机，出最小主牌' };
     }
   }

@@ -831,7 +831,7 @@ function showHint(playerIndex: number) {
     reason = r.reason;
   } else if (gameState.trickPlays.length > 0 && gameState.trickPlays[0]?.cards?.length > 0) {
     const leadPlay = gameState.trickPlays[0];
-    const suit = leadPlay.leadSuit || leadPlay.cards[0]?.suit;
+    const suit = leadPlay.leadSuit != null ? leadPlay.leadSuit : leadPlay.cards[0]?.suit;
     const bestSoFar = computeBestSoFar(gameState);
     const r = aiFollowPlay(player.hand, leadPlay.cards, suit, config, bestSoFar, playerIndex);
     suggested = r.cards;
