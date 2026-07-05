@@ -458,3 +458,36 @@ describe('no cross-player phantom tractors', () => {
     expect(r.error).toContain('2-pair tractor');
   });
 });
+
+describe('no cross-player phantom pairs', () => {
+  const cfg5: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 5 };
+
+  it('pass: KK split across two players does not block A+JJ throw', () => {
+    // Throw S-A(14) + S-JJ(11). P2 has one K(13), P3 has one K(13).
+    // Combined they'd form KK which would block JJ. But individually
+    // no player has KK, so the throw is valid.
+    const thrown = [ct('S', 14, 0), ct('S', 11, 0), ct('S', 11, 1)];
+    const hand = [...thrown, ct('H', 3, 0)];
+    const others = [
+      [ct('S', 13, 0)],           // P2: one K
+      [ct('S', 13, 1)],           // P3: one K
+      [ct('S', 10, 0)],
+    ];
+    const r = validateThrow(thrown, hand, others, cfg5);
+    expect(r.valid).toBe(true);
+  });
+
+  it('fail: same player has KK → blocks JJ in A+JJ throw', () => {
+    // Throw S-A(14) + S-JJ(11). Same player has KK(13). KK > JJ → blocks.
+    const thrown = [ct('S', 14, 0), ct('S', 11, 0), ct('S', 11, 1)];
+    const hand = [...thrown, ct('H', 3, 0)];
+    const others = [
+      [ct('S', 10, 0)],
+      [ct('S', 13, 0), ct('S', 13, 1)], // same player has KK > JJ
+      [ct('S', 8, 0)],
+    ];
+    const r = validateThrow(thrown, hand, others, cfg5);
+    expect(r.valid).toBe(false);
+    expect(r.error).toContain('higher pair');
+  });
+});

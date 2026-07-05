@@ -590,3 +590,15 @@
 **新增 5 项完整两局场景测试**：模拟 P0 初始庄家、P2 亮主、庄家保级后 dealer 轮换的完整链路。
 
 - **影响文件**：`packages/engine/src/types.ts`、`packages/engine/src/revealing/index.ts`、`packages/engine/src/game/index.ts`、`packages/engine/src/model/serialize.ts`、`packages/cli/src/index.ts`、`packages/engine/src/__tests__/declarer-rotation.test.ts`
+
+## 2026-07-05 21:45
+
+### 幻影对牌测试：验证逐玩家检测也消除跨玩家幻影对牌
+
+**问题**：甩 A+JJ 时，如果 KK 的两张 K 分属两个不同玩家，合并后会被检测为更高对牌挡住 JJ。
+
+**修复**：之前的逐玩家检测已一并解决此问题（`extractComponents` 对每个玩家独立调用）。新增 2 项测试确认：
+- KK 分散两人 → 甩牌通过
+- KK 在同一人手中 → 甩牌被拦截
+
+- **影响文件**：`packages/engine/src/__tests__/throw-validation.test.ts`
