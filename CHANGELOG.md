@@ -500,3 +500,24 @@
 **之后**：新增 `isTrump(a) !== isTrump(b)` 检查，级牌对与非级牌对不能形成同花色拖拉机（它们属于不同的 suit group）。
 
 - **影响文件**：`packages/engine/src/pattern/index.ts`
+
+## 2026-07-05 12:28
+
+### 拖拉机检测修复：级牌与非级牌同花色使用 effective rank 判断连续性
+
+**修复**：之前仅用 `isTrump` 检查无法区分同为主牌的级牌与非级牌（如红桃主时 ♥3 和 ♥2 都是 trump），需用 `getEffectiveRank` 判断两者的 trump 排序是否相邻。
+
+**逻辑**：`areConsecutiveSameSuit` 中，涉及级牌的配对改用 `Math.abs(getEffectiveRank(a) - getEffectiveRank(b)) === 1` 判断。
+
+### 拖拉机链全面测试：新增 57 项跨等级/主牌测试
+
+**新增 `tractor-chains.test.ts`**：覆盖 4 种等级配置下的同花色和跨组拖拉机链：
+
+| 等级 | 主牌 | 测试数 | 关键场景 |
+|------|------|--------|----------|
+| 2 | 红桃 | 14 | H-33+22 否（级牌断链）、BJ-SJ-H2 3p、H2-S2-HA 3p |
+| A(14) | 黑桃 | 23 | S-AA+KK 否、SJ+SA+HA 3p、SA+HA/DA/CA √、HA+DA/CA 否、多 Ace 否 |
+| 10 | 草花 | 11 | C-1010+99 否、C-99+88/JJ+99√（跳过 10） |
+| K(13) | NT | 9 | S-KK+QQ 否、S-AA+QQ√（跳过 K）、BJ+SJ+HK 3p |
+
+- **影响文件**：`packages/engine/src/pattern/index.ts`、`packages/engine/src/__tests__/tractor-chains.test.ts`（新增）

@@ -8,7 +8,7 @@
 import type { Card } from '../types.js';
 import type { ComboClass, TrumpDeclaration } from '../types.js';
 import { Rank, SpecialSuit } from '../types.js';
-import { isTrump } from '../model.js';
+import { isTrump, getEffectiveRank } from '../model.js';
 
 export function classify(cards: Card[], config: TrumpDeclaration): ComboClass {
   const len = cards.length;
@@ -95,10 +95,17 @@ function areConsecutiveSameSuit(a: Card, b: Card, config: TrumpDeclaration): boo
   if (a.suit === SpecialSuit.Joker) {
     return (a.rank === 16 && b.rank === 15) || (a.rank === 15 && b.rank === 16);
   }
-  // Level cards belong to the trump group, not to their original suit.
-  // A level card and a non-level card of the same suit are in different
+  // Level cards and non-level cards of the same suit are in different
   // suit groups and cannot form a same-suit tractor.
   if (isTrump(a, config) !== isTrump(b, config)) return false;
+
+  // When a level card is involved, use effective rank to determine adjacency.
+  // A level card's trump position is far from its card-rank neighbors.
+  if (a.rank === config.level || b.rank === config.level) {
+    return Math.abs(getEffectiveRank(a, config) - getEffectiveRank(b, config)) === 1;
+  }
+
+  // Non-level cards: use card rank with level-skip logic.
   const hi = Math.max(a.rank, b.rank);
   const lo = Math.min(a.rank, b.rank);
   for (let r = lo + 1; r < hi; r++) {
