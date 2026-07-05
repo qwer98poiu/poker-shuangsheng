@@ -191,7 +191,7 @@ async function gameLoop(dealerIndex: number, currentLevel: number, spectator: bo
       if (ans.toLowerCase() === 'n') break;
     }
 
-    dealer = attackerSits ? (dealer + 1) % 4 : dealer;
+    dealer = attackerSits ? (dealer + 1) % 4 : (dealer + 2) % 4;
   }
 
   if (spectator && matchLogs.length > 0) {

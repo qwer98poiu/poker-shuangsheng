@@ -521,3 +521,28 @@
 | K(13) | NT | 9 | S-KK+QQ 否、S-AA+QQ√（跳过 K）、BJ+SJ+HK 3p |
 
 - **影响文件**：`packages/engine/src/pattern/index.ts`、`packages/engine/src/__tests__/tractor-chains.test.ts`（新增）
+
+## 2026-07-05 12:52
+
+### 庄家轮换修正 + 11 项测试
+
+**修复**：`gameLoop` 中庄家保级时的 dealer 轮换逻辑从 `不变` 改为 `轮换到对家（队友）`。
+
+**正确规则**：
+- 闲家上台（attacker ≥ 80）→ dealer +1 → 另一方做庄
+- 庄家保级（attacker < 80）→ dealer +2 → 队友做庄
+
+**新增 `declarer-rotation.test.ts`**（11 项测试）：
+
+**第一局**（`isFirstRound=true`）：
+- 玩家亮主 → 亮主者即为庄家
+- 反主 → 最终反主者为庄家
+- 无人亮主 → dealer 叫主并成为庄家
+
+**后续局**（`isFirstRound=false`）：
+- 有人亮主/反主 → 庄家始终是 dealer，亮主者只决定主花色
+- 无人亮主 → dealer 叫主并成为庄家
+- 庄家保级 → dealer 轮换到对家（队友）
+- 闲家上台 → dealer 轮换到下一家
+
+- **影响文件**：`packages/cli/src/index.ts`、`packages/engine/src/__tests__/declarer-rotation.test.ts`（新增）
