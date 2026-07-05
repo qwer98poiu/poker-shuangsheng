@@ -460,3 +460,21 @@
 **`forceReason` 增强**：附加罚分信息，如 `(defender penalty 2/3)` 或 `(max penalties reached)`
 
 - **影响文件**：`packages/engine/src/types.ts`、`packages/engine/src/game/index.ts`、`packages/engine/src/scoring/index.ts`、`packages/cli/src/index.ts`
+
+## 2026-07-05 10:51
+
+### 甩牌罚分测试：新增 7 项测试覆盖罚分全部场景
+
+**新增 `throw-penalty.test.ts`**（7 项测试）：
+
+| 测试 | 场景 | 验证点 |
+|------|------|--------|
+| attacker fails | 闲家（P1）甩牌失败 | `attackerPoints: -10`，`throwPenalties: [0,1]` |
+| defender fails | 庄家（P0）甩牌失败 | `attackerPoints: +10`，`throwPenalties: [1,0]` |
+| attacker 超 3 次 | 预置 3 次罚分后再失败 | 不罚分，`max penalties reached` |
+| defender 超 3 次 | 预置 3 次罚分后再失败 | 不罚分，`max penalties reached` |
+| -10 clamp | `computeLevelChange(-10)` | 大光 +3 |
+| -30 clamp | `computeLevelChange(-30)` | 大光 +3（理论最大罚分） |
+| 75→85 上台 | 庄家甩牌失败 +10，75→85 | 闲家从保级跨过 80 分门槛上台 |
+
+- **影响文件**：`packages/engine/src/__tests__/throw-penalty.test.ts`（新增）
