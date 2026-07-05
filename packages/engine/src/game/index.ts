@@ -32,10 +32,10 @@ export function tryReveal(state: GameState, playerIndex: number, suit: Suit | nu
 }
 
 /** Finalize the reveal phase and set the trump declaration. */
-export function finalizeReveal(state: GameState): GameState {
+export function finalizeReveal(state: GameState, isFirstRound = true): GameState {
   const dealerIdx = state.dealerIndex;
   const dealerHand = state.players[dealerIdx].hand;
-  const r = finalize(state.currentReveal, dealerHand, state.currentLevel, dealerIdx);
+  const r = finalize(state.currentReveal, dealerHand, state.currentLevel, dealerIdx, isFirstRound);
 
   const decl: TrumpDeclaration = {
     declarerIndex: r.declarerIndex,

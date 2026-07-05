@@ -143,12 +143,14 @@ async function gameLoop(dealerIndex: number, currentLevel: number, spectator: bo
   let levelAC = currentLevel;
   let levelBD = currentLevel;
   let gameOver = false;
+  let firstRound = true;
   const matchLogs: string[] = [];
 
   while (!gameOver) {
     const defenderLevel = dealer % 2 === 0 ? levelAC : levelBD;
 
-    await startNewRound(dealer, defenderLevel);
+    await startNewRound(dealer, defenderLevel, firstRound);
+    firstRound = false;
 
     const result = showRoundResult();
     const changes = result.changes;
@@ -205,7 +207,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 // ---- game round ----
-async function startNewRound(dealerIndex: number, currentLevel: number) {
+async function startNewRound(dealerIndex: number, currentLevel: number, isFirstRound: boolean) {
   deck = shuffle(createFullDeck());
 
   const emptyPlayers: PlayerState[] = [0, 1, 2, 3].map(i => ({
@@ -220,7 +222,7 @@ async function startNewRound(dealerIndex: number, currentLevel: number) {
   );
 
   await doDeal();
-  await doReveal();
+  await doReveal(isFirstRound);
   await doBottomExchange();
   await doPlayPhase();
 }
@@ -290,7 +292,7 @@ function showRevealStatus() {
 }
 
 // ---- reveal ----
-async function doReveal() {
+async function doReveal(isFirstRound: boolean) {
   console.log('\n' + BOLD + '=== 亮主阶段 ===' + RESET);
   if (gameState.currentReveal) {
     showRevealStatus();
@@ -343,7 +345,7 @@ async function doReveal() {
     }
   }
 
-  gameState = finalizeReveal(gameState);
+  gameState = finalizeReveal(gameState, isFirstRound);
   console.log(`\n最终主牌: ${showTrump(gameState.trumpDeclaration!)}`);
   console.log(`庄家: ${playerName(gameState.trumpDeclaration!.declarerIndex)}`);
 }

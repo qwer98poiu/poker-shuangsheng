@@ -63,8 +63,12 @@ export function finalize(
   dealerHand: Card[],
   level: number,
   dealerIndex: number,
+  isFirstRound = true,
 ): { declarerIndex: number; trumpSuit: Suit | null; level: number } {
-  if (current) return { declarerIndex: current.playerIndex, trumpSuit: current.suit, level };
+  if (current && isFirstRound) return { declarerIndex: current.playerIndex, trumpSuit: current.suit, level };
+  // Subseqent rounds: dealer is always the declarer.
+  // If someone revealed, use their trump suit; otherwise dealer auto-calls.
+  if (current) return { declarerIndex: dealerIndex, trumpSuit: current.suit, level };
   // Auto-call: dealer picks suit with most level cards
   let best: Suit = Suit.Spades;
   let bestCnt = 0;

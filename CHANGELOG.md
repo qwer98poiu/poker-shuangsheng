@@ -478,3 +478,25 @@
 | 75→85 上台 | 庄家甩牌失败 +10，75→85 | 闲家从保级跨过 80 分门槛上台 |
 
 - **影响文件**：`packages/engine/src/__tests__/throw-penalty.test.ts`（新增）
+
+## 2026-07-05 12:02
+
+### 庄家轮换修正：后续局亮主者不自动成为庄家
+
+**修复**：第一局亮主者即为庄家，但后续局庄家由上一局结果确定（闲家上台则轮换），亮主者只决定主花色，不改变庄家归属。
+
+**之前**：`finalize` 始终将亮主者设为 `declarerIndex`，导致 AI-4 亮主后错误地成为第二局庄家。
+
+**之后**：`finalize` / `finalizeReveal` 新增 `isFirstRound` 参数。第一局行为不变；后续局庄家始终是 dealer，亮主者只贡献 trump suit。
+
+- **影响文件**：`packages/engine/src/revealing/index.ts`、`packages/engine/src/game/index.ts`、`packages/cli/src/index.ts`
+
+### 拖拉机检测修复：级牌与非级牌同花色不能形成拖拉机
+
+**修复**：级牌属于主牌组，非级牌属于其原始花色组，两者在 `areConsecutiveSameSuit` 中不应被视为同一花色组的连续对。例：♣3♣3♣2♣2（♣2 是级牌时）不再误判为拖拉机。
+
+**之前**：`areConsecutiveSameSuit` 只检查 suit 相同即视为同花色，未排除级牌的 suit group 差异。
+
+**之后**：新增 `isTrump(a) !== isTrump(b)` 检查，级牌对与非级牌对不能形成同花色拖拉机（它们属于不同的 suit group）。
+
+- **影响文件**：`packages/engine/src/pattern/index.ts`
