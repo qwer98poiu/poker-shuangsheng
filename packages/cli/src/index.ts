@@ -139,7 +139,9 @@ function handleDump() {
 
 // ---- continuous game loop ----
 async function gameLoop(dealerIndex: number, currentLevel: number, spectator: boolean): Promise<void> {
-  let dealer = dealerIndex;
+  // Only the first round uses the initial dealerIndex. All subsequent rounds
+  // derive the next dealer from the previous round's declarer.
+  let nextDealer = dealerIndex;
   let levelAC = currentLevel;
   let levelBD = currentLevel;
   let gameOver = false;
@@ -147,16 +149,14 @@ async function gameLoop(dealerIndex: number, currentLevel: number, spectator: bo
   const matchLogs: string[] = [];
 
   while (!gameOver) {
-    const defenderLevel = dealer % 2 === 0 ? levelAC : levelBD;
-
-    await startNewRound(dealer, defenderLevel, firstRound);
+    await startNewRound(nextDealer, nextDealer % 2 === 0 ? levelAC : levelBD, firstRound);
     firstRound = false;
 
     const result = showRoundResult();
     const changes = result.changes;
     const attackerSits = gameState.attackerPoints >= 80;
-
-    const defenderTeam = dealer % 2;
+    const declarerIdx = gameState.trumpDeclaration!.declarerIndex;
+    const defenderTeam = declarerIdx % 2;
     if (attackerSits) {
       if (defenderTeam === 0) {
         levelBD += changes.attackerChange;
@@ -191,7 +191,7 @@ async function gameLoop(dealerIndex: number, currentLevel: number, spectator: bo
       if (ans.toLowerCase() === 'n') break;
     }
 
-    dealer = attackerSits ? (dealer + 1) % 4 : (dealer + 2) % 4;
+    nextDealer = attackerSits ? (declarerIdx + 1) % 4 : (declarerIdx + 2) % 4;
   }
 
   if (spectator && matchLogs.length > 0) {

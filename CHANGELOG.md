@@ -568,3 +568,13 @@
 - **修复**：`validateThrow` 和 `resolveThrowFailure` 将所有其他玩家的牌合并后检测，导致 ♦Q（AI-2）+ ♦Q（AI-4）+ ♦J♦J（AI-2）合并出 QQJJ 拖拉机，实际任何单个玩家都没有。改为逐个玩家独立检测。
 - **新增测试**：2 项——牌分散多玩家则通过、单个玩家有更高拖拉机则拦截。
 - **影响文件**：`packages/engine/src/leading/index.ts`、`packages/engine/src/__tests__/throw-validation.test.ts`
+
+## 2026-07-05 16:58
+
+### 修复 dealer 轮换逻辑：始终从当局庄家计算下局 dealer
+
+**问题**：之前 `gameLoop` 维护独立的 `dealer` 变量，每次增量更新（`dealer + 1` 或 `dealer + 2`），与当局庄家无关。这导致首局亮主者抢走庄家后，下局 dealer 仍从初始发牌者计算，而非从当局的实际庄家计算。
+
+**修复**：`nextDealer` 始终从 `gameState.trumpDeclaration.declarerIndex` 计算，不再沿用旧 dealer 值。首局庄家由亮主结果确定后，后续局 dealer 均由此派生。
+
+- **影响文件**：`packages/cli/src/index.ts`
