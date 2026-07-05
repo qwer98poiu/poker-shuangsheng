@@ -62,19 +62,19 @@ export function finalize(
   current: Reveal | null,
   dealerHand: Card[],
   level: number,
-  dealerIndex: number,
+  declarerIndex: number,
   isFirstRound = true,
 ): { declarerIndex: number; trumpSuit: Suit | null; level: number } {
   if (current && isFirstRound) return { declarerIndex: current.playerIndex, trumpSuit: current.suit, level };
-  // Subseqent rounds: dealer is always the declarer.
-  // If someone revealed, use their trump suit; otherwise dealer auto-calls.
-  if (current) return { declarerIndex: dealerIndex, trumpSuit: current.suit, level };
-  // Auto-call: dealer picks suit with most level cards
+  // Subsequent rounds: the default declarer is always the actual declarer.
+  // If someone revealed, use their trump suit; otherwise auto-call.
+  if (current) return { declarerIndex, trumpSuit: current.suit, level };
+  // Auto-call: pick suit with most level cards
   let best: Suit = Suit.Spades;
   let bestCnt = 0;
   for (const s of [Suit.Spades, Suit.Hearts, Suit.Clubs, Suit.Diamonds]) {
     const c = dealerHand.filter(c => c.suit === s && c.rank === level).length;
     if (c > bestCnt) { bestCnt = c; best = s; }
   }
-  return { declarerIndex: dealerIndex, trumpSuit: best, level };
+  return { declarerIndex, trumpSuit: best, level };
 }

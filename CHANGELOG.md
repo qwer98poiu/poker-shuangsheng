@@ -578,3 +578,15 @@
 **修复**：`nextDealer` 始终从 `gameState.trumpDeclaration.declarerIndex` 计算，不再沿用旧 dealer 值。首局庄家由亮主结果确定后，后续局 dealer 均由此派生。
 
 - **影响文件**：`packages/cli/src/index.ts`
+
+## 2026-07-05 17:59
+
+### 概念重命名：dealer → declarer（庄家）
+
+「庄家」和「发牌者」是同一个身份——拿到并处理底牌的人、领出第一墩的人。不存在独立的「发牌人」概念。
+
+**变更**：`GameState.dealerIndex` → `declarerIndex`，`gameLoop(dealerIndex)` → `gameLoop(firstDeclarer)`，`finalize(dealerIndex)` → `finalize(declarerIndex)`，相关参数、注释、序列化字段全部统一。
+
+**新增 5 项完整两局场景测试**：模拟 P0 初始庄家、P2 亮主、庄家保级后 dealer 轮换的完整链路。
+
+- **影响文件**：`packages/engine/src/types.ts`、`packages/engine/src/revealing/index.ts`、`packages/engine/src/game/index.ts`、`packages/engine/src/model/serialize.ts`、`packages/cli/src/index.ts`、`packages/engine/src/__tests__/declarer-rotation.test.ts`

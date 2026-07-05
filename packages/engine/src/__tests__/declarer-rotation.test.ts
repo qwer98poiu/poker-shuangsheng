@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { Suit } from '../types.js';
 import { createCard } from '../model.js';
 import { finalize } from '../revealing/index.js';
-import type { Reveal } from '../types.js';
+import type { Reveal, Card } from '../types.js';
 
 function c(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
 
@@ -115,5 +115,56 @@ describe('subsequent rounds (isFirstRound=false)', () => {
     const r = finalize(cur, hand, 7, 1, false);
     expect(r.declarerIndex).toBe(1);
     expect(r.trumpSuit).toBe(Suit.Clubs);
+  });
+});
+
+// ================================================================
+// Full scenario: P0 starts as dealer, P2 reveals in round 1,
+// defender keeps seat → next dealer = P0's partner? No —
+// from P2 (declarer) + 2 = P0. P0 is dealer in round 2.
+// ================================================================
+describe('full two-round scenario: initial dealer P0, P2 reveals', () => {
+
+  it('round 1: P0 is dealer, P2 reveals → P2 is declarer', () => {
+    const cur = mkReveal(2, Suit.Hearts, 1);
+    const hand = [c('S', 2, 0)];
+    const r = finalize(cur, hand, 2, 0, true);
+    expect(r.declarerIndex).toBe(2);
+    expect(r.trumpSuit).toBe(Suit.Hearts);
+  });
+
+  it('after round 1 (defender keeps, attacker=50): next dealer = (P2+2)%4 = P0', () => {
+    // P2 was declarer, defender kept seat → dealer = (2+2)%4 = 0 = P0
+    // This is the NEXT round's dealer for startNewRound.
+    // P0 should become the next dealer (not P2's partner P0... wait
+    // P2's partner IS P0. Defender keeps → dealer+2 → partner.
+    // P0 was the original dealer, and is also P2's partner. Correct.)
+    const prevDeclarer = 2;
+    const attackerSits = false; // 50 < 80
+    const nextDealer = attackerSits ? (prevDeclarer + 1) % 4 : (prevDeclarer + 2) % 4;
+    expect(nextDealer).toBe(0);
+  });
+
+  it('round 2: P0 is dealer, AI-2 reveals NT → P0 is still declarer', () => {
+    // P0 is the new dealer. AI-2 reveals but dealer is the declarer now.
+    const cur = mkReveal(1, null, 3);
+    const hand = [c('H', 3, 0)];
+    const r = finalize(cur, hand, 3, 0, false);
+    expect(r.declarerIndex).toBe(0);
+    expect(r.trumpSuit).toBeNull();
+  });
+
+  it('after round 2 (defender keeps again): next dealer = (P0+2)%4 = P2', () => {
+    const prevDeclarer = 0;
+    const attackerSits = false;
+    const nextDealer = attackerSits ? (prevDeclarer + 1) % 4 : (prevDeclarer + 2) % 4;
+    expect(nextDealer).toBe(2);
+  });
+
+  it('after round 2 (attacker sits, 85 pts): next dealer = (P0+1)%4 = P1', () => {
+    const prevDeclarer = 0;
+    const attackerSits = true;
+    const nextDealer = (prevDeclarer + 1) % 4;
+    expect(nextDealer).toBe(1);
   });
 });

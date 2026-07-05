@@ -138,10 +138,13 @@ function handleDump() {
 }
 
 // ---- continuous game loop ----
-async function gameLoop(dealerIndex: number, currentLevel: number, spectator: boolean): Promise<void> {
-  // Only the first round uses the initial dealerIndex. All subsequent rounds
-  // derive the next dealer from the previous round's declarer.
-  let nextDealer = dealerIndex;
+async function gameLoop(firstDeclarer: number, currentLevel: number, spectator: boolean): Promise<void> {
+  // The declarer (庄家) gets the bottom cards and leads the first trick.
+  // In round 1: if someone reveals, they become the declarer; otherwise
+  // the firstDeclarer (e.g. P0) becomes the declarer.
+  // In subsequent rounds: the declarer is determined by the previous round's
+  // result — attacker sits → declarer+1 (other side), defender keeps → declarer+2 (partner).
+  let nextDeclarer = firstDeclarer;
   let levelAC = currentLevel;
   let levelBD = currentLevel;
   let gameOver = false;
@@ -149,7 +152,7 @@ async function gameLoop(dealerIndex: number, currentLevel: number, spectator: bo
   const matchLogs: string[] = [];
 
   while (!gameOver) {
-    await startNewRound(nextDealer, nextDealer % 2 === 0 ? levelAC : levelBD, firstRound);
+    await startNewRound(nextDeclarer, nextDeclarer % 2 === 0 ? levelAC : levelBD, firstRound);
     firstRound = false;
 
     const result = showRoundResult();
@@ -191,7 +194,7 @@ async function gameLoop(dealerIndex: number, currentLevel: number, spectator: bo
       if (ans.toLowerCase() === 'n') break;
     }
 
-    nextDealer = attackerSits ? (declarerIdx + 1) % 4 : (declarerIdx + 2) % 4;
+    nextDeclarer = attackerSits ? (declarerIdx + 1) % 4 : (declarerIdx + 2) % 4;
   }
 
   if (spectator && matchLogs.length > 0) {
@@ -207,7 +210,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 // ---- game round ----
-async function startNewRound(dealerIndex: number, currentLevel: number, isFirstRound: boolean) {
+async function startNewRound(declarerIndex: number, currentLevel: number, isFirstRound: boolean) {
   deck = shuffle(createFullDeck());
 
   const emptyPlayers: PlayerState[] = [0, 1, 2, 3].map(i => ({
@@ -218,7 +221,7 @@ async function startNewRound(dealerIndex: number, currentLevel: number, isFirstR
   }));
 
   gameState = createInitialState(
-    emptyPlayers as any, dealerIndex, currentLevel, DEBUG,
+    emptyPlayers as any, declarerIndex, currentLevel, DEBUG,
   );
 
   await doDeal();

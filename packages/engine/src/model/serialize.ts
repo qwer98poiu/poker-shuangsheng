@@ -19,7 +19,7 @@ interface SaveData {
   trump: { declarerIndex: number; trumpSuit: string | null; level: number } | null;
   attackerPoints: number;
   currentLevel: number;
-  dealerIndex: number;
+  declarerIndex: number;
   currentPlayer: number;
   leadPlayer: number;
   tricksPlayed: number;
@@ -105,7 +105,7 @@ export function serialize(state: GameState, aiPlayers: boolean[], debug: boolean
       : null,
     attackerPoints: state.attackerPoints,
     currentLevel: state.currentLevel,
-    dealerIndex: state.dealerIndex,
+    declarerIndex: state.declarerIndex,
     currentPlayer: state.currentPlayerIndex,
     leadPlayer: state.leadPlayerIndex,
     tricksPlayed: state.tricksPlayed,
@@ -163,7 +163,7 @@ export function deserialize(json: string): { state: GameState; aiPlayers: boolea
         points: t.points,
       };
     }),
-    dealerIndex: save.dealerIndex,
+    declarerIndex: save.declarerIndex,
     trumpDeclaration: trumpDecl,
     attackerPoints: save.attackerPoints,
     currentPlayerIndex: save.currentPlayer,
@@ -204,7 +204,7 @@ export function resumeFromTrick(
   }
 
   // attacker points = sum of points from kept history where winner is attacker
-  const defenderTeam = state.trumpDeclaration ? state.trumpDeclaration.declarerIndex % 2 : state.dealerIndex % 2;
+  const defenderTeam = state.trumpDeclaration ? state.trumpDeclaration.declarerIndex % 2 : state.declarerIndex % 2;
   const attackerTeam = defenderTeam === 0 ? 1 : 0;
   let ap = 0;
   for (const trick of keptHistory) {

@@ -149,7 +149,7 @@ export interface GameState {
   readonly players: [PlayerState, PlayerState, PlayerState, PlayerState];
   readonly bottomCards: Card[];
   readonly trickHistory: Trick[];
-  readonly dealerIndex: number;
+  readonly declarerIndex: number; // default declarer — overridden by revealer only in round 1
   readonly trumpDeclaration: TrumpDeclaration | null;
   readonly attackerPoints: number;
   readonly currentPlayerIndex: number;
@@ -168,7 +168,7 @@ export interface GameState {
 
 export function createInitialState(
   players: [PlayerState, PlayerState, PlayerState, PlayerState],
-  dealerIndex: number,
+  declarerIndex: number,
   currentLevel: number,
   debug: boolean,
 ): GameState {
@@ -178,11 +178,11 @@ export function createInitialState(
     players,
     bottomCards: [],
     trickHistory: [],
-    dealerIndex,
+    declarerIndex,
     trumpDeclaration: null,
     attackerPoints: 0,
-    currentPlayerIndex: dealerIndex,
-    leadPlayerIndex: dealerIndex,
+    currentPlayerIndex: declarerIndex,
+    leadPlayerIndex: declarerIndex,
     trickPlays: [],
     tricksPlayed: 0,
     reveals: [],
