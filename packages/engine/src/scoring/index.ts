@@ -78,9 +78,10 @@ export function finalizeAttackerPoints(
  *   80-115 分 = 上台, 不升级
  *   ≥120 分   = 上台, 每40分台阶 +1 级 (不封顶)
  */
-export function computeLevelChange(attackerPoints: number): {
+export function computeLevelChange(rawPoints: number): {
   defenderChange: number; attackerChange: number;
 } {
+  const attackerPoints = Math.max(0, rawPoints);
   const n = Math.floor(attackerPoints / 40);
   if (n === 0) {
     if (attackerPoints === 0) return { defenderChange: 3, attackerChange: 0 };

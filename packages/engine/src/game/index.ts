@@ -92,17 +92,33 @@ function playLead(
     const tv = validateThrow(cards, hand, otherHands, config);
     if (!tv.valid) {
       if (state.debug) return { error: tv.error, state };
+      // Apply penalty (max 3 per side)
+      const isDeclarer = playerIndex === config.declarerIndex ||
+                         playerIndex === (config.declarerIndex + 2) % 4;
+      let penaltyTag = '';
+      let nextState = state;
+      const [dPen, aPen] = state.throwPenalties;
+      const exceeded = isDeclarer ? dPen >= 3 : aPen >= 3;
+      if (!exceeded) {
+        const newDpen = isDeclarer ? dPen + 1 : dPen;
+        const newApen = isDeclarer ? aPen : aPen + 1;
+        const ptsDelta = isDeclarer ? 10 : -10;
+        nextState = { ...state, throwPenalties: [newDpen, newApen], attackerPoints: state.attackerPoints + ptsDelta };
+        penaltyTag = ` (${isDeclarer ? 'defender' : 'attacker'} penalty ${isDeclarer ? newDpen : newApen}/3)`;
+      } else {
+        penaltyTag = ' (max penalties reached)';
+      }
       // Force-play the smallest blocked sub-pattern
       const resolved = resolveThrowFailure(cards, otherHands, config);
       const rv = validateLead(resolved.forcedPlay, hand, config);
-      if (!rv.valid) return { error: rv.error, state };
+      if (!rv.valid) return { error: rv.error, nextState };
       const rp = classify(resolved.forcedPlay, config);
       const leadSuit: CardSuit | null =
         resolved.forcedPlay.every(c => isTrump(c, config)) ? null : (resolved.forcedPlay[0].suit as CardSuit);
       return {
-        state: advanceAfterPlay(state, playerIndex, { cards: resolved.forcedPlay, pattern: rp, leadSuit }),
+        state: advanceAfterPlay(nextState, playerIndex, { cards: resolved.forcedPlay, pattern: rp, leadSuit }),
         forcedPlay: resolved.forcedPlay,
-        forceReason: resolved.reason,
+        forceReason: resolved.reason + penaltyTag,
       };
     }
   }

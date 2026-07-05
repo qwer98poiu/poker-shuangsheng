@@ -840,8 +840,10 @@ function showHumanHands() {
 }
 
 function showRoundResult(): { changes: { defenderChange: number; attackerChange: number } } {
+  const pts = Math.max(0, gameState.attackerPoints);
   console.log('\n' + BOLD + '=== 本局结束 ===' + RESET);
-  console.log(`闲家得分: ${gameState.attackerPoints}`);
+  console.log(`闲家得分: ${pts}`);
+  if (gameState.attackerPoints < 0) console.log(DIM + `  (罚分前: ${gameState.attackerPoints})` + RESET);
 
   console.log('底牌翻出:');
   showBottom();
@@ -849,8 +851,8 @@ function showRoundResult(): { changes: { defenderChange: number; attackerChange:
   for (const c of gameState.bottomCards) bp += cardPoints(c.rank);
   console.log(`底牌分数: ${bp} ×2 = ${bp * 2}`);
 
-  const changes = computeLevelChange(gameState.attackerPoints);
-  const attackerSits = gameState.attackerPoints >= 80;
+  const changes = computeLevelChange(pts);
+  const attackerSits = pts >= 80;
 
   if (attackerSits) {
     const up = changes.attackerChange;

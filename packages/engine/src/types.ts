@@ -162,6 +162,8 @@ export interface GameState {
   readonly dealtCards: Card[][];
   readonly debug: boolean;
   readonly aiReasons: AIReason[];
+  /** Throw failure penalty counts: [declarerTeam, attackerTeam], max 3 each. */
+  readonly throwPenalties: readonly [number, number];
 }
 
 export function createInitialState(
@@ -189,5 +191,6 @@ export function createInitialState(
     dealtCards: [[], [], [], []],
     debug,
     aiReasons: [],
+    throwPenalties: [0, 0],
   };
 }

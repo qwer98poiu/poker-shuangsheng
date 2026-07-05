@@ -436,3 +436,27 @@
 - 梅花主K级：领出小王+方块K+梅花AAQQ7766553322，被 JJ10109988（4对拖拉机）拦截 → 强制出 776655（3对）
 
 - **影响文件**：`packages/engine/src/leading/index.ts`、`packages/engine/src/game/index.ts`、`packages/cli/src/index.ts`、`packages/engine/src/__tests__/leading.test.ts`
+
+## 2026-07-05 09:52
+
+### 甩牌失败罚分规则
+
+**规则**：
+- 闲家甩牌失败一次，闲家得分 **-10**（扣 10 分）
+- 庄家（含队友）甩牌失败一次，闲家得分 **+10**（加 10 分）
+- 每方最多罚 **3 次**，超出不罚
+- 可能产生负分，一局结束时 **负分视为 0 分**（`computeLevelChange` clamp）
+- 调试模式下不触发罚分（甩牌失败直接报错让玩家重选）
+
+**引擎实现**：
+- `GameState` 新增 `throwPenalties: readonly [number, number]`（[庄家方罚次数, 闲家方罚次数]）
+- `playLead` 甩牌失败时：判断玩家属于庄家方/闲家方 → 检查是否达上限 → 未达则更新 `throwPenalties` 和 `attackerPoints`
+- `computeLevelChange` 改为 `Math.max(0, rawPoints)` clamp 负分
+- `advanceAfterPlay` 不变，甩牌失败强制出牌与正常出牌走同一条路径
+
+**CLI 适配**：
+- `showRoundResult` 使用 `Math.max(0, attackerPoints)` 计算升级，同时显示罚分前原始得分
+
+**`forceReason` 增强**：附加罚分信息，如 `(defender penalty 2/3)` 或 `(max penalties reached)`
+
+- **影响文件**：`packages/engine/src/types.ts`、`packages/engine/src/game/index.ts`、`packages/engine/src/scoring/index.ts`、`packages/cli/src/index.ts`
