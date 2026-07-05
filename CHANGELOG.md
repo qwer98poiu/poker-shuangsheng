@@ -614,3 +614,25 @@
 **新增测试**：领出 ♦8，玩家跟 ♦Q、垫 ♥K、跟 ♦3 → 验证 ♦Q 获胜而非 ♥K。
 
 - **影响文件**：`packages/engine/src/comparing/index.ts`、`packages/engine/src/__tests__/comparing.test.ts`
+
+## 2026-07-05 22:15
+
+### 非调试模式 UX 改进
+
+**命令限制**：非调试模式下只保留 `/score`（查看得分）和 `/hint`（出牌建议），其他 debug 命令（`/hand`、`/history`、`/bottom`、`/dump` 等）不再可用。
+
+**甩牌失败提示**：人类玩家甩牌失败时，CLI 显示黄色提示和灰色罚分详情：
+- `甩牌失败！强制出: ♦8♦8♦7♦7`
+- `→ throw failed — must play longest tractor (2 pairs) (attacker penalty 1/3)`
+
+- **影响文件**：`packages/cli/src/index.ts`
+
+## 2026-07-05 22:25
+
+### 非调试模式 UX 优化
+
+**提示文本**：出牌输入提示从「编号或 /debug 命令」改为「编号或/hint查看提示、/score查看目前得分」。
+
+**/score 不暴露底牌**：非调试模式下 `/score` 不再显示底牌内容和底牌分数（保留闲家得分和已拿分数牌）。
+
+- **影响文件**：`packages/cli/src/index.ts`

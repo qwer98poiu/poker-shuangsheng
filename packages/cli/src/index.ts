@@ -585,7 +585,12 @@ async function doPlayerTurn(playerIndex: number) {
 
     let ok = false;
     while (!ok) {
-      const input = await ask('出牌 (编号或 /debug 命令): ');
+      const decl = gameState.trumpDeclaration!;
+      const isDecl = playerIndex === decl.declarerIndex;
+      const prompt = isDecl
+        ? '编号或 /hint 查看提示、/score 查看得分、/bottom 查看底牌: '
+        : '编号或 /hint 查看提示、/score 查看得分: ';
+      const input = await ask(prompt);
       if (!input) continue;
 
       if (input.startsWith('/')) {
@@ -605,6 +610,13 @@ async function doPlayerTurn(playerIndex: number) {
       console.log(`已选: ${showCards(cards)} (${cards.length}张)`);
 
       const result = playCards(gameState, playerIndex, cards);
+      if (result.forcedPlay) {
+        console.log(YELLOW + `甩牌失败！强制出: ${showCards(result.forcedPlay)}` + RESET);
+        console.log(DIM + `  → ${result.forceReason}` + RESET);
+        gameState = result.state;
+        ok = true;
+        continue;
+      }
       if (result.error) {
         console.log(`❌ ${result.error}`);
         continue;
@@ -619,6 +631,25 @@ async function doPlayerTurn(playerIndex: number) {
 async function handleDebugCommand(cmd: string, playerIndex: number) {
   const parts = cmd.trim().split(/\s+/);
   const c = parts[0].toLowerCase();
+
+  // Non-debug mode: only /score, /hint, and /bottom (for declarer only)
+  if (!DEBUG) {
+    if (c === '/score' || c === '/s') {
+      showScoreDetail();
+    } else if (c === '/hint' || c === '/tip') {
+      showHint(playerIndex);
+    } else if (c === '/bottom' || c === '/b') {
+      const decl = gameState.trumpDeclaration!;
+      if (playerIndex === decl.declarerIndex) {
+        showBottom();
+      } else {
+        console.log('只有庄家可以查看底牌');
+      }
+    } else {
+      console.log('命令不可用。可用: /score, /hint');
+    }
+    return;
+  }
 
   if (c === '/hand' || c === '/h') {
     const target = parseInt(parts[1]);
@@ -767,11 +798,13 @@ function showScoreDetail() {
 
   console.log(`\n闲家得分: ${gameState.attackerPoints}`);
   console.log(`已拿分数牌 (${pointCardsWon.length}张): ${showCards(pointCardsWon)}`);
-  console.log(`底牌: ${showCards(gameState.bottomCards)}`);
 
-  let bp = 0;
-  for (const c of gameState.bottomCards) bp += cardPoints(c.rank);
-  console.log(`底牌分数: ${bp} (×2 = ${bp * 2})`);
+  if (DEBUG) {
+    console.log(`底牌: ${showCards(gameState.bottomCards)}`);
+    let bp = 0;
+    for (const c of gameState.bottomCards) bp += cardPoints(c.rank);
+    console.log(`底牌分数: ${bp} (×2 = ${bp * 2})`);
+  }
 
   if (gameState.attackerPoints >= 80) console.log(GREEN + '闲家已够80分，升级!' + RESET);
   else if (gameState.attackerPoints >= 40) console.log('闲家40+分，庄家保级');
