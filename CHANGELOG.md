@@ -662,3 +662,16 @@
 - 两个 AI 函数在无拖拉机可用时主动用对子填充
 
 - **影响文件**：`packages/cli/src/index.ts`、`packages/engine/src/ai/index.ts`
+
+## 2026-07-06 00:14
+
+### AI 跟牌回归测试：新增 4 项方块主 level=2 真实场景
+
+复现用户反馈的崩溃场景，确保 AI 跟牌始终合法：
+
+1. **主拖拉机 D2D2H2H2** → AI 用对小王+最小主单牌跟牌
+2. **甩牌：大王对 + 主拖拉机 D2D2H2H2** → AI 匹配拖拉机槽位 + 填对子
+3. **黑桃 AQQ** → AI 有对必跟对
+4. **草花 AKK** → AI 有对必跟对
+
+- **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
