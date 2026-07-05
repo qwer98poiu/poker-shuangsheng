@@ -36,25 +36,26 @@ export function validateThrow(
   const comps = extractComponents(thrown, config);
   const group = suitGroup(thrown[0], config);
 
-  const otherCards = collectOtherCards(otherHands, group, config);
-  const otherComps = extractComponents(otherCards, config);
-
-  const t = checkTractorBlock(comps, otherComps, config);
-  if (t) return { valid: false, error: t };
-  const p = checkPairBlock(comps, otherComps, config, otherCards);
-  if (p) return { valid: false, error: p };
-  const s = checkSingleBlock(comps, otherCards, config);
-  if (s) return { valid: false, error: s };
+  // Check each player individually — crossing player boundaries creates
+  // phantom pairs/tractors from cards split across different hands.
+  for (const hand of otherHands) {
+    const pc = hand.filter(c => suitGroup(c, config) === group);
+    const pcComps = extractComponents(pc, config);
+    const t = checkTractorBlock(comps, pcComps, config);
+    if (t) return { valid: false, error: t };
+    const p = checkPairBlock(comps, pcComps, config, pc);
+    if (p) return { valid: false, error: p };
+    const s = checkSingleBlock(comps, pc, config);
+    if (s) return { valid: false, error: s };
+  }
 
   return { valid: true };
 }
 
 // ---- Blocking checks (reused by resolveThrowFailure) ----
 
-function collectOtherCards(otherHands: Card[][], group: string, config: TrumpDeclaration): Card[] {
-  const cards: Card[] = [];
-  for (const h of otherHands) for (const c of h) if (suitGroup(c, config) === group) cards.push(c);
-  return cards;
+function getFilteredCardGroups(otherHands: Card[][], group: string, config: TrumpDeclaration): Card[][] {
+  return otherHands.map(h => h.filter(c => suitGroup(c, config) === group));
 }
 
 function checkTractorBlock(
@@ -140,14 +141,13 @@ export function resolveThrowFailure(
 ): ThrowFailureResult {
   const comps = extractComponents(thrown, config);
   const group = suitGroup(thrown[0], config);
-  const otherCards = collectOtherCards(otherHands, group, config);
-  const otherComps = extractComponents(otherCards, config);
+  const perPlayer = getFilteredCardGroups(otherHands, group, config);
 
-  // Tractors: only force if at least one is blocked
-  if (comps.tractors.length > 0) {
-    const isBlocked = (lt: Card[]) => {
-      const n = lt.length / 2;
-      return otherComps.tractors.some(ot => {
+  const anyBlocksTractor = (lt: Card[]) => {
+    const n = lt.length / 2;
+    return perPlayer.some(pc => {
+      const pcc = extractComponents(pc, config);
+      return pcc.tractors.some(ot => {
         if (ot.length / 2 < n) return false;
         for (let i = 0; i <= (ot.length / 2) - n; i++) {
           const sub = ot.slice(i * 2, (i + n) * 2);
@@ -155,42 +155,44 @@ export function resolveThrowFailure(
         }
         return false;
       });
+    });
+  };
+
+  const anyBlocksPair = (lp: Card[]) =>
+    perPlayer.some(pc => {
+      const pcc = extractComponents(pc, config);
+      return pcc.pairs.some(op => cardGreater(op[0], lp[0], config)) ||
+             pcc.tractors.some(ot => ot.some(c => cardGreater(c, lp[0], config)));
+    });
+
+  const anyBlocksSingle = (ls: Card) =>
+    perPlayer.some(pc => pc.some((oc: Card) => cardGreater(oc, ls, config)));
+
+  if (comps.tractors.length > 0 && comps.tractors.some(anyBlocksTractor)) {
+    comps.tractors.sort((a, b) => {
+      const lenDiff = (b.length / 2) - (a.length / 2);
+      if (lenDiff !== 0) return lenDiff;
+      return getEffectiveRank(maxCard(a, config), config) -
+             getEffectiveRank(maxCard(b, config), config);
+    });
+    const picked = comps.tractors[0];
+    return {
+      forcedPlay: picked,
+      reason: `throw failed — must play longest tractor (${picked.length / 2} pairs)`,
     };
-    if (comps.tractors.some(isBlocked)) {
-      comps.tractors.sort((a, b) => {
-        const lenDiff = (b.length / 2) - (a.length / 2); // longest first
-        if (lenDiff !== 0) return lenDiff;
-        return getEffectiveRank(maxCard(a, config), config) -
-               getEffectiveRank(maxCard(b, config), config);
-      });
-      const picked = comps.tractors[0];
-      return {
-        forcedPlay: picked,
-        reason: `throw failed — must play longest tractor (${picked.length / 2} pairs)`,
-      };
-    }
   }
 
-  // Pairs: only force if at least one is blocked
-  if (comps.pairs.length > 0) {
-    const isBlocked = (lp: Card[]) =>
-      otherComps.pairs.some(op => cardGreater(op[0], lp[0], config)) ||
-      otherComps.tractors.some(ot => ot.some(c => cardGreater(c, lp[0], config)));
-    if (comps.pairs.some(isBlocked)) {
-      comps.pairs.sort((a, b) =>
-        getEffectiveRank(a[0], config) - getEffectiveRank(b[0], config),
-      );
-      return {
-        forcedPlay: comps.pairs[0],
-        reason: 'throw failed — must play smallest pair',
-      };
-    }
+  if (comps.pairs.length > 0 && comps.pairs.some(anyBlocksPair)) {
+    comps.pairs.sort((a, b) =>
+      getEffectiveRank(a[0], config) - getEffectiveRank(b[0], config),
+    );
+    return {
+      forcedPlay: comps.pairs[0],
+      reason: 'throw failed — must play smallest pair',
+    };
   }
 
-  // Singles: only force if at least one is blocked
-  const blockedSingles = comps.singles.filter(ls =>
-    otherCards.some(oc => cardGreater(oc, ls, config)),
-  );
+  const blockedSingles = comps.singles.filter(anyBlocksSingle);
   if (blockedSingles.length > 0) {
     blockedSingles.sort((a, b) =>
       getEffectiveRank(a, config) - getEffectiveRank(b, config),
@@ -201,6 +203,5 @@ export function resolveThrowFailure(
     };
   }
 
-  // Fallback
   return { forcedPlay: [thrown[0]], reason: 'throw failed' };
 }

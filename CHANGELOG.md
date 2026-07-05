@@ -546,3 +546,25 @@
 - 闲家上台 → dealer 轮换到下一家
 
 - **影响文件**：`packages/cli/src/index.ts`、`packages/engine/src/__tests__/declarer-rotation.test.ts`（新增）
+
+## 2026-07-05 16:33
+
+### 修复甩牌验证中的跨玩家幻影拖拉机检测
+
+**Bug**：`validateThrow` 和 `resolveThrowFailure` 将所有其他玩家的牌合并后再检测拖拉机/对子，导致跨玩家产生幻影牌型。例如 ♦Q 在 AI-2 手中，♦Q 在 AI-4 手中，♦J♦J 在 AI-2 手中——合并后检测出 QQJJ 拖拉机，实际上任何单个玩家都没有这个拖拉机。
+
+**修复**：改为逐个玩家独立检测。每个其他玩家的手牌分别过滤、分别 extract 组件、分别与领出的子牌型比较。只有单个玩家持有的拖拉机/对子/单牌才能拦截甩牌。
+
+**新增 2 项测试**（`throw-validation.test.ts`）：
+- Q+J 分散在多个玩家 → 甩牌通过（无幻影拖拉机）
+- 单个玩家持有 QQJJ → 甩牌被拦截
+
+- **影响文件**：`packages/engine/src/leading/index.ts`、`packages/engine/src/__tests__/throw-validation.test.ts`
+
+## 2026-07-05 16:33
+
+### 修复甩牌验证：跨玩家幻影拖拉机
+
+- **修复**：`validateThrow` 和 `resolveThrowFailure` 将所有其他玩家的牌合并后检测，导致 ♦Q（AI-2）+ ♦Q（AI-4）+ ♦J♦J（AI-2）合并出 QQJJ 拖拉机，实际任何单个玩家都没有。改为逐个玩家独立检测。
+- **新增测试**：2 项——牌分散多玩家则通过、单个玩家有更高拖拉机则拦截。
+- **影响文件**：`packages/engine/src/leading/index.ts`、`packages/engine/src/__tests__/throw-validation.test.ts`

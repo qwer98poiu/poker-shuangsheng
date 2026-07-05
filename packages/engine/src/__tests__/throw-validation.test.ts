@@ -415,3 +415,46 @@ describe('trump throws (hearts, cfg5)', () => {
     });
   });
 });
+
+// ================================================================
+// Cross-player phantom tractor: cards split across players must not
+// combine into a tractor that no single player actually holds.
+// ================================================================
+describe('no cross-player phantom tractors', () => {
+  const cfgNT3: TrumpDeclaration = { declarerIndex: 0, trumpSuit: null, level: 3 };
+
+  it('pass: pair+single throw, no individual player has higher tractor', () => {
+    // ♦A + ♦8♦8♦7♦7.  Q+Q+J+J split across 3 players — no single
+    // player has QQJJ, so the throw is valid.
+    const thrown = [
+      ct('D', 14, 0),
+      ct('D', 8, 0), ct('D', 8, 1),
+      ct('D', 7, 2), ct('D', 7, 3),
+    ];
+    const hand = [...thrown, ct('D', 6, 10), ct('H', 3, 10)];
+    const others = [
+      [ct('D', 13, 4), ct('D', 12, 5), ct('D', 11, 6), ct('D', 5, 7)],
+      [ct('D', 13, 8), ct('D', 11, 9), ct('D', 10, 10)],
+      [ct('D', 14, 11), ct('D', 12, 12), ct('D', 5, 13)],
+    ];
+    const r = validateThrow(thrown, hand, others, cfgNT3);
+    expect(r.valid).toBe(true);
+  });
+
+  it('fail: one player actually has a higher tractor', () => {
+    const thrown = [
+      ct('D', 14, 0),
+      ct('D', 8, 0), ct('D', 8, 1),
+      ct('D', 7, 2), ct('D', 7, 3),
+    ];
+    const hand = [...thrown, ct('D', 6, 10), ct('H', 3, 10)];
+    const others = [
+      [ct('D', 12, 4), ct('D', 12, 5), ct('D', 11, 6), ct('D', 11, 7)],
+      [ct('D', 10, 8)],
+      [ct('D', 5, 9)],
+    ];
+    const r = validateThrow(thrown, hand, others, cfgNT3);
+    expect(r.valid).toBe(false);
+    expect(r.error).toContain('2-pair tractor');
+  });
+});
