@@ -132,6 +132,13 @@ function getCompareKey(lead: Card[], follow: Card[], config: TrumpDeclaration): 
 
 // ---- Two-card comparison ----
 
+/** Whether the play is in the same suit group as the lead. */
+function inLeadGroup(play: Card[], lead: Card[], config: TrumpDeclaration): boolean {
+  const leadTrump = allTrump(lead, config);
+  if (leadTrump) return play.every(c => isTrump(c, config));
+  return play.every(c => !isTrump(c, config) && c.suit === lead[0].suit);
+}
+
 type Winner = 'first' | 'second';
 
 export function compareTwo(
@@ -144,6 +151,19 @@ export function compareTwo(
   if (secondMatch && !firstMatch) return 'second';
   // Both match or both don't. Both-don't-match is impossible (defensive).
   if (!firstMatch && !secondMatch) return 'first';
+
+  // For non-trump leads: following suit beats discarding.
+  // Trump vs non-trump is handled by cardGreater below — only apply
+  // the suit-group check when NEITHER play contains trump cards.
+  const leadTrump = allTrump(leadCards, config);
+  const firstHasTrump = firstCards.some(c => isTrump(c, config));
+  const secondHasTrump = secondCards.some(c => isTrump(c, config));
+  if (!leadTrump && !firstHasTrump && !secondHasTrump) {
+    const firstFollows = inLeadGroup(firstCards, leadCards, config);
+    const secondFollows = inLeadGroup(secondCards, leadCards, config);
+    if (firstFollows && !secondFollows) return 'first';
+    if (!firstFollows && secondFollows) return 'second';
+  }
 
   const key1 = getCompareKey(leadCards, firstCards, config);
   const key2 = getCompareKey(leadCards, secondCards, config);

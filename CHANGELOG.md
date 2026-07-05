@@ -602,3 +602,15 @@
 - KK 在同一人手中 → 甩牌被拦截
 
 - **影响文件**：`packages/engine/src/__tests__/throw-validation.test.ts`
+
+## 2026-07-05 21:59
+
+### 修复跟牌 vs 垫牌比较：跟牌始终大于垫牌
+
+**Bug**：非主牌领出时，`compareTwo` 未区分跟牌和垫牌，直接通过 `cardGreater` 比较 rank。垫牌的 rank 若大于跟牌则错误胜出（如领出 ♦8，跟 ♦Q 为 12，垫 ♥K 为 13 → ♥K 被判最大）。
+
+**修复**：在 `compareTwo` 中新增 `inLeadGroup` 检查——非主牌领出且双方均无主牌时，跟随领出花色组的一方始终大于垫牌方。
+
+**新增测试**：领出 ♦8，玩家跟 ♦Q、垫 ♥K、跟 ♦3 → 验证 ♦Q 获胜而非 ♥K。
+
+- **影响文件**：`packages/engine/src/comparing/index.ts`、`packages/engine/src/__tests__/comparing.test.ts`

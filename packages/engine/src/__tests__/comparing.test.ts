@@ -47,6 +47,23 @@ describe('determineWinner — basic', () => {
     ];
     expect(determineWinner(ps, 0, trump2).winnerIndex).toBe(1);
   });
+
+  it('follow suit beats discard: ♦Q follows, ♥K discards → ♦Q wins', () => {
+    // Lead: ♦8 (diamonds, non-trump). ♦Q follows suit, ♥K discards heart.
+    // Even though ♥K has higher rank, following the lead suit wins.
+    const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
+    const ps = [
+      [ct('D', 8, 0)],      // lead: ♦8
+      [ct('D', 12, 0)],     // follow: ♦Q (follows suit)
+      [ct('H', 13, 0)],     // discard: ♥K (different suit)
+      [ct('D', 3, 0)],      // follow: ♦3
+    ];
+    // ♦Q should win — following suit > discarding
+    const r = compareTwo(ps[0], ps[1], ps[0], cfg);
+    expect(r).toBe('second'); // second = P1 (♦Q) beats P0 (♦8)
+    const winner = determineWinner(ps, 0, cfg).winnerIndex;
+    expect(winner).not.toBe(2); // P2 with ♥K should NOT win
+  });
 });
 
 describe('throw — complex over-trump (level=A)', () => {
