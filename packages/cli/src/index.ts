@@ -224,14 +224,18 @@ async function startNewRound(declarerIndex: number, currentLevel: number, isFirs
     emptyPlayers as any, declarerIndex, currentLevel, DEBUG,
   );
 
-  await doDeal();
+  // Debug mode: when human is declarer, AI defers reveal during dealing
+  // so the human has a chance to reveal first.
+  const humanIsDeclarer = DEBUG && declarerIndex === 0;
+
+  await doDeal(humanIsDeclarer);
   await doReveal(isFirstRound);
   await doBottomExchange();
   await doPlayPhase();
 }
 
 // ---- deal ----
-async function doDeal() {
+async function doDeal(skipAiReveal = false) {
   console.log('\n' + BOLD + '=== 发牌 ===' + RESET);
 
   const dealt: Card[][] = [[], [], [], []];
@@ -254,21 +258,23 @@ async function doDeal() {
       process.stdout.write(`发牌... ${i}/100\r`);
     }
 
-    // AI reveal check
-    for (const pj of [0, 1, 2, 3]) {
-      if (aiPlayers[pj]) {
-        const rev = aiTryReveal(
-          gameState.players[pj].hand,
-          dealt[pj],
-          pj,
-          gameState.currentLevel,
-          gameState.currentReveal,
-        );
-        if (rev) {
-          gameState = tryReveal(gameState, pj, rev.suit);
-          if (gameState.currentReveal?.playerIndex === pj) {
-            console.log(`\n${playerName(pj)} 亮主: ${rev.reason}`);
-            showRevealStatus();
+    // AI reveal check — when human is declarer, AI defers until reveal phase
+    if (!skipAiReveal) {
+      for (const pj of [0, 1, 2, 3]) {
+        if (aiPlayers[pj]) {
+          const rev = aiTryReveal(
+            gameState.players[pj].hand,
+            dealt[pj],
+            pj,
+            gameState.currentLevel,
+            gameState.currentReveal,
+          );
+          if (rev) {
+            gameState = tryReveal(gameState, pj, rev.suit);
+            if (gameState.currentReveal?.playerIndex === pj) {
+              console.log(`\n${playerName(pj)} 亮主: ${rev.reason}`);
+              showRevealStatus();
+            }
           }
         }
       }
