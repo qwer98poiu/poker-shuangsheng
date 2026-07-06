@@ -73,7 +73,20 @@ export function isTrump(card: Card, config: TrumpDeclaration): boolean {
 // ---- Hand sorting ----
 
 export function sortHand(cards: Card[], config: TrumpDeclaration | null): Card[] {
-  return [...cards].sort((a, b) => sortGroup(a, config) - sortGroup(b, config) || b.rank - a.rank);
+  return [...cards].sort((a, b) => {
+    const g = sortGroup(a, config) - sortGroup(b, config);
+    if (g !== 0) return g;
+    if (a.rank !== b.rank) return b.rank - a.rank;
+    const as = suitSortKey(a.suit);
+    const bs = suitSortKey(b.suit);
+    return as - bs;
+  });
+}
+
+function suitSortKey(suit: CardSuit): number {
+  if (suit === SpecialSuit.Joker) return 99;
+  const idx = SUIT_ORDER.indexOf(suit as Suit);
+  return idx >= 0 ? idx : 99;
 }
 
 function sortGroup(card: Card, config: TrumpDeclaration | null): number {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Suit, Rank } from '../types.js';
-import { createCard } from '../model.js';
+import { createCard, sortHand } from '../model.js';
 import { cardGreater, compareTwo, determineWinner } from '../comparing/index.js';
 import type { TrumpDeclaration, Card } from '../types.js';
 
@@ -116,5 +116,32 @@ describe('throw — complex over-trump (level=A)', () => {
        ct('S', 6, 16), ct('S', 6, 17)],
     ];
     expect(determineWinner(plays, 0, trumpA).winnerIndex).toBe(3);
+  });
+});
+
+describe('sortHand — same-rank tiebreaker by suit S-H-C-D', () => {
+  const cfgD2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Diamonds, level: 2 };
+
+  it('off-suit level cards sorted S-H-C-D', () => {
+    const hand = [
+      ct('H', 2, 4), ct('C', 2, 5), ct('S', 2, 6), ct('H', 2, 7),
+    ];
+    const sorted = sortHand(hand, cfgD2);
+    const ids = sorted.map(c => c.suit);
+    expect(ids).toEqual(['S', 'H', 'H', 'C']);
+  });
+
+  it('BJ > SJ > tLev > offLev > trump suit > off-suit by rank then by suit', () => {
+    const hand = [
+      ct('C', 2, 0),  // off-suit level
+      ct('S', 2, 1),  // off-suit level
+      ct('H', 2, 2),  // off-suit level
+      ct('D', 2, 3),  // trump level
+      ct('J', 15, 4), // SJ
+      ct('J', 16, 5), // BJ
+    ];
+    const sorted = sortHand(hand, cfgD2);
+    const desc = sorted.map(c => `${c.suit}${c.rank}`);
+    expect(desc).toEqual(['J16', 'J15', 'D2', 'S2', 'H2', 'C2']);
   });
 });
