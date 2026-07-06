@@ -17,6 +17,7 @@ import {
   Suit, Rank, validateFollow, validateLead,
 } from '@poker/engine';
 import { classify } from '@poker/engine';
+import { parseCards } from './parse.js';
 import type {
   GameState, PlayerState, TrumpDeclaration, Card, AIReason,
 } from '@poker/engine';
@@ -598,9 +599,11 @@ async function doPlayerTurn(playerIndex: number) {
     while (!ok) {
       const decl = gameState.trumpDeclaration!;
       const isDecl = playerIndex === decl.declarerIndex;
-      const prompt = isDecl
-        ? '编号或 /hint 查看提示、/score 查看得分、/bottom 查看底牌: '
-        : '编号或 /hint 查看提示、/score 查看得分: ';
+      const prompt = DEBUG
+        ? '编号或 /debug 命令: '
+        : isDecl
+          ? '编号或 /hint 查看提示、/score 查看得分、/bottom 查看底牌: '
+          : '编号或 /hint 查看提示、/score 查看得分: ';
       const input = await ask(prompt);
       if (!input) continue;
 
@@ -927,7 +930,6 @@ function ask(prompt: string): Promise<string> {
   });
 }
 
-export { parseCards } from './parse.js';
 
 // ---- start ----
 main().catch(console.error);
