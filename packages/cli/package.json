@@ -5,9 +5,13 @@
   "type": "module",
   "scripts": {
     "start": "npx tsx src/index.ts",
-    "dev": "npx tsx --watch src/index.ts"
+    "dev": "npx tsx --watch src/index.ts",
+    "test": "vitest run"
   },
   "dependencies": {
     "@poker/engine": "*"
+  },
+  "devDependencies": {
+    "vitest": "^2.0.0"
   }
 }

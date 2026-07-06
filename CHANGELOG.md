@@ -675,3 +675,27 @@
 4. **草花 AKK** → AI 有对必跟对
 
 - **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
+
+## 2026-07-06 19:57
+
+### 手牌排序优化：同 rank 同组按花色 S-H-C-D 展示
+
+`sortHand` 新增花色 tiebreaker：同组同 rank 的牌（如副级牌 ♥2♣2♠2♥2）现在按 ♠♥♣♦ (S-H-C-D) 顺序展示，而非之前的随机顺序。
+
+- **影响文件**：`packages/engine/src/model.ts`
+
+## 2026-07-06 20:14
+
+### 输入校验 + 测试：拒绝无效手牌编号
+
+`parseCards` 重构为独立模块 `cli/src/parse.ts`，新增完整参数校验：所有编号必须为数字且在范围内。无效编号直接拒绝并提示。
+
+**新增 14 项 CLI 测试**（`cli/src/__tests__/parse.test.ts`）：
+- 3 项有效编号（单个、多个、最大号）
+- 空输入返回空
+- null trump 配置可用
+- 5 项无效编号（超出范围、负数、非数字、混合、极大值）
+- 空手牌
+- 扣底场景（33 张手牌，8 张选择）
+
+- **影响文件**：`packages/cli/src/parse.ts`（新增）、`packages/cli/src/__tests__/parse.test.ts`（新增）、`packages/cli/src/index.ts`
