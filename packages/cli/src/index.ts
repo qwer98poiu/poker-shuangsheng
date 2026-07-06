@@ -396,7 +396,12 @@ async function doBottomExchange() {
     let picked: Card[] = [];
     while (picked.length !== 8) {
       const idxStr = await ask(`选8张牌扣入底牌 (输入编号，空格分隔，已选${picked.length}/8): `);
-      picked = parseCards(idxStr, gameState.players[declarerIdx]);
+      const parsed = parseCards(idxStr, gameState.players[declarerIdx]);
+      if (parsed.error) {
+        console.log(`❌ ${parsed.error}`);
+        continue;
+      }
+      picked = parsed.cards;
       if (picked.length !== 8) {
         console.log(`需要正好8张，已选${picked.length}张`);
       }
@@ -607,7 +612,12 @@ async function doPlayerTurn(playerIndex: number) {
         continue;
       }
 
-      const cards = parseCards(input, player);
+      const parsed = parseCards(input, player);
+      if (parsed.error) {
+        console.log(`❌ ${parsed.error}`);
+        continue;
+      }
+      const cards = parsed.cards;
       if (cards.length === 0) {
         console.log('未选中任何牌，请重试 (例: 3 7 表示选编号3和7的牌)');
         continue;
@@ -917,18 +927,25 @@ function ask(prompt: string): Promise<string> {
   });
 }
 
-function parseCards(input: string, player: PlayerState): Card[] {
-  const indices = input.trim().split(/\s+/).map(Number).filter(n => !isNaN(n));
-  if (indices.length === 0) return [];
+function parseCards(input: string, player: PlayerState): { cards: Card[]; error?: string } {
+  const parts = input.trim().split(/\s+/);
+  if (parts.length === 0 || (parts.length === 1 && parts[0] === '')) return { cards: [] };
+
+  const indices: number[] = [];
+  for (const p of parts) {
+    const n = Number(p);
+    if (isNaN(n)) return { cards: [], error: `无效编号: ${p}` };
+    indices.push(n);
+  }
 
   const sorted = sortHand(player.hand, gameState.trumpDeclaration);
-  const result: Card[] = [];
   for (const idx of indices) {
-    if (idx >= 0 && idx < sorted.length) {
-      result.push(sorted[idx]);
+    if (idx < 0 || idx >= sorted.length) {
+      return { cards: [], error: `编号 ${idx} 超出范围 (0-${sorted.length - 1})` };
     }
   }
-  return result;
+
+  return { cards: indices.map(i => sorted[i]) };
 }
 
 // ---- start ----
