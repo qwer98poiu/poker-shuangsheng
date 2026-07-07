@@ -717,3 +717,13 @@
 - `discardSort` 重构：统一逻辑，优先选非分牌
 
 - **影响文件**：`packages/engine/src/ai/index.ts`
+
+## 2026-07-07 23:37
+
+### AI 对牌跟牌优化：优先出非分对牌
+
+`aiFollowMulti` 的无拖拉机对牌填充分支和标准对牌跟牌分支，对牌排序均改为 `pairSortAsc`：非分对牌优先、同组取最小有效 rank。避免盲目垫分牌对（如 ♦10♦10），保留分牌对到后续墩收割。
+
+新增通用 `pairSortAsc` 辅助函数（已在 `aiFollowTrumpOnly` 中复用）。
+
+- **影响文件**：`packages/engine/src/ai/index.ts`

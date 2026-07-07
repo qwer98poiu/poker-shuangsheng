@@ -181,6 +181,16 @@ function maxCardT(cards: Card[], config: TrumpDeclaration): Card {
   return cards.reduce((best, c) => getEffectiveRank(c, config) > getEffectiveRank(best, config) ? c : best);
 }
 
+/** Sort pairs: non-point first, then smallest effective rank */
+function pairSortAsc(config: TrumpDeclaration): (a: Card[], b: Card[]) => number {
+  return (a, b) => {
+    const aPts = isPointCard(a[0].rank) ? 100 : 0;
+    const bPts = isPointCard(b[0].rank) ? 100 : 0;
+    if (aPts !== bPts) return aPts - bPts;
+    return getEffectiveRank(a[0], config) - getEffectiveRank(b[0], config);
+  };
+}
+
 /** decide what to follow */
 export function aiFollowPlay(
   hand: Card[],
@@ -353,9 +363,9 @@ function aiFollowMulti(
         return { cards: [...picked, ...fill], reason: '用拖拉机跟牌' };
       }
     }
-    // No tractor available: fill with pairs then singles
+    // No tractor available: fill with pairs then singles, smallest non-point first
     if (myPairs.length > 0) {
-      myPairs.sort((a, b) => getEffectiveRank(b[0], config) - getEffectiveRank(a[0], config));
+      myPairs.sort(pairSortAsc(config));
       const chosen = myPairs.flat();
       const used = new Set(chosen.map(c => c.id));
       const remaining = leadSuitCards.filter(c => !used.has(c.id));
@@ -365,7 +375,7 @@ function aiFollowMulti(
   }
 
   if (leadPairs.length > 0 && myPairs.length >= leadPairs.length) {
-    myPairs.sort((a, b) => getEffectiveRank(b[0], config) - getEffectiveRank(a[0], config));
+    myPairs.sort(pairSortAsc(config));
     const chosen = myPairs.slice(0, leadPairs.length).flat();
     if (chosen.length < leadLen) {
       const used = new Set(chosen.map(c => c.id));
