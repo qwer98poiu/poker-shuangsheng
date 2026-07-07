@@ -262,10 +262,35 @@ export function aiFollowPlay(
     };
   }
 
-  // void in lead suit
+  // void in lead suit — try to trump
   if (trumpCards.length >= leadLen) {
+    if (leadLen === 1) {
+      const nonTrumpForDiscard = hand.filter(c => !isTrump(c, config));
+      // Try to beat the current best if there is one
+      if (bestSoFar && bestSoFar.cards.length > 0) {
+        const bestRank = Math.max(...bestSoFar.cards.map(c => getEffectiveRank(c, config)));
+        const canBeat = trumpCards.filter(c => getEffectiveRank(c, config) > bestRank);
+        if (canBeat.length > 0) {
+          canBeat.sort((a, b) => getEffectiveRank(a, config) - getEffectiveRank(b, config));
+          result = { cards: [canBeat[0]], reason: '用主牌盖毙' };
+        } else if (nonTrumpForDiscard.length > 0) {
+          // Can't beat — don't waste trump, discard non-trump instead
+          nonTrumpForDiscard.sort(discardSort(!!tmWin));
+          result = { cards: [nonTrumpForDiscard[0]], reason: '盖不过，垫副牌' };
+        } else {
+          // All trump hand, can't beat — must play smallest trump
+          result = { cards: [trumpCards[0]], reason: '盖不过，出最小主牌' };
+        }
+      } else {
+        trumpCards.sort((a, b) => getEffectiveRank(a, config) - getEffectiveRank(b, config));
+        result = { cards: [trumpCards[0]], reason: '无领出花色，出最小主牌' };
+      }
+      return { cards: result.cards, reason: maybeAppendFinal(result.cards, hand, result.reason) };
+    }
+    // Multi-card trump: must play leadLen trump cards. Use smallest that can
+    // beat the current best, or smallest available if can't beat.
     trumpCards.sort((a, b) => getEffectiveRank(a, config) - getEffectiveRank(b, config));
-    result = { cards: trumpCards.slice(-leadLen), reason: tmWin ? '队友已大，用小主牌' : '无领出花色，用主牌毙' };
+    result = { cards: trumpCards.slice(0, leadLen), reason: '无领出花色，用主牌毙' };
     return { cards: result.cards, reason: maybeAppendFinal(result.cards, hand, result.reason) };
   }
 
