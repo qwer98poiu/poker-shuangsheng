@@ -287,10 +287,57 @@ export function aiFollowPlay(
       }
       return { cards: result.cards, reason: maybeAppendFinal(result.cards, hand, result.reason) };
     }
-    // Multi-card trump: must play leadLen trump cards. Use smallest that can
-    // beat the current best, or smallest available if can't beat.
-    trumpCards.sort((a, b) => getEffectiveRank(a, config) - getEffectiveRank(b, config));
-    result = { cards: trumpCards.slice(0, leadLen), reason: '无领出花色，用主牌毙' };
+    // Multi-card trump: try to match lead pattern with trump cards.
+    // Pair lead → use a trump pair to kill; tractor → use a trump tractor.
+    const leadCombo = classifyCombo(leadCards, config);
+    const myTrumpPairs = findAllPairs(trumpCards);
+    const myTrumpTractors = detectTractors(trumpCards, config);
+
+    if (leadCombo.hasTractor && myTrumpTractors.length > 0) {
+      // Match tractor slots with smallest trump tractors
+      myTrumpTractors.sort((a, b) => a.length - b.length);
+      const picked: Card[] = [];
+      const usedIds = new Set<string>();
+      for (const req of leadCombo.tractors.map(t => t.pairCount)) {
+        const avail = myTrumpTractors.filter(t =>
+          t.every(c => !usedIds.has(c.id)) && t.length / 2 >= req);
+        if (avail.length > 0) {
+          const sel = avail[0].slice(0, req * 2);
+          picked.push(...sel);
+          sel.forEach(c => usedIds.add(c.id));
+        }
+      }
+      if (picked.length > 0) {
+        const remaining = trumpCards.filter(c => !usedIds.has(c.id));
+        // Fill with smallest non-point trump singles
+        remaining.sort((a, b) => {
+          const aPts = isPointCard(a.rank) ? 100 : 0;
+          const bPts = isPointCard(b.rank) ? 100 : 0;
+          if (aPts !== bPts) return aPts - bPts;
+          return getEffectiveRank(a, config) - getEffectiveRank(b, config);
+        });
+        result = { cards: [...picked, ...remaining.slice(0, leadLen - picked.length)], reason: '用主牌拖拉机毙' };
+      } else {
+        result = { cards: trumpCards.slice(-leadLen), reason: '无领出花色，用主牌毙' };
+      }
+    } else if (leadCombo.pairCount > 0 && myTrumpPairs.length > 0) {
+      // Pair lead: use smallest non-point trump pair
+      myTrumpPairs.sort(pairSortAsc(config));
+      const picked = myTrumpPairs[0];
+      const usedIds2 = new Set(picked.map(c => c.id));
+      const remaining = trumpCards.filter(c => !usedIds2.has(c.id));
+      remaining.sort((a, b) => {
+        const aPts = isPointCard(a.rank) ? 100 : 0;
+        const bPts = isPointCard(b.rank) ? 100 : 0;
+        if (aPts !== bPts) return aPts - bPts;
+        return getEffectiveRank(a, config) - getEffectiveRank(b, config);
+      });
+      result = { cards: [...picked, ...remaining.slice(0, leadLen - picked.length)], reason: '用主牌对子毙' };
+    } else {
+      // Straight singles: use strongest trump
+      trumpCards.sort((a, b) => getEffectiveRank(a, config) - getEffectiveRank(b, config));
+      result = { cards: trumpCards.slice(-leadLen), reason: '无领出花色，用主牌毙' };
+    }
     return { cards: result.cards, reason: maybeAppendFinal(result.cards, hand, result.reason) };
   }
 
