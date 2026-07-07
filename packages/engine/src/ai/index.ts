@@ -95,7 +95,7 @@ export function aiLeadPlay(
   const tractors = detectTractors(hand, config);
   if (tractors.length > 0) {
     const cards = tractors[0];
-    return { cards, reason: maybeAppendFinal(cards, hand, `领出拖拉机(${tractors[0].length / 2}对)，清主牌`) };
+    return { cards, reason: maybeAppendFinal(cards, hand, `领出拖拉机(${tractors[0].length / 2}对)`) };
   }
 
   const pairs = findAllPairs(hand);
@@ -114,10 +114,16 @@ export function aiLeadPlay(
     return { cards, reason: maybeAppendFinal(cards, hand, `主牌多(${trumpCards.length}张)，出主牌清主`) };
   }
 
-  const aces = nonTrump.filter(c => c.rank === Rank.Ace);
+  const aces = nonTrump.filter(c => c.rank === Rank.Ace && !isTrump(c, config));
   if (aces.length > 0) {
     const cards = [aces[0]];
     return { cards, reason: maybeAppendFinal(cards, hand, '领出A，清副牌') };
+  }
+  // If Ace is the level/trump, K is the top non-trump rank
+  const kings = nonTrump.filter(c => c.rank === Rank.King && !isTrump(c, config));
+  if (kings.length > 0) {
+    const cards = [kings[0]];
+    return { cards, reason: maybeAppendFinal(cards, hand, '领出K，清副牌') };
   }
 
   const bySuit = groupBySuit(nonTrump);
@@ -137,11 +143,28 @@ export function aiLeadPlay(
 
 /** sort comparator: when teammateWinning, prefer point cards; otherwise avoid them, prefer smallest */
 function discardSort(teammateWinning: boolean): (a: Card, b: Card) => number {
-  if (teammateWinning) {
-    return (a, b) => (isPointCard(b.rank) ? 100 : 0) - (isPointCard(a.rank) ? 100 : 0) || b.rank - a.rank;
-  }
-  return (a, b) =>
-    (isPointCard(a.rank) ? 100 : 0) + a.rank - (isPointCard(b.rank) ? 100 : 0) - b.rank;
+  return (a, b) => {
+    // Prefer non-point cards unless teammate is already winning
+    const aPts = isPointCard(a.rank) ? (teammateWinning ? 0 : 100) : 0;
+    const bPts = isPointCard(b.rank) ? (teammateWinning ? 0 : 100) : 0;
+    if (aPts !== bPts) return aPts - bPts;
+    // Among same point status, pick smallest rank
+    return a.rank - b.rank;
+  };
+}
+
+/** Same as discardSort but additionally deprioritizes trump cards (prefer non-trump for filling) */
+function fillerSort(teammateWinning: boolean, config: TrumpDeclaration): (a: Card, b: Card) => number {
+  return (a, b) => {
+    const aPts = isPointCard(a.rank) ? (teammateWinning ? 0 : 100) : 0;
+    const bPts = isPointCard(b.rank) ? (teammateWinning ? 0 : 100) : 0;
+    if (aPts !== bPts) return aPts - bPts;
+    // Prefer non-trump over trump as fillers
+    const aTr = isTrump(a, config) ? 100 : 0;
+    const bTr = isTrump(b, config) ? 100 : 0;
+    if (aTr !== bTr) return aTr - bTr;
+    return a.rank - b.rank;
+  };
 }
 
 function canBeatBest(cards: Card[], best: { cards: Card[]; playerIdx: number } | null | undefined, config: TrumpDeclaration): boolean {
@@ -152,6 +175,10 @@ function canBeatBest(cards: Card[], best: { cards: Card[]; playerIdx: number } |
 function teammateWins(myIdx: number | undefined, best: { cards: Card[]; playerIdx: number } | null | undefined): boolean {
   if (myIdx === undefined || !best) return false;
   return best.playerIdx === (myIdx + 2) % 4;
+}
+
+function maxCardT(cards: Card[], config: TrumpDeclaration): Card {
+  return cards.reduce((best, c) => getEffectiveRank(c, config) > getEffectiveRank(best, config) ? c : best);
 }
 
 /** decide what to follow */
@@ -200,7 +227,7 @@ export function aiFollowPlay(
     const nonTrump0 = hand.filter(c => !isTrump(c, config));
     if (nonTrump0.length > 0) {
       nonTrump0.sort(discardSort(tmWin));
-      result = { cards: [nonTrump0[0]], reason: tmWin ? '队友已大，垫分' : '无主牌，垫副牌' };
+      result = { cards: [nonTrump0[0]], reason: tmWin ? '队友已大，垫分牌' : '无主牌，垫副牌' };
     } else {
       result = { cards: [hand[0]], reason: '无牌可选' };
     }
@@ -217,7 +244,7 @@ export function aiFollowPlay(
   // short-suited: must play ALL lead suit cards, fill rest
   if (leadSuitCards.length > 0) {
     const otherCards = hand.filter(c => !leadSuitCards.includes(c));
-    otherCards.sort(discardSort(tmWin));
+    otherCards.sort(fillerSort(!!tmWin, config));
     const fill = otherCards.slice(0, leadLen - leadSuitCards.length);
     return {
       cards: [...leadSuitCards, ...fill],
@@ -234,14 +261,15 @@ export function aiFollowPlay(
 
   // can't fully trump — discard
   const nonTrump2 = hand.filter(c => !isTrump(c, config));
-  nonTrump2.sort(discardSort(tmWin));
+  nonTrump2.sort(discardSort(!!tmWin));
   if (nonTrump2.length >= leadLen) {
-    result = { cards: nonTrump2.slice(0, leadLen), reason: tmWin ? '队友已大，垫分' : '垫低分牌' };
+    result = { cards: nonTrump2.slice(0, leadLen), reason: tmWin ? '队友已大，垫分牌' : '垫副牌' };
   } else {
-    trumpCards.sort((a, b) => getEffectiveRank(a, config) - getEffectiveRank(b, config));
+    const remainingHand = [...nonTrump2, ...trumpCards];
+    remainingHand.sort(discardSort(!!tmWin));
     result = {
-      cards: [...nonTrump2, ...trumpCards.slice(0, leadLen - nonTrump2.length)],
-      reason: tmWin ? '队友已大' : '垫牌(含主牌)',
+      cards: remainingHand.slice(0, leadLen),
+      reason: '垫牌(含主牌)',
     };
   }
   return { cards: result.cards, reason: maybeAppendFinal(result.cards, hand, result.reason) };
@@ -390,10 +418,13 @@ function aiFollowTrumpOnly(
   if (leadCombo.hasTractor) {
     const myTractors = detectTractors(allTrump, config);
     if (myTractors.length > 0) {
-      myTractors.sort((a, b) => b.length - a.length);
+      // Sort: smallest max effRank first
+      myTractors.sort((a, b) =>
+        getEffectiveRank(maxCardT(a, config), config) -
+        getEffectiveRank(maxCardT(b, config), config),
+      );
       const picked: Card[] = [];
       const usedIds = new Set<string>();
-      // Match each tractor slot from the lead
       for (const req of leadCombo.tractors.map(t => t.pairCount)) {
         const available = myTractors.filter(t =>
           t.every(c => !usedIds.has(c.id)) && t.length / 2 >= req,
@@ -406,12 +437,24 @@ function aiFollowTrumpOnly(
         }
       }
       if (picked.length > 0) {
-        // Fill: pairs first, then singles
         const remaining = allTrump.filter(c => !usedIds.has(c.id));
         const remPairs = findAllPairs(remaining);
         const remPairIds = new Set(remPairs.flat().map(c => c.id));
-        remPairs.sort((a, b) => getEffectiveRank(a[0], config) - getEffectiveRank(b[0], config));
+        // Prefer non-point pairs for fill
+        remPairs.sort((a, b) => {
+          const aPts = isPointCard(a[0].rank) ? 100 : 0;
+          const bPts = isPointCard(b[0].rank) ? 100 : 0;
+          if (aPts !== bPts) return aPts - bPts;
+          return getEffectiveRank(a[0], config) - getEffectiveRank(b[0], config);
+        });
         const remSingles = remaining.filter(c => !remPairIds.has(c.id));
+        // Avoid point singles if possible
+        remSingles.sort((a, b) => {
+          const aPts = isPointCard(a.rank) ? 100 : 0;
+          const bPts = isPointCard(b.rank) ? 100 : 0;
+          if (aPts !== bPts) return aPts - bPts;
+          return getEffectiveRank(a, config) - getEffectiveRank(b, config);
+        });
         const fill: Card[] = [];
         for (const p of remPairs) {
           if (picked.length + fill.length + 2 > leadLen) break;
@@ -422,37 +465,65 @@ function aiFollowTrumpOnly(
         return { cards: [...picked, ...fill], reason: '用最小主牌拖拉机跟牌' };
       }
     }
-    // No tractor available: fill with pairs then singles
+    // No tractor available: fill with pairs then singles, avoid point pairs
     if (allTrump.length >= leadLen) {
       const myPairsAll = findAllPairs(allTrump);
       if (myPairsAll.length > 0) {
-        myPairsAll.sort((a, b) => getEffectiveRank(a[0], config) - getEffectiveRank(b[0], config));
+        myPairsAll.sort((a, b) => {
+          const aPts = isPointCard(a[0].rank) ? 100 : 0;
+          const bPts = isPointCard(b[0].rank) ? 100 : 0;
+          if (aPts !== bPts) return aPts - bPts;
+          return getEffectiveRank(a[0], config) - getEffectiveRank(b[0], config);
+        });
         const picked = myPairsAll.flat();
         const usedIds2 = new Set(picked.map(c => c.id));
         const rest = allTrump.filter(c => !usedIds2.has(c.id));
+        rest.sort((a, b) => {
+          const aPts = isPointCard(a.rank) ? 100 : 0;
+          const bPts = isPointCard(b.rank) ? 100 : 0;
+          if (aPts !== bPts) return aPts - bPts;
+          return getEffectiveRank(a, config) - getEffectiveRank(b, config);
+        });
         return { cards: [...picked, ...rest].slice(0, leadLen), reason: '无拖拉机，出最小主牌对子跟牌' };
       }
       return { cards: allTrump.slice(0, leadLen), reason: '无拖拉机，出最小主牌' };
     }
   }
 
-  // pair pattern: try smallest pairs first
+  // pair pattern: try smallest non-point pairs first
   const myPairs = findAllPairs(allTrump);
   const leadPairs = findAllPairs(leadCards);
 
   if (leadPairs.length > 0) {
     if (myPairs.length >= leadPairs.length) {
-      myPairs.sort((a, b) => getEffectiveRank(a[0], config) - getEffectiveRank(b[0], config));
+      // Prefer non-point pairs
+      myPairs.sort((a, b) => {
+        const aPts = isPointCard(a[0].rank) ? 100 : 0;
+        const bPts = isPointCard(b[0].rank) ? 100 : 0;
+        if (aPts !== bPts) return aPts - bPts;
+        return getEffectiveRank(a[0], config) - getEffectiveRank(b[0], config);
+      });
       const picked = myPairs.slice(0, leadPairs.length).flat();
       if (picked.length === leadLen) {
         return { cards: picked, reason: `用${leadPairs.length}个最小主牌对子跟牌` };
       }
     }
     if (myPairs.length > 0) {
-      myPairs.sort((a, b) => getEffectiveRank(a[0], config) - getEffectiveRank(b[0], config));
+      myPairs.sort((a, b) => {
+        const aPts = isPointCard(a[0].rank) ? 100 : 0;
+        const bPts = isPointCard(b[0].rank) ? 100 : 0;
+        if (aPts !== bPts) return aPts - bPts;
+        return getEffectiveRank(a[0], config) - getEffectiveRank(b[0], config);
+      });
       const picked = myPairs.flat();
       const usedIds = new Set(picked.map(c => c.id));
       const remaining = allTrump.filter(c => !usedIds.has(c.id));
+      remaining.sort((a, b) => {
+        const aPts = isPointCard(a.rank) ? 100 : 0;
+        const bPts = isPointCard(b.rank) ? 100 : 0;
+        if (aPts !== bPts) return aPts - bPts;
+        return getEffectiveRank(a, config) - getEffectiveRank(b, config);
+      });
       return {
         cards: [...picked, ...remaining.slice(0, leadLen - picked.length)],
         reason: `用最小主牌对子跟牌(${myPairs.length}对)`,
@@ -460,14 +531,20 @@ function aiFollowTrumpOnly(
     }
   }
 
-  // can't match any pattern — play smallest trump cards
+  // can't match any pattern — play smallest non-point trump cards
   if (allTrump.length >= leadLen) {
-    return { cards: allTrump.slice(0, leadLen), reason: `出${leadLen}张最小主牌` };
+    const sorted = [...allTrump].sort((a, b) => {
+      const aPts = isPointCard(a.rank) ? 100 : 0;
+      const bPts = isPointCard(b.rank) ? 100 : 0;
+      if (aPts !== bPts) return aPts - bPts;
+      return getEffectiveRank(a, config) - getEffectiveRank(b, config);
+    });
+    return { cards: sorted.slice(0, leadLen), reason: `出${leadLen}张最小主牌` };
   }
 
   // really can't — pad with non-trump
   const nonTrump = hand.filter(c => !isTrump(c, config));
-  nonTrump.sort((a, b) => (isPointCard(a.rank) ? 100 : 0) + a.rank - (isPointCard(b.rank) ? 100 : 0) - b.rank);
+  nonTrump.sort(discardSort(!!tmWin));
   return {
     cards: [...allTrump, ...nonTrump.slice(0, leadLen - allTrump.length)],
     reason: '主牌不足，补垫牌',
