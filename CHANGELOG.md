@@ -760,3 +760,39 @@
 - 领出单牌 → 用最强主牌毙
 
 - **影响文件**：`packages/engine/src/ai/index.ts`
+
+## 2026-07-11 22:15
+
+### AI 模块重构：模块拆分 + 策略全面重写 + 68 项新测试
+
+**架构重构**：AI 模块从单文件 675 行拆分为 7 个文件：
+- `index.ts` — 公共 API（领出策略优先级链、跟牌策略按领出类型+位置感知分支）
+- `types.ts` — `AIContext`（扩展 `TrumpDeclaration`，含角色、分数、手牌数、牌局历史、NT 跟踪）、`NTTrumpState`、`PlayPosition`
+- `context.ts` — `buildAIContext(state,idx)` 从 GameState 构建完整决策上下文；`computeBestSoFar` 从 CLI 移入引擎复用
+- `nt-tracking.ts` — NT 牌跟踪纯函数（枚举 12 张主牌、追踪已出/已知位置、推断对手主牌数和王分布）
+- `throw-detector.ts` — 甩副牌检测（构造"其余牌全在一家"最坏情况，从大到小判断单牌/对子/拖拉机是否可甩）
+- `bottom-strategy.ts` — 扣底策略（有主优先扣绝一门、NT <=6 张无分扣绝、均匀扣底）
+- `utils.ts` — 共享辅助函数（位置判断、排序器、显示名称）
+
+**领出策略（按优先级链 4>1>3>2>5>6>7）**：
+- 4: 甩副牌（检测必然可甩的组合）
+- 1: 出副牌大牌 A/K 单张或对子（级牌时 K/A 为顶张）
+- 3: 出拖拉机（主/副均可，庄家>=20 张不领出主拖拉机、庄家对家永不出主拖拉机）
+- 2: 出对牌（主/副均可，副牌 J+ 优先，同上庄家限制）
+- 5: 吊主（最小主牌）
+- 6: 副牌单张小牌
+- 7: 最后一张
+
+**跟牌策略**：按领出类型+位置感知分支（同花色/毙牌/垫牌、位置加减分规则、NT 吊主规则）
+
+**CLI 集成**：AI 调用改为 `buildAIContext(state, idx)` 传入完整上下文；删除 CLI 本地 `computeBestSoFar`（已移至引擎）
+
+**新增测试**（15 文件、324 项）：
+- `ai-throw-detector.test.ts`：38 项
+- `ai-leading.test.ts`：14 项
+- `ai-nt-tracking.test.ts`：9 项
+- `ai-bottom-strategy.test.ts`：7 项
+
+- **影响文件**：`packages/engine/src/ai/*.ts`（7 文件新增/重构）
+- **影响文件**：`packages/engine/src/__tests__/ai-*.test.ts`（4 文件新增）
+- **影响文件**：`packages/cli/src/index.ts`（上下文传入）

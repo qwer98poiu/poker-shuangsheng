@@ -15,6 +15,7 @@ import {
   aiTryReveal, aiChooseBottomCards, aiLeadPlay, aiFollowPlay,
   serialize, deserialize, resumeFromTrick,
   Suit, Rank, validateFollow, validateLead,
+  buildAIContext, computeBestSoFar,
 } from '@poker/engine';
 import { classify } from '@poker/engine';
 import { parseCards } from './parse.js';
@@ -452,61 +453,6 @@ async function doPlayPhase() {
   }
 }
 
-function computeBestSoFar(state: GameState): { cards: Card[]; playerIdx: number } | null {
-  if (state.trickPlays.length === 0) return null;
-  const config = state.trumpDeclaration!;
-  const leadPlay = state.trickPlays[0];
-  const leadIsTrump = leadPlay.cards.every(c => isTrump(c, config));
-
-  let bestIdx = state.leadPlayerIndex;
-  let bestPlay = leadPlay;
-
-  for (let i = 1; i < state.trickPlays.length; i++) {
-    const pi = (state.leadPlayerIndex + i) % 4;
-    const play = state.trickPlays[i];
-    if (doesPlayBeat(play, bestPlay, leadPlay.leadSuit, config, leadIsTrump)) {
-      bestIdx = pi;
-      bestPlay = play;
-    }
-  }
-  return { cards: bestPlay.cards, playerIdx: bestIdx };
-}
-
-function doesPlayBeat(
-  challenger: { cards: Card[]; pattern: { pairCount: number; hasTractor: boolean; tractors?: readonly { pairCount: number }[] } },
-  current: { cards: Card[]; pattern: { pairCount: number; hasTractor: boolean; tractors?: readonly { pairCount: number }[] } },
-  leadSuit: string | null,
-  config: TrumpDeclaration,
-  leadIsTrump: boolean,
-): boolean {
-  const cTrump = challenger.cards.some(c => isTrump(c, config));
-  const curTrump = current.cards.some(c => isTrump(c, config));
-  if (cTrump && !curTrump) return true;
-  if (!cTrump && curTrump) return false;
-  if (cTrump && curTrump) {
-    if (challenger.pattern.hasTractor && !current.pattern.hasTractor) return true;
-    if (!challenger.pattern.hasTractor && current.pattern.hasTractor) return false;
-    if (challenger.pattern.pairCount > current.pattern.pairCount) return true;
-    if (challenger.pattern.pairCount < current.pattern.pairCount) return false;
-    const cMax = Math.max(...challenger.cards.map(c => getEffectiveRank(c, config)));
-    const curMax = Math.max(...current.cards.map(c => getEffectiveRank(c, config)));
-    return cMax > curMax;
-  }
-  const cInLead = leadSuit ? challenger.cards.every(c => c.suit === leadSuit) : false;
-  const curInLead = leadSuit ? current.cards.every(c => c.suit === leadSuit) : false;
-  if (cInLead && !curInLead) return true;
-  if (!cInLead && curInLead) return false;
-  if (cInLead && curInLead) {
-    if (challenger.pattern.hasTractor && !current.pattern.hasTractor) return true;
-    if (!challenger.pattern.hasTractor && current.pattern.hasTractor) return false;
-    if (challenger.pattern.pairCount > current.pattern.pairCount) return true;
-    if (challenger.pattern.pairCount < current.pattern.pairCount) return false;
-    const cMax = Math.max(...challenger.cards.map(c => c.rank));
-    const curMax = Math.max(...current.cards.map(c => c.rank));
-    return cMax > curMax;
-  }
-  return false;
-}
 
 async function doPlayerTurn(playerIndex: number) {
   const player = gameState.players[playerIndex];
@@ -520,7 +466,8 @@ async function doPlayerTurn(playerIndex: number) {
     let reason = '';
 
     if (isLeading) {
-      const r = aiLeadPlay(player.hand, config);
+      const ctx = buildAIContext(gameState, playerIndex)!;
+      const r = aiLeadPlay(player.hand, ctx);
       cards = r.cards;
       reason = r.reason;
     } else {
@@ -530,8 +477,8 @@ async function doPlayerTurn(playerIndex: number) {
         cards = [player.hand[0]];
         reason = '异常领出，随便跟';
       } else {
-        const bestSoFar = computeBestSoFar(gameState);
-        const r = aiFollowPlay(player.hand, leadPlay.cards, leadSuit, config, bestSoFar, playerIndex);
+        const ctx = buildAIContext(gameState, playerIndex)!;
+        const r = aiFollowPlay(player.hand, leadPlay.cards, leadSuit, ctx);
         cards = r.cards;
         reason = r.reason;
       }
@@ -839,14 +786,15 @@ function showHint(playerIndex: number) {
   let reason = '';
 
   if (isLeading) {
-    const r = aiLeadPlay(player.hand, config);
+    const ctx = buildAIContext(gameState, playerIndex)!;
+    const r = aiLeadPlay(player.hand, ctx);
     suggested = r.cards;
     reason = r.reason;
   } else if (gameState.trickPlays.length > 0 && gameState.trickPlays[0]?.cards?.length > 0) {
     const leadPlay = gameState.trickPlays[0];
     const suit = leadPlay.leadSuit != null ? leadPlay.leadSuit : leadPlay.cards[0]?.suit;
-    const bestSoFar = computeBestSoFar(gameState);
-    const r = aiFollowPlay(player.hand, leadPlay.cards, suit, config, bestSoFar, playerIndex);
+    const ctx = buildAIContext(gameState, playerIndex)!;
+    const r = aiFollowPlay(player.hand, leadPlay.cards, suit, ctx);
     suggested = r.cards;
     reason = r.reason;
 

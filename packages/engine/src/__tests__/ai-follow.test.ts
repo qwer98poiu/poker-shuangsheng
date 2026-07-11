@@ -26,7 +26,7 @@ describe('AI follow play compliance', () => {
 
   describe('non-trump suit leads (spades, cfg5)', () => {
 
-    it('pair lead, enough suit, has pair → plays a pair', () => {
+    it('pair lead, enough suit, has pair -> plays a pair', () => {
       const hand = [c('S', 13, 0), c('S', 13, 1), c('S', 12, 0), c('S', 11, 0)];
       const lead = [c('S', 14, 200), c('S', 14, 201)];
       const play = aiFollow(hand, lead, 'S', cfg5);
@@ -34,14 +34,14 @@ describe('AI follow play compliance', () => {
       expect(play.length).toBe(2);
     });
 
-    it('pair lead, enough suit, no pair → plays singles', () => {
+    it('pair lead, enough suit, no pair -> plays singles', () => {
       const hand = [c('S', 13, 0), c('S', 12, 0), c('S', 11, 0), c('S', 10, 0)];
       const lead = [c('S', 14, 200), c('S', 14, 201)];
       const play = aiFollow(hand, lead, 'S', cfg5);
       checkFollow(play, hand, lead, 'S', cfg5);
     });
 
-    it('2p tractor lead, exact match → plays tractor', () => {
+    it('2p tractor lead, exact match -> plays tractor', () => {
       const hand = [c('S', 12, 0), c('S', 12, 1), c('S', 11, 0), c('S', 11, 1), c('S', 10, 0)];
       const lead = [c('S', 14, 200), c('S', 14, 201), c('S', 13, 202), c('S', 13, 203)];
       const play = aiFollow(hand, lead, 'S', cfg5);
@@ -49,7 +49,7 @@ describe('AI follow play compliance', () => {
       expect(play.length).toBe(4);
     });
 
-    it('2p tractor lead, longer tractor → extracts same length', () => {
+    it('2p tractor lead, longer tractor -> extracts same length', () => {
       const hand = [
         c('S', 12, 0), c('S', 12, 1), c('S', 11, 0), c('S', 11, 1),
         c('S', 10, 0), c('S', 10, 1),
@@ -59,21 +59,21 @@ describe('AI follow play compliance', () => {
       checkFollow(play, hand, lead, 'S', cfg5);
     });
 
-    it('2p tractor lead, no tractor, has pairs → fills with pairs', () => {
+    it('2p tractor lead, no tractor, has pairs -> fills with pairs', () => {
       const hand = [c('S', 12, 0), c('S', 12, 1), c('S', 9, 0), c('S', 9, 1), c('S', 8, 0)];
       const lead = [c('S', 14, 200), c('S', 14, 201), c('S', 13, 202), c('S', 13, 203)];
       const play = aiFollow(hand, lead, 'S', cfg5);
       checkFollow(play, hand, lead, 'S', cfg5);
     });
 
-    it('2p tractor lead, no tractor, no pairs → plays singles', () => {
+    it('2p tractor lead, no tractor, no pairs -> plays singles', () => {
       const hand = [c('S', 12, 0), c('S', 9, 0), c('S', 8, 0), c('S', 7, 0), c('S', 6, 0)];
       const lead = [c('S', 14, 200), c('S', 14, 201), c('S', 13, 202), c('S', 13, 203)];
       const play = aiFollow(hand, lead, 'S', cfg5);
       checkFollow(play, hand, lead, 'S', cfg5);
     });
 
-    it('throw tractor+pair, enough, has tractor+pair → matches both slots', () => {
+    it('throw tractor+pair, enough, has tractor+pair -> matches both slots', () => {
       const hand = [
         c('S', 12, 0), c('S', 12, 1), c('S', 11, 0), c('S', 11, 1),
         c('S', 9, 0), c('S', 9, 1), c('S', 8, 0),
@@ -87,7 +87,7 @@ describe('AI follow play compliance', () => {
       expect(play.length).toBe(6);
     });
 
-    it('throw tractor+single, enough, has tractor → matches tractor', () => {
+    it('throw tractor+single, enough, has tractor -> matches tractor', () => {
       const hand = [
         c('S', 12, 0), c('S', 12, 1), c('S', 11, 0), c('S', 11, 1),
         c('S', 10, 0), c('S', 9, 0),
@@ -104,21 +104,21 @@ describe('AI follow play compliance', () => {
 
   describe('short-suited / void (non-trump)', () => {
 
-    it('short, pair lead, has pair → plays all suit + filler', () => {
+    it('short, pair lead, has pair -> plays all suit + filler', () => {
       const hand = [c('S', 13, 0), c('S', 13, 1), c('C', 10, 0), c('C', 9, 0)];
       const lead = [c('S', 14, 200), c('S', 14, 201)];
       const play = aiFollow(hand, lead, 'S', cfg5);
       checkFollow(play, hand, lead, 'S', cfg5);
     });
 
-    it('short, pair lead, no pair → plays suit single + filler', () => {
+    it('short, pair lead, no pair -> plays suit single + filler', () => {
       const hand = [c('S', 13, 0), c('C', 10, 0), c('C', 9, 0)];
       const lead = [c('S', 14, 200), c('S', 14, 201)];
       const play = aiFollow(hand, lead, 'S', cfg5);
       checkFollow(play, hand, lead, 'S', cfg5);
     });
 
-    it('short, 2p tractor lead, suit pair → plays pair + 2 fillers', () => {
+    it('short, 2p tractor lead, suit pair -> plays pair + 2 fillers', () => {
       const hand = [c('S', 13, 0), c('S', 13, 1), c('C', 10, 0), c('C', 9, 0), c('C', 8, 0)];
       const lead = [c('S', 14, 200), c('S', 14, 201), c('S', 13, 202), c('S', 13, 203)];
       const play = aiFollow(hand, lead, 'S', cfg5);
@@ -126,14 +126,14 @@ describe('AI follow play compliance', () => {
       expect(play.length).toBe(4);
     });
 
-    it('short, 2p tractor lead, suit singles → plays singles + fillers', () => {
+    it('short, 2p tractor lead, suit singles -> plays singles + fillers', () => {
       const hand = [c('S', 13, 0), c('S', 12, 0), c('C', 10, 0), c('C', 9, 0), c('C', 8, 0)];
       const lead = [c('S', 14, 200), c('S', 14, 201), c('S', 13, 202), c('S', 13, 203)];
       const play = aiFollow(hand, lead, 'S', cfg5);
       checkFollow(play, hand, lead, 'S', cfg5);
     });
 
-    it('void in lead suit → any play valid', () => {
+    it('void in lead suit -> any play valid', () => {
       const hand = [c('C', 13, 0), c('C', 12, 0), c('C', 11, 0)];
       const lead = [c('S', 14, 200), c('S', 14, 201)];
       const play = aiFollow(hand, lead, 'S', cfg5);
@@ -144,7 +144,7 @@ describe('AI follow play compliance', () => {
 
   describe('trump leads (cfg5: hearts, level=5)', () => {
 
-    it('2p trump tractor, enough, exact match → plays tractor', () => {
+    it('2p trump tractor, enough, exact match -> plays tractor', () => {
       const hand = [c('H', 12, 0), c('H', 12, 1), c('H', 11, 0), c('H', 11, 1), c('H', 10, 0)];
       const lead = [c('H', 14, 200), c('H', 14, 201), c('H', 13, 202), c('H', 13, 203)];
       const leadTrump = lead.every(c => isTrump(c, cfg5));
@@ -152,7 +152,7 @@ describe('AI follow play compliance', () => {
       checkFollow(play, hand, lead, leadTrump ? null : 'H', cfg5);
     });
 
-    it('2p trump tractor, short → plays all trump + fillers', () => {
+    it('2p trump tractor, short -> plays all trump + fillers', () => {
       const hand = [c('H', 12, 0), c('H', 11, 0), c('S', 10, 0), c('S', 9, 0), c('S', 8, 0)];
       const lead = [c('H', 14, 200), c('H', 14, 201), c('H', 13, 202), c('H', 13, 203)];
       const leadTrump = lead.every(c => isTrump(c, cfg5));
@@ -160,7 +160,7 @@ describe('AI follow play compliance', () => {
       checkFollow(play, hand, lead, leadTrump ? null : 'H', cfg5);
     });
 
-    it('single trump, can beat → plays smallest winning trump', () => {
+    it('single trump, can beat -> plays smallest winning trump', () => {
       const hand = [c('H', 14, 0), c('H', 13, 0)];
       const lead = [c('H', 13, 200)];
       const leadTrump = lead.every(c => isTrump(c, cfg5));
@@ -168,7 +168,7 @@ describe('AI follow play compliance', () => {
       checkFollow(play, hand, lead, leadTrump ? null : 'H', cfg5);
     });
 
-    it('single trump, cannot beat → plays smallest trump', () => {
+    it('single trump, cannot beat -> plays smallest trump', () => {
       const hand = [c('H', 12, 0)];
       const lead = [c('H', 14, 200)];
       const leadTrump = lead.every(c => isTrump(c, cfg5));
@@ -179,7 +179,7 @@ describe('AI follow play compliance', () => {
 
   describe('trump throw (cfgDiamondA: diamonds, level=14)', () => {
 
-    it('multi-tractor throw (12 cards), has tractors → matches all slots', () => {
+    it('multi-tractor throw (12 cards), has tractors -> matches all slots', () => {
       const hand = [
         c('J', 16, 0), c('J', 16, 1), c('J', 15, 0), c('J', 15, 1),
         c('C', 14, 0), c('C', 14, 1),
@@ -202,14 +202,14 @@ describe('AI follow play compliance', () => {
 
   describe('single non-trump lead', () => {
 
-    it('can beat → plays smallest winning card', () => {
+    it('can beat -> plays smallest winning card', () => {
       const hand = [c('S', 14, 0), c('S', 13, 0)];
       const lead = [c('S', 13, 200)];
       const play = aiFollow(hand, lead, 'S', cfg5);
       checkFollow(play, hand, lead, 'S', cfg5);
     });
 
-    it('cannot beat, teammate winning → discards points', () => {
+    it('cannot beat, teammate winning -> discards points', () => {
       const hand = [c('S', 10, 0), c('S', 5, 0)];
       const lead = [c('S', 13, 200)];
       const play = aiFollow(hand, lead, 'S', cfg5);
@@ -219,7 +219,7 @@ describe('AI follow play compliance', () => {
 
   describe('joker lead', () => {
 
-    it('single joker lead → plays smallest trump', () => {
+    it('single joker lead -> plays smallest trump', () => {
       const hand = [c('H', 14, 0), c('H', 13, 0)];
       const lead = [c('J', 16, 200)];
       const play = aiFollow(hand, lead, 'J', cfg5);
@@ -234,7 +234,7 @@ describe('AI follow play compliance', () => {
 // ================================================================
 const cfgD2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Diamonds, level: 2 };
 
-describe('AI follow compliance — diamonds trump, level 2 (crash scenarios)', () => {
+describe('AI follow compliance - diamonds trump, level 2 (crash scenarios)', () => {
 
   // --- Hand for AI-2: SJ pair + C2 + ♦QJ1074 + non-trump fill
   const handAI2 = [
@@ -247,7 +247,7 @@ describe('AI follow compliance — diamonds trump, level 2 (crash scenarios)', (
     c('C', 8, 21), c('C', 8, 22), c('C', 7, 23), c('C', 3, 24),
   ];
 
-  it('1. trump tractor lead D2D2H2H2 → AI plays SJ pair + fill', () => {
+  it('1. trump tractor lead D2D2H2H2 -> AI plays SJ pair + fill', () => {
     const lead: Card[] = [
       c('D', 2, 200), c('D', 2, 201),
       c('H', 2, 200), c('H', 2, 201),
@@ -258,7 +258,7 @@ describe('AI follow compliance — diamonds trump, level 2 (crash scenarios)', (
     expect(play.length).toBe(4);
   });
 
-  it('2. throw: BJ pair + D2D2H2H2 tractor → AI matches tractor slot', () => {
+  it('2. throw: BJ pair + D2D2H2H2 tractor -> AI matches tractor slot', () => {
     // BJ-SJ is 2p tractor, but wait: D2-H2 is also 2p (cross-group).
     // For simplicity: BJ pair + D2-H2 tractor = throw.
     // AI-2 has SJ pair (can match SJ part? No, lead has BJ pair as standalone).
@@ -276,8 +276,8 @@ describe('AI follow compliance — diamonds trump, level 2 (crash scenarios)', (
     expect(play.length).toBe(6);
   });
 
-  it('3. S-AQQ throw → AI matches pair or plays singles', () => {
-    // S-A(14) + S-QQ(12). A and Q gap at K(13)≠2 → not consecutive. Q pair is standalone.
+  it('3. S-AQQ throw -> AI matches pair or plays singles', () => {
+    // S-A(14) + S-QQ(12). A and Q gap at K(13)≠2 -> not consecutive. Q pair is standalone.
     // throw with single=1, pair=1.
     const hand = [
       c('S', 13, 0), c('S', 13, 1),  // S-KK (pair)
@@ -290,14 +290,14 @@ describe('AI follow compliance — diamonds trump, level 2 (crash scenarios)', (
     expect(play.length).toBe(3);
   });
 
-  it('4. C-AKK throw → AI must play pair if has one', () => {
+  it('4. C-AKK throw -> AI must play pair if has one', () => {
     // C-A(14) + C-KK(13). A and K are consecutive (no level between).
-    // BUT: A(14)-K(13) consecutive in non-trump rank space → A+KKK classifies as...
+    // BUT: A(14)-K(13) consecutive in non-trump rank space -> A+KKK classifies as...
     // wait, AKK: A is single, K-K is a pair. A-K not consecutive means A is standalone single.
-    // But A(14) and K(13) → hi=14 lo=13 → loop r=14; r<14 → empty. So consecutive!
+    // But A(14) and K(13) -> hi=14 lo=13 -> loop r=14; r<14 -> empty. So consecutive!
     // So A-K is consecutive! That means AAKK would be a tractor.
     // But A+KK: the A is 1 card, KK is 2 cards. A+A+KK would be tractor 2p.
-    // Single A + pair KK: classify... A single, K pair standalone → throw.
+    // Single A + pair KK: classify... A single, K pair standalone -> throw.
     const hand = [
       c('C', 13, 0), c('C', 13, 1),  // C-KK (pair)
       c('C', 12, 2), c('C', 11, 3),
