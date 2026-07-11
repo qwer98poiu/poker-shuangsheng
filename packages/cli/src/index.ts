@@ -139,6 +139,28 @@ function handleDump() {
   }
 }
 
+// ---- crash dump ----
+const CRASH_DIR = path.join(process.cwd(), 'crashes');
+
+function dumpCrash(state: any, aiPlayers: boolean[], error: unknown): string {
+  const ts = new Date().toISOString().replace(/[:.]/g, '-');
+  const name = `crash-${ts}.json`;
+  if (!fs.existsSync(CRASH_DIR)) fs.mkdirSync(CRASH_DIR, { recursive: true });
+  const file = path.join(CRASH_DIR, name);
+
+  const dump = {
+    timestamp: new Date().toISOString(),
+    error: {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    },
+    gameState: JSON.parse(serialize(state, aiPlayers, state.debug)),
+  };
+
+  fs.writeFileSync(file, JSON.stringify(dump, null, 2), 'utf-8');
+  return file;
+}
+
 // ---- continuous game loop ----
 async function gameLoop(firstDeclarer: number, currentLevel: number, spectator: boolean): Promise<void> {
   // The declarer (庄家) gets the bottom cards and leads the first trick.
@@ -441,7 +463,18 @@ async function doPlayPhase() {
         if (DEBUG) console.log(`⚠️ P${cp + 1} 手牌空但仍在回合中，跳过`);
         break;
       }
-      await doPlayerTurn(cp);
+      try {
+        await doPlayerTurn(cp);
+      } catch (e) {
+        console.log(RED + `\n!!! 程序异常 !!!` + RESET);
+        console.log(RED + `${e}` + RESET);
+        if (e instanceof Error && e.stack) {
+          console.log(DIM + e.stack.split('\n').slice(0, 6).join('\n') + RESET);
+        }
+        const crashFile = dumpCrash(gameState, aiPlayers, e);
+        console.log(YELLOW + `对局信息已转储: ${crashFile}` + RESET);
+        return;
+      }
       if (gameState.phase === GamePhase.RoundEnd) break;
     }
 

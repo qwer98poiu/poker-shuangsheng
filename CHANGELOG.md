@@ -805,3 +805,11 @@
 修复：出齐 4 家时用 `determineWinner`，未出齐时直接用 `compareTwo` 遍历已有出牌。
 
 - **影响文件**：`packages/engine/src/ai/context.ts`
+
+## 2026-07-11 22:21
+
+### 调试模式异常转储
+
+调试模式下 `doPlayPhase` 捕获 `doPlayerTurn` 抛出的异常，打印错误信息和调用栈，并将完整游戏状态（手牌、出牌历史、主牌配置、分数等）序列化为 JSON 保存到 `crashes/` 目录，便于排查。
+
+- **影响文件**：`packages/cli/src/index.ts`
