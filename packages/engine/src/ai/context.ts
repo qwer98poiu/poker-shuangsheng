@@ -2,13 +2,13 @@
  * AI context builder - builds AIContext from GameState + playerIndex.
  */
 import type { Card, GameState } from '../types.js';
-import { isTrump, getEffectiveRank } from '../model.js';
 import { determineWinner, compareTwo } from '../comparing/index.js';
 import type { AIContext } from './types.js';
 import { computeNTTrumpState } from './nt-tracking.js';
 
 /**
  * Compute the current best play in the trick and which player made it.
+ * Handles partial tricks (1-3 plays) by comparing only plays that exist.
  */
 export function computeBestSoFar(
   trickPlays: readonly { cards: Card[] }[],
@@ -19,17 +19,32 @@ export function computeBestSoFar(
 
   const plays: Card[][] = trickPlays.map(p => p.cards);
 
-  // If only the lead has played so far, that's the best.
+  // Only the lead — that's the best so far
   if (plays.length === 1) {
     return { cards: plays[0], playerIndex: leadPlayerIndex };
   }
 
-  const { winnerIndex } = determineWinner(plays, leadPlayerIndex, config);
-  const winnerPlayIndex = (winnerIndex - leadPlayerIndex + 4) % 4;
-  return {
-    cards: plays[winnerPlayIndex],
-    playerIndex: winnerIndex,
-  };
+  // Use determineWinner only when all 4 players have played.
+  // For partial tricks, iterate only over existing plays.
+  if (plays.length === 4) {
+    const { winnerIndex } = determineWinner(plays, leadPlayerIndex, config);
+    const winnerPlayIdx = (winnerIndex - leadPlayerIndex + 4) % 4;
+    return { cards: plays[winnerPlayIdx], playerIndex: winnerIndex };
+  }
+
+  // 2-3 players: compare each against the current best
+  let bestIdx = leadPlayerIndex;
+  let bestCards = plays[0];
+
+  for (let i = 1; i < plays.length; i++) {
+    const pi = (leadPlayerIndex + i) % 4;
+    if (compareTwo(bestCards, plays[i], plays[0], config) === 'second') {
+      bestIdx = pi;
+      bestCards = plays[i];
+    }
+  }
+
+  return { cards: bestCards, playerIndex: bestIdx };
 }
 
 /**

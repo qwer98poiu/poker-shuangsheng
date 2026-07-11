@@ -796,3 +796,12 @@
 - **影响文件**：`packages/engine/src/ai/*.ts`（7 文件新增/重构）
 - **影响文件**：`packages/engine/src/__tests__/ai-*.test.ts`（4 文件新增）
 - **影响文件**：`packages/cli/src/index.ts`（上下文传入）
+
+## 2026-07-11 22:16
+
+### computeBestSoFar 越界崩溃修复
+
+`computeBestSoFar` 在只有 2-3 家出牌时调用了 `determineWinner`，该函数固定遍历 4 家导致 `plays[i]` 为 `undefined` 引发 `TypeError`。
+修复：出齐 4 家时用 `determineWinner`，未出齐时直接用 `compareTwo` 遍历已有出牌。
+
+- **影响文件**：`packages/engine/src/ai/context.ts`
