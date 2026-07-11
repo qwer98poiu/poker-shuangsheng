@@ -461,3 +461,236 @@ describe('short-suited fill reason (diamonds trump, level=2)', () => {
     expect(r.reason).toBe('垫同花色');
   });
 });
+
+// ================================================================
+// Trump kill validity: every "毙" reason must actually beat
+// ================================================================
+describe('trump kill validity (hearts trump, level=5)', () => {
+  const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 5 };
+  function c2(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+
+  describe('single lead, void in suit, can beat', () => {
+    it('kills off-suit A with smallest trump - "用主牌毙"', () => {
+      const lead: Card[] = [c2('S', 14, 200)];
+      const best = { cards: lead, playerIdx: 0 };
+      // void in spades: only trump + other suits
+      const hand = [c2('H', 3, 0), c2('C', 9, 0), c2('C', 8, 0)];
+      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 1);
+      checkFollow(r.cards, hand, lead, 'S', cfg);
+      expect(r.cards.length).toBe(1);
+      expect(r.cards[0].id).toBe(c2('H', 3, 0).id);
+      expect(r.reason).toBe('用主牌毙');
+    });
+
+    it('kills single K - no overkill, "用主牌毙"', () => {
+      const lead: Card[] = [c2('S', 13, 200)];
+      const best = { cards: lead, playerIdx: 0 };
+      const hand = [c2('H', 4, 0), c2('C', 9, 0), c2('D', 8, 0)];
+      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 1);
+      checkFollow(r.cards, hand, lead, 'S', cfg);
+      expect(r.cards.length).toBe(1);
+      expect(r.reason).toBe('用主牌毙');
+    });
+  });
+
+  describe('single lead, void, best already trumped, cannot beat', () => {
+    it('discards when trump is too small', () => {
+      // P1 already killed S-A with H-A (effRank=614). AI=P2 has H-3 (603).
+      const lead: Card[] = [c2('S', 14, 200)];
+      const best = { cards: [c2('H', 14, 0)], playerIdx: 1 };
+      const hand = [c2('H', 3, 0), c2('C', 9, 0), c2('C', 8, 0), c2('D', 6, 0)];
+      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 2);
+      checkFollow(r.cards, hand, lead, 'S', cfg);
+      expect(r.cards.length).toBe(1);
+      expect(r.reason).not.toContain('毙');
+      expect(r.reason).toContain('垫');
+    });
+  });
+
+  describe('pair lead, void, can beat', () => {
+    it('kills off-suit pair with smallest trump pair - "用主牌对子毙"', () => {
+      const lead: Card[] = [c2('S', 9, 200), c2('S', 9, 201)];
+      const best = { cards: lead, playerIdx: 0 };
+      // void in spades: trump pair + other suits
+      const hand = [c2('H', 3, 0), c2('H', 3, 1), c2('C', 8, 0), c2('D', 7, 0)];
+      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 1);
+      checkFollow(r.cards, hand, lead, 'S', cfg);
+      expect(r.cards.length).toBe(2);
+      expect(r.reason).toBe('用主牌对子毙');
+    });
+  });
+
+  describe('pair lead, void, cannot beat', () => {
+    it('discards when trump pair exists but too small', () => {
+      // P1 killed S-9-9 with H-AA (effRank=614). AI has H-3-3 (603).
+      const lead: Card[] = [c2('S', 9, 200), c2('S', 9, 201)];
+      const best = { cards: [c2('H', 14, 0), c2('H', 14, 1)], playerIdx: 1 };
+      const hand = [c2('H', 3, 0), c2('H', 3, 1), c2('C', 8, 0), c2('D', 7, 0), c2('D', 6, 0)];
+      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 2);
+      checkFollow(r.cards, hand, lead, 'S', cfg);
+      expect(r.cards.length).toBe(2);
+      expect(r.reason).not.toContain('毙');
+    });
+
+    it('discards when trump has singles but no pair for pair lead', () => {
+      // trump=3 >= leadLen=2, but no trump pair -> cannot kill pair lead.
+      const lead: Card[] = [c2('S', 9, 200), c2('S', 9, 201)];
+      const best = { cards: lead, playerIdx: 0 };
+      const hand = [c2('H', 3, 0), c2('H', 4, 0), c2('H', 6, 0), c2('C', 8, 0), c2('D', 7, 0)];
+      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 1);
+      checkFollow(r.cards, hand, lead, 'S', cfg);
+      expect(r.cards.length).toBe(2);
+      expect(r.reason).not.toContain('毙');
+    });
+  });
+
+  describe('tractor lead, void, can beat', () => {
+    it('kills off-suit tractor with trump tractor - "用主牌拖拉机毙"', () => {
+      // S-QQ+JJ (Q=12,J=11 consecutive). H-AA+KK (A=14,K=13 consecutive).
+      const lead: Card[] = [
+        c2('S', 12, 200), c2('S', 12, 201), c2('S', 11, 200), c2('S', 11, 201),
+      ];
+      const best = { cards: lead, playerIdx: 0 };
+      const hand = [
+        c2('H', 14, 0), c2('H', 14, 1), c2('H', 13, 0), c2('H', 13, 1),
+        c2('C', 8, 0),
+      ];
+      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 1);
+      checkFollow(r.cards, hand, lead, 'S', cfg);
+      expect(r.cards.length).toBe(4);
+      expect(r.reason).toBe('用主牌拖拉机毙');
+    });
+  });
+
+  describe('tractor lead, void, cannot beat', () => {
+    it('discards when trump tractor too small vs existing kill', () => {
+      // P1 killed with H-AA+KK (614/613). AI has H-33+44 (603/604).
+      const lead: Card[] = [
+        c2('S', 12, 200), c2('S', 12, 201), c2('S', 11, 200), c2('S', 11, 201),
+      ];
+      const best = {
+        cards: [c2('H', 14, 0), c2('H', 14, 1), c2('H', 13, 0), c2('H', 13, 1)],
+        playerIdx: 1,
+      };
+      const hand = [
+        c2('H', 3, 0), c2('H', 3, 1), c2('H', 4, 0), c2('H', 4, 1),
+        c2('C', 8, 0), c2('C', 7, 0), c2('C', 6, 0), c2('D', 5, 0),
+      ];
+      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 2);
+      checkFollow(r.cards, hand, lead, 'S', cfg);
+      expect(r.cards.length).toBe(4);
+      expect(r.reason).not.toContain('毙');
+    });
+  });
+
+  describe('throw lead, void, can beat', () => {
+    it('kills AAK throw with pair+single - no overkill, "用主牌对子毙"', () => {
+      // S-AAK throw (A pair + K single, K=10pts). H-33 + H-4 = pair+fill.
+      const lead: Card[] = [c2('S', 14, 0), c2('S', 14, 1), c2('S', 13, 0)];
+      const best = { cards: lead, playerIdx: 0 };
+      const hand = [
+        c2('H', 3, 0), c2('H', 3, 1), c2('H', 4, 0), c2('C', 8, 0), c2('D', 7, 0),
+      ];
+      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 1);
+      checkFollow(r.cards, hand, lead, 'S', cfg);
+      expect(r.cards.length).toBe(3);
+      expect(r.reason).toBe('用主牌毙');
+    });
+
+    it('kills throw without points - "用主牌毙"', () => {
+      // S-AAJ throw (A pair + J single, no points).
+      const lead: Card[] = [c2('S', 14, 0), c2('S', 14, 1), c2('S', 11, 200)];
+      const best = { cards: lead, playerIdx: 0 };
+      const hand = [
+        c2('H', 6, 0), c2('H', 6, 1), c2('H', 7, 0), c2('C', 8, 0), c2('D', 9, 0),
+      ];
+      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 1);
+      checkFollow(r.cards, hand, lead, 'S', cfg);
+      expect(r.cards.length).toBe(3);
+      expect(r.reason).toBe('用主牌毙');
+    });
+  });
+
+  describe('throw lead, void, best already trumped, cannot beat', () => {
+    it('discards when trump too small vs existing throw kill', () => {
+      // S-AAK throw. P1 killed with H-AA+K. AI has H-33+4 (too small).
+      const lead: Card[] = [c2('S', 14, 0), c2('S', 14, 1), c2('S', 13, 0)];
+      const best = {
+        cards: [c2('H', 14, 0), c2('H', 14, 1), c2('H', 13, 0)],
+        playerIdx: 1,
+      };
+      const hand = [
+        c2('H', 3, 0), c2('H', 3, 1), c2('H', 4, 0),
+        c2('C', 8, 0), c2('C', 9, 0), c2('D', 10, 0),
+      ];
+      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 2);
+      checkFollow(r.cards, hand, lead, 'S', cfg);
+      expect(r.cards.length).toBe(3);
+      expect(r.reason).not.toContain('毙');
+    });
+  });
+
+  describe('overkill (盖毙): bestSoFar already has trump, AI overkills', () => {
+    it('overkills single with bigger trump - "用主牌盖毙"', () => {
+      // P0 leads S-A. P1 killed with H-10 (effRank=610).
+      // AI=P2 has H-A (effRank=614) > 610 → overkill.
+      const lead: Card[] = [c2('S', 14, 200)];
+      const best = { cards: [c2('H', 10, 0)], playerIdx: 1 }; // P1 trumped
+      const hand = [c2('H', 14, 0), c2('C', 9, 0), c2('D', 8, 0)];
+      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 2);
+      checkFollow(r.cards, hand, lead, 'S', cfg);
+      expect(r.cards.length).toBe(1);
+      expect(r.reason).toBe('用主牌盖毙');
+    });
+
+    it('overkills pair with bigger trump pair - "用主牌对子盖毙"', () => {
+      // P0 leads S-9-9. P1 killed with H-10-10 (effRank=610).
+      // AI=P2 has H-AA (effRank=614) → overkill.
+      const lead: Card[] = [c2('S', 9, 200), c2('S', 9, 201)];
+      const best = { cards: [c2('H', 10, 0), c2('H', 10, 1)], playerIdx: 1 };
+      const hand = [c2('H', 14, 0), c2('H', 14, 1), c2('C', 8, 0), c2('D', 7, 0)];
+      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 2);
+      checkFollow(r.cards, hand, lead, 'S', cfg);
+      expect(r.cards.length).toBe(2);
+      expect(r.reason).toBe('用主牌对子盖毙');
+    });
+
+    it('overkills tractor with bigger trump tractor - "用主牌拖拉机盖毙"', () => {
+      // S-QQ+JJ tractor. P1 killed with H-10-10+9-9 (tractor, effRank 610/609).
+      // AI=P2 has H-AA+KK (effRank 614/613) → overkill.
+      const lead: Card[] = [
+        c2('S', 12, 200), c2('S', 12, 201), c2('S', 11, 200), c2('S', 11, 201),
+      ];
+      const best = {
+        cards: [c2('H', 10, 0), c2('H', 10, 1), c2('H', 9, 0), c2('H', 9, 1)],
+        playerIdx: 1,
+      };
+      const hand = [
+        c2('H', 14, 0), c2('H', 14, 1), c2('H', 13, 0), c2('H', 13, 1),
+        c2('C', 8, 0),
+      ];
+      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 2);
+      checkFollow(r.cards, hand, lead, 'S', cfg);
+      expect(r.cards.length).toBe(4);
+      expect(r.reason).toBe('用主牌拖拉机盖毙');
+    });
+
+    it('overkills throw with bigger trump - "用主牌盖毙"', () => {
+      // S-AAK throw. P1 killed with H-10-10+9 (pair+single).
+      // AI=P2 has H-AA+K → overkill.
+      const lead: Card[] = [c2('S', 14, 0), c2('S', 14, 1), c2('S', 13, 0)];
+      const best = {
+        cards: [c2('H', 10, 0), c2('H', 10, 1), c2('H', 9, 0)],
+        playerIdx: 1,
+      };
+      const hand = [
+        c2('H', 14, 0), c2('H', 14, 1), c2('H', 13, 0),
+        c2('C', 8, 0), c2('D', 7, 0),
+      ];
+      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 2);
+      checkFollow(r.cards, hand, lead, 'S', cfg);
+      expect(r.cards.length).toBe(3);
+      expect(r.reason).toContain('盖毙');
+    });
+  });
+});

@@ -835,3 +835,28 @@
 
 - **影响文件**：`packages/engine/src/ai/index.ts`、`packages/engine/src/ai/utils.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
+
+## 2026-07-12 00:52
+
+### 毙牌正确性修复：区分毙和盖毙 + 增加11项毙牌测试
+
+**毙 vs 盖毙区分**：毙牌理由现在根据是否已有人主牌毙过来正确区分——用主牌杀副牌叫「毙」，前面的毙牌需要更大主牌盖过叫「盖毙」。此前用分牌有无（`hasPoints`）错误判断。
+
+**新增 `canTrumpKillBeat`**：用引擎 `compareTwo` 权威比较毙牌是否真正能击败当前最佳，确保所有毙牌理由都成立。
+
+**新增 `isOverkill`**：判断 `bestSoFar` 是否已含主牌，决定是否需要在毙牌理由前加「盖」。
+
+**多项修复**：
+- 多张毙牌无法匹配牌型或盖不过时不再落到纯单牌分支（之前的错误）
+- 领出对子、主牌无对子时改为弃牌（之前用单张主牌毙对子，非法）
+- 单张毙牌：已有人毙过时盖不过改为弃牌
+
+**新增 11 项毙牌测试**（ai-follow.test.ts：48 项）：
+- 单张毙/盖毙各 2 项
+- 对子毙/盖毙各 2 项
+- 拖拉机毙/盖毙各 2 项
+- 甩牌毙/盖毙各 2 项
+- 毙牌失败弃牌 3 项
+
+- **影响文件**：`packages/engine/src/ai/index.ts`
+- **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
