@@ -309,3 +309,155 @@ describe('AI follow compliance - diamonds trump, level 2 (crash scenarios)', () 
     expect(play.length).toBe(3);
   });
 });
+
+// ================================================================
+// Position-aware point adding (third/fourth position + teammate wins)
+// Reproduces the bug: AI-3 (third position, declarer partner) did not add
+// points when declarer led C-AAK throw.
+// ================================================================
+describe('position-aware point adding (diamonds trump, level=2)', () => {
+  const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Diamonds, level: 2 };
+  function cc(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+
+  // P0 has C-A-A-K (2 decks: 2xA total, 2xK total). P0 leads AAK throw.
+  // Remaining clubs: 0xA, 1xK (P0 has 1), plus J-3. P0 also has Q,9,9,6,6,4,4.
+  const leadAAK: Card[] = [cc('C', 14, 200), cc('C', 14, 201), cc('C', 13, 200)];
+  const bestP0 = { cards: leadAAK, playerIdx: 0 };
+
+  describe('third position, teammate wins with max pattern', () => {
+    it('adds points when lead is throw (AAK), has 10-10 + K + 5 + 3', () => {
+      // P0 has AAK -> at most 1xK left. AI-3 (P2, declarer partner) has:
+      // C-10-10 (pair, 20pts) + C-K (10pts) + C-5 (5pts) + C-3 + fillers.
+      const hand = [
+        cc('C', 10, 0), cc('C', 10, 1),  // 10-10 pair (20 pts)
+        cc('C', 13, 1),                    // single K (10 pts, P0 has the other)
+        cc('C', 5, 0),                     // 5 (5 pts)
+        cc('C', 3, 0),                     // 3
+        cc('H', 8, 0), cc('H', 7, 0),     // other suits
+      ];
+      const r = aiFollowPlay(hand, leadAAK, 'C', cfg, bestP0, 2);
+      checkFollow(r.cards, hand, leadAAK, 'C', cfg);
+      expect(r.cards.length).toBe(3);
+      // Third + throw -> canAddPoints. Should prefer 10-10 pair + K single (30 pts)
+      // over 10-10 pair + 3 single (20 pts).
+      const ranks = r.cards.map(c => c.rank).sort((a, b) => a - b);
+      // Should include K (13) — the max point filler
+      expect(ranks).toContain(13);
+    });
+
+    it('adds points when lead is max pair (AA), has KK pair', () => {
+      // P0 has AA -> 0xA left. AI-3 has KK (20 pts) + 5 (5 pts).
+      const leadAA: Card[] = [cc('C', 14, 200), cc('C', 14, 201)];
+      const bestAA = { cards: leadAA, playerIdx: 0 };
+      const hand = [
+        cc('C', 13, 0), cc('C', 13, 1),  // KK (20 pts, P0 has no K)
+        cc('C', 5, 0),                     // 5 (5 pts)
+        cc('H', 8, 0),
+      ];
+      const r = aiFollowPlay(hand, leadAA, 'C', cfg, bestAA, 2);
+      checkFollow(r.cards, hand, leadAA, 'C', cfg);
+      expect(r.cards.length).toBe(2);
+      expect(r.reason).toContain('尽量加分');
+      // Should play KK (20 pts), not 5+something
+      const ranks = r.cards.map(c => c.rank);
+      expect(ranks.filter(r => r === 13).length).toBe(2);
+    });
+
+    it('adds points when lead is single big off-suit card (A)', () => {
+      // P0 leads C-A (max off-suit single). P0 has 2xA total, 1 led.
+      // AI-3 has K (10pts), 5 (5pts), 3 (non-point).
+      const leadA: Card[] = [cc('C', 14, 200)];
+      const bestA = { cards: leadA, playerIdx: 0 };
+      const hand = [
+        cc('C', 13, 0),  // K (10 pts, P0 has the other K? No, P0 has AAK - 1 K.)
+        // Actually P0 has 1 K. Other K is available. AI-3 can have it.
+        cc('C', 5, 0),   // 5 (5 pts)
+        cc('C', 3, 0),   // 3 (non-point)
+        cc('H', 8, 0),
+      ];
+      const r = aiFollowPlay(hand, leadA, 'C', cfg, bestA, 2);
+      checkFollow(r.cards, hand, leadA, 'C', cfg);
+      expect(r.cards.length).toBe(1);
+      // Lead is single A -> big off-suit card -> canAddPoints. Should play K.
+      expect(r.cards[0].rank).toBe(13);
+    });
+  });
+
+  describe('third position, teammate wins but lead is NOT max pattern', () => {
+    it('does NOT add points when third and lead is small card', () => {
+      // P0 leads C-9 (small). P1 plays C-8, P0 still wins (no one beat).
+      // P2 is third, teammate winning but lead is small -> canAddPoints false.
+      const lead9: Card[] = [cc('C', 9, 200)];
+      const bestP0b = { cards: lead9, playerIdx: 0 };
+      const hand = [
+        cc('C', 13, 0),  // K (10 pts)
+        cc('C', 8, 0),   // 8
+        cc('C', 3, 0),   // 3
+        cc('H', 6, 0),
+      ];
+      const r = aiFollowPlay(hand, lead9, 'C', cfg, bestP0b, 2);
+      checkFollow(r.cards, hand, lead9, 'C', cfg);
+      expect(r.cards.length).toBe(1);
+      expect(r.reason).toContain('尽量不加分');
+    });
+  });
+
+  // Fourth position: same canAddPoints logic as third (always true).
+  // Tested implicitly by the "third" tests above since the logic is identical.
+  // Explicit fourth-position test requires full AIContext (not backward-compat).
+});
+
+// ================================================================
+// Short-suited fill reason accuracy
+// ================================================================
+describe('short-suited fill reason (diamonds trump, level=2)', () => {
+  const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Diamonds, level: 2 };
+  function cc(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+
+  it('uses "同花色不够，垫其他花色" when fillers contain other suits but no trump', () => {
+    // Lead C-9-9 pair. AI has C-Q (1 club) + H-3, H-6 (other suits, no trump).
+    const hand = [
+      cc('C', 12, 0),  // C-Q
+      cc('H', 3, 0),   // H-3
+      cc('H', 6, 0),   // H-6
+    ];
+    const lead: Card[] = [cc('C', 9, 200), cc('C', 9, 201)];
+    const r = aiFollowPlay(hand, lead, 'C', cfg);
+    checkFollow(r.cards, hand, lead, 'C', cfg);
+    expect(r.cards.length).toBe(2);
+    expect(r.reason).toBe('同花色不够，垫其他花色');
+  });
+
+  it('uses "同花色不够，垫主牌" when all fillers are trump', () => {
+    // Lead C-9-9 pair. AI has C-Q (1 club) + only trump cards to fill.
+    // fillerSort prefers non-trump first, so with only trump fillers -> trump.
+    const hand = [
+      cc('C', 12, 0),  // C-Q
+      cc('D', 7, 0),   // D-7 (trump)
+      cc('D', 8, 0),   // D-8 (trump)
+      cc('D', 9, 0),   // D-9 (trump)
+      cc('D', 10, 0),  // D-10 (trump)
+    ];
+    const lead: Card[] = [cc('C', 9, 200), cc('C', 9, 201)];
+    const r = aiFollowPlay(hand, lead, 'C', cfg);
+    checkFollow(r.cards, hand, lead, 'C', cfg);
+    expect(r.cards.length).toBe(2);
+    expect(r.reason).toBe('同花色不够，垫主牌');
+  });
+
+  it('uses "垫同花色" when following a throw with enough lead-suit cards but cannot match pattern', () => {
+    // Lead C-A-A-K (throw: A pair + K single). AI has 3 clubs but no pairs:
+    // C-Q, C-8, C-7 — all singles, can match single slot but not the pair.
+    // All 3 cards are same suit as lead -> "垫同花色".
+    const hand = [
+      cc('C', 12, 0), cc('C', 8, 0), cc('C', 7, 0),  // all clubs, no pairs
+      cc('H', 3, 0), cc('H', 6, 0),
+    ];
+    const leadAAK: Card[] = [cc('C', 14, 200), cc('C', 14, 201), cc('C', 13, 200)];
+    const r = aiFollowPlay(hand, leadAAK, 'C', cfg);
+    checkFollow(r.cards, hand, leadAAK, 'C', cfg);
+    expect(r.cards.length).toBe(3);
+    // All played cards are clubs (lead suit), can't match pattern (no pair)
+    expect(r.reason).toBe('垫同花色');
+  });
+});

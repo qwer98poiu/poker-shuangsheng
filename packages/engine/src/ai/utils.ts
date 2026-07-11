@@ -101,7 +101,8 @@ export function discardSort(teammateWinning: boolean): (a: Card, b: Card) => num
     const aPts = isPointRank(a.rank) ? (teammateWinning ? 0 : 100) : 0;
     const bPts = isPointRank(b.rank) ? (teammateWinning ? 0 : 100) : 0;
     if (aPts !== bPts) return aPts - bPts;
-    return a.rank - b.rank;
+    // Descending when adding points (dump big points first), ascending otherwise
+    return teammateWinning ? b.rank - a.rank : a.rank - b.rank;
   };
 }
 

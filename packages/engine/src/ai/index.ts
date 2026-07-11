@@ -455,9 +455,14 @@ function _aiFollowPlay(
     const other = hand.filter(c => !leadSuitCards.includes(c));
     other.sort(fillerSort(!!tmWin, ctx));
     const fill = other.slice(0, leadLen - leadSuitCards.length);
+    const reason = fill.some(c => isTrump(c, ctx))
+      ? '同花色不够，垫主牌'
+      : fill.some(c => c.suit !== leadSuitCards[0].suit)
+        ? '同花色不够，垫其他花色'
+        : '垫同花色';
     return {
       cards: [...leadSuitCards, ...fill],
-      reason: '垫同花色',
+      reason,
     };
   }
 
@@ -467,7 +472,7 @@ function _aiFollowPlay(
   }
 
   // Can't fully trump - discard
-  return discardNonTrump(hand, leadLen, ctx, tmWin);
+  return discardNonTrump(hand, leadLen, ctx, position, tmWin);
 }
 
 // ---- Follow trump lead ----
@@ -582,45 +587,48 @@ function followOffSuit(
   tmWin: boolean,
 ): { cards: Card[]; reason: string } {
   if (leadLen === 1) {
-    return followOffSuitSingle(leadSuitCards, ctx, position, tmWin);
+    return followOffSuitSingle(leadSuitCards, leadCombo, ctx, position, tmWin);
   }
   return followOffSuitMulti(leadSuitCards, leadCards, leadLen, leadCombo, ctx, position, tmWin);
 }
 
 function followOffSuitSingle(
   leadSuitCards: Card[],
+  leadCombo: ComboClass,
   ctx: AIContext,
   position: string,
   tmWin: boolean,
 ): { cards: Card[]; reason: string } {
   leadSuitCards.sort((a, b) => getEffectiveRank(b, ctx) - getEffectiveRank(a, ctx));
 
-  // Teammate already winning - dump points
-  if (tmWin && position === 'third') {
+  // Teammate already winning - dump points (third and fourth with conditions)
+  if (canAddPoints(tmWin, position, leadCombo, ctx)) {
     leadSuitCards.sort(discardSort(true));
     return { cards: [leadSuitCards[0]], reason: '队友已大，尽量加分' };
   }
 
-  // Can't beat - play smallest
-  if (!canBeat([leadSuitCards[0]], ctx.bestSoFar, ctx)) {
-    // Don't break pairs
-    const singles = leadSuitCards;
-    singles.sort(discardSort(false));
-    const reason = position === 'third' && ctx.bestSoFar
+  // Teammate winning but can't add points -> play small, don't beat teammate
+  if (tmWin) {
+    leadSuitCards.sort(discardSort(false));
+    const reason = position === 'third'
       ? '盖不过，尽量不加分'
       : '同花色出小';
-    return { cards: [singles[0]], reason };
+    return { cards: [leadSuitCards[0]], reason };
   }
 
-  // Can beat - play smallest that beats
+  // Can't beat opponent - play smallest
+  if (!canBeat([leadSuitCards[0]], ctx.bestSoFar, ctx)) {
+    leadSuitCards.sort(discardSort(false));
+    return { cards: [leadSuitCards[0]], reason: '盖不过，出最小牌' };
+  }
+
+  // Can beat opponent - play smallest that beats
   if (ctx.bestSoFar && ctx.bestSoFar.cards.length > 0) {
     const bestRank = Math.max(...ctx.bestSoFar.cards.map(c => getEffectiveRank(c, ctx)));
     const beaters = leadSuitCards.filter(c => getEffectiveRank(c, ctx) > bestRank);
     if (beaters.length > 0) {
       beaters.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
-      // Don't break pairs to beat
-      const b = beaters[0];
-      return { cards: [b], reason: `同花色出大` };
+      return { cards: [beaters[0]], reason: '同花色出大' };
     }
   }
 
@@ -659,30 +667,38 @@ function followOffSuitMulti(
 
   // Pair lead - match with pairs
   if (leadCombo.pairCount > 0 && myPairs.length >= leadCombo.pairCount) {
-    // Teammate winning -> can add points
-    if (tmWin && position === 'fourth') {
-      leadSuitCards.sort(discardSort(true));
-      return { cards: leadSuitCards.slice(0, leadLen), reason: '队友已大，尽量加分' };
-    }
     myPairs.sort(pairSortAsc(ctx));
     const chosen = myPairs.slice(0, leadCombo.pairCount).flat();
     if (chosen.length < leadLen) {
       const used = new Set(chosen.map(c => c.id));
       const rest = leadSuitCards.filter(c => !used.has(c.id));
-      rest.sort((a, b) => a.rank - b.rank);
+      // Fillers: add points if allowed, otherwise smallest non-point
+      if (canAddPoints(tmWin, position, leadCombo, ctx)) {
+        rest.sort(discardSort(true));
+      } else {
+        rest.sort((a, b) => a.rank - b.rank);
+      }
       chosen.push(...rest.slice(0, leadLen - chosen.length));
     }
-    return { cards: chosen.slice(0, leadLen), reason: '用对子跟牌' };
+    const reason = canAddPoints(tmWin, position, leadCombo, ctx)
+      ? '队友已大，尽量加分'
+      : '用对子跟牌';
+    return { cards: chosen.slice(0, leadLen), reason };
   }
 
   // Can't match pattern - play smallest
-  if (tmWin) {
+  // Only fourth position adds points when teammate wins.
+  // Can't match pattern - play smallest
+  if (canAddPoints(tmWin, position, leadCombo, ctx)) {
     leadSuitCards.sort(discardSort(true));
     return { cards: leadSuitCards.slice(0, leadLen), reason: '队友已大，尽量加分' };
   }
 
   leadSuitCards.sort(discardSort(false));
-  return { cards: leadSuitCards.slice(0, leadLen), reason: '垫同花色' };
+  const reason = position === 'third' && tmWin
+    ? '盖不过，尽量不加分'
+    : '垫同花色';
+  return { cards: leadSuitCards.slice(0, leadLen), reason };
 }
 
 // ---- Trump kill ----
@@ -846,7 +862,7 @@ function followOffSuitThrow(
     return { cards: trumpCards.slice(0, leadLen), reason: '用主牌毙' };
   }
 
-  return discardNonTrump(hand, leadLen, ctx, tmWin);
+  return discardNonTrump(hand, leadLen, ctx, position, tmWin);
 }
 
 // ---- Follow trump throw ----
@@ -914,12 +930,14 @@ function discardNonTrump(
   hand: Card[],
   leadLen: number,
   ctx: AIContext,
+  position: string,
   tmWin: boolean,
 ): { cards: Card[]; reason: string } {
   const nonTrump = hand.filter(c => !isTrump(c, ctx));
   nonTrump.sort(discardSort(!!tmWin));
   if (nonTrump.length >= leadLen) {
-    return { cards: nonTrump.slice(0, leadLen), reason: tmWin ? '队友已大，尽量加分' : '垫牌' };
+    const reason = (tmWin && position === 'fourth') ? '队友已大，尽量加分' : '垫牌';
+    return { cards: nonTrump.slice(0, leadLen), reason };
   }
   const trump = hand.filter(c => isTrump(c, ctx));
   trump.sort(discardSort(!!tmWin));
@@ -945,6 +963,24 @@ function padWithDiscards(
 }
 
 // ---- Shared helpers ----
+
+/** Whether we should add points when teammate is winning.
+ *  Fourth: always.
+ *  Third: only if lead is max pattern — big card (A/K single or pair),
+ *         has tractor, or is a throw (甩牌 already max). */
+function canAddPoints(tmWin: boolean, position: string, leadCombo: ComboClass, ctx: AIContext): boolean {
+  if (!tmWin) return false;
+  if (position === 'fourth') return true;
+  if (position === 'third') {
+    if (leadCombo.hasTractor) return true;
+    if (leadCombo.type === 'throw') return true;
+    // Single or pair of big off-suit card (A, or K when A is level)
+    if (leadCombo.type === 'single' || leadCombo.type === 'pair') {
+      return leadCombo.cards.every(c => isBigOffSuitCard(c, ctx));
+    }
+  }
+  return false;
+}
 
 function tryMatchTractorSlots(
   leadCombo: ComboClass,
@@ -1033,23 +1069,27 @@ function ensureContext(
   if ('myIndex' in config && (config as AIContext).myIndex >= 0) {
     return config as AIContext;
   }
-  // Build mutable context from scratch (minimalContext returns readonly)
+  // Build context from scratch for backward compat.
   const bs = bestSoFar ? { cards: bestSoFar.cards, playerIndex: bestSoFar.playerIdx } : null;
   const idx = myIdx ?? -1;
+  const declIdx = config.declarerIndex;
+  // Infer position from myIdx relative to lead (default: declarer leads)
+  const leadIdx = bs && bs.playerIndex >= 0 ? declIdx : declIdx;
+  const pc = idx >= 0 ? (idx - leadIdx + 4) % 4 : 0;
   return {
-    declarerIndex: config.declarerIndex,
+    declarerIndex: declIdx,
     trumpSuit: config.trumpSuit,
     level: config.level,
     myIndex: idx,
-    isDeclarer: false,
-    isDeclarerPartner: false,
-    isAttacker: false,
+    isDeclarer: idx === declIdx,
+    isDeclarerPartner: idx === (declIdx + 2) % 4,
+    isAttacker: idx >= 0 ? idx % 2 !== declIdx % 2 : false,
     attackerPoints: 0,
     handCounts: [25, 25, 25, 25] as const,
     trickHistory: [],
     reveals: [],
-    playCount: 0,
-    leadPlayerIndex: -1,
+    playCount: pc,
+    leadPlayerIndex: leadIdx,
     bestSoFar: bs,
     ntState: null,
     bottomCards: [],
