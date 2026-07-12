@@ -936,3 +936,18 @@
 
 - **影响文件**：`packages/engine/src/ai/index.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
+
+## 2026-07-12 18:36
+
+### 无拖拉机填对子时补充位置感知理由和排序
+
+`followOffSuitMulti` 的无拖拉机填对子分支之前硬编码了理由和填充排序，导致第二家加分、第三家没分可加时缺少标注。
+
+修复后填充排序根据位置调整（第二/四家避分、第三家加分），理由通过 `annotateReason` 生成。
+
+**新增 2 项测试**（ai-follow.test.ts：57 项）：
+- 第二家无拖拉机填对子 → 避用分牌，附加尽量不加分
+- 第三家无拖拉机填对子但没分 → 附加但没分可加
+
+- **影响文件**：`packages/engine/src/ai/index.ts`
+- **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`

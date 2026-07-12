@@ -686,8 +686,22 @@ function followOffSuitMulti(
       const chosen = myPairs.flat();
       const used = new Set(chosen.map(c => c.id));
       const rest = leadSuitCards.filter(c => !used.has(c.id));
-      rest.sort((a, b) => a.rank - b.rank);
-      return { cards: [...chosen, ...rest].slice(0, leadLen), reason: '无拖拉机，用对子跟牌' };
+      const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
+      const shouldAvoid = !addPoints
+        && (position === 'second' || position === 'fourth')
+        && !tmWin && isMaxPattern(leadCombo, ctx);
+      if (addPoints) {
+        rest.sort(discardSort(true));
+      } else if (shouldAvoid) {
+        rest.sort(discardSort(false));
+      } else {
+        rest.sort((a, b) => a.rank - b.rank);
+      }
+      const cards = [...chosen, ...rest].slice(0, leadLen);
+      const intent = addPoints ? 'add' : (shouldAvoid ? 'avoid' : 'none');
+      const reason = annotateReason('无拖拉机，用对子跟牌', cards, leadSuitCards, [],
+        leadCombo, leadLen, ctx, position, tmWin, false, intent);
+      return { cards, reason };
     }
   }
 

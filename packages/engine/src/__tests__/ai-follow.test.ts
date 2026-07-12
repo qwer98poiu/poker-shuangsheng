@@ -865,3 +865,56 @@ describe('short-suited / fourth avoid points on max pattern (spades trump, level
     expect(r.reason).toContain('尽量不加分');
   });
 });
+
+// ================================================================
+// Tractor lead: second/no-tractor avoids points, third adds
+// ================================================================
+describe('tractor lead fill-with-pairs annotations (level=2, spades trump)', () => {
+  const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
+  function cc(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+
+  // P0 leads H-KK+QQ (tractor, max). P1=second, has H-6-6 pair + H-4,H-5,H-8.
+  // No tractor match → fill with H-6-6 + 2 smallest non-point singles.
+  it('second+no-tractor avoids point fillers: "无拖拉机，用对子跟牌（盖不过，尽量不加分）"', () => {
+    const lead: Card[] = [
+      cc('H', 13, 200), cc('H', 13, 201),
+      cc('H', 12, 200), cc('H', 12, 201),
+    ];
+    const best = { cards: lead, playerIdx: 0 };
+    const hand = [
+      cc('H', 6, 0), cc('H', 6, 1),   // 6-6 pair
+      cc('H', 4, 0),                    // 4 (non-point)
+      cc('H', 5, 0),                    // 5 (5 pts) - should AVOID
+      cc('H', 8, 0),                    // 8 (non-point)
+      cc('S', 7, 0),                    // extra trump
+    ];
+    const r = aiFollowPlay(hand, lead, 'H', cfg, best, 1);
+    checkFollow(r.cards, hand, lead, 'H', cfg);
+    expect(r.cards.length).toBe(4);
+    // Should NOT include H-5
+    expect(r.cards.every(c => c.rank !== 5 || c.suit !== 'H')).toBe(true);
+    expect(r.reason).toContain('尽量不加分');
+  });
+
+  // P0 leads H-KK+QQ (tractor). P2=third, teammate wins.
+  // Has H-7-7 pair + H-9,H-J,H-A. No points available among these.
+  it('third+teammate wins+tractor, no points: "无拖拉机，用对子跟牌（但没分可加）"', () => {
+    const lead: Card[] = [
+      cc('H', 13, 200), cc('H', 13, 201),
+      cc('H', 12, 200), cc('H', 12, 201),
+    ];
+    const best = { cards: lead, playerIdx: 0 };
+    const hand = [
+      cc('H', 7, 0), cc('H', 7, 1),   // 7-7 pair
+      cc('H', 14, 0),                   // A (not a point card)
+      cc('H', 11, 0),                   // J (not a point card)
+      cc('H', 9, 0),                    // 9 (not a point card)
+      cc('S', 8, 0),
+    ];
+    const r = aiFollowPlay(hand, lead, 'H', cfg, best, 2);
+    checkFollow(r.cards, hand, lead, 'H', cfg);
+    expect(r.cards.length).toBe(4);
+    // All cards are non-pointers
+    expect(r.reason).toContain('但没分可加');
+  });
+});
