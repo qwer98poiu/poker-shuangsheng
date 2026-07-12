@@ -918,3 +918,28 @@ describe('tractor lead fill-with-pairs annotations (level=2, spades trump)', () 
     expect(r.reason).toContain('但没分可加');
   });
 });
+
+// ================================================================
+// Short-suited filler avoids level trump (常主)
+// ================================================================
+describe('filler avoids level trump when all remaining are trump', () => {
+  const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
+  function cc(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+
+  it('prefers non-level S-3 over S-2(level) and S-10(point) as filler', () => {
+    // P0 leads D-Q-Q pair. AI has D-Q (1 diamond, short).
+    // All remaining cards are trump: S-2(level/常主), S-3, S-10(point).
+    // Should pick S-3, not waste S-2 or add S-10.
+    const lead: Card[] = [cc('D', 12, 200), cc('D', 12, 201)];
+    const best = { cards: lead, playerIdx: 0 };
+    const hand = [
+      cc('D', 12, 0), cc('S', 2, 0), cc('S', 3, 0), cc('S', 10, 0),
+    ];
+    const r = aiFollowPlay(hand, lead, 'D', cfg, best, 3);
+    checkFollow(r.cards, hand, lead, 'D', cfg);
+    expect(r.cards.length).toBe(2);
+    expect(r.cards.some(c => c.suit === 'S' && c.rank === 3)).toBe(true);
+    expect(r.cards.some(c => c.suit === 'S' && c.rank === 2)).toBe(false);
+    expect(r.cards.some(c => c.suit === 'S' && c.rank === 10)).toBe(false);
+  });
+});

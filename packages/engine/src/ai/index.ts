@@ -529,7 +529,7 @@ function followTrumpLead(
     }
     // No trump - discard
     const nonTrump = hand.filter(c => !isTrump(c, ctx));
-    nonTrump.sort(discardSort(!!tmWin));
+    nonTrump.sort(discardSort(!!tmWin, ctx));
     return { cards: [nonTrump[0] || hand[0]], reason: '垫牌' };
   }
 
@@ -604,9 +604,9 @@ function matchTrumpPattern(
   // Pure singles: play smallest trump
   const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
   if (addPoints) {
-    myTrump.sort(discardSort(true));
+    myTrump.sort(discardSort(true, ctx));
   } else {
-    myTrump.sort(discardSort(false));
+    myTrump.sort(discardSort(false, ctx));
   }
   const cards2 = myTrump.slice(0, leadLen);
   const intent2 = addPoints ? 'add' : 'none';
@@ -900,7 +900,7 @@ function trumpKillSingle(
       }
       // Cannot overkill — discard
       if (nonTrump.length > 0) {
-        nonTrump.sort(discardSort(!!tmWin));
+        nonTrump.sort(discardSort(!!tmWin, ctx));
         return { cards: [nonTrump[0]], reason: '盖不过，垫副牌' };
       }
       return { cards: [trumpCards[0]], reason: '盖不过，垫主牌' };
@@ -938,9 +938,9 @@ function followOffSuitThrow(
     // Partial suit follow
     const remaining = hand.filter(c => !leadSuitCards.includes(c));
     const nonTrump = remaining.filter(c => !isTrump(c, ctx));
-    nonTrump.sort(discardSort(!!tmWin));
+    nonTrump.sort(discardSort(!!tmWin, ctx));
     const trumps = remaining.filter(c => isTrump(c, ctx));
-    trumps.sort(discardSort(!!tmWin));
+    trumps.sort(discardSort(!!tmWin, ctx));
     const fill = [...nonTrump, ...trumps].slice(0, leadLen - leadSuitCards.length);
     const cards = [...leadSuitCards, ...fill];
     const leadCombo = classifyCombo(leadCards, ctx);
@@ -1041,7 +1041,7 @@ function followNTTrumpLead(
       return { cards, reason };
     }
     const nonTrump = hand.filter(c => !isTrump(c, ctx));
-    nonTrump.sort(discardSort(!!tmWin));
+    nonTrump.sort(discardSort(!!tmWin, ctx));
     return { cards: [nonTrump[0] || hand[0]], reason: '垫牌' };
   }
 
@@ -1049,9 +1049,9 @@ function followNTTrumpLead(
   if (myTrump.length >= leadLen) {
     const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
     if (addPoints) {
-      myTrump.sort(discardSort(true));
+      myTrump.sort(discardSort(true, ctx));
     } else {
-      myTrump.sort(discardSort(false));
+      myTrump.sort(discardSort(false, ctx));
     }
     const cards = myTrump.slice(0, leadLen);
     const intent = addPoints ? 'add' : 'none';
@@ -1090,7 +1090,7 @@ function discardNonTrump(
   tmWin: boolean,
 ): { cards: Card[]; reason: string } {
   const nonTrump = hand.filter(c => !isTrump(c, ctx));
-  nonTrump.sort(discardSort(!!tmWin));
+  nonTrump.sort(discardSort(!!tmWin, ctx));
   if (nonTrump.length >= leadLen) {
     const cards = nonTrump.slice(0, leadLen);
     const intent = (tmWin && position === 'fourth') ? 'add' : 'none';
@@ -1098,7 +1098,7 @@ function discardNonTrump(
     return { cards, reason };
   }
   const trump = hand.filter(c => isTrump(c, ctx));
-  trump.sort(discardSort(!!tmWin));
+  trump.sort(discardSort(!!tmWin, ctx));
   return {
     cards: [...nonTrump, ...trump].slice(0, leadLen),
     reason: '垫牌(含主牌)',
@@ -1113,7 +1113,7 @@ function padWithDiscards(
   tmWin: boolean,
 ): { cards: Card[]; reason: string } {
   const nonTrump = hand.filter(c => !isTrump(c, ctx));
-  nonTrump.sort(discardSort(!!tmWin));
+  nonTrump.sort(discardSort(!!tmWin, ctx));
   return {
     cards: [...myTrump, ...nonTrump].slice(0, leadLen),
     reason: '主牌不足，补垫牌',

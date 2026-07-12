@@ -968,3 +968,17 @@
 NT 主牌跟牌同理统一。
 
 - **影响文件**：`packages/engine/src/ai/index.ts`
+
+## 2026-07-12 19:08
+
+### 短牌填充避免浪费常主（级牌）
+
+`fillerSort` 和 `discardSort` 新增级牌降权：同优先级主牌中，非级牌优先于级牌（常主）。修复前全主牌填充按 rank 升序 → S-2(常主) 排在最前被浪费；修复后非级牌优先 → S-3 排在 S-2 前面。
+
+discardSort 签名新增可选 `config` 参数，各调用点传入 ctx。
+
+**新增 1 项测试**（ai-follow.test.ts：59 项）：
+- 全主牌填充选 S-3 不选 S-2(常主) 和 S-10(分牌)
+
+- **影响文件**：`packages/engine/src/ai/utils.ts`、`packages/engine/src/ai/index.ts`
+- **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`

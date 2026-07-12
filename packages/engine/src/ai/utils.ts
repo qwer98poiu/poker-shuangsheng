@@ -95,12 +95,22 @@ export function pairSortAsc(config: TrumpDeclaration): (a: Card[], b: Card[]) =>
 /**
  * Sort comparator: when teammateWinning, prefer point cards;
  * otherwise avoid them, prefer smallest rank.
+ * Among same-priority cards, non-level trump comes before level trump.
  */
-export function discardSort(teammateWinning: boolean): (a: Card, b: Card) => number {
+export function discardSort(
+  teammateWinning: boolean,
+  config?: TrumpDeclaration,
+): (a: Card, b: Card) => number {
   return (a, b) => {
     const aPts = isPointRank(a.rank) ? (teammateWinning ? 0 : 100) : 0;
     const bPts = isPointRank(b.rank) ? (teammateWinning ? 0 : 100) : 0;
     if (aPts !== bPts) return aPts - bPts;
+    // Non-level trump before level trump (avoid wasting constant trump)
+    if (config) {
+      const aLvl = a.rank === config.level ? 100 : 0;
+      const bLvl = b.rank === config.level ? 100 : 0;
+      if (aLvl !== bLvl) return aLvl - bLvl;
+    }
     // Descending when adding points (dump big points first), ascending otherwise
     return teammateWinning ? b.rank - a.rank : a.rank - b.rank;
   };
@@ -108,6 +118,7 @@ export function discardSort(teammateWinning: boolean): (a: Card, b: Card) => num
 
 /**
  * Same as discardSort but additionally deprioritizes trump cards.
+ * Among trump cards, deprioritize level trump (常主) and point trump.
  */
 export function fillerSort(
   teammateWinning: boolean,
@@ -117,9 +128,14 @@ export function fillerSort(
     const aPts = isPointRank(a.rank) ? (teammateWinning ? 0 : 100) : 0;
     const bPts = isPointRank(b.rank) ? (teammateWinning ? 0 : 100) : 0;
     if (aPts !== bPts) return aPts - bPts;
+    // Prefer non-trump over trump as fillers
     const aTr = isTrump(a, config) ? 100 : 0;
     const bTr = isTrump(b, config) ? 100 : 0;
     if (aTr !== bTr) return aTr - bTr;
+    // Both trump: non-level first (avoid wasting 常主), then smallest rank
+    const aLvl = a.rank === config.level ? 100 : 0;
+    const bLvl = b.rank === config.level ? 100 : 0;
+    if (aLvl !== bLvl) return aLvl - bLvl;
     return a.rank - b.rank;
   };
 }
