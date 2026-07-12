@@ -494,7 +494,7 @@ function followTrumpLead(
 
   // NT special handling for trump follow
   if (ctx.trumpSuit === null && ctx.ntState) {
-    return followNTTrumpLead(hand, leadCards, leadLen, ctx, tmWin);
+    return followNTTrumpLead(hand, leadCards, leadLen, leadCombo, ctx, position, tmWin);
   }
 
   // Can beat?
@@ -508,13 +508,24 @@ function followTrumpLead(
         // Position 2: generally play small unless have tractor/throw to seize lead
         if (position === 'second') {
           myTrump.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
-          return { cards: [myTrump[0]], reason: '出小' };
+          return { cards: [myTrump[0]], reason: '同花色出小' };
         }
         canBeatCards.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
-        return { cards: [canBeatCards[0]], reason: '用最小能盖过的主牌' };
+        const cards = [canBeatCards[0]];
+        const fourthBeat = position === 'fourth' && !tmWin;
+        const intent = (tmWin && canAddPoints(tmWin, position, leadCombo, ctx)) ? 'add'
+          : fourthBeat ? 'beat_points' : 'none';
+        const reason = annotateReason('同花色出大', cards, [], myTrump,
+          leadCombo, 1, ctx, position, tmWin, false, intent);
+        return { cards, reason };
       }
       myTrump.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
-      return { cards: [myTrump[0]], reason: '盖不过，出最小主牌' };
+      const cards = [myTrump[0]];
+      const thirdAvoid = position === 'third' && tmWin;
+      const intent = thirdAvoid ? 'avoid' : 'none';
+      const reason = annotateReason('同花色出小', cards, [], myTrump,
+        leadCombo, 1, ctx, position, tmWin, false, intent);
+      return { cards, reason };
     }
     // No trump - discard
     const nonTrump = hand.filter(c => !isTrump(c, ctx));
@@ -524,7 +535,7 @@ function followTrumpLead(
 
   // Multi-card trump lead - match pattern
   if (myTrump.length >= leadLen) {
-    return matchTrumpPattern(myTrump, leadCards, leadCombo, leadLen, ctx, tmWin);
+    return matchTrumpPattern(myTrump, leadCards, leadCombo, leadLen, ctx, position, tmWin);
   }
 
   // Not enough trump - pad with discards
@@ -537,6 +548,7 @@ function matchTrumpPattern(
   leadCombo: ComboClass,
   leadLen: number,
   ctx: AIContext,
+  position: string,
   tmWin: boolean,
 ): { cards: Card[]; reason: string } {
   // Already fully covered: try to use smallest matching pattern
@@ -549,21 +561,31 @@ function matchTrumpPattern(
         return aMax - bMax;
       });
       const picked = tryMatchTractorSlots(leadCombo, myTractors, myTrump, leadLen, ctx);
-      if (picked) return { cards: picked, reason: '用最小主牌拖拉机跟牌' };
+      if (picked) {
+        const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
+        const intent = addPoints ? 'add' : 'none';
+        const reason = annotateReason('用拖拉机跟牌', picked, [], myTrump,
+          leadCombo, leadLen, ctx, position, tmWin, false, intent);
+        return { cards: picked, reason };
+      }
     }
-    // No tractor - play smallest pairs then singles
+    // No tractor - fill with smallest pairs then singles
     const pairs = findAllPairs(myTrump);
-    pairs.sort(pairSortAsc(ctx));
+    pairKillSort(pairs, myTrump, ctx);
     const chosen = pairs.flat();
     const used = new Set(chosen.map(c => c.id));
     const rest = myTrump.filter(c => !used.has(c.id));
+    const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
     rest.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
-    return { cards: [...chosen, ...rest].slice(0, leadLen), reason: '无拖拉机，出最小主牌对子跟牌' };
+    const cards = [...chosen, ...rest].slice(0, leadLen);
+    const intent = addPoints ? 'add' : 'none';
+    const reason = annotateReason('垫同花色', cards, [], myTrump,
+      leadCombo, leadLen, ctx, position, tmWin, false, intent);
+    return { cards, reason };
   }
 
   if (leadCombo.pairCount > 0) {
     const myPairs = findAllPairs(myTrump); pairKillSort(myPairs, myTrump, ctx);
-    
     const chosen = myPairs.slice(0, leadCombo.pairCount).flat();
     if (chosen.length < leadLen) {
       const used = new Set(chosen.map(c => c.id));
@@ -571,12 +593,26 @@ function matchTrumpPattern(
       rest.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
       chosen.push(...rest.slice(0, leadLen - chosen.length));
     }
-    return { cards: chosen, reason: '用最小主牌对子跟牌' };
+    const cards = chosen.slice(0, leadLen);
+    const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
+    const intent = addPoints ? 'add' : 'none';
+    const reason = annotateReason('用对子跟牌', cards, [], myTrump,
+      leadCombo, leadLen, ctx, position, tmWin, false, intent);
+    return { cards, reason };
   }
 
   // Pure singles: play smallest trump
-  myTrump.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
-  return { cards: myTrump.slice(0, leadLen), reason: '出最小主牌' };
+  const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
+  if (addPoints) {
+    myTrump.sort(discardSort(true));
+  } else {
+    myTrump.sort(discardSort(false));
+  }
+  const cards2 = myTrump.slice(0, leadLen);
+  const intent2 = addPoints ? 'add' : 'none';
+  const reason2 = annotateReason('垫同花色', cards2, [], myTrump,
+    leadCombo, leadLen, ctx, position, tmWin, false, intent2);
+  return { cards: cards2, reason: reason2 };
 }
 
 // ---- Follow off-suit lead ----
@@ -699,7 +735,7 @@ function followOffSuitMulti(
       }
       const cards = [...chosen, ...rest].slice(0, leadLen);
       const intent = addPoints ? 'add' : (shouldAvoid ? 'avoid' : 'none');
-      const reason = annotateReason('无拖拉机，用对子跟牌', cards, leadSuitCards, [],
+      const reason = annotateReason('垫同花色', cards, leadSuitCards, [],
         leadCombo, leadLen, ctx, position, tmWin, false, intent);
       return { cards, reason };
     }
@@ -976,7 +1012,9 @@ function followNTTrumpLead(
   hand: Card[],
   leadCards: Card[],
   leadLen: number,
+  leadCombo: ComboClass,
   ctx: AIContext,
+  position: string,
   tmWin: boolean,
 ): { cards: Card[]; reason: string } {
   const myTrump = hand.filter(c => isTrump(c, ctx));
@@ -987,10 +1025,20 @@ function followNTTrumpLead(
       const canBeat = myTrump.filter(c => getEffectiveRank(c, ctx) > leadMax);
       if (canBeat.length > 0) {
         canBeat.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
-        return { cards: [canBeat[0]], reason: '用最小能盖过的主牌' };
+        const cards = [canBeat[0]];
+        const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
+        const intent = addPoints ? 'add' : 'none';
+        const reason = annotateReason('同花色出大', cards, [], myTrump,
+          leadCombo, 1, ctx, position, tmWin, false, intent);
+        return { cards, reason };
       }
       myTrump.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
-      return { cards: [myTrump[0]], reason: '盖不过，出最小主牌' };
+      const cards = [myTrump[0]];
+      const thirdAvoid = position === 'third' && tmWin;
+      const intent = thirdAvoid ? 'avoid' : 'none';
+      const reason = annotateReason('同花色出小', cards, [], myTrump,
+        leadCombo, 1, ctx, position, tmWin, false, intent);
+      return { cards, reason };
     }
     const nonTrump = hand.filter(c => !isTrump(c, ctx));
     nonTrump.sort(discardSort(!!tmWin));
@@ -999,8 +1047,17 @@ function followNTTrumpLead(
 
   // Multi-card NT trump lead
   if (myTrump.length >= leadLen) {
-    myTrump.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
-    return { cards: myTrump.slice(0, leadLen), reason: '跟主牌' };
+    const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
+    if (addPoints) {
+      myTrump.sort(discardSort(true));
+    } else {
+      myTrump.sort(discardSort(false));
+    }
+    const cards = myTrump.slice(0, leadLen);
+    const intent = addPoints ? 'add' : 'none';
+    const reason = annotateReason('垫同花色', cards, [], myTrump,
+      leadCombo, leadLen, ctx, position, tmWin, false, intent);
+    return { cards, reason };
   }
 
   // Pad with discards

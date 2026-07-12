@@ -875,7 +875,7 @@ describe('tractor lead fill-with-pairs annotations (level=2, spades trump)', () 
 
   // P0 leads H-KK+QQ (tractor, max). P1=second, has H-6-6 pair + H-4,H-5,H-8.
   // No tractor match → fill with H-6-6 + 2 smallest non-point singles.
-  it('second+no-tractor avoids point fillers: "无拖拉机，用对子跟牌（盖不过，尽量不加分）"', () => {
+  it('second+no-tractor avoids point fillers: "垫同花色（盖不过，尽量不加分）"', () => {
     const lead: Card[] = [
       cc('H', 13, 200), cc('H', 13, 201),
       cc('H', 12, 200), cc('H', 12, 201),
@@ -898,7 +898,7 @@ describe('tractor lead fill-with-pairs annotations (level=2, spades trump)', () 
 
   // P0 leads H-KK+QQ (tractor). P2=third, teammate wins.
   // Has H-7-7 pair + H-9,H-J,H-A. No points available among these.
-  it('third+teammate wins+tractor, no points: "无拖拉机，用对子跟牌（但没分可加）"', () => {
+  it('third+teammate wins+tractor, no points: "垫同花色（但没分可加）"', () => {
     const lead: Card[] = [
       cc('H', 13, 200), cc('H', 13, 201),
       cc('H', 12, 200), cc('H', 12, 201),
