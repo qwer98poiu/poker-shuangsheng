@@ -559,8 +559,8 @@ function matchTrumpPattern(
   }
 
   if (leadCombo.pairCount > 0) {
-    const myPairs = findAllPairs(myTrump);
-    myPairs.sort(pairSortAsc(ctx));
+    const myPairs = findAllPairs(myTrump); pairKillSort(myPairs, myTrump, ctx);
+    
     const chosen = myPairs.slice(0, leadCombo.pairCount).flat();
     if (chosen.length < leadLen) {
       const used = new Set(chosen.map(c => c.id));
@@ -657,7 +657,7 @@ function followOffSuitMulti(
     }
     // No tractor - fill with pairs then singles
     if (myPairs.length > 0) {
-      myPairs.sort(pairSortAsc(ctx));
+      pairKillSort(myPairs, leadSuitCards, ctx);
       const chosen = myPairs.flat();
       const used = new Set(chosen.map(c => c.id));
       const rest = leadSuitCards.filter(c => !used.has(c.id));
@@ -668,7 +668,7 @@ function followOffSuitMulti(
 
   // Pair lead - match with pairs
   if (leadCombo.pairCount > 0 && myPairs.length >= leadCombo.pairCount) {
-    myPairs.sort(pairSortAsc(ctx));
+    pairKillSort(myPairs, leadSuitCards, ctx);
     const chosen = myPairs.slice(0, leadCombo.pairCount).flat();
     if (chosen.length < leadLen) {
       const used = new Set(chosen.map(c => c.id));
@@ -759,7 +759,7 @@ function trumpKill(
 
   if (leadCombo.pairCount > 0) {
     const myPairs = findAllPairs(trumpCards);
-    myPairs.sort(pairSortAsc(ctx));
+    pairKillSort(myPairs, trumpCards, ctx);
     if (myPairs.length >= leadCombo.pairCount) {
       const chosen = myPairs.slice(0, leadCombo.pairCount).flat();
       if (chosen.length === leadLen) {
@@ -955,6 +955,22 @@ function followNTTrumpLead(
 }
 
 // ---- Discard helpers ----
+
+/** Sort pairs for killing/following: non-tractor first (avoid breaking tractors),
+ *  then non-point first, then smallest effective rank. */
+function pairKillSort(pairs: Card[][], cards: Card[], ctx: AIContext): void {
+  const tractors = detectTractors(cards, ctx);
+  const tractorIds = new Set(tractors.flat().map(c => c.id));
+  pairs.sort((a, b) => {
+    const aTr = tractorIds.has(a[0].id) ? 100 : 0;
+    const bTr = tractorIds.has(b[0].id) ? 100 : 0;
+    if (aTr !== bTr) return aTr - bTr;
+    const aPts = isPointRank(a[0].rank) ? 100 : 0;
+    const bPts = isPointRank(b[0].rank) ? 100 : 0;
+    if (aPts !== bPts) return aPts - bPts;
+    return getEffectiveRank(a[0], ctx) - getEffectiveRank(b[0], ctx);
+  });
+}
 
 function discardNonTrump(
   hand: Card[],

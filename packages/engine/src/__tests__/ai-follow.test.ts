@@ -693,4 +693,65 @@ describe('trump kill validity (hearts trump, level=5)', () => {
       expect(r.reason).toContain('盖毙');
     });
   });
+
+  describe('pair selection avoids breaking tractors', () => {
+    const cfgD2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Diamonds, level: 2 };
+    function cc(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+
+    it('void in spades, picks standalone trump pair over tractor pair', () => {
+      // Reproduces: AI-4 leads S-8-8 pair. Player 1 has:
+      // D-5 D-5 D-4 D-4 (tractor: 5+4 consecutive since 2 is level, skip 2, 3:
+      //   actually D-5 and D-4: level=2. D-5 effRank=605, D-4 effRank=604.
+      //   areConsecutiveSameSuit: both trump, level=2. 5!=2 and 4!=2, so
+      //   hi=5 lo=4, loop r=5; r<5 -> empty. Consecutive!
+      //   Wait: 5!=2 and 4!=2 so hi=5 lo=4, loop r=5; r<5 -> empty. Yes consecutive.
+      //   So D-5-5 + D-4-4 is a tractor.
+      // D-Q D-Q (standalone pair, non-tractor, no points)
+      // D-10 D-10 (standalone pair, non-tractor, points)
+      // D-J, D-A etc.
+      // The hint should pick D-Q-Q (standalone, non-point, smallest) over
+      // D-4-4 (tractor pair, breaks the tractor).
+      const lead: Card[] = [cc('S', 8, 200), cc('S', 8, 201)];
+      const best = { cards: lead, playerIdx: 3 };
+      const hand = [
+        // Tractor: D-5-5 + D-4-4
+        cc('D', 5, 0), cc('D', 5, 1),
+        cc('D', 4, 0), cc('D', 4, 1),
+        // Standalone pairs
+        cc('D', 12, 0), cc('D', 12, 1),  // D-Q-Q (non-point)
+        cc('D', 10, 0), cc('D', 10, 1),  // D-10-10 (points)
+        // Other singletons
+        cc('D', 14, 0),  // D-A
+        cc('D', 11, 0),  // D-J
+        cc('C', 6, 0), cc('C', 4, 0),
+      ];
+      const r = aiFollowPlay(hand, lead, 'S', cfgD2, best, 0);
+      checkFollow(r.cards, hand, lead, 'S', cfgD2);
+      expect(r.cards.length).toBe(2);
+      expect(r.reason).toContain('毙');
+      // Should pick D-Q-Q (standalone, non-point) not D-4-4 (tractor pair)
+      expect(r.cards.some(c => c.rank === 12)).toBe(true);
+      expect(r.cards.some(c => c.rank === 4)).toBe(false);
+    });
+
+    it('falls back to tractor pair when no standalone pair exists', () => {
+      // Only tractor pairs available: D-5-5 + D-4-4. No standalone pairs.
+      // Must pick the smallest tractor pair (D-4-4).
+      const lead: Card[] = [cc('S', 8, 200), cc('S', 8, 201)];
+      const best = { cards: lead, playerIdx: 3 };
+      const hand = [
+        // Tractor: D-5-5 + D-4-4
+        cc('D', 5, 0), cc('D', 5, 1),
+        cc('D', 4, 0), cc('D', 4, 1),
+        // Singles only
+        cc('D', 9, 0), cc('D', 7, 0),
+        cc('C', 8, 0), cc('C', 6, 0),
+      ];
+      const r = aiFollowPlay(hand, lead, 'S', cfgD2, best, 0);
+      checkFollow(r.cards, hand, lead, 'S', cfgD2);
+      expect(r.cards.length).toBe(2);
+      // Must pick the smallest tractor pair
+      expect(r.cards.some(c => c.rank === 4)).toBe(true);
+    });
+  });
 });

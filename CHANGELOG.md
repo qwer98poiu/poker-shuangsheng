@@ -860,3 +860,20 @@
 
 - **影响文件**：`packages/engine/src/ai/index.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
+
+## 2026-07-12 11:05
+
+### 毙牌/跟牌避免拆拖拉机对子
+
+新增 `pairKillSort` 排序器，毙牌和跟牌选择对子时优先不拆拖拉机对子。排序：非拖拉机对子 > 拖拉机对子 > 同档内非分对子 > 最小有效rank。
+
+兜底：所有对子都在拖拉机内时，选择最小的拖拉机对子。
+
+修复点数：`trumpKill`、`aiFollowTrumpOnly`、`followOffSuitMulti`（2处），共4处对子选择点。
+
+**新增 2 项测试**（ai-follow.test.ts：50 项）：
+- 有拖拉机对子+独立对子时选独立对子不拆拖拉机
+- 无独立对子时兜底选最小拖拉机对子
+
+- **影响文件**：`packages/engine/src/ai/index.ts`
+- **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
