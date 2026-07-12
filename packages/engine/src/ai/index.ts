@@ -448,7 +448,7 @@ function _aiFollowPlay(
 
   // Have enough lead-suit cards
   if (leadSuitCards.length >= leadLen) {
-    return followOffSuit(leadSuitCards, leadCards, leadLen, leadCombo, ctx, position, tmWin);
+    return followOffSuit(leadSuitCards, leadCards, leadLen, leadCombo, ctx, position, tmWin, trumpCards);
   }
 
   // Short-suited - must play all lead-suit cards
@@ -586,9 +586,10 @@ function followOffSuit(
   ctx: AIContext,
   position: string,
   tmWin: boolean,
+  trumpCards: Card[],
 ): { cards: Card[]; reason: string } {
   if (leadLen === 1) {
-    return followOffSuitSingle(leadSuitCards, leadCombo, ctx, position, tmWin);
+    return followOffSuitSingle(leadSuitCards, leadCombo, ctx, position, tmWin, trumpCards);
   }
   return followOffSuitMulti(leadSuitCards, leadCards, leadLen, leadCombo, ctx, position, tmWin);
 }
@@ -599,28 +600,39 @@ function followOffSuitSingle(
   ctx: AIContext,
   position: string,
   tmWin: boolean,
+  trumpCards: Card[],
 ): { cards: Card[]; reason: string } {
   leadSuitCards.sort((a, b) => getEffectiveRank(b, ctx) - getEffectiveRank(a, ctx));
 
-  // Teammate already winning - dump points (third and fourth with conditions)
   if (canAddPoints(tmWin, position, leadCombo, ctx)) {
     leadSuitCards.sort(discardSort(true));
-    return { cards: [leadSuitCards[0]], reason: '队友已大，尽量加分' };
+    const cards = [leadSuitCards[0]];
+    const reason = annotateReason('同花色出大', cards, leadSuitCards, trumpCards,
+      leadCombo, 1, ctx, position, tmWin, false, 'add');
+    return { cards, reason };
   }
 
-  // Teammate winning but can't add points -> play small, don't beat teammate
   if (tmWin) {
     leadSuitCards.sort(discardSort(false));
-    const reason = position === 'third'
-      ? '盖不过，尽量不加分'
-      : '同花色出小';
-    return { cards: [leadSuitCards[0]], reason };
+    const cards = [leadSuitCards[0]];
+    const intent = position === 'third' ? 'avoid' : 'none';
+    const reason = annotateReason('同花色出小', cards, leadSuitCards, trumpCards,
+      leadCombo, 1, ctx, position, tmWin, false, intent);
+    return { cards, reason };
   }
 
   // Can't beat opponent - play smallest
   if (!canBeat([leadSuitCards[0]], ctx.bestSoFar, ctx)) {
     leadSuitCards.sort(discardSort(false));
-    return { cards: [leadSuitCards[0]], reason: '盖不过，出最小牌' };
+    const cards = [leadSuitCards[0]];
+    const secondAvoid = position === 'second' && canAddPoints(false, position, leadCombo, ctx) === false
+      && (leadCombo.type === 'throw' || leadCombo.hasTractor
+        || (leadCombo.type === 'single' && isBigOffSuitCard(leadCombo.cards[0], ctx))
+        || (leadCombo.type === 'pair' && leadCombo.cards.every(c => isBigOffSuitCard(c, ctx))));
+    const intent = secondAvoid ? 'avoid' : 'none';
+    const reason = annotateReason('同花色出小', cards, leadSuitCards, trumpCards,
+      leadCombo, 1, ctx, position, tmWin, false, intent);
+    return { cards, reason };
   }
 
   // Can beat opponent - play smallest that beats
@@ -629,7 +641,13 @@ function followOffSuitSingle(
     const beaters = leadSuitCards.filter(c => getEffectiveRank(c, ctx) > bestRank);
     if (beaters.length > 0) {
       beaters.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
-      return { cards: [beaters[0]], reason: '同花色出大' };
+      const cards = [beaters[0]];
+      // Fourth position beating opponent: try to use point cards
+      const fourthBeat = position === 'fourth' && !tmWin;
+      const intent = fourthBeat ? 'beat_points' : 'none';
+      const reason = annotateReason('同花色出大', cards, leadSuitCards, trumpCards,
+        leadCombo, 1, ctx, position, tmWin, false, intent);
+      return { cards, reason };
     }
   }
 
@@ -653,7 +671,13 @@ function followOffSuitMulti(
     if (myTractors.length > 0) {
       myTractors.sort((a, b) => b.length - a.length);
       const picked = tryMatchTractorSlots(leadCombo, myTractors, leadSuitCards, leadLen, ctx);
-      if (picked) return { cards: picked, reason: '用拖拉机跟牌' };
+      if (picked) {
+        const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
+        const intent = addPoints ? 'add' : 'none';
+        const reason = annotateReason('用拖拉机跟牌', picked, leadSuitCards, [],
+          leadCombo, leadLen, ctx, position, tmWin, false, intent);
+        return { cards: picked, reason };
+      }
     }
     // No tractor - fill with pairs then singles
     if (myPairs.length > 0) {
@@ -670,36 +694,39 @@ function followOffSuitMulti(
   if (leadCombo.pairCount > 0 && myPairs.length >= leadCombo.pairCount) {
     pairKillSort(myPairs, leadSuitCards, ctx);
     const chosen = myPairs.slice(0, leadCombo.pairCount).flat();
+    const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
     if (chosen.length < leadLen) {
       const used = new Set(chosen.map(c => c.id));
       const rest = leadSuitCards.filter(c => !used.has(c.id));
-      // Fillers: add points if allowed, otherwise smallest non-point
-      if (canAddPoints(tmWin, position, leadCombo, ctx)) {
+      if (addPoints) {
         rest.sort(discardSort(true));
       } else {
         rest.sort((a, b) => a.rank - b.rank);
       }
       chosen.push(...rest.slice(0, leadLen - chosen.length));
     }
-    const reason = canAddPoints(tmWin, position, leadCombo, ctx)
-      ? '队友已大，尽量加分'
-      : '用对子跟牌';
-    return { cards: chosen.slice(0, leadLen), reason };
+    const cards = chosen.slice(0, leadLen);
+    const intent = addPoints ? 'add' : 'none';
+    const reason = annotateReason('用对子跟牌', cards, leadSuitCards, [],
+      leadCombo, leadLen, ctx, position, tmWin, false, intent);
+    return { cards, reason };
   }
 
-  // Can't match pattern - play smallest
-  // Only fourth position adds points when teammate wins.
   // Can't match pattern - play smallest
   if (canAddPoints(tmWin, position, leadCombo, ctx)) {
     leadSuitCards.sort(discardSort(true));
-    return { cards: leadSuitCards.slice(0, leadLen), reason: '队友已大，尽量加分' };
+    const cards = leadSuitCards.slice(0, leadLen);
+    const reason = annotateReason('垫同花色', cards, leadSuitCards, [],
+      leadCombo, leadLen, ctx, position, tmWin, false, 'add');
+    return { cards, reason };
   }
 
   leadSuitCards.sort(discardSort(false));
-  const reason = position === 'third' && tmWin
-    ? '盖不过，尽量不加分'
-    : '垫同花色';
-  return { cards: leadSuitCards.slice(0, leadLen), reason };
+  const cards = leadSuitCards.slice(0, leadLen);
+  const intent = (position === 'third' && tmWin) ? 'avoid' : 'none';
+  const reason = annotateReason('垫同花色', cards, leadSuitCards, [],
+    leadCombo, leadLen, ctx, position, tmWin, false, intent);
+  return { cards, reason };
 }
 
 // ---- Trump kill ----
@@ -850,7 +877,7 @@ function followOffSuitThrow(
   if (leadSuitCards.length >= leadLen) {
     // Try to match the throw's pattern (tractors, pairs) first
     const leadCombo = classifyCombo(leadCards, ctx);
-    return followOffSuit(leadSuitCards, leadCards, leadLen, leadCombo, ctx, position, tmWin);
+    return followOffSuit(leadSuitCards, leadCards, leadLen, leadCombo, ctx, position, tmWin, trumpCards);
   }
 
   if (leadSuitCards.length > 0) {
@@ -982,8 +1009,10 @@ function discardNonTrump(
   const nonTrump = hand.filter(c => !isTrump(c, ctx));
   nonTrump.sort(discardSort(!!tmWin));
   if (nonTrump.length >= leadLen) {
-    const reason = (tmWin && position === 'fourth') ? '队友已大，尽量加分' : '垫牌';
-    return { cards: nonTrump.slice(0, leadLen), reason };
+    const cards = nonTrump.slice(0, leadLen);
+    const intent = (tmWin && position === 'fourth') ? 'add' : 'none';
+    const reason = intent === 'add' ? '垫牌（队友已大，尽量加分）' : '垫牌';
+    return { cards, reason };
   }
   const trump = hand.filter(c => isTrump(c, ctx));
   trump.sort(discardSort(!!tmWin));
@@ -1026,6 +1055,83 @@ function canAddPoints(tmWin: boolean, position: string, leadCombo: ComboClass, c
     }
   }
   return false;
+}
+
+/**
+ * Check if the chosen cards are the only legal play from this hand.
+ * True when: lead-suit cards exactly match what's needed (single=1 card,
+ * pair=1 pair or 2 cards, tractor=1 matching tractor or N pairs or N*2 cards),
+ * AND no cross-suit filling is needed.
+ * Does NOT apply to short-suited fills or last-card situations.
+ */
+function isOnlyLegalPlay(
+  cards: Card[],
+  leadSuitCards: Card[],
+  leadLen: number,
+  trumpCards: Card[],
+  isTrumpKill: boolean,
+): boolean {
+  // Short-suited (need filler cards) — not unique
+  if (leadSuitCards.length > 0 && leadSuitCards.length < leadLen) return false;
+  if (isTrumpKill) return false; // multiple trump combos possible
+  if (leadSuitCards.length === 0 && !isTrumpKill) return false; // void + discard, many choices
+  if (leadSuitCards.length === leadLen && leadLen === 1 && leadSuitCards.length === 1) return true;
+  if (leadSuitCards.length === leadLen && leadLen === 2) {
+    // Unique if exactly 2 cards (must play both) or exactly 1 pair
+    return leadSuitCards.length === 2;
+  }
+  return false; // multi-card: assume not unique unless specific check
+}
+
+/**
+ * Append point-strategy annotation to a base reason.
+ * The annotation explains WHY certain cards were chosen,
+ * e.g. "（队友已大，尽量加分）", "（盖不过，尽量不加分）",
+ * "（唯一可出）", "（用分牌盖）", "（但没分可加）", etc.
+ */
+function annotateReason(
+  baseReason: string,
+  cards: Card[],
+  leadSuitCards: Card[],
+  trumpCards: Card[],
+  leadCombo: ComboClass,
+  leadLen: number,
+  ctx: AIContext,
+  position: string,
+  tmWin: boolean,
+  isTrumpKill: boolean,
+  intent: 'add' | 'avoid' | 'beat_points' | 'none',
+): string {
+  // Check unique-play first
+  if (isOnlyLegalPlay(cards, leadSuitCards, leadLen, trumpCards, isTrumpKill)) {
+    return `${baseReason}（唯一可出）`;
+  }
+
+  if (intent === 'add') {
+    // Tried to add points.
+    const hasPoints = cards.some(c => isPointRank(c.rank));
+    if (!hasPoints) return `${baseReason}（但没分可加）`;
+    const suffix = (tmWin && leadCombo.hasTractor) ? '队友出拖拉机，尽量加分' : '队友已大，尽量加分';
+    return `${baseReason}（${suffix}）`;
+  }
+
+  if (intent === 'avoid') {
+    // Tried to avoid adding points.
+    const hasPoints = cards.some(c => isPointRank(c.rank));
+    if (hasPoints) return `${baseReason}（尽量少加分）`;
+    // Second or third position avoiding
+    if (position === 'second' && !isTrumpKill) return `${baseReason}（盖不过，尽量不加分）`;
+    return `${baseReason}（盖不过，尽量不加分）`;
+  }
+
+  if (intent === 'beat_points') {
+    // Fourth position trying to beat with point cards
+    const hasPoints = cards.some(c => isPointRank(c.rank));
+    if (!hasPoints) return `${baseReason}（用最小牌盖）`;
+    return `${baseReason}（用分牌盖）`;
+  }
+
+  return baseReason;
 }
 
 function tryMatchTractorSlots(

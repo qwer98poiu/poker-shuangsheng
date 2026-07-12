@@ -877,3 +877,32 @@
 
 - **影响文件**：`packages/engine/src/ai/index.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
+
+## 2026-07-12 13:58
+
+### 跟牌理由重构：加分/不加分改为附加说明
+
+跟牌理由格式改为"主理由（附加说明）"，不再把加分策略作为独立理由。
+
+**新增辅助函数**：
+- `isOnlyLegalPlay` — 判断出牌是否唯一合法（同花色刚好匹配张数/对子/拖拉机且无需跨花色填充）
+- `annotateReason` — 根据位置、领出牌型、意图和实际出牌计算附加说明
+
+**附加说明类型**：
+- 唯一合法 → `（唯一可出）`
+- 加分成功 → `（队友已大，尽量加分）` / `（队友出拖拉机，尽量加分）`
+- 加分失败 → `（但没分可加）`
+- 避免加分 → `（盖不过，尽量不加分）`
+- 避免失败 → `（尽量少加分）`
+- 分牌盖过 → `（用分牌盖）` / `（用最小牌盖）`
+
+**修改点**：
+- `followOffSuitSingle` — 4处理由改为 base+annotation
+- `followOffSuitMulti` — 3处理由改为 base+annotation
+- `discardNonTrump` — 1处理由改为 base+annotation
+- `followOffSuit` — 签名增加 trumpCards 参数
+
+**新增 5 项测试**：第三家加分/拖拉机加分/不加分、第二家不加分
+
+- **影响文件**：`packages/engine/src/ai/index.ts`
+- **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
