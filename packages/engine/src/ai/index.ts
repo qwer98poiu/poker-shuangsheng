@@ -594,9 +594,11 @@ function matchTrumpPattern(
       chosen.push(...rest.slice(0, leadLen - chosen.length));
     }
     const cards = chosen.slice(0, leadLen);
+    const beating = canBeat(cards, ctx.bestSoFar, ctx);
     const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
+    const baseReason = beating ? '同花色出大' : '同花色出小';
     const intent = addPoints ? 'add' : 'none';
-    const reason = annotateReason('用对子跟牌', cards, [], myTrump,
+    const reason = annotateReason(baseReason, cards, [], myTrump,
       leadCombo, leadLen, ctx, position, tmWin, false, intent);
     return { cards, reason };
   }
@@ -646,7 +648,7 @@ function followOffSuitSingle(
   if (canAddPoints(tmWin, position, leadCombo, ctx)) {
     leadSuitCards.sort(discardSort(true));
     const cards = [leadSuitCards[0]];
-    const reason = annotateReason('同花色出大', cards, leadSuitCards, trumpCards,
+    const reason = annotateReason('同花色出小', cards, leadSuitCards, trumpCards,
       leadCombo, 1, ctx, position, tmWin, false, 'add');
     return { cards, reason };
   }
@@ -757,8 +759,10 @@ function followOffSuitMulti(
       chosen.push(...rest.slice(0, leadLen - chosen.length));
     }
     const cards = chosen.slice(0, leadLen);
+    const beating = canBeat(cards, ctx.bestSoFar, ctx);
+    const baseReason = beating ? '同花色出大' : '同花色出小';
     const intent = addPoints ? 'add' : 'none';
-    const reason = annotateReason('用对子跟牌', cards, leadSuitCards, [],
+    const reason = annotateReason(baseReason, cards, leadSuitCards, [],
       leadCombo, leadLen, ctx, position, tmWin, false, intent);
     return { cards, reason };
   }
@@ -830,7 +834,7 @@ function trumpKill(
       });
       const picked = tryMatchTractorSlots(leadCombo, myTractors, trumpCards, leadLen, ctx);
       if (picked && canTrumpKillBeat(picked, leadCards, ctx)) {
-        const reason = overkill ? '用主牌拖拉机盖毙' : '用主牌拖拉机毙';
+        const reason = overkill ? '盖毙' : '用主牌毙';
         return { cards: picked, reason };
       }
     }
@@ -845,7 +849,7 @@ function trumpKill(
       const chosen = myPairs.slice(0, leadCombo.pairCount).flat();
       if (chosen.length === leadLen) {
         if (canTrumpKillBeat(chosen, leadCards, ctx)) {
-          const reason = overkill ? '用主牌对子盖毙' : '用主牌对子毙';
+          const reason = overkill ? '盖毙' : '用主牌毙';
           return { cards: chosen, reason };
         }
         return discardNonTrump(hand, leadLen, ctx, position, tmWin);
@@ -860,7 +864,7 @@ function trumpKill(
       });
       const result = [...chosen, ...rest.slice(0, leadLen - chosen.length)];
       if (canTrumpKillBeat(result, leadCards, ctx)) {
-        const reason = overkill ? '用主牌对子盖毙' : '用主牌对子毙';
+        const reason = overkill ? '盖毙' : '用主牌毙';
         return { cards: result, reason };
       }
       return discardNonTrump(hand, leadLen, ctx, position, tmWin);
@@ -873,7 +877,7 @@ function trumpKill(
   trumpCards.sort((a, b) => getEffectiveRank(b, ctx) - getEffectiveRank(a, ctx));
   const kill = trumpCards.slice(0, leadLen);
   if (canTrumpKillBeat(kill, leadCards, ctx)) {
-    const reason = overkill ? '用主牌盖毙' : '用主牌毙';
+    const reason = overkill ? '盖毙' : '用主牌毙';
     return { cards: kill, reason };
   }
   return discardNonTrump(hand, leadLen, ctx, position, tmWin);
@@ -896,7 +900,7 @@ function trumpKillSingle(
       const canBeatCards = trumpCards.filter(c => getEffectiveRank(c, ctx) > bestRank);
       if (canBeatCards.length > 0) {
         canBeatCards.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
-        return { cards: [canBeatCards[0]], reason: '用主牌盖毙' };
+        return { cards: [canBeatCards[0]], reason: '盖毙' };
       }
       // Cannot overkill — discard
       if (nonTrump.length > 0) {
@@ -956,29 +960,11 @@ function followOffSuitThrow(
     return { cards, reason };
   }
 
-  // Void in lead suit - try to trump the throw
+  // Void in lead suit - try to trump the throw.
+  // Delegate to trumpKill for proper pattern matching (pairs/tractors).
   if (trumpCards.length >= leadLen) {
-    const overkill = isOverkill(ctx);
-
-    if (overkill) {
-      // Someone already trumped — try smallest that overkills, then strongest
-      trumpCards.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
-      let kill = trumpCards.slice(0, leadLen);
-      if (canTrumpKillBeat(kill, leadCards, ctx))
-        return { cards: kill, reason: '用主牌盖毙' };
-
-      trumpCards.sort((a, b) => getEffectiveRank(b, ctx) - getEffectiveRank(a, ctx));
-      kill = trumpCards.slice(0, leadLen);
-      if (canTrumpKillBeat(kill, leadCards, ctx))
-        return { cards: kill, reason: '用主牌盖毙' };
-
-      return discardNonTrump(hand, leadLen, ctx, position, tmWin);
-    }
-
-    // No trump kill yet — any trump beats off-suit, use smallest
-    trumpCards.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
-    const kill = trumpCards.slice(0, leadLen);
-    return { cards: kill, reason: '用主牌毙' };
+    const leadCombo = classifyCombo(leadCards, ctx);
+    return trumpKill(trumpCards, hand, leadCards, leadCombo, leadLen, ctx, position, tmWin);
   }
 
   return discardNonTrump(hand, leadLen, ctx, position, tmWin);

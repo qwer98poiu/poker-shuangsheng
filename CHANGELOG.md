@@ -982,3 +982,19 @@ discardSort 签名新增可选 `config` 参数，各调用点传入 ctx。
 
 - **影响文件**：`packages/engine/src/ai/utils.ts`、`packages/engine/src/ai/index.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
+
+## 2026-07-12 22:30
+
+### 甩牌 void 毙牌修复 + 毙牌理由统一 + 对子跟牌理由区分同花色出大/出小
+
+**甩牌 void 毙牌修复**：`followOffSuitThrow` void 分支之前直接取前 N 张主牌乱毙，不检查是否匹配甩牌的对子/拖拉机牌型。改为委托 `trumpKill`，确保毙牌出牌能正确匹配领出牌型，不匹配时弃牌。
+
+**毙牌理由统一**：毙牌理由统一为两种——首毙用 `用主牌毙`，盖过前人毙牌用 `盖毙`。去掉 `用主牌对子毙`、`用主牌拖拉机毙` 等细分理由。
+
+**对子跟牌理由**：对子跟牌分支新增 `canBeat` 判断，能盖过用 `同花色出大`，不能盖过用 `同花色出小`。加分时 base reason 改为 `同花色出小`（队友已大无需盖过）。
+
+**新增 1 项测试**（ai-follow.test.ts：60 项）：
+- 甩牌两对 + void + 主牌对子不够 → 弃牌，不谎称毙牌
+
+- **影响文件**：`packages/engine/src/ai/index.ts`
+- **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`

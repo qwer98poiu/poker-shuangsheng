@@ -508,7 +508,7 @@ describe('trump kill validity (hearts trump, level=5)', () => {
   });
 
   describe('pair lead, void, can beat', () => {
-    it('kills off-suit pair with smallest trump pair - "用主牌对子毙"', () => {
+    it('kills off-suit pair with smallest trump pair - "用主牌毙"', () => {
       const lead: Card[] = [c2('S', 9, 200), c2('S', 9, 201)];
       const best = { cards: lead, playerIdx: 0 };
       // void in spades: trump pair + other suits
@@ -516,7 +516,7 @@ describe('trump kill validity (hearts trump, level=5)', () => {
       const r = aiFollowPlay(hand, lead, 'S', cfg, best, 1);
       checkFollow(r.cards, hand, lead, 'S', cfg);
       expect(r.cards.length).toBe(2);
-      expect(r.reason).toBe('用主牌对子毙');
+      expect(r.reason).toBe('用主牌毙');
     });
   });
 
@@ -545,7 +545,7 @@ describe('trump kill validity (hearts trump, level=5)', () => {
   });
 
   describe('tractor lead, void, can beat', () => {
-    it('kills off-suit tractor with trump tractor - "用主牌拖拉机毙"', () => {
+    it('kills off-suit tractor with trump tractor - "用主牌毙"', () => {
       // S-QQ+JJ (Q=12,J=11 consecutive). H-AA+KK (A=14,K=13 consecutive).
       const lead: Card[] = [
         c2('S', 12, 200), c2('S', 12, 201), c2('S', 11, 200), c2('S', 11, 201),
@@ -558,7 +558,7 @@ describe('trump kill validity (hearts trump, level=5)', () => {
       const r = aiFollowPlay(hand, lead, 'S', cfg, best, 1);
       checkFollow(r.cards, hand, lead, 'S', cfg);
       expect(r.cards.length).toBe(4);
-      expect(r.reason).toBe('用主牌拖拉机毙');
+      expect(r.reason).toBe('用主牌毙');
     });
   });
 
@@ -584,7 +584,7 @@ describe('trump kill validity (hearts trump, level=5)', () => {
   });
 
   describe('throw lead, void, can beat', () => {
-    it('kills AAK throw with pair+single - no overkill, "用主牌对子毙"', () => {
+    it('kills AAK throw with pair+single - no overkill, "用主牌毙"', () => {
       // S-AAK throw (A pair + K single, K=10pts). H-33 + H-4 = pair+fill.
       const lead: Card[] = [c2('S', 14, 0), c2('S', 14, 1), c2('S', 13, 0)];
       const best = { cards: lead, playerIdx: 0 };
@@ -631,7 +631,7 @@ describe('trump kill validity (hearts trump, level=5)', () => {
   });
 
   describe('overkill (盖毙): bestSoFar already has trump, AI overkills', () => {
-    it('overkills single with bigger trump - "用主牌盖毙"', () => {
+    it('overkills single with bigger trump - "盖毙"', () => {
       // P0 leads S-A. P1 killed with H-10 (effRank=610).
       // AI=P2 has H-A (effRank=614) > 610 → overkill.
       const lead: Card[] = [c2('S', 14, 200)];
@@ -640,10 +640,10 @@ describe('trump kill validity (hearts trump, level=5)', () => {
       const r = aiFollowPlay(hand, lead, 'S', cfg, best, 2);
       checkFollow(r.cards, hand, lead, 'S', cfg);
       expect(r.cards.length).toBe(1);
-      expect(r.reason).toBe('用主牌盖毙');
+      expect(r.reason).toBe('盖毙');
     });
 
-    it('overkills pair with bigger trump pair - "用主牌对子盖毙"', () => {
+    it('overkills pair with bigger trump pair - "盖毙"', () => {
       // P0 leads S-9-9. P1 killed with H-10-10 (effRank=610).
       // AI=P2 has H-AA (effRank=614) → overkill.
       const lead: Card[] = [c2('S', 9, 200), c2('S', 9, 201)];
@@ -652,10 +652,10 @@ describe('trump kill validity (hearts trump, level=5)', () => {
       const r = aiFollowPlay(hand, lead, 'S', cfg, best, 2);
       checkFollow(r.cards, hand, lead, 'S', cfg);
       expect(r.cards.length).toBe(2);
-      expect(r.reason).toBe('用主牌对子盖毙');
+      expect(r.reason).toBe('盖毙');
     });
 
-    it('overkills tractor with bigger trump tractor - "用主牌拖拉机盖毙"', () => {
+    it('overkills tractor with bigger trump tractor - "盖毙"', () => {
       // S-QQ+JJ tractor. P1 killed with H-10-10+9-9 (tractor, effRank 610/609).
       // AI=P2 has H-AA+KK (effRank 614/613) → overkill.
       const lead: Card[] = [
@@ -672,10 +672,10 @@ describe('trump kill validity (hearts trump, level=5)', () => {
       const r = aiFollowPlay(hand, lead, 'S', cfg, best, 2);
       checkFollow(r.cards, hand, lead, 'S', cfg);
       expect(r.cards.length).toBe(4);
-      expect(r.reason).toBe('用主牌拖拉机盖毙');
+      expect(r.reason).toBe('盖毙');
     });
 
-    it('overkills throw with bigger trump - "用主牌盖毙"', () => {
+    it('overkills throw with bigger trump - "盖毙"', () => {
       // S-AAK throw. P1 killed with H-10-10+9 (pair+single).
       // AI=P2 has H-AA+K → overkill.
       const lead: Card[] = [c2('S', 14, 0), c2('S', 14, 1), c2('S', 13, 0)];
@@ -691,6 +691,32 @@ describe('trump kill validity (hearts trump, level=5)', () => {
       checkFollow(r.cards, hand, lead, 'S', cfg);
       expect(r.cards.length).toBe(3);
       expect(r.reason).toContain('盖毙');
+    });
+  });
+
+  describe('throw with pairs, void, insufficient trump pairs', () => {
+    it('discards instead of claiming kill with illegal single-for-pair', () => {
+      // Bug: AI-3 void in D, lead is D-6-6-3-3 (throw with 2 pairs).
+      // AI-3 has S-3-3 (1 pair) + S-4 + S-6. Not enough trump pairs to match.
+      // Previously claimed "用主牌毙" with singles-for-pairs. Should discard.
+      const cfgS2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
+      function cc(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+      const lead: Card[] = [
+        cc('D', 6, 200), cc('D', 6, 201),
+        cc('D', 3, 200), cc('D', 3, 201),
+      ];
+      const best = { cards: lead, playerIdx: 0 };
+      const hand = [
+        cc('S', 3, 0), cc('S', 3, 1), // one trump pair
+        cc('S', 4, 0),                  // trump single
+        cc('S', 6, 0),                  // trump single
+        cc('S', 7, 0), cc('H', 8, 0),  // extra to avoid maybeAppendFinal
+      ];
+      const r = aiFollowPlay(hand, lead, 'D', cfgS2, best, 2);
+      checkFollow(r.cards, hand, lead, 'D', cfgS2);
+      expect(r.cards.length).toBe(4);
+      expect(r.reason).not.toContain('毙');
+      expect(r.reason).toContain('垫');
     });
   });
 
@@ -763,13 +789,13 @@ describe('reason annotation format', () => {
   const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 5 };
   function cc(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
 
-  it('third + teammate wins + max pattern: "同花色出大（队友已大，尽量加分）"', () => {
+  it('third + teammate wins + max pattern: "同花色出小（队友已大，尽量加分）"', () => {
     const lead: Card[] = [cc('S', 14, 200)]; // S-A (max single)
     const best = { cards: lead, playerIdx: 0 };
     const hand = [cc('S', 13, 0), cc('S', 12, 0), cc('S', 8, 0)];
     const r = aiFollowPlay(hand, lead, 'S', cfg, best, 2);
     checkFollow(r.cards, hand, lead, 'S', cfg);
-    expect(r.reason).toBe('同花色出大（队友已大，尽量加分）');
+    expect(r.reason).toBe('同花色出小（队友已大，尽量加分）');
   });
 
   it('third + teammate wins + tractor: "同花色出大（队友出拖拉机，尽量加分）"', () => {
