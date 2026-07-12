@@ -998,3 +998,18 @@ discardSort 签名新增可选 `config` 参数，各调用点传入 ctx。
 
 - **影响文件**：`packages/engine/src/ai/index.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
+
+## 2026-07-12 23:15
+
+### 吊主单张跟牌：用 bestSoFar 而非 leadMax 判断能否盖过
+
+`followTrumpLead` 和 `followNTTrumpLead` 单张分支之前用 `leadMax`（领出牌 rank）判断是否盖过，忽略前面玩家已经出更大的牌。改为用 `bestSoFar` 的当前最大值 `currentMax`，正确判断能否盖过当前最佳。
+
+修复前：P0 吊 S-7，P1 跟 S-9(盖过)，P2 的 S-8 仍被判定为"能盖过"（S-8 > S-7），实际 S-8 < S-9 盖不过。修复后正确判断。
+
+**新增 2 项测试**（ai-follow.test.ts：62 项）：
+- 第三家 S-8 不能盖过已有 S-9 → 用最小能盖过的 S-10
+- 第三家全部盖不过 → 出最小牌
+
+- **影响文件**：`packages/engine/src/ai/index.ts`
+- **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`

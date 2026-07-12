@@ -402,9 +402,6 @@ describe('position-aware point adding (diamonds trump, level=2)', () => {
     });
   });
 
-  // Fourth position: same canAddPoints logic as third (always true).
-  // Tested implicitly by the "third" tests above since the logic is identical.
-  // Explicit fourth-position test requires full AIContext (not backward-compat).
 });
 
 // ================================================================
@@ -827,11 +824,6 @@ describe('reason annotation format', () => {
     expect(r.reason).toContain('尽量不加分');
   });
 
-  // Fourth position tests require full AIContext (not backward-compat).
-  // The annotations are tested indirectly via the third position tests above.
-  // discardNonTrump with tmWin+position='fourth' → "垫牌（队友已大，尽量加分）"
-  // which is verified by the fact that the reason contains both parts.
-
   it('second + max pattern + cannot beat: "同花色出小（盖不过，尽量不加分）"', () => {
     // P0 leads S-A (max). P1=second, has S-K,Q,8. Cannot beat A.
     const lead: Card[] = [cc('S', 14, 200)];
@@ -967,5 +959,46 @@ describe('filler avoids level trump when all remaining are trump', () => {
     expect(r.cards.some(c => c.suit === 'S' && c.rank === 3)).toBe(true);
     expect(r.cards.some(c => c.suit === 'S' && c.rank === 2)).toBe(false);
     expect(r.cards.some(c => c.suit === 'S' && c.rank === 10)).toBe(false);
+  });
+});
+
+// ================================================================
+// Trump draw: canBeat uses bestSoFar not leadMax
+// ================================================================
+describe('trump draw canBeat uses bestSoFar (spades trump, level=2)', () => {
+  const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
+  function cc(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+
+  it('third position cannot beat with S-8 when S-9 already beat lead S-7', () => {
+    // P0 leads S-7(607). P1's S-9(609) beat the lead.
+    // P2 has S-8(608) and S-10(610). S-8 < S-9, cannot beat.
+    // Should play S-10 (smallest that beats currentMax=609) OR play S-8 as 同花色出小.
+    // Actually: canBeatCards = [S-10(610)] only. S-8 is excluded.
+    const lead: Card[] = [cc('S', 7, 200)];
+    const best = { cards: [cc('S', 9, 0)], playerIdx: 1 }; // P1 already beat
+    const hand = [
+      cc('S', 8, 0), cc('S', 10, 0),
+      cc('H', 3, 0),  // extra
+    ];
+    const r = aiFollowPlay(hand, lead, 'S', cfg, best, 2);
+    checkFollow(r.cards, hand, lead, 'S', cfg);
+    expect(r.cards.length).toBe(1);
+    // Must play S-10(610), not S-8(608). S-8 < S-9(609).
+    expect(r.cards[0].rank).toBe(10);
+    expect(r.reason).toContain('同花色出大');
+  });
+
+  it('third position plays smallest when cannot beat at all', () => {
+    // P0 leads S-Q(612). P1's S-A(614) beat it.
+    // P2 has S-8(608), S-6(606). Neither beats S-A(614).
+    // Should play S-6 (smallest) and say 同花色出小.
+    const lead: Card[] = [cc('S', 12, 200)];
+    const best = { cards: [cc('S', 14, 0)], playerIdx: 1 };
+    const hand = [cc('S', 8, 0), cc('S', 6, 0), cc('H', 3, 0)];
+    const r = aiFollowPlay(hand, lead, 'S', cfg, best, 2);
+    checkFollow(r.cards, hand, lead, 'S', cfg);
+    expect(r.cards.length).toBe(1);
+    expect(r.cards[0].rank).toBe(6);
+    expect(r.reason).toContain('同花色出小');
   });
 });

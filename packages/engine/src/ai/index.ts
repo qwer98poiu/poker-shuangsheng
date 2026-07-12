@@ -497,13 +497,16 @@ function followTrumpLead(
     return followNTTrumpLead(hand, leadCards, leadLen, leadCombo, ctx, position, tmWin);
   }
 
-  // Can beat?
-  const leadMax = Math.max(...leadCards.map(c => getEffectiveRank(c, ctx)));
+  // Use bestSoFar's max rank (not leadMax) — someone may have already beaten the lead.
+  const bs = ctx.bestSoFar;
+  const currentMax = bs && bs.cards.length > 0
+    ? Math.max(...bs.cards.map(c => getEffectiveRank(c, ctx)))
+    : Math.max(...leadCards.map(c => getEffectiveRank(c, ctx)));
 
   if (leadLen === 1) {
     // Single trump lead
     if (myTrump.length > 0) {
-      const canBeatCards = myTrump.filter(c => getEffectiveRank(c, ctx) > leadMax);
+      const canBeatCards = myTrump.filter(c => getEffectiveRank(c, ctx) > currentMax);
       if (canBeatCards.length > 0) {
         // Position 2: generally play small unless have tractor/throw to seize lead
         if (position === 'second') {
@@ -1004,11 +1007,14 @@ function followNTTrumpLead(
   tmWin: boolean,
 ): { cards: Card[]; reason: string } {
   const myTrump = hand.filter(c => isTrump(c, ctx));
-  const leadMax = Math.max(...leadCards.map(c => getEffectiveRank(c, ctx)));
+  const bs = ctx.bestSoFar;
+  const currentMax = bs && bs.cards.length > 0
+    ? Math.max(...bs.cards.map(c => getEffectiveRank(c, ctx)))
+    : Math.max(...leadCards.map(c => getEffectiveRank(c, ctx)));
 
   if (leadLen === 1) {
     if (myTrump.length > 0) {
-      const canBeat = myTrump.filter(c => getEffectiveRank(c, ctx) > leadMax);
+      const canBeat = myTrump.filter(c => getEffectiveRank(c, ctx) > currentMax);
       if (canBeat.length > 0) {
         canBeat.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
         const cards = [canBeat[0]];
