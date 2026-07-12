@@ -906,3 +906,18 @@
 
 - **影响文件**：`packages/engine/src/ai/index.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
+
+## 2026-07-12 17:12
+
+### 甩牌检测：单张检查改为遍历全部最坏情况牌
+
+单张可甩判断之前只检查 `worstComps.singles`，但对手可以拆对出单张。改为遍历全部 worstCase 牌（包括在对子/拖拉机中的牌），正确判断是否有任何对手牌能盖过我方单张。
+
+修复前 KKQQ10 被建议甩 5 张（含被 A 挡住的 10），修复后正确返回 4 张（仅 KKQQ 拖拉机）。
+
+**新增 2 项测试**（ai-throw-detector.test.ts：40 项）：
+- KKQQ10 → 4 张可甩（KKQQ 拖拉机），10 被 A 挡住
+- AAKK → 4 张可甩（AAKK 拖拉机）
+
+- **影响文件**：`packages/engine/src/ai/throw-detector.ts`
+- **影响文件**：`packages/engine/src/__tests__/ai-throw-detector.test.ts`

@@ -57,7 +57,7 @@ export function findThrowableOffSuitCombos(
     const worstComps = extractComponents(worstCase, config);
 
     // Find which of my components can beat the worst case
-    const throwableCards = findThrowableInSuit(mySuitCards, myComps, worstComps, config);
+    const throwableCards = findThrowableInSuit(mySuitCards, myComps, worstComps, worstCase, config);
 
     if (throwableCards.length >= 3) {
       const suitName = { S: '♠', H: '♥', C: '♣', D: '♦' }[suit] || suit;
@@ -101,6 +101,7 @@ function findThrowableInSuit(
   _myCards: Card[],
   myComps: ReturnType<typeof extractComponents>,
   worstComps: ReturnType<typeof extractComponents>,
+  worstCase: Card[],
   config: TrumpDeclaration,
 ): Card[] {
   const result: Card[] = [];
@@ -127,11 +128,12 @@ function findThrowableInSuit(
     }
   }
 
-  // Check singles: not throwable only if worst case has a strictly higher single
+  // Check singles: any worst-case card (even from pairs/tractors) can
+  // be played as a single to block the throw. Must check ALL worst cards.
   for (const s of myComps.singles) {
     if (usedIds.has(s.id)) continue;
-    const worstMax = findBestSingle(worstComps, config);
-    if (worstMax === null || !cardGreater(worstMax, s, config)) {
+    const blocked = worstCase.some(c => cardGreater(c, s, config));
+    if (!blocked) {
       usedIds.add(s.id);
       result.push(s);
     }
@@ -177,12 +179,4 @@ function findBestPairOrTractorCard(
     }
   }
   return best;
-}
-
-function findBestSingle(
-  comps: ReturnType<typeof extractComponents>,
-  config: TrumpDeclaration,
-): Card | null {
-  if (comps.singles.length === 0) return null;
-  return comps.singles.reduce((best, c) => cardGreater(c, best, config) ? c : best);
 }

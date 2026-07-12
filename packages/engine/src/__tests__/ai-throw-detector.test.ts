@@ -550,3 +550,31 @@ describe('edge cases', () => {
     });
   });
 });
+
+// ================================================================
+// Worst-case singles blocked by pairs in worst hand
+// ================================================================
+describe('worst-case singles blocked by pairs', () => {
+  const cfg = CFG.lv5Spade;
+
+  it('KKQQ10 - KKQQ tractor throwable (4 cards), 10 blocked by A from AA', () => {
+    // KK(13)+QQ(12) are consecutive at level=5 → 2-pair tractor.
+    // KKQQ tractor beats worst 99+88 tractor → throwable.
+    // 10 single blocked by A from AA in worst → NOT throwable.
+    // Total: 4 throwable (KKQQ tractor), not 5.
+    const hand = [
+      c('H', 13, 0), c('H', 13, 1), // KK
+      c('H', 12, 0), c('H', 12, 1), // QQ — tractor with KK
+      c('H', 10, 0),                   // 10 (blocked by A in AA pair)
+    ];
+    expectThrow(findThrowableOffSuitCombos(hand, cfg), 4);
+  });
+
+  it('AAKK is still throwable (4-card tractor) - no higher pairs in worst', () => {
+    const hand = [
+      c('H', 14, 0), c('H', 14, 1), // AA
+      c('H', 13, 0), c('H', 13, 1), // KK — tractor with AA
+    ];
+    expectThrow(findThrowableOffSuitCombos(hand, cfg), 4);
+  });
+});
