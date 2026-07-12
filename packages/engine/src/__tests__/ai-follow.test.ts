@@ -816,3 +816,52 @@ describe('reason annotation format', () => {
     expect(r.reason).toContain('尽量不加分');
   });
 });
+
+// ================================================================
+// Bug: short-suited/second + throw/max pattern should avoid points
+// ================================================================
+describe('short-suited / fourth avoid points on max pattern (spades trump, level=2)', () => {
+  const cfgS2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
+  function cc(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+
+  // P0 leads D-A-K-K (AAK throw, max pattern). P1=second, has D-9 + D-A + C-K(10pts).
+  // Short-suited: only D-9 + D-A = 2 diamonds < 3. Filler needed.
+  // Has C-K (point) and H-3 (non-point) as fillers. Should avoid C-K.
+  it('second+short+max throw avoids point filler: "同花色不够，垫其他花色（盖不过，尽量不加分）"', () => {
+    const lead: Card[] = [cc('D', 14, 200), cc('D', 14, 201), cc('D', 13, 200)];
+    const best = { cards: lead, playerIdx: 0 };
+    const hand = [
+      cc('D', 9, 0),    // 1 diamond
+      cc('D', 14, 0),   // 1 diamond (D-A)
+      cc('C', 13, 0),   // C-K (10 pts) — filler, should AVOID
+      cc('H', 3, 0),    // H-3 (non-point) — filler, should USE
+      cc('H', 6, 0),    // extra
+    ];
+    const r = aiFollowPlay(hand, lead, 'D', cfgS2, best, 1);
+    checkFollow(r.cards, hand, lead, 'D', cfgS2);
+    expect(r.cards.length).toBe(3);
+    // Should NOT include C-K (13)
+    expect(r.cards.every(c => c.rank !== 13 || c.suit !== 'C')).toBe(true);
+    expect(r.reason).toContain('尽量不加分');
+  });
+
+  // P0 leads D-A-K-K (AAK throw). P3=fourth, has D-6, D-7, D-9, D-5(5pts).
+  // Enough diamonds (3 >= 3) to follow, but max pattern + fourth -> avoid points.
+  it('fourth+enough+max throw avoids point: "垫同花色（盖不过，尽量不加分）"', () => {
+    const lead: Card[] = [cc('D', 14, 200), cc('D', 14, 201), cc('D', 13, 200)];
+    const best = { cards: lead, playerIdx: 0 };
+    const hand = [
+      cc('D', 6, 0),    // D-6
+      cc('D', 7, 0),    // D-7
+      cc('D', 9, 0),    // D-9
+      cc('D', 5, 0),    // D-5 (5 pts) — should AVOID
+      cc('H', 3, 0),    // extra
+    ];
+    const r = aiFollowPlay(hand, lead, 'D', cfgS2, best, 3);
+    checkFollow(r.cards, hand, lead, 'D', cfgS2);
+    expect(r.cards.length).toBe(3);
+    // Should NOT include D-5
+    expect(r.cards.every(c => c.rank !== 5 || c.suit !== 'D')).toBe(true);
+    expect(r.reason).toContain('尽量不加分');
+  });
+});

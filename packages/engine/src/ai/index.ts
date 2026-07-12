@@ -456,15 +456,18 @@ function _aiFollowPlay(
     const other = hand.filter(c => !leadSuitCards.includes(c));
     other.sort(fillerSort(!!tmWin, ctx));
     const fill = other.slice(0, leadLen - leadSuitCards.length);
-    const reason = fill.some(c => isTrump(c, ctx))
+    const cards = [...leadSuitCards, ...fill];
+    const baseReason = fill.some(c => isTrump(c, ctx))
       ? '同花色不够，垫主牌'
       : fill.some(c => c.suit !== leadSuitCards[0].suit)
         ? '同花色不够，垫其他花色'
         : '垫同花色';
-    return {
-      cards: [...leadSuitCards, ...fill],
-      reason,
-    };
+    const shouldAvoid = (position === 'second' || position === 'fourth')
+      && !tmWin && isMaxPattern(leadCombo, ctx);
+    const intent = shouldAvoid ? 'avoid' : 'none';
+    const reason = annotateReason(baseReason, cards, leadSuitCards, trumpCards,
+      leadCombo, leadLen, ctx, position, tmWin, false, intent);
+    return { cards, reason };
   }
 
   // Void in lead suit - try to trump
@@ -625,11 +628,9 @@ function followOffSuitSingle(
   if (!canBeat([leadSuitCards[0]], ctx.bestSoFar, ctx)) {
     leadSuitCards.sort(discardSort(false));
     const cards = [leadSuitCards[0]];
-    const secondAvoid = position === 'second' && canAddPoints(false, position, leadCombo, ctx) === false
-      && (leadCombo.type === 'throw' || leadCombo.hasTractor
-        || (leadCombo.type === 'single' && isBigOffSuitCard(leadCombo.cards[0], ctx))
-        || (leadCombo.type === 'pair' && leadCombo.cards.every(c => isBigOffSuitCard(c, ctx))));
-    const intent = secondAvoid ? 'avoid' : 'none';
+    const shouldAvoid = (position === 'second' || position === 'fourth')
+      && !tmWin && isMaxPattern(leadCombo, ctx);
+    const intent = shouldAvoid ? 'avoid' : 'none';
     const reason = annotateReason('同花色出小', cards, leadSuitCards, trumpCards,
       leadCombo, 1, ctx, position, tmWin, false, intent);
     return { cards, reason };
@@ -723,7 +724,10 @@ function followOffSuitMulti(
 
   leadSuitCards.sort(discardSort(false));
   const cards = leadSuitCards.slice(0, leadLen);
-  const intent = (position === 'third' && tmWin) ? 'avoid' : 'none';
+  // Third+tmWin avoids. Second/fourth+max pattern+!tmWin also avoids.
+  const secondAvoid = position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx);
+  const fourthAvoid = position === 'fourth' && !tmWin && isMaxPattern(leadCombo, ctx);
+  const intent = (position === 'third' && tmWin) || secondAvoid || fourthAvoid ? 'avoid' : 'none';
   const reason = annotateReason('垫同花色', cards, leadSuitCards, [],
     leadCombo, leadLen, ctx, position, tmWin, false, intent);
   return { cards, reason };
@@ -888,10 +892,18 @@ function followOffSuitThrow(
     const trumps = remaining.filter(c => isTrump(c, ctx));
     trumps.sort(discardSort(!!tmWin));
     const fill = [...nonTrump, ...trumps].slice(0, leadLen - leadSuitCards.length);
-    const reason = fill.some(c => isTrump(c, ctx))
+    const cards = [...leadSuitCards, ...fill];
+    const leadCombo = classifyCombo(leadCards, ctx);
+    const baseReason = fill.some(c => isTrump(c, ctx))
       ? '同花色不够，垫主牌'
       : '同花色不够，垫其他花色';
-    return { cards: [...leadSuitCards, ...fill], reason };
+    // Second position with max pattern (throw) should avoid points
+    const shouldAvoid = (position === 'second' || position === 'fourth')
+      && !tmWin && isMaxPattern(leadCombo, ctx);
+    const intent = shouldAvoid ? 'avoid' : 'none';
+    const reason = annotateReason(baseReason, cards, leadSuitCards, trumpCards,
+      leadCombo, leadLen, ctx, position, tmWin, false, intent);
+    return { cards, reason };
   }
 
   // Void in lead suit - try to trump the throw
@@ -1054,6 +1066,16 @@ function canAddPoints(tmWin: boolean, position: string, leadCombo: ComboClass, c
       return leadCombo.cards.every(c => isBigOffSuitCard(c, ctx));
     }
   }
+  return false;
+}
+
+/** Whether the lead combo is a max pattern — big card, tractor, or throw.
+ *  Second position should avoid points when following such a lead. */
+function isMaxPattern(leadCombo: ComboClass, ctx: AIContext): boolean {
+  if (leadCombo.hasTractor) return true;
+  if (leadCombo.type === 'throw') return true;
+  if (leadCombo.type === 'single' && isBigOffSuitCard(leadCombo.cards[0], ctx)) return true;
+  if (leadCombo.type === 'pair' && leadCombo.cards.every(c => isBigOffSuitCard(c, ctx))) return true;
   return false;
 }
 

@@ -921,3 +921,18 @@
 
 - **影响文件**：`packages/engine/src/ai/throw-detector.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-throw-detector.test.ts`
+
+## 2026-07-12 18:30
+
+### 第二/第四家跟牌最大牌型时应附加尽量不加分
+
+新增 `isMaxPattern` 辅助函数（单张/对子大牌、含拖拉机、甩牌）。第二/第四家不能盖过最大牌型领出时，出牌理由附加 `（盖不过，尽量不加分）`。
+
+修复分支：`followOffSuitSingle` 不能盖过、`followOffSuitMulti` 兜底、`followOffSuitThrow` 部分填充、标准短牌填充，共 4 处。
+
+**新增 2 项测试**（ai-follow.test.ts：55 项）：
+- AI-2 短牌+第二家+甩牌 → 避用分牌填充
+- AI-4 第四家+甩牌 → 避用分牌
+
+- **影响文件**：`packages/engine/src/ai/index.ts`
+- **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
