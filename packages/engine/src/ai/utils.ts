@@ -102,8 +102,8 @@ export function discardSort(
   config?: TrumpDeclaration,
 ): (a: Card, b: Card) => number {
   return (a, b) => {
-    const aPts = isPointRank(a.rank) ? (teammateWinning ? 0 : 100) : 0;
-    const bPts = isPointRank(b.rank) ? (teammateWinning ? 0 : 100) : 0;
+    const aPts = isPointRank(a.rank) ? (teammateWinning ? 0 : 100) : (teammateWinning ? 100 : 0);
+    const bPts = isPointRank(b.rank) ? (teammateWinning ? 0 : 100) : (teammateWinning ? 100 : 0);
     if (aPts !== bPts) return aPts - bPts;
     // Non-level trump before level trump (avoid wasting constant trump)
     if (config) {
@@ -125,8 +125,8 @@ export function fillerSort(
   config: TrumpDeclaration,
 ): (a: Card, b: Card) => number {
   return (a, b) => {
-    const aPts = isPointRank(a.rank) ? (teammateWinning ? 0 : 100) : 0;
-    const bPts = isPointRank(b.rank) ? (teammateWinning ? 0 : 100) : 0;
+    const aPts = isPointRank(a.rank) ? (teammateWinning ? 0 : 100) : (teammateWinning ? 100 : 0);
+    const bPts = isPointRank(b.rank) ? (teammateWinning ? 0 : 100) : (teammateWinning ? 100 : 0);
     if (aPts !== bPts) return aPts - bPts;
     // Prefer non-trump over trump as fillers
     const aTr = isTrump(a, config) ? 100 : 0;

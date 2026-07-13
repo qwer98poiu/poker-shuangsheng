@@ -357,7 +357,7 @@ describe('position-aware point adding (diamonds trump, level=2)', () => {
       const r = aiFollowPlay(hand, leadAA, 'C', cfg, bestAA, 2);
       checkFollow(r.cards, hand, leadAA, 'C', cfg);
       expect(r.cards.length).toBe(2);
-      expect(r.reason).toContain('尽量加分');
+      expect(r.reason).toContain('唯一可出');
       // Should play KK (20 pts), not 5+something
       const ranks = r.cards.map(c => c.rank);
       expect(ranks.filter(r => r === 13).length).toBe(2);
@@ -398,7 +398,9 @@ describe('position-aware point adding (diamonds trump, level=2)', () => {
       const r = aiFollowPlay(hand, lead9, 'C', cfg, bestP0b, 2);
       checkFollow(r.cards, hand, lead9, 'C', cfg);
       expect(r.cards.length).toBe(1);
-      expect(r.reason).toContain('尽量不加分');
+      // Lead is small (9 not max), so third+tmWin = NO annotation
+      expect(r.reason).not.toContain('加分');
+      expect(r.reason).not.toContain('不加分');
     });
   });
 
@@ -807,7 +809,8 @@ describe('reason annotation format', () => {
     ];
     const r = aiFollowPlay(hand, lead, 'S', cfg, best, 2);
     checkFollow(r.cards, hand, lead, 'S', cfg);
-    expect(r.reason).toContain('队友出拖拉机，尽量加分');
+    // Only one tractor matches -> "唯一可出" takes priority
+    expect(r.reason).toContain('唯一可出');
   });
 
   it('third + teammate wins + not max: "同花色出小（盖不过，尽量不加分）"', () => {
@@ -817,11 +820,9 @@ describe('reason annotation format', () => {
     const hand = [cc('S', 13, 0), cc('S', 5, 0), cc('S', 3, 0)];
     const r = aiFollowPlay(hand, lead, 'S', cfg, best, 2);
     checkFollow(r.cards, hand, lead, 'S', cfg);
-    // Lead is not max (9 is not A/K), so third avoids points
-    // Actually canAddPoints returns true for third position by default...
-    // Let me check: small 9 lead + tmWin=true + third: canAddPoints checks
-    // leadCombo.hasTractor=false, type=single, isBigOffSuitCard(9)=false → false
-    expect(r.reason).toContain('尽量不加分');
+    // Lead is not max (9 is not A/K), third+tmWin → no annotation
+    expect(r.reason).not.toContain('加分');
+    expect(r.reason).not.toContain('不加分');
   });
 
   it('second + max pattern + cannot beat: "同花色出小（盖不过，尽量不加分）"', () => {
@@ -832,6 +833,33 @@ describe('reason annotation format', () => {
     const r = aiFollowPlay(hand, lead, 'S', cfg, best, 1);
     checkFollow(r.cards, hand, lead, 'S', cfg);
     expect(r.reason).toContain('尽量不加分');
+  });
+
+  it('third + tmWin + tractor, only one pair + point filler: "垫同花色（队友出拖拉机，尽量加分）"', () => {
+    // P0 leads S-QQ+JJ tractor. P2=third, teammate wins, lead has tractor.
+    // P2 has: one 10-10 pair + 5(point) + 9 + 7 + 3 = 5 cards.
+    // Use level=2 so S-5 is off-suit point (not trump at level 5).
+    // 10-10 alone is NOT a tractor. Only 1 pair -> NOT unique, can add points.
+    const cfgH2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 2 };
+    const lead: Card[] = [
+      cc('S', 12, 200), cc('S', 12, 201),
+      cc('S', 11, 200), cc('S', 11, 201),
+    ];
+    const best = { cards: lead, playerIdx: 0 };
+    const hand = [
+      cc('S', 10, 0), cc('S', 10, 1),  // one pair
+      cc('S', 5, 0),                     // 5 (5pts) - should pick this
+      cc('S', 9, 0),                     // 9 (non-point)
+      cc('S', 7, 0),                     // 7 (non-point)
+      cc('S', 3, 0),                     // 3 (non-point)
+    ];
+    const r = aiFollowPlay(hand, lead, 'S', cfgH2, best, 2);
+    checkFollow(r.cards, hand, lead, 'S', cfgH2);
+    expect(r.cards.length).toBe(4);
+    expect(r.cards.some(c => c.rank === 5)).toBe(true);
+    expect(r.reason).toContain('垫同花色');
+    expect(r.reason).toContain('队友出拖拉机');
+    expect(r.reason).toContain('尽量加分');
   });
 });
 

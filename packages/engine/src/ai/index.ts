@@ -462,8 +462,8 @@ function _aiFollowPlay(
       : fill.some(c => c.suit !== leadSuitCards[0].suit)
         ? '同花色不够，垫其他花色'
         : '垫同花色';
-    const shouldAvoid = (position === 'second' || position === 'fourth')
-      && !tmWin && isMaxPattern(leadCombo, ctx);
+    const shouldAvoid = (position === 'fourth' && !tmWin)
+      || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx));
     const intent = shouldAvoid ? 'avoid' : 'none';
     const reason = annotateReason(baseReason, cards, leadSuitCards, trumpCards,
       leadCombo, leadLen, ctx, position, tmWin, false, intent);
@@ -524,8 +524,7 @@ function followTrumpLead(
       }
       myTrump.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
       const cards = [myTrump[0]];
-      const thirdAvoid = position === 'third' && tmWin;
-      const intent = thirdAvoid ? 'avoid' : 'none';
+      const intent = 'none';
       const reason = annotateReason('同花色出小', cards, [], myTrump,
         leadCombo, 1, ctx, position, tmWin, false, intent);
       return { cards, reason };
@@ -649,7 +648,7 @@ function followOffSuitSingle(
   leadSuitCards.sort((a, b) => getEffectiveRank(b, ctx) - getEffectiveRank(a, ctx));
 
   if (canAddPoints(tmWin, position, leadCombo, ctx)) {
-    leadSuitCards.sort(discardSort(true));
+    leadSuitCards.sort(discardSort(true, ctx));
     const cards = [leadSuitCards[0]];
     const reason = annotateReason('同花色出小', cards, leadSuitCards, trumpCards,
       leadCombo, 1, ctx, position, tmWin, false, 'add');
@@ -657,9 +656,9 @@ function followOffSuitSingle(
   }
 
   if (tmWin) {
-    leadSuitCards.sort(discardSort(false));
+    leadSuitCards.sort(discardSort(false, ctx));
     const cards = [leadSuitCards[0]];
-    const intent = position === 'third' ? 'avoid' : 'none';
+    const intent = 'none';
     const reason = annotateReason('同花色出小', cards, leadSuitCards, trumpCards,
       leadCombo, 1, ctx, position, tmWin, false, intent);
     return { cards, reason };
@@ -667,10 +666,10 @@ function followOffSuitSingle(
 
   // Can't beat opponent - play smallest
   if (!canBeat([leadSuitCards[0]], ctx.bestSoFar, ctx)) {
-    leadSuitCards.sort(discardSort(false));
+    leadSuitCards.sort(discardSort(false, ctx));
     const cards = [leadSuitCards[0]];
-    const shouldAvoid = (position === 'second' || position === 'fourth')
-      && !tmWin && isMaxPattern(leadCombo, ctx);
+    const shouldAvoid = (position === 'fourth' && !tmWin)
+      || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx));
     const intent = shouldAvoid ? 'avoid' : 'none';
     const reason = annotateReason('同花色出小', cards, leadSuitCards, trumpCards,
       leadCombo, 1, ctx, position, tmWin, false, intent);
@@ -729,12 +728,12 @@ function followOffSuitMulti(
       const rest = leadSuitCards.filter(c => !used.has(c.id));
       const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
       const shouldAvoid = !addPoints
-        && (position === 'second' || position === 'fourth')
-        && !tmWin && isMaxPattern(leadCombo, ctx);
+        && ((position === 'fourth' && !tmWin)
+          || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx)));
       if (addPoints) {
-        rest.sort(discardSort(true));
+        rest.sort(discardSort(true, ctx));
       } else if (shouldAvoid) {
-        rest.sort(discardSort(false));
+        rest.sort(discardSort(false, ctx));
       } else {
         rest.sort((a, b) => a.rank - b.rank);
       }
@@ -755,7 +754,7 @@ function followOffSuitMulti(
       const used = new Set(chosen.map(c => c.id));
       const rest = leadSuitCards.filter(c => !used.has(c.id));
       if (addPoints) {
-        rest.sort(discardSort(true));
+        rest.sort(discardSort(true, ctx));
       } else {
         rest.sort((a, b) => a.rank - b.rank);
       }
@@ -772,19 +771,19 @@ function followOffSuitMulti(
 
   // Can't match pattern - play smallest
   if (canAddPoints(tmWin, position, leadCombo, ctx)) {
-    leadSuitCards.sort(discardSort(true));
+    leadSuitCards.sort(discardSort(true, ctx));
     const cards = leadSuitCards.slice(0, leadLen);
     const reason = annotateReason('垫同花色', cards, leadSuitCards, [],
       leadCombo, leadLen, ctx, position, tmWin, false, 'add');
     return { cards, reason };
   }
 
-  leadSuitCards.sort(discardSort(false));
+  leadSuitCards.sort(discardSort(false, ctx));
   const cards = leadSuitCards.slice(0, leadLen);
   // Third+tmWin avoids. Second/fourth+max pattern+!tmWin also avoids.
+  const fourthAvoid = position === 'fourth' && !tmWin;
   const secondAvoid = position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx);
-  const fourthAvoid = position === 'fourth' && !tmWin && isMaxPattern(leadCombo, ctx);
-  const intent = (position === 'third' && tmWin) || secondAvoid || fourthAvoid ? 'avoid' : 'none';
+  const intent = (fourthAvoid || secondAvoid) ? 'avoid' : 'none';
   const reason = annotateReason('垫同花色', cards, leadSuitCards, [],
     leadCombo, leadLen, ctx, position, tmWin, false, intent);
   return { cards, reason };
@@ -955,8 +954,8 @@ function followOffSuitThrow(
       ? '同花色不够，垫主牌'
       : '同花色不够，垫其他花色';
     // Second position with max pattern (throw) should avoid points
-    const shouldAvoid = (position === 'second' || position === 'fourth')
-      && !tmWin && isMaxPattern(leadCombo, ctx);
+    const shouldAvoid = (position === 'fourth' && !tmWin)
+      || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx));
     const intent = shouldAvoid ? 'avoid' : 'none';
     const reason = annotateReason(baseReason, cards, leadSuitCards, trumpCards,
       leadCombo, leadLen, ctx, position, tmWin, false, intent);
@@ -1026,8 +1025,7 @@ function followNTTrumpLead(
       }
       myTrump.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
       const cards = [myTrump[0]];
-      const thirdAvoid = position === 'third' && tmWin;
-      const intent = thirdAvoid ? 'avoid' : 'none';
+      const intent = 'none';
       const reason = annotateReason('同花色出小', cards, [], myTrump,
         leadCombo, 1, ctx, position, tmWin, false, intent);
       return { cards, reason };
@@ -1155,17 +1153,58 @@ function isOnlyLegalPlay(
   leadLen: number,
   trumpCards: Card[],
   isTrumpKill: boolean,
+  config: AIContext,
+  leadCombo: ComboClass,
 ): boolean {
-  // Short-suited (need filler cards) — not unique
-  if (leadSuitCards.length > 0 && leadSuitCards.length < leadLen) return false;
-  if (isTrumpKill) return false; // multiple trump combos possible
-  if (leadSuitCards.length === 0 && !isTrumpKill) return false; // void + discard, many choices
-  if (leadSuitCards.length === leadLen && leadLen === 1 && leadSuitCards.length === 1) return true;
-  if (leadSuitCards.length === leadLen && leadLen === 2) {
-    // Unique if exactly 2 cards (must play both) or exactly 1 pair
-    return leadSuitCards.length === 2;
+  if (isTrumpKill) return false;
+  if (leadSuitCards.length === 0) return false; // void + discard, many choices
+  if (leadSuitCards.length < leadLen) return false; // short-suited, need fillers
+
+  // Single lead: only 1 lead-suit card → unique
+  if (leadLen === 1 && leadSuitCards.length === 1) return true;
+
+  // Pair lead: unique if only 1 pair exists among lead-suit cards
+  if (leadCombo.pairCount > 0 && !leadCombo.hasTractor) {
+    const pairs = findAllPairs(leadSuitCards);
+    const tractorPairs = detectTractors(leadSuitCards, config);
+    // Tractors can be broken, so only count standalone pairs + pairs in tractors
+    // Simple check: if findAllPairs returns exactly leadCombo.pairCount pairs
+    // and total cards are accounted for by those pairs + remaining singles,
+    // then unique means only 1 legal way to form the required pairs.
+    if (pairs.length === leadCombo.pairCount && leadSuitCards.length === leadLen) {
+      // All lead-suit cards are used in pairs → exactly these pairs must be played
+      return true;
+    }
+    // More cards than needed, but only 1 way to pick pairs:
+    // e.g. 3 lead-suit cards, 1 pair needed, only 1 pair exists → unique
+    if (leadCombo.pairCount === 1 && pairs.length === 1) return true;
+    if (leadCombo.pairCount > 1 && pairs.length === leadCombo.pairCount
+        && leadSuitCards.length === leadLen) return true;
+    return false;
   }
-  return false; // multi-card: assume not unique unless specific check
+
+  // Tractor lead: unique if exactly 1 matching tractor exists and all cards pair up
+  if (leadCombo.hasTractor) {
+    const tractors = detectTractors(leadSuitCards, config);
+    if (tractors.length > 0) {
+      const matched = tryMatchTractorSlots(leadCombo, tractors, leadSuitCards, leadLen, config);
+      if (matched && matched.length === leadLen) {
+        // Only one way to match → unique
+        return true;
+      }
+    }
+    // No matching tractor: fill with pairs + singles
+    const pairs = findAllPairs(leadSuitCards);
+    if (leadCombo.pairCount >= 1 && pairs.length === leadCombo.pairCount
+        && leadSuitCards.length === leadLen) return true;
+    return false;
+  }
+
+  // Pure singles: unique if lead-suit cards === leadLen (only these to play)
+  if (leadCombo.pairCount === 0 && !leadCombo.hasTractor
+      && leadSuitCards.length === leadLen) return true;
+
+  return false;
 }
 
 /**
@@ -1188,7 +1227,7 @@ function annotateReason(
   intent: 'add' | 'avoid' | 'beat_points' | 'none',
 ): string {
   // Check unique-play first
-  if (isOnlyLegalPlay(cards, leadSuitCards, leadLen, trumpCards, isTrumpKill)) {
+  if (isOnlyLegalPlay(cards, leadSuitCards, leadLen, trumpCards, isTrumpKill, ctx, leadCombo)) {
     return `${baseReason}（唯一可出）`;
   }
 

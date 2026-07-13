@@ -1013,3 +1013,27 @@ discardSort 签名新增可选 `config` 参数，各调用点传入 ctx。
 
 - **影响文件**：`packages/engine/src/ai/index.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
+
+## 2026-07-13 23:57
+
+### 唯一可出判断 + 位置感知避分修复 + 吊主 canBeat 用 bestSoFar
+
+**唯一可出判断重写**：`isOnlyLegalPlay` 改为基于牌型分析——单张时同花色只有1张、对子时只有1个对子、拖拉机时只有1套匹配拖拉机，均判定为唯一可出。
+
+**位置感知避分修复**：
+- 第三家+tmWin+非最大牌型 → 不附加加分/不加分
+- 第四家+!tmWin → 总是避分
+- `discardSort` 所有调用点补齐 `ctx` 参数传递
+- **`discardSort` 排序逻辑修复**：`teammateWinning=true` 时非分牌未正确降权（与分牌同为 priority 0），导致加分时选不到分牌。修复为分牌 priority 0、非分牌 priority 100
+
+**吊主单张 canBeat 修复**：`followTrumpLead` 和 `followNTTrumpLead` 单张分支改用 `bestSoFar` 的 `currentMax` 而非 `leadMax`。
+
+**新增 5 项测试**：
+- 第三家+tmWin+小牌 → 无标注
+- 第四家+!tmWin+对子 → 避分
+- 吊主第三家不能盖过前家已出大牌
+- 吊主第三家全部盖不过
+- 第三家+tmWin+拖拉机+仅1对+有分牌 → 加分包含分牌
+
+- **影响文件**：`packages/engine/src/ai/index.ts`、`packages/engine/src/ai/utils.ts`
+- **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
