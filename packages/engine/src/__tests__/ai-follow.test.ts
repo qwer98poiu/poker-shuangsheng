@@ -1030,3 +1030,84 @@ describe('trump draw canBeat uses bestSoFar (spades trump, level=2)', () => {
     expect(r.reason).toContain('同花色出小');
   });
 });
+
+// ================================================================
+// Trump kill: no points → smallest, has points → >= A / biggest
+// ================================================================
+describe('trump kill point-aware selection (hearts trump, level=5)', () => {
+  const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 5 };
+  function cc(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+
+  describe('no points in trick → smallest trump', () => {
+    it('kills S-A with smallest trump H-3', () => {
+      const lead: Card[] = [cc('S', 14, 200)];
+      const best = { cards: lead, playerIdx: 0 };
+      const hand = [cc('H', 14, 0), cc('H', 3, 0), cc('C', 8, 0)];
+      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 1);
+      checkFollow(r.cards, hand, lead, 'S', cfg);
+      expect(r.cards[0].id).toBe(cc('H', 3, 0).id);
+      expect(r.reason).toBe('用主牌毙');
+    });
+
+    it('kills S-9-9 pair with smallest trump pair H-3-3', () => {
+      const lead: Card[] = [cc('S', 9, 200), cc('S', 9, 201)];
+      const best = { cards: lead, playerIdx: 0 };
+      const hand = [cc('H', 14, 0), cc('H', 14, 1), cc('H', 3, 0), cc('H', 3, 1), cc('C', 8, 0)];
+      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 1);
+      checkFollow(r.cards, hand, lead, 'S', cfg);
+      expect(r.cards.some(c => c.rank === 3)).toBe(true);
+      expect(r.reason).toBe('用主牌毙');
+    });
+  });
+
+  describe('has points in trick → >= A / biggest trump', () => {
+    it('kills S-K(10pts) with >=A trump H-A', () => {
+      const lead: Card[] = [cc('S', 13, 200)];
+      const best = { cards: lead, playerIdx: 0 };
+      const hand = [cc('H', 14, 0), cc('H', 3, 0), cc('C', 8, 0)];
+      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 1);
+      checkFollow(r.cards, hand, lead, 'S', cfg);
+      expect(r.cards[0].id).toBe(cc('H', 14, 0).id); // >= A
+      expect(r.reason).toBe('用主牌毙');
+    });
+
+    it('kills S-K(10pts) with biggest when no >=A trump available', () => {
+      const lead: Card[] = [cc('S', 13, 200)];
+      const best = { cards: lead, playerIdx: 0 };
+      const hand = [cc('H', 10, 0), cc('H', 3, 0), cc('C', 8, 0)]; // H-10 is biggest
+      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 1);
+      checkFollow(r.cards, hand, lead, 'S', cfg);
+      expect(r.cards[0].id).toBe(cc('H', 10, 0).id); // biggest
+      expect(r.reason).toBe('用主牌毙');
+    });
+
+    it('kills pairs with points using biggest trump pair', () => {
+      // S-10-10 pair (each 10pts). AI has H-AA and H-3-3.
+      const lead: Card[] = [cc('S', 10, 200), cc('S', 10, 201)];
+      const best = { cards: lead, playerIdx: 0 };
+      const hand = [cc('H', 14, 0), cc('H', 14, 1), cc('H', 3, 0), cc('H', 3, 1), cc('C', 8, 0)];
+      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 1);
+      checkFollow(r.cards, hand, lead, 'S', cfg);
+      // should use H-AA (biggest), not H-3-3
+      expect(r.cards.some(c => c.rank === 14)).toBe(true);
+      expect(r.cards.some(c => c.rank === 3)).toBe(false);
+      expect(r.reason).toBe('用主牌毙');
+    });
+  });
+
+  describe('overkill → always smallest beating', () => {
+    it('overkills existing trump with smallest beating (ignoring points)', () => {
+      // P0 leads S-K(10pts). P1 killed with H-Q. AI=P2 has H-A, H-10.
+      // Points exist, but overkill → smallest beating, not >=A.
+      const lead: Card[] = [cc('S', 13, 200)];
+      const best = { cards: [cc('H', 12, 0)], playerIdx: 1 };
+      const hand = [cc('H', 14, 0), cc('H', 13, 0), cc('H', 10, 0), cc('C', 8, 0)];
+      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 2);
+      checkFollow(r.cards, hand, lead, 'S', cfg);
+      // H-10 beats H-Q? H-10 effRank=610, H-Q effRank=612 → 610<612, can't beat.
+      // H-13 beats H-Q? 613>612 → yes, smallest beating is H-13.
+      expect(r.cards[0].id).toBe(cc('H', 13, 0).id);
+      expect(r.reason).toBe('盖毙');
+    });
+  });
+});

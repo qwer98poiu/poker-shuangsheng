@@ -1037,3 +1037,27 @@ discardSort 签名新增可选 `config` 参数，各调用点传入 ctx。
 
 - **影响文件**：`packages/engine/src/ai/index.ts`、`packages/engine/src/ai/utils.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
+
+## 2026-07-14 11:55
+
+### 毙牌逻辑修复：按分数选择最小/最大牌
+
+**毙牌大小选择**：
+- 无分数 → 用最小能毙的主牌（单张/对子/拖拉机），其余从小到大填充
+- 有分数 → 纯单牌用不小于A级的主牌（无则用最大），含对子/拖拉机直接出最大
+- 盖毙 → 始终用最小能盖过前人的牌
+
+**填充牌统一从小到大**：关键毙牌之外的填充牌按 rank 升序排列，不调用 discardSort。
+
+**修正 `getEffectiveRank` 参数**：计算 Ace 有效牌力时需传入主花色，否则返回裸 rank 14 导致所有主牌都判定为≥A。
+
+**新增 6 项测试**（ai-follow.test.ts：68 项）：
+- 无分 → 最小牌毙
+- 无分 → 最小对子毙
+- 有分单张 → >=A 牌毙
+- 有分单张 → 无>=A 时用最大
+- 有分对子 → 最大对子毙
+- 盖毙 → 忽略分数，最小能盖过
+
+- **影响文件**：`packages/engine/src/ai/index.ts`
+- **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
