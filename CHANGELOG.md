@@ -1061,3 +1061,17 @@ discardSort 签名新增可选 `config` 参数，各调用点传入 ctx。
 
 - **影响文件**：`packages/engine/src/ai/index.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
+
+## 2026-07-15 20:30
+
+### 取消"用拖拉机跟牌"理由，统一为同花色出大/出小
+
+**跟拖拉机理由统一**：
+- `followTrumpLead` 和 `followOffSuitLead` 中拖拉机匹配分支，固定的 `用拖拉机跟牌` 改为基于 `canBeat` 动态判断 `同花色出大` / `同花色出小`
+- 与对子、单张跟牌的理由体系保持一致
+
+**策略文档修正**：
+- `strategy-rules.md` 2.3 节移除「不能匹配但能盖过」的矛盾描述（不匹配拖拉机就无法盖过）
+- 理由列表中移除 `用拖拉机跟牌`
+
+- **影响文件**：`packages/engine/src/ai/index.ts`

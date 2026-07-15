@@ -566,7 +566,9 @@ function matchTrumpPattern(
       if (picked) {
         const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
         const intent = addPoints ? 'add' : 'none';
-        const reason = annotateReason('用拖拉机跟牌', picked, [], myTrump,
+        const beating = canBeat(picked, ctx.bestSoFar, ctx);
+        const baseReason = beating ? '同花色出大' : '同花色出小';
+        const reason = annotateReason(baseReason, picked, [], myTrump,
           leadCombo, leadLen, ctx, position, tmWin, false, intent);
         return { cards: picked, reason };
       }
@@ -715,7 +717,9 @@ function followOffSuitMulti(
       if (picked) {
         const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
         const intent = addPoints ? 'add' : 'none';
-        const reason = annotateReason('用拖拉机跟牌', picked, leadSuitCards, [],
+        const beating = canBeat(picked, ctx.bestSoFar, ctx);
+        const baseReason = beating ? '同花色出大' : '同花色出小';
+        const reason = annotateReason(baseReason, picked, leadSuitCards, [],
           leadCombo, leadLen, ctx, position, tmWin, false, intent);
         return { cards: picked, reason };
       }
