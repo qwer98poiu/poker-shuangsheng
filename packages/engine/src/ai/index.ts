@@ -18,6 +18,9 @@ import {
 } from './utils.js';
 import { findThrowableOffSuitCombos } from './throw-detector.js';
 import { aiChooseBottomCards as aiChooseBottomImpl } from './bottom-strategy.js';
+import {
+  canFormJokerPair, opponentsHaveTrump, canAnyOpponentBeatSingle, canAnyOpponentBeatPair,
+} from './nt-tracking.js';
 
 // ---- Public API ----
 
@@ -278,11 +281,8 @@ function tryDrawTrump(
   if (ctx.trumpSuit === null) {
     // NT: check if we should draw trump (special rules)
     if (!shouldDrawTrumpInNT(ctx)) return null;
-    // In NT, draw with smallest trump
     const trumpCards = hand.filter(c => isTrump(c, ctx));
     if (trumpCards.length === 0) return null;
-    trumpCards.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
-    // NT level card priority (see NT rules)
     return pickNTTrumpLead(hand, trumpCards, ctx);
   }
 
@@ -303,23 +303,18 @@ function tryDrawTrump(
 
 function shouldDrawTrumpInNT(ctx: AIContext): boolean {
   if (!ctx.ntState) return false;
+  const s = ctx.ntState;
 
   // Rule 1: Opponents have no trump -> stop unless level is points + attacker leading + not yet 80
-  if (ctx.ntState.opponentTrumpCount === 0) {
+  if (!opponentsHaveTrump(s, ctx.myIndex)) {
     if (!isPointRank(ctx.level as Rank)) return false;
     if (!ctx.isAttacker || ctx.playCount > 0) return false;
     if (ctx.attackerPoints >= 80) return false;
     return true;
   }
 
-  // Rule 2: 4 jokers in hand or all unseen jokers on our side -> draw level cards to clear
-  if (ctx.ntState.allUnseenJokersOnOurSide) return true;
-
-  // Rule 3: Level card pair exists + no joker pairs on opponent side
-  // Rule 4: Single big joker or single small joker (big jokers on our side)
-  // Rule 5: Small joker pair + level pair tractor
-
-  return true; // default: ok to draw in NT
+  // Otherwise, pickNTTrumpLead decides the specific play.
+  return true;
 }
 
 function pickNTTrumpLead(
@@ -327,25 +322,77 @@ function pickNTTrumpLead(
   trumpCards: Card[],
   ctx: AIContext,
 ): { cards: Card[]; reason: string } | null {
-  if (trumpCards.length === 0) return null;
+  const s = ctx.ntState!;
+  const myTrumpPairs = findAllPairs(trumpCards);
+  const levelPairs = myTrumpPairs.filter(p => p[0].suit !== SpecialSuit.Joker);
+  const jokerPairs = myTrumpPairs.filter(p => p[0].suit === SpecialSuit.Joker);
+  const smallJokerPair = jokerPairs.find(p => p[0].rank === Rank.SmallJoker);
+  const opponents = [0, 1, 2, 3].filter(p => p % 2 !== ctx.myIndex % 2);
+  const oppsHaveTrump = opponents.some(p => s.maxTrumpCounts[p] > 0);
 
-  // Prefer level cards over jokers (save jokers for later)
-  const levelCards = trumpCards.filter(c => c.suit !== SpecialSuit.Joker);
-  const jokers = trumpCards.filter(c => c.suit === SpecialSuit.Joker);
-
-  // If we can clear trumps, lead level cards first
-  if (levelCards.length > 0) {
-    levelCards.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
-    return { cards: [levelCards[0]], reason: '吊主(级牌)' };
+  // Rule 5 (highest): SJ pair + level pair forms tractor -> lead if opponents can't beat
+  if (smallJokerPair && levelPairs.length > 0) {
+    for (const lp of levelPairs) {
+      const tractorCandidate = [...smallJokerPair, ...lp];
+      const tractors = detectTractors(tractorCandidate, ctx);
+      if (tractors.length > 0 && tractors.some(t => t.length === 4)) {
+        // SJ+level tractor can only be beaten by BJ+SJ tractor (BJ+SJ pair from 1 player)
+        const canAnyBeat = opponents.some(p =>
+          s.canFormPair[p] && s.canHaveBigJoker[p] && s.canHaveSmallJoker[p],
+        );
+        if (!canAnyBeat) {
+          return { cards: tractorCandidate, reason: '吊主(小王对+级牌对拖拉机)' };
+        }
+      }
+    }
   }
 
-  // Otherwise, smallest joker
-  if (jokers.length > 0) {
-    jokers.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
-    return { cards: [jokers[0]], reason: '吊主(王)' };
+  // Rule 3: Level pair exists + no opponent joker pair -> lead level pair
+  if (levelPairs.length > 0) {
+    const noOpponentJokerPair = opponents.every(
+      p => !canFormJokerPair(p, s),
+    );
+    if (noOpponentJokerPair && oppsHaveTrump) {
+      levelPairs.sort((a, b) =>
+        getEffectiveRank(a[0], ctx) - getEffectiveRank(b[0], ctx),
+      );
+      return { cards: levelPairs[0], reason: '吊主(级牌对，对手无王对)' };
+    }
   }
 
-  return null;
+  // Rule 4: Single big joker or small joker (BJ on our side) -> draw single
+  const myBigJokers = trumpCards.filter(c => c.rank === Rank.BigJoker);
+  const mySmallJokers = trumpCards.filter(c => c.rank === Rank.SmallJoker);
+
+  if (myBigJokers.length > 0 && oppsHaveTrump) {
+    return { cards: [myBigJokers[0]], reason: '吊主(大王)' };
+  }
+
+  if (mySmallJokers.length > 0 && s.allUnseenBigJokersOnOurSide && oppsHaveTrump) {
+    return { cards: [mySmallJokers[0]], reason: '吊主(小王，大王全在我方)' };
+  }
+
+  // Rule 2: All unseen jokers on our side -> draw level cards to clear
+  if (s.allUnseenJokersOnOurSide) {
+    const levelCards = trumpCards.filter(c => c.suit !== SpecialSuit.Joker);
+    if (levelCards.length > 0) {
+      levelCards.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+      return { cards: [levelCards[0]], reason: '吊主(级牌)' };
+    }
+    if (trumpCards.length > 0) {
+      trumpCards.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+      return { cards: [trumpCards[0]], reason: '吊主' };
+    }
+  }
+
+  // Rule 6: Opponents can't form pairs -> drawing single is safe
+  const allOpponentsNoPair = opponents.every(p => !s.canFormPair[p]);
+  if (allOpponentsNoPair && trumpCards.length > 0) {
+    trumpCards.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+    return { cards: [trumpCards[0]], reason: '吊主(对手无对)' };
+  }
+
+  return null; // Rule 6: not advantageous to draw
 }
 
 // ---- Strategy 6: Lead small off-suit single ----
@@ -1060,10 +1107,10 @@ function followNTTrumpLead(
 
   if (leadLen === 1) {
     if (myTrump.length > 0) {
-      const canBeat = myTrump.filter(c => getEffectiveRank(c, ctx) > currentMax);
-      if (canBeat.length > 0) {
-        canBeat.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
-        const cards = [canBeat[0]];
+      const canBeatCards = myTrump.filter(c => getEffectiveRank(c, ctx) > currentMax);
+      if (canBeatCards.length > 0) {
+        canBeatCards.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+        const cards = [canBeatCards[0]];
         const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
         const intent = addPoints ? 'add' : 'none';
         const reason = annotateReason('同花色出大', cards, [], myTrump,
@@ -1084,13 +1131,37 @@ function followNTTrumpLead(
 
   // Multi-card NT trump lead
   if (myTrump.length >= leadLen) {
-    const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
-    if (addPoints) {
-      myTrump.sort(discardSort(true, ctx));
-    } else {
-      myTrump.sort(discardSort(false, ctx));
+    // Try to match pattern: use pairs/tractors if lead requires them
+    if (leadCombo.pairCount > 0 || leadCombo.hasTractor) {
+      const myPairs = findAllPairs(myTrump);
+      if (myPairs.length > 0) {
+        pairKillSort(myPairs, myTrump, ctx);
+        // Match as many pairs as needed
+        const neededPairs = Math.min(myPairs.length, leadCombo.pairCount);
+        const used = myPairs.slice(0, neededPairs).flat();
+        const usedIds = new Set(used.map(c => c.id));
+        // Fill remaining with smallest singles
+        const rest = myTrump.filter(c => !usedIds.has(c.id));
+        rest.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+        const cards = [...used, ...rest].slice(0, leadLen);
+        const beating = canBeat(cards, ctx.bestSoFar, ctx);
+        const baseReason = beating ? '同花色出大' : '同花色出小';
+        const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
+        const intent = addPoints ? 'add' : 'none';
+        const reason = annotateReason(baseReason, cards, [], myTrump,
+          leadCombo, leadLen, ctx, position, tmWin, false, intent);
+        return { cards, reason };
+      }
     }
-    const cards = myTrump.slice(0, leadLen);
+    // No pattern to match — smallest N trump
+    const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
+    const sorted = [...myTrump];
+    if (addPoints) {
+      sorted.sort(discardSort(true, ctx));
+    } else {
+      sorted.sort(discardSort(false, ctx));
+    }
+    const cards = sorted.slice(0, leadLen);
     const intent = addPoints ? 'add' : 'none';
     const reason = annotateReason('垫同花色', cards, [], myTrump,
       leadCombo, leadLen, ctx, position, tmWin, false, intent);

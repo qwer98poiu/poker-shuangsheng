@@ -1075,3 +1075,43 @@ discardSort 签名新增可选 `config` 参数，各调用点传入 ctx。
 - 理由列表中移除 `用拖拉机跟牌`
 
 - **影响文件**：`packages/engine/src/ai/index.ts`
+
+## 2026-07-15 23:00
+
+### NT 常主记牌器与吊主策略
+
+**常主记牌器**：
+- `possibleTrumps`（5 个位置，自己为 null，庄家底牌为 null）
+- `isFullyDetermined`（12 张全部确定归属）、`canFormPair`（是否还能形成对子）
+- `canHaveJoker`/`canHaveBigJoker`/`canHaveSmallJoker`（王的可能性）
+- `minTrumpCounts`/`maxTrumpCounts`（手中常主张数范围）
+
+**追牌算法**：
+- 初始化：手牌和底牌（庄家已知）的常主从可能列表排除
+- 打出常主→从所有可能中删除（已不在手牌）
+- 吊主对/拖拉机且玩家未跟对→无对扣除（每 (suit,rank) 组合最多留 1 张）
+- 吊主时垫副牌→该玩家可能列表清空（已无常主）
+- 底牌位置不受无对扣除和清空规则影响
+
+**推断辅助函数**：
+- `canPlayerBeatSingle/Pair` / `canAnyOpponentBeatSingle/Pair`
+- `canFormJokerPair` / `opponentsHaveTrump`
+
+**NT 吊主策略**：规则 ②③④⑤⑥ 全部实现
+- ⑤ 小王对+级牌对拖拉机且对手无法管→出拖拉机
+- ③ 级牌对+对手无王对→出级牌对
+- ④ 单大王+对手有主→出大王；单小王+大王全在我方→出小王
+- ② 剩余王全在我方→上级牌清主
+- ⑥ 对手无对→安全吊单张；否则不吊
+
+**跟牌增强**：`followNTTrumpLead` 多张跟牌时优先匹配对子，使用 `pairKillSort` 避免拆拖拉机
+
+**修复**：`nt-tracking.ts` 第 67 行同义反复 bug（`cards === cards` 恒为 true）
+
+**新增 14 项测试**（ai-nt-tracking.test.ts：23 项），383 项通过。
+
+- **影响文件**：`packages/engine/src/ai/types.ts`
+- **影响文件**：`packages/engine/src/ai/nt-tracking.ts`
+- **影响文件**：`packages/engine/src/ai/context.ts`
+- **影响文件**：`packages/engine/src/ai/index.ts`
+- **影响文件**：`packages/engine/src/__tests__/ai-nt-tracking.test.ts`

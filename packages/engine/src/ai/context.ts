@@ -74,6 +74,8 @@ export function buildAIContext(
         state.trickHistory,
         state.reveals,
         config,
+        isDeclarer,
+        state.bottomCards,
       )
     : null;
 

@@ -1,27 +1,29 @@
 /**
- * NT trump tracking - pure function that deduces trump distribution in NT mode.
+ * NT trump tracking - tracks the 12 constant trump cards in NT mode.
  *
  * In NT mode there are exactly 12 constant trump cards:
  * 2 BigJokers, 2 SmallJokers, and 2 level cards per suit (S/H/C/D) x 2 decks.
  *
- * By tracking which trump cards have been played and which are in our own hand,
- * we can deduce who has the remaining trumps.
+ * Uses only public information (trick history, reveals) and private information
+ * (own hand, bottom cards if declarer). Does NOT peek at other players' hands.
  */
 import type { Card, Trick, Reveal } from '../types.js';
 import { Rank, SpecialSuit, Suit, cardId } from '../types.js';
 import { createCard, isTrump, getEffectiveRank } from '../model.js';
+import { classify } from '../pattern/index.js';
+import { findAllPairs } from '../pattern/index.js';
 import type { TrumpDeclaration } from '../types.js';
 import type { NTTrumpState } from './types.js';
+
+// ---- Card ID helpers ----
 
 /** Enumerate all 12 NT trump card IDs. */
 function enumerateNTTrumpIds(level: number): string[] {
   const ids: string[] = [];
-  // 2 copies of each joker
   ids.push(cardId(SpecialSuit.Joker, Rank.BigJoker, 0));
   ids.push(cardId(SpecialSuit.Joker, Rank.BigJoker, 1));
   ids.push(cardId(SpecialSuit.Joker, Rank.SmallJoker, 0));
   ids.push(cardId(SpecialSuit.Joker, Rank.SmallJoker, 1));
-  // 2 copies of level card per suit
   for (const suit of [Suit.Spades, Suit.Hearts, Suit.Clubs, Suit.Diamonds]) {
     ids.push(cardId(suit, level, 0));
     ids.push(cardId(suit, level, 1));
@@ -29,126 +31,432 @@ function enumerateNTTrumpIds(level: number): string[] {
   return ids;
 }
 
+/** Extract suit-rank key from a card ID, e.g. "S-2-0" → "S-2". */
+function suitRankKey(cardIdStr: string): string {
+  const idx = cardIdStr.lastIndexOf('-');
+  return cardIdStr.slice(0, idx);
+}
+
+function isJokerId(cardIdStr: string): boolean {
+  return cardIdStr.startsWith('J-');
+}
+
+function isBigJokerId(cardIdStr: string): boolean {
+  return cardIdStr.startsWith('J-16');
+}
+
+function isSmallJokerId(cardIdStr: string): boolean {
+  return cardIdStr.startsWith('J-15');
+}
+
+/** Reconstruct a Card from a card ID string. */
+function reconstructCard(cardIdStr: string): Card {
+  const parts = cardIdStr.split('-');
+  return createCard(parts[0] as any, parseInt(parts[1]) as Rank, parseInt(parts[2]));
+}
+
+/**
+ * Apply no-pair deduction: for each (suit,rank) combo where a player could
+ * have ≥2 cards, remove one possible card (they can't form that pair).
+ * Does NOT apply to bottom (location 4).
+ */
+function applyNoPairDeduction(
+  playerIndex: number,
+  possibleLocations: Map<string, Set<number>>,
+): void {
+  const byKey = new Map<string, string[]>();
+  for (const [cid, locs] of possibleLocations) {
+    if (locs.has(playerIndex)) {
+      const key = suitRankKey(cid);
+      if (!byKey.has(key)) byKey.set(key, []);
+      byKey.get(key)!.push(cid);
+    }
+  }
+  for (const cids of byKey.values()) {
+    if (cids.length >= 2) {
+      // Remove this player from one of the two copies (they can have at most 1)
+      possibleLocations.get(cids[cids.length - 1])!.delete(playerIndex);
+    }
+  }
+}
+
+// ---- Main tracking function ----
+
 /**
  * Compute NT trump tracking state.
- * Determines which trumps have been seen (played or in my hand),
- * which players are known to have no trumps, and how many trumps opponents hold.
+ * Determines where each unseen trump card could possibly be, based on
+ * played cards, void deductions, and pair-failure deductions.
  */
 export function computeNTTrumpState(
   myHand: Card[],
   myIndex: number,
   trickHistory: readonly Trick[],
-  reveals: readonly Reveal[],
+  _reveals: readonly Reveal[],
   config: TrumpDeclaration,
+  isDeclarer: boolean,
+  bottomCards: readonly Card[],
 ): NTTrumpState {
   const level = config.level;
-
-  // Mark all trumps as initially unknown (-1), then track where they were seen.
-  const seenByPlayer: number[] = []; // cardId index -> playerIndex
   const allTrumpIds = enumerateNTTrumpIds(level);
-  const trumpIdToIdx = new Map<string, number>();
-  allTrumpIds.forEach((id, i) => trumpIdToIdx.set(id, i));
-  seenByPlayer.length = allTrumpIds.length;
-  seenByPlayer.fill(-1);
 
-  // Mark cards in my hand
-  for (const c of myHand) {
-    const idx = trumpIdToIdx.get(c.id);
-    if (idx !== undefined) seenByPlayer[idx] = myIndex;
+  // Quick lookup sets
+  const myHandIds = new Set(myHand.filter(c => isTrump(c, config)).map(c => c.id));
+  const myTrumpCards = myHand.filter(c => isTrump(c, config));
+  const bottomIds = isDeclarer
+    ? new Set(bottomCards.filter(c => isTrump(c, config)).map(c => c.id))
+    : new Set<string>();
+
+  const otherPlayers = [0, 1, 2, 3].filter(p => p !== myIndex);
+
+  // ---- Phase 1: Initialize possible locations for UNSEEN trump cards ----
+  // possibleLocations: cardId -> Set of location indices (0-3=players, 4=bottom)
+  const possibleLocations = new Map<string, Set<number>>();
+
+  for (const id of allTrumpIds) {
+    if (myHandIds.has(id)) continue; // known in my hand, not tracked
+    if (isDeclarer && bottomIds.has(id)) continue; // known in bottom, not tracked
+
+    const locs = new Set<number>();
+    for (const p of otherPlayers) locs.add(p);
+    if (!isDeclarer) locs.add(4); // bottom is possible for non-declarer
+    possibleLocations.set(id, locs);
   }
 
-  // Mark cards seen in tricks
+  // ---- Phase 2: Process completed tricks ----
   for (const trick of trickHistory) {
+    const leadCards = trick.plays[0].cards;
+    const isTrumpLead = leadCards.every(c => isTrump(c, config));
+    let leadHasPairOrTractor = false;
+
+    if (isTrumpLead) {
+      const leadCombo = classify(leadCards, config);
+      leadHasPairOrTractor = leadCombo.pairCount > 0 || leadCombo.hasTractor;
+    }
+
     for (let pi = 0; pi < 4; pi++) {
-      for (const c of trick.plays[pi].cards) {
-        const idx = trumpIdToIdx.get(c.id);
-        if (idx !== undefined) {
-          seenByPlayer[idx] = trick.plays[pi].cards === trick.plays[pi].cards
-            ? (trick.leadPlayerIndex + pi) % 4
-            : -2; // seen but don't know who played it (shouldn't happen)
+      const actualPlayer = (trick.leadPlayerIndex + pi) % 4;
+      const played = trick.plays[pi].cards;
+      const playedTrumpIds = played
+        .filter(c => isTrump(c, config))
+        .map(c => c.id);
+
+      if (playedTrumpIds.length > 0) {
+        // Played trump cards are no longer in any hand — remove from tracking
+        for (const id of playedTrumpIds) {
+          possibleLocations.delete(id);
+        }
+
+        // Pair deduction: if trump lead with pairs/tractors and player
+        // didn't follow with any trump pair (but played trump), they can't form pairs.
+        // Does NOT apply to self (we know our own hand).
+        if (leadHasPairOrTractor && actualPlayer !== myIndex) {
+          const playedPairs = findAllPairs(played);
+          if (playedPairs.length === 0) {
+            applyNoPairDeduction(actualPlayer, possibleLocations);
+          }
+        }
+      } else if (isTrumpLead) {
+        // Player discarded against a trump lead → void in trump.
+        // Clear this player from all possible locations.
+        for (const locs of possibleLocations.values()) {
+          locs.delete(actualPlayer);
         }
       }
     }
   }
 
-  // Known trump cards per player
-  const knownTrumpsPerPlayer: Card[][] = [[], [], [], []];
-  let seenCount = 0;
-  for (let i = 0; i < allTrumpIds.length; i++) {
-    const pid = seenByPlayer[i];
-    if (pid >= 0) {
-      // Reconstruct card from ID
-      const parts = allTrumpIds[i].split('-');
-      const card = createCard(
-        parts[0] as any,
-        parseInt(parts[1]) as Rank,
-        parseInt(parts[2]),
-      );
-      knownTrumpsPerPlayer[pid].push(card);
-      seenCount++;
-    }
-  }
+  // ---- Phase 3: Build derived state from possibleLocations ----
+  return buildState(possibleLocations, allTrumpIds, myTrumpCards,
+    myHandIds, bottomIds, myIndex, isDeclarer, config);
+}
 
-  // Determine who has no trumps
-  const playersWithNoTrump = new Set<number>();
-  const unseenCount = 12 - seenCount;
+// ---- State builder ----
 
-  // If we've seen all 12, everyone with 0 known trumps has exactly 0.
-  // If we've seen N and one player has all unseen, we can deduce.
+function buildState(
+  possibleLocations: Map<string, Set<number>>,
+  allTrumpIds: string[],
+  myTrumpCards: Card[],
+  myHandIds: Set<string>,
+  bottomIds: Set<string>,
+  myIndex: number,
+  isDeclarer: boolean,
+  config: TrumpDeclaration,
+): NTTrumpState {
+  // ---- possibleTrumps ----
+  const possibleTrumps: (string[] | null)[] = [];
   for (let p = 0; p < 4; p++) {
-    if (knownTrumpsPerPlayer[p].length === 0 && unseenCount === 0) {
-      playersWithNoTrump.add(p);
+    possibleTrumps[p] = p === myIndex ? null : [];
+  }
+  possibleTrumps[4] = isDeclarer ? null : [];
+
+  for (const [cardId, locs] of possibleLocations) {
+    for (const loc of locs) {
+      const arr = possibleTrumps[loc];
+      if (arr) arr.push(cardId);
     }
   }
 
-  // Count opponent trumps
+  // ---- knownTrumpsPerPlayer (deduced, not played) ----
+  const knownTrumpsPerPlayer: Card[][] = [[], [], [], []];
+  // My hand trumps
+  knownTrumpsPerPlayer[myIndex] = [...myTrumpCards];
+
+  // Cards definitively at a single player (from possibleLocations)
+  for (const [cardId, locs] of possibleLocations) {
+    if (locs.size === 1) {
+      const loc = [...locs][0];
+      if (loc >= 0 && loc <= 3) {
+        knownTrumpsPerPlayer[loc].push(reconstructCard(cardId));
+      }
+    }
+  }
+
+  // ---- isFullyDetermined ----
+  const isFullyDetermined = possibleLocations.size === 0 ||
+    [...possibleLocations.values()].every(locs => locs.size === 1);
+
+  // ---- canFormPair ----
+  const canFormPair: boolean[] = [false, false, false, false];
+  for (let p = 0; p < 4; p++) {
+    const arr = possibleTrumps[p];
+    if (!arr) continue;
+    const byKey = new Map<string, number>();
+    for (const id of arr) {
+      const key = suitRankKey(id);
+      byKey.set(key, (byKey.get(key) || 0) + 1);
+    }
+    canFormPair[p] = [...byKey.values()].some(n => n >= 2);
+  }
+
+  // ---- canHaveJoker / canHaveBigJoker / canHaveSmallJoker ----
+  const canHaveJoker: boolean[] = [false, false, false, false];
+  const canHaveBigJoker: boolean[] = [false, false, false, false];
+  const canHaveSmallJoker: boolean[] = [false, false, false, false];
+  for (let p = 0; p < 4; p++) {
+    const arr = possibleTrumps[p];
+    if (!arr) continue;
+    for (const id of arr) {
+      if (isJokerId(id)) {
+        canHaveJoker[p] = true;
+        if (isBigJokerId(id)) canHaveBigJoker[p] = true;
+        if (isSmallJokerId(id)) canHaveSmallJoker[p] = true;
+      }
+    }
+  }
+
+  // ---- minTrumpCounts / maxTrumpCounts ----
+  const minTrumpCounts: [number, number, number, number] = [
+    knownTrumpsPerPlayer[0].length,
+    knownTrumpsPerPlayer[1].length,
+    knownTrumpsPerPlayer[2].length,
+    knownTrumpsPerPlayer[3].length,
+  ];
+  const maxTrumpCounts: [number, number, number, number] = [
+    knownTrumpsPerPlayer[0].length + (possibleTrumps[0]?.length ?? 0),
+    knownTrumpsPerPlayer[1].length + (possibleTrumps[1]?.length ?? 0),
+    knownTrumpsPerPlayer[2].length + (possibleTrumps[2]?.length ?? 0),
+    knownTrumpsPerPlayer[3].length + (possibleTrumps[3]?.length ?? 0),
+  ];
+
+  // ---- playersWithNoTrump ----
+  const playersWithNoTrump = new Set<number>();
+  for (let p = 0; p < 4; p++) {
+    if (maxTrumpCounts[p] === 0) playersWithNoTrump.add(p);
+  }
+
+  // ---- opponentTrumpCount (minimum opponent count) ----
   const myTeamParity = myIndex % 2;
   let opponentTrumpCount = 0;
   for (let p = 0; p < 4; p++) {
     if (p % 2 !== myTeamParity) {
-      opponentTrumpCount += knownTrumpsPerPlayer[p].length;
+      opponentTrumpCount += minTrumpCounts[p];
     }
   }
-  // Add unseen trumps if we can't determine where they are
-  const unseenOpponentTrumps = unseenCount > 0
-    ? Math.ceil(unseenCount / 2) // assume worst case: half of unseen on opponent side
-    : 0;
-  opponentTrumpCount += unseenOpponentTrumps;
-
-  // Count remaining jokers
-  let remainingBigJokers = 2; // start with 2 total
-  let remainingSmallJokers = 2;
-  for (let i = 0; i < allTrumpIds.length; i++) {
-    if (seenByPlayer[i] >= 0) {
-      const parts = allTrumpIds[i].split('-');
-      const rank = parseInt(parts[1]);
-      if (rank === Rank.BigJoker) remainingBigJokers--;
-      if (rank === Rank.SmallJoker) remainingSmallJokers--;
+  // Cards ambiguous but all possible locations are opponents
+  for (const [, locs] of possibleLocations) {
+    if (locs.size > 1) {
+      const allOpponents = [...locs].every(l => l <= 3 && (l % 2 !== myTeamParity));
+      if (allOpponents) opponentTrumpCount++;
     }
   }
 
-  // Determine if all unseen jokers are on our side
-  // If all 4 jokers are accounted for in our team's hands, then yes
-  const myTeamBjCount = knownTrumpsPerPlayer[myIndex].filter(c => c.rank === Rank.BigJoker).length +
-    knownTrumpsPerPlayer[(myIndex + 2) % 4].filter(c => c.rank === Rank.BigJoker).length;
-  const myTeamSjCount = knownTrumpsPerPlayer[myIndex].filter(c => c.rank === Rank.SmallJoker).length +
-    knownTrumpsPerPlayer[(myIndex + 2) % 4].filter(c => c.rank === Rank.SmallJoker).length;
+  // ---- Joker counts ----
+  let remainingBigJokers = 0;
+  let remainingSmallJokers = 0;
+  for (const [id] of possibleLocations) {
+    if (isBigJokerId(id)) remainingBigJokers++;
+    if (isSmallJokerId(id)) remainingSmallJokers++;
+  }
 
-  const allUnseenJokersOnOurSide =
-    remainingBigJokers + remainingSmallJokers === 0 ||
-    (myTeamBjCount + myTeamSjCount === 4);
+  // Known jokers on my team (from hand + deduced)
+  let myTeamBjCount = knownTrumpsPerPlayer[myIndex].filter(c => c.rank === Rank.BigJoker).length
+    + knownTrumpsPerPlayer[(myIndex + 2) % 4].filter(c => c.rank === Rank.BigJoker).length;
+  let myTeamSjCount = knownTrumpsPerPlayer[myIndex].filter(c => c.rank === Rank.SmallJoker).length
+    + knownTrumpsPerPlayer[(myIndex + 2) % 4].filter(c => c.rank === Rank.SmallJoker).length;
 
-  const allUnseenBigJokersOnOurSide =
-    remainingBigJokers === 0 || myTeamBjCount === 2;
+  // Check if unseen jokers can only be on our side
+  let allUnseenJokersOnOurSide = remainingBigJokers + remainingSmallJokers === 0;
+  let allUnseenBigJokersOnOurSide = remainingBigJokers === 0;
+
+  if (!allUnseenJokersOnOurSide) {
+    allUnseenJokersOnOurSide = true;
+    for (const [id, locs] of possibleLocations) {
+      if (isJokerId(id)) {
+        const onlyOurSide = [...locs].every(
+          l => l === myIndex || l === (myIndex + 2) % 4,
+        );
+        if (!onlyOurSide) {
+          allUnseenJokersOnOurSide = false;
+          break;
+        }
+      }
+    }
+  }
+
+  if (!allUnseenBigJokersOnOurSide) {
+    allUnseenBigJokersOnOurSide = true;
+    for (const [id, locs] of possibleLocations) {
+      if (isBigJokerId(id)) {
+        const onlyOurSide = [...locs].every(
+          l => l === myIndex || l === (myIndex + 2) % 4,
+        );
+        if (!onlyOurSide) {
+          allUnseenBigJokersOnOurSide = false;
+          break;
+        }
+      }
+    }
+  }
 
   return {
     knownTrumpsPerPlayer: knownTrumpsPerPlayer as readonly (readonly Card[])[],
     playersWithNoTrump,
     totalTrumps: 12,
     opponentTrumpCount,
-    remainingBigJokers: Math.max(0, remainingBigJokers),
-    remainingSmallJokers: Math.max(0, remainingSmallJokers),
+    remainingBigJokers,
+    remainingSmallJokers,
     allUnseenJokersOnOurSide,
     allUnseenBigJokersOnOurSide,
+    possibleTrumps: possibleTrumps as readonly (readonly string[] | null)[],
+    isFullyDetermined,
+    canFormPair,
+    canHaveJoker,
+    canHaveBigJoker,
+    canHaveSmallJoker,
+    minTrumpCounts,
+    maxTrumpCounts,
   };
+}
+
+// ---- Inference helpers ----
+
+/**
+ * Can a specific player possibly beat this single trump card?
+ */
+export function canPlayerBeatSingle(
+  playerIndex: number,
+  targetCard: Card,
+  state: NTTrumpState,
+  config: TrumpDeclaration,
+): boolean {
+  const targetRank = getEffectiveRank(targetCard, config);
+  const possible = state.possibleTrumps[playerIndex];
+  if (!possible) return false;
+  return possible.some(id => {
+    const card = reconstructCard(id);
+    return getEffectiveRank(card, config) > targetRank;
+  });
+}
+
+/**
+ * Can a specific player possibly beat this trump pair?
+ */
+export function canPlayerBeatPair(
+  playerIndex: number,
+  targetPair: Card[],
+  state: NTTrumpState,
+  config: TrumpDeclaration,
+): boolean {
+  if (!state.canFormPair[playerIndex]) return false;
+  if (targetPair.length < 2) return false;
+
+  const targetRank = getEffectiveRank(targetPair[0], config);
+  const possible = state.possibleTrumps[playerIndex];
+  if (!possible) return false;
+
+  const byKey = new Map<string, string[]>();
+  for (const id of possible) {
+    const key = suitRankKey(id);
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key)!.push(id);
+  }
+
+  for (const cids of byKey.values()) {
+    if (cids.length >= 2) {
+      const card = reconstructCard(cids[0]);
+      if (getEffectiveRank(card, config) > targetRank) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Can any opponent possibly beat this single trump card?
+ */
+export function canAnyOpponentBeatSingle(
+  card: Card,
+  state: NTTrumpState,
+  myIndex: number,
+  config: TrumpDeclaration,
+): boolean {
+  for (let p = 0; p < 4; p++) {
+    if (p % 2 !== myIndex % 2) {
+      if (canPlayerBeatSingle(p, card, state, config)) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Can any opponent possibly beat this trump pair?
+ */
+export function canAnyOpponentBeatPair(
+  pair: Card[],
+  state: NTTrumpState,
+  myIndex: number,
+  config: TrumpDeclaration,
+): boolean {
+  for (let p = 0; p < 4; p++) {
+    if (p % 2 !== myIndex % 2) {
+      if (canPlayerBeatPair(p, pair, state, config)) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Can this player form a joker pair (Big or Small)?
+ */
+export function canFormJokerPair(
+  playerIndex: number,
+  state: NTTrumpState,
+): boolean {
+  const possible = state.possibleTrumps[playerIndex];
+  if (!possible) return false;
+  const bigCount = possible.filter(isBigJokerId).length;
+  const smallCount = possible.filter(isSmallJokerId).length;
+  return bigCount >= 2 || smallCount >= 2;
+}
+
+/**
+ * Do opponents have any trump at all?
+ */
+export function opponentsHaveTrump(
+  state: NTTrumpState,
+  myIndex: number,
+): boolean {
+  for (let p = 0; p < 4; p++) {
+    if (p % 2 !== myIndex % 2 && state.maxTrumpCounts[p] > 0) return true;
+  }
+  return false;
 }

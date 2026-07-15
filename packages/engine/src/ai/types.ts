@@ -8,13 +8,13 @@ export type PlayPosition = 'lead' | 'second' | 'third' | 'fourth';
 
 /** NT trump tracking state - only non-null when config.trumpSuit is null. */
 export interface NTTrumpState {
-  /** Known trump cards still held by each player. */
+  /** Known trump cards still held by each player (deduced, not played). */
   readonly knownTrumpsPerPlayer: readonly (readonly Card[])[];
   /** Players known to have no trump cards. */
   readonly playersWithNoTrump: ReadonlySet<number>;
   /** Total trumps in the game (always 12 for NT). */
   readonly totalTrumps: 12;
-  /** Number of trumps opponents still hold. */
+  /** Number of trumps opponents still hold (minimum estimate). */
   readonly opponentTrumpCount: number;
   /** Remaining big jokers not yet seen. */
   readonly remainingBigJokers: number;
@@ -24,6 +24,27 @@ export interface NTTrumpState {
   readonly allUnseenJokersOnOurSide: boolean;
   /** Whether all unseen big jokers are on our side. */
   readonly allUnseenBigJokersOnOurSide: boolean;
+
+  /**
+   * Unplayed trump card IDs that could be in each location.
+   * Index 0-3 = other players' hands, 4 = bottom cards.
+   * Null for self (known own hand) and for bottom when declarer (known bottom).
+   */
+  readonly possibleTrumps: readonly (readonly string[] | null)[]; // length 5
+  /** Whether the distribution is fully determined. */
+  readonly isFullyDetermined: boolean;
+  /** Whether each player (0-3) can still form at least one pair from possible trumps. */
+  readonly canFormPair: readonly boolean[]; // length 4
+  /** Whether each player (0-3) can still have any joker (Big or Small). */
+  readonly canHaveJoker: readonly boolean[]; // length 4
+  /** Whether each player (0-3) can still have a Big Joker. */
+  readonly canHaveBigJoker: readonly boolean[]; // length 4
+  /** Whether each player (0-3) can still have a Small Joker. */
+  readonly canHaveSmallJoker: readonly boolean[]; // length 4
+  /** Minimum unplayed trump count per player (0-3). */
+  readonly minTrumpCounts: readonly [number, number, number, number];
+  /** Maximum unplayed trump count per player (0-3). */
+  readonly maxTrumpCounts: readonly [number, number, number, number];
 }
 
 /**
