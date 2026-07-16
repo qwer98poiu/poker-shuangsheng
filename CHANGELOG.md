@@ -1149,3 +1149,26 @@ discardSort 签名新增可选 `config` 参数，各调用点传入 ctx。
 **`/hand [n]` 增强**：不带参数时循环显示全部 4 个玩家的手牌
 
 - **影响文件**：`packages/cli/src/index.ts`
+
+## 2026-07-17 00:15
+
+### 多视角亮主推理测试：直接验证 possibleTrumps 具体内容
+
+**场景构造**：P0 亮红桃 2 单张，P1 用对小王反无主（庄家）。全部分配：
+- P0 手牌：H-2-0, H-2-1, BJ-0, C-2-0（4张）
+- P1 手牌：SJ-0, D-2-0, D-2-1, C-2-1；底牌 SJ-1（4+1张）
+- P2 手牌：BJ-1（1张）
+- P3 手牌：S-2-0, S-2-1（2张）
+
+**6 项多视角测试**，直接验证每个玩家视角下其他玩家的 `possibleTrumps` 具体包含/不包含哪些 card ID：
+
+- `knownTrumpsPerPlayer`：手牌常主在已知列表，非庄家亮主者的牌确定在其手牌
+- P0 视角：P1/bottom 含 2 张 SJ，P2/P3 不含 SJ
+- P1（庄家）视角：bottom 为 null，H-2-0 只在 P0，所有位置无 SJ
+- P2 视角：P1/bottom 含 SJ，P3 无 SJ 无 H-2-0
+- P3 视角：对称验证
+- 跨视角一致性：非 P1 视角一致同意只有 P1/bottom 可以含 SJ
+
+**新增 6 项测试**（ai-nt-tracking.test.ts：38 项），412 项通过。
+
+- **影响文件**：`packages/engine/src/__tests__/ai-nt-tracking.test.ts`

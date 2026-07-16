@@ -597,6 +597,161 @@ describe('NT trump tracking', () => {
     });
   });
 
+  describe('multi-perspective deduction with full distribution', () => {
+    // Scenario: P0 reveals H-2 single, P1 counters with SJ pair → P1 is declarer.
+    // Trump distribution (12 total, 1 in bottom):
+    //   P0(4 in hand): H-2-0(revealed), H-2-1, BJ-0, C-2-0
+    //   P1(4+1): SJ-0, D-2-0, D-2-1, C-2-1 in hand; SJ-1 in bottom (declarer)
+    //   P2(1 in hand): BJ-1
+    //   P3(2 in hand): S-2-0, S-2-1
+    const cfg = ntCfg(2, 1); // P1 is declarer
+    const reveals: Reveal[] = [
+      { playerIndex: 0, suit: Suit.Hearts, strength: 1 },
+      { playerIndex: 1, suit: null, strength: 3 },
+    ];
+    const p0Hand = [c('H', 2, 0), c('H', 2, 1), c('J', Rank.BigJoker, 0), c('C', 2, 0)];
+    const p1Hand = [c('J', Rank.SmallJoker, 0), c('D', 2, 0), c('D', 2, 1), c('C', 2, 1)];
+    const p1Bottom = [c('J', Rank.SmallJoker, 1)];
+    const p2Hand = [c('J', Rank.BigJoker, 1)];
+    const p3Hand = [c('S', 2, 0), c('S', 2, 1)];
+
+    // Card ID helpers
+    function cid(suit: string, rank: number, idx: number): string {
+      return c(suit, rank, idx).id;
+    }
+    function has(bag: (string[] | null) | undefined, suit: string, rank: number, idx: number): boolean {
+      const id = cid(suit, rank, idx);
+      return (bag ?? []).includes(id);
+    }
+
+    it('knownTrumpsPerPlayer: my-hand cards always in known, no other player private info', () => {
+      const s0 = call(p0Hand, 0, [], reveals, cfg, false, []);
+      // P0's hand: {H-2-0, H-2-1, BJ-0, C-2-0}
+      expect(s0.knownTrumpsPerPlayer[0].length).toBe(4);
+      expect(s0.knownTrumpsPerPlayer[1].length).toBe(0);
+      expect(s0.knownTrumpsPerPlayer[2].length).toBe(0);
+      expect(s0.knownTrumpsPerPlayer[3].length).toBe(0);
+
+      const s1 = call(p1Hand, 1, [], reveals, cfg, true, p1Bottom);
+      // P1's hand: {SJ-0, D-2-0, D-2-1, C-2-1}
+      expect(s1.knownTrumpsPerPlayer[1].length).toBe(4);
+      // P0 definitive: H-2-0 from reveal (not declarer)
+      expect(s1.knownTrumpsPerPlayer[0].length).toBe(1);
+      expect(s1.knownTrumpsPerPlayer[0][0].id).toBe(cid('H', 2, 0));
+      expect(s1.knownTrumpsPerPlayer[2].length).toBe(0);
+      expect(s1.knownTrumpsPerPlayer[3].length).toBe(0);
+    });
+
+    it('P0 view: P2/P3 possible list excludes SJs, P1 and bottom include SJs', () => {
+      const s = call(p0Hand, 0, [], reveals, cfg, false, []);
+      // Self: no possibleTrumps[0]
+      expect(s.possibleTrumps[0]).toBeNull();
+      // P1 possible: 6 ambiguous + 2 SJs = 8
+      expect(s.possibleTrumps[1]!).toHaveLength(8);
+      expect(has(s.possibleTrumps[1], 'J', 15, 0)).toBe(true);
+      expect(has(s.possibleTrumps[1], 'J', 15, 1)).toBe(true);
+      // P2 possible: 6 ambiguous, no SJ
+      expect(s.possibleTrumps[2]!).toHaveLength(6);
+      expect(has(s.possibleTrumps[2], 'J', 15, 0)).toBe(false);
+      expect(has(s.possibleTrumps[2], 'J', 15, 1)).toBe(false);
+      // P3 possible: 6 ambiguous, no SJ
+      expect(s.possibleTrumps[3]!).toHaveLength(6);
+      expect(has(s.possibleTrumps[3], 'J', 15, 0)).toBe(false);
+      expect(has(s.possibleTrumps[3], 'J', 15, 1)).toBe(false);
+      // Bottom: 6 ambiguous + 2 SJs = 8
+      expect(s.possibleTrumps[4]!).toHaveLength(8);
+      expect(has(s.possibleTrumps[4], 'J', 15, 0)).toBe(true);
+      expect(has(s.possibleTrumps[4], 'J', 15, 1)).toBe(true);
+    });
+
+    it('P1 declarer view: bottom excluded, H-2-0 at P0, no SJs anywhere possible', () => {
+      const s = call(p1Hand, 1, [], reveals, cfg, true, p1Bottom);
+      // Bottom excluded
+      expect(s.possibleTrumps[4]).toBeNull();
+      // 7 unseen cards: {J-16-0, J-16-1, S-2-0, S-2-1, H-2-0, H-2-1, C-2-0}
+      // H-2-0 definitive at P0, rest at {0,2,3}
+      const unseen = ['J-16-0', 'J-16-1', 'S-2-0', 'S-2-1', 'H-2-0', 'H-2-1', 'C-2-0'];
+      // P0 possible: 6 ambiguous + H-2-0 = 7
+      expect(s.possibleTrumps[0]!).toHaveLength(7);
+      for (const id of unseen) expect(s.possibleTrumps[0]!).toContain(id);
+      // H-2-0 is also definitive at P0
+      expect(s.knownTrumpsPerPlayer[0].map(c => c.id)).toContain('H-2-0');
+      // P2 possible: 6 ambiguous only (H-2-0 NOT at P2)
+      expect(s.possibleTrumps[2]!).toHaveLength(6);
+      expect(has(s.possibleTrumps[2], 'H', 2, 0)).toBe(false);
+      expect(has(s.possibleTrumps[2], 'J', 16, 0)).toBe(true);
+      // P3 possible: 6 ambiguous only
+      expect(s.possibleTrumps[3]!).toHaveLength(6);
+      expect(has(s.possibleTrumps[3], 'H', 2, 0)).toBe(false);
+      // No player has SJ in possible
+      for (let p = 0; p < 4; p++) {
+        if (p === 1) continue;
+        expect(has(s.possibleTrumps[p], 'J', 15, 0)).toBe(false);
+        expect(has(s.possibleTrumps[p], 'J', 15, 1)).toBe(false);
+      }
+    });
+
+    it('P2 view: SJs at {P1, bottom}, H-2-0 at P0 only', () => {
+      const s = call(p2Hand, 2, [], reveals, cfg, false, []);
+      // Self null
+      expect(s.possibleTrumps[2]).toBeNull();
+      // P0 possible: 8 ambiguous + H-2-0 = 9 (no SJs)
+      expect(s.possibleTrumps[0]!).toHaveLength(9);
+      expect(has(s.possibleTrumps[0], 'H', 2, 0)).toBe(true);
+      expect(has(s.possibleTrumps[0], 'J', 15, 0)).toBe(false);
+      // P1 possible: 8 ambiguous + 2 SJs = 10
+      expect(s.possibleTrumps[1]!).toHaveLength(10);
+      expect(has(s.possibleTrumps[1], 'J', 15, 0)).toBe(true);
+      expect(has(s.possibleTrumps[1], 'J', 15, 1)).toBe(true);
+      // P3 possible: 8 ambiguous (no H-2-0, no SJs)
+      expect(s.possibleTrumps[3]!).toHaveLength(8);
+      expect(has(s.possibleTrumps[3], 'H', 2, 0)).toBe(false);
+      expect(has(s.possibleTrumps[3], 'J', 15, 0)).toBe(false);
+      // Bottom: 8 ambiguous + 2 SJs = 10
+      expect(s.possibleTrumps[4]!).toHaveLength(10);
+      expect(has(s.possibleTrumps[4], 'J', 15, 0)).toBe(true);
+      // known: P0 has H-2-0 from reveal
+      expect(s.knownTrumpsPerPlayer[0].map(c => c.id)).toContain(cid('H', 2, 0));
+    });
+
+    it('P3 view: SJs at {P1, bottom}, H-2-0 at P0 only', () => {
+      const s = call(p3Hand, 3, [], reveals, cfg, false, []);
+      expect(s.possibleTrumps[3]).toBeNull();
+      // P0 possible: 8 ambiguous + H-2-0 = 9
+      expect(has(s.possibleTrumps[0], 'H', 2, 0)).toBe(true);
+      expect(has(s.possibleTrumps[0], 'J', 15, 0)).toBe(false);
+      // P1 possible: 8 ambiguous + 2 SJs = 10
+      expect(has(s.possibleTrumps[1], 'J', 15, 0)).toBe(true);
+      expect(has(s.possibleTrumps[1], 'J', 15, 1)).toBe(true);
+      // P2 possible: 8 ambiguous only (no H-2-0, no SJs)
+      expect(has(s.possibleTrumps[2], 'H', 2, 0)).toBe(false);
+      expect(has(s.possibleTrumps[2], 'J', 15, 0)).toBe(false);
+      // Bottom: 8 ambiguous + 2 SJs = 10
+      expect(has(s.possibleTrumps[4], 'J', 15, 0)).toBe(true);
+    });
+
+    it('all non-P1 perspectives agree: only P1/bottom can have SJ', () => {
+      for (const [idx, hand, isDecl, bot] of [
+        [0, p0Hand, false, []],
+        [2, p2Hand, false, []],
+        [3, p3Hand, false, []],
+      ] as const) {
+        const s = call(hand, idx, [], reveals, cfg, isDecl, bot);
+        // Only P1 and bottom can have SJ
+        expect(has(s.possibleTrumps[1], 'J', 15, 0)).toBe(true);
+        expect(has(s.possibleTrumps[1], 'J', 15, 1)).toBe(true);
+        expect(has(s.possibleTrumps[4], 'J', 15, 0)).toBe(true);
+        expect(has(s.possibleTrumps[4], 'J', 15, 1)).toBe(true);
+        // No one else
+        for (let p = 0; p < 4; p++) {
+          if (p === idx || p === 1) continue;
+          expect(has(s.possibleTrumps[p], 'J', 15, 0)).toBe(false);
+          expect(has(s.possibleTrumps[p], 'J', 15, 1)).toBe(false);
+        }
+      }
+    });
+  });
+
   describe('consecutive deductions', () => {
     it('consecutive pair deductions do not double-count', () => {
       const hand: Card[] = [];
