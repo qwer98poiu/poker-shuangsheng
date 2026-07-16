@@ -1,7 +1,7 @@
 /**
  * 双升 (拖拉机) CLI version
  * Commands: card indices like "1 3 5", or debug commands starting with /
- * Debug: /hand <0-3>, /history, /score, /hint, /bottom, /dump
+ * Debug: /hand [n], /tracker [n], /history, /score, /hint, /bottom, /trick, /debug, /dump
  */
 import * as readline from 'readline';
 import * as fs from 'fs';
@@ -653,10 +653,13 @@ async function handleDebugCommand(cmd: string, playerIndex: number) {
   if (c === '/hand' || c === '/h') {
     const target = parseInt(parts[1]);
     if (isNaN(target) || target < 0 || target > 3) {
-      console.log('用法: /hand <0-3>');
+      // No valid index — show all players' hands
+      for (let i = 0; i < 4; i++) showHand(i);
     } else {
       showHand(target);
     }
+  } else if (c === '/tracker' || c === '/tr') {
+    showNTracker(parts[1]);
   } else if (c === '/history' || c === '/hist') {
     showHistory();
   } else if (c === '/score' || c === '/s') {
@@ -680,7 +683,7 @@ async function handleDebugCommand(cmd: string, playerIndex: number) {
   } else if (c === '/dump') {
     handleDump();
   } else {
-    console.log('未知命令。可用: /hand <n>, /history, /score, /hint, /bottom, /trick, /debug, /dump');
+    console.log('未知命令。可用: /hand [n], /tracker [n], /history, /score, /hint, /bottom, /trick, /debug, /dump');
   }
 }
 
@@ -754,6 +757,93 @@ function showTrump(t: TrumpDeclaration): string {
 
 function showBottom() {
   console.log(`底牌: ${showCards(gameState.bottomCards)}`);
+}
+
+function showNTracker(targetStr?: string) {
+  const decl = gameState.trumpDeclaration;
+  if (!decl || decl.trumpSuit !== null) {
+    console.log('记牌器仅在无主模式下可用');
+    return;
+  }
+
+  const target = parseInt(targetStr ?? '');
+  if (!isNaN(target) && target >= 0 && target <= 3) {
+    showOneTracker(target);
+  } else {
+    for (let i = 0; i < 4; i++) showOneTracker(i);
+  }
+}
+
+function showOneTracker(playerIndex: number) {
+  const ctx = buildAIContext(gameState, playerIndex);
+  if (!ctx || !ctx.ntState) {
+    console.log(`P${playerIndex + 1}: 记牌器数据不可用`);
+    return;
+  }
+  const s = ctx.ntState;
+
+  console.log(`\n${BOLD}${playerName(playerIndex)} 的常主记牌器:${RESET}`);
+
+  // My known trumps
+  const myTrumps = s.knownTrumpsPerPlayer[playerIndex];
+  if (myTrumps.length > 0) {
+    console.log(`  手牌常主 (${myTrumps.length}张): ${showCards([...myTrumps])}`);
+  } else {
+    console.log('  手牌常主: 无');
+  }
+
+  // Possible trumps per player and bottom
+  const bottomLabel = ctx.isDeclarer ? '底牌(已知)' : '底牌';
+  for (const [idx, label] of [[0, 'P1'], [1, 'P2'], [2, 'P3'], [3, 'P4'], [4, bottomLabel]] as const) {
+    if (idx === playerIndex) continue; // skip self
+    const arr = s.possibleTrumps[idx];
+    if (arr === null) {
+      console.log(`  ${label}可能常主: (已知,不追踪)`);
+    } else if (arr.length === 0) {
+      console.log(`  ${label}可能常主: 无`);
+    } else {
+      // Group by suit+rank for compact display
+      const byKey = new Map<string, number>();
+      for (const id of arr) {
+        const key = id.slice(0, id.lastIndexOf('-')); // "S-2" from "S-2-0"
+        byKey.set(key, (byKey.get(key) || 0) + 1);
+      }
+      const parts = [...byKey.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([k, n]) => n > 1 ? `${k}x${n}` : k);
+      console.log(`  ${label}可能常主 (${arr.length}张): ${parts.join(' ')}`);
+    }
+  }
+
+  // Summary line
+  const flags: string[] = [];
+  for (let p = 0; p < 4; p++) {
+    if (s.playersWithNoTrump.has(p)) flags.push(`P${p + 1}无主`);
+  }
+  if (s.isFullyDetermined) flags.push('分布已确定');
+  if (s.allUnseenJokersOnOurSide) flags.push('剩余王全在我方');
+  if (s.allUnseenBigJokersOnOurSide) flags.push('剩余大王全在我方');
+  if (flags.length > 0) console.log(`  ${DIM}${flags.join(' | ')}${RESET}`);
+
+  // Detail: canFormPair, canHaveJoker etc.
+  const detailParts: string[] = [];
+  for (let p = 0; p < 4; p++) {
+    if (p === playerIndex) continue;
+    const parts: string[] = [];
+    if (s.canFormPair[p]) parts.push('有对');
+    if (s.canHaveBigJoker[p]) parts.push('可能有大王');
+    if (s.canHaveSmallJoker[p]) parts.push('可能有小王');
+    if (parts.length > 0) detailParts.push(`P${p + 1}: ${parts.join(', ')}`);
+  }
+  if (detailParts.length > 0) console.log(`  ${DIM}${detailParts.join(' | ')}${RESET}`);
+
+  // Counts
+  const countParts = [];
+  for (let p = 0; p < 4; p++) {
+    if (p === playerIndex) continue;
+    countParts.push(`P${p + 1} ${s.minTrumpCounts[p]}-${s.maxTrumpCounts[p]}张`);
+  }
+  console.log(`  ${DIM}对手常主 ≥${s.opponentTrumpCount}张 | 剩余王: 大${s.remainingBigJokers} 小${s.remainingSmallJokers} | ${countParts.join(', ')}${RESET}`);
 }
 
 function showCurrentTrick() {

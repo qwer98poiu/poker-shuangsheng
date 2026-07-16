@@ -1137,3 +1137,15 @@ discardSort 签名新增可选 `config` 参数，各调用点传入 ctx。
 
 - **影响文件**：`packages/engine/src/ai/nt-tracking.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-nt-tracking.test.ts`
+
+## 2026-07-16 23:00
+
+### 新增 /tracker 命令，/hand 支持显示所有手牌
+
+**`/tracker [n]`（别名 `/tr`）**：显示常主记牌器（仅无主模式 + debug 模式）：
+- 指定玩家（0-3）：从该玩家视角显示手牌常主、各位置可能常主（按 suit-rank 分组）、汇总行（无主标记、分布确定、王控制）、详情行（有对、可能有王）、计数行（对手常主下限、剩余王、张数范围）
+- 不指定：循环显示 4 个玩家的记牌器
+
+**`/hand [n]` 增强**：不带参数时循环显示全部 4 个玩家的手牌
+
+- **影响文件**：`packages/cli/src/index.ts`
