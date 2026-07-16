@@ -122,6 +122,70 @@ export function computeNTTrumpState(
     possibleLocations.set(id, locs);
   }
 
+  // ---- Phase 1.5: Process reveals (public info about who revealed what) ----
+  // Reveals tell us which player definitely holds (or held) which trump cards.
+  // The LAST revealer is the declarer (config.declarerIndex); their revealed
+  // cards could be in hand or in the bottom.
+  for (const reveal of _reveals) {
+    const pid = reveal.playerIndex;
+    const revealerIsDeclarer = pid === config.declarerIndex;
+
+    if (reveal.suit === null) {
+      // Joker reveal (NT declaration): strength 3=SmallJoker pair, 4=BigJoker pair
+      if (reveal.strength >= 3) {
+        const jokerRank = reveal.strength >= 4 ? Rank.BigJoker : Rank.SmallJoker;
+        const id0 = cardId(SpecialSuit.Joker, jokerRank, 0);
+        const id1 = cardId(SpecialSuit.Joker, jokerRank, 1);
+        if (pid === myIndex) {
+          // Cards in my hand — remove bottom from possible set
+          if (!isDeclarer) {
+            possibleLocations.get(id0)?.delete(4);
+            possibleLocations.get(id1)?.delete(4);
+          }
+        } else if (revealerIsDeclarer) {
+          // Revealer is declarer: cards at pid or bottom
+          if (possibleLocations.has(id0)) possibleLocations.set(id0, new Set([pid, 4]));
+          if (possibleLocations.has(id1)) possibleLocations.set(id1, new Set([pid, 4]));
+        } else {
+          // Revealer is NOT declarer: cards definitively at pid
+          if (possibleLocations.has(id0)) possibleLocations.set(id0, new Set([pid]));
+          if (possibleLocations.has(id1)) possibleLocations.set(id1, new Set([pid]));
+        }
+      }
+    } else {
+      // Level card reveal: strength 2=pair, strength 1=single
+      if (reveal.strength >= 2) {
+        // Pair reveal — both copies are at revealer
+        const id0 = cardId(reveal.suit as any, level, 0);
+        const id1 = cardId(reveal.suit as any, level, 1);
+        if (pid === myIndex) {
+          if (!isDeclarer) {
+            possibleLocations.get(id0)?.delete(4);
+            possibleLocations.get(id1)?.delete(4);
+          }
+        } else if (revealerIsDeclarer) {
+          if (possibleLocations.has(id0)) possibleLocations.set(id0, new Set([pid, 4]));
+          if (possibleLocations.has(id1)) possibleLocations.set(id1, new Set([pid, 4]));
+        } else {
+          if (possibleLocations.has(id0)) possibleLocations.set(id0, new Set([pid]));
+          if (possibleLocations.has(id1)) possibleLocations.set(id1, new Set([pid]));
+        }
+      } else {
+        // Single reveal (strength 1) — one copy at revealer
+        const id0 = cardId(reveal.suit as any, level, 0);
+        if (pid === myIndex) {
+          if (!isDeclarer) {
+            possibleLocations.get(id0)?.delete(4);
+          }
+        } else if (revealerIsDeclarer) {
+          if (possibleLocations.has(id0)) possibleLocations.set(id0, new Set([pid, 4]));
+        } else {
+          if (possibleLocations.has(id0)) possibleLocations.set(id0, new Set([pid]));
+        }
+      }
+    }
+  }
+
   // ---- Phase 2: Process completed tricks ----
   for (const trick of trickHistory) {
     const leadCards = trick.plays[0].cards;
@@ -280,10 +344,11 @@ function buildState(
     }
   }
 
-  // ---- Joker counts ----
+  // ---- Joker counts (only ambiguous) ----
   let remainingBigJokers = 0;
   let remainingSmallJokers = 0;
-  for (const [id] of possibleLocations) {
+  for (const [id, locs] of possibleLocations) {
+    if (locs.size <= 1) continue; // definitively assigned, not "remaining"
     if (isBigJokerId(id)) remainingBigJokers++;
     if (isSmallJokerId(id)) remainingSmallJokers++;
   }
@@ -294,17 +359,35 @@ function buildState(
   let myTeamSjCount = knownTrumpsPerPlayer[myIndex].filter(c => c.rank === Rank.SmallJoker).length
     + knownTrumpsPerPlayer[(myIndex + 2) % 4].filter(c => c.rank === Rank.SmallJoker).length;
 
-  // Check if unseen jokers can only be on our side
-  let allUnseenJokersOnOurSide = remainingBigJokers + remainingSmallJokers === 0;
-  let allUnseenBigJokersOnOurSide = remainingBigJokers === 0;
+  // Check if any joker is definitively at an opponent (from reveal or play)
+  let anyJokerAtOpponent = false;
+  for (const [id, locs] of possibleLocations) {
+    if (!isJokerId(id)) continue;
+    if (locs.size === 1) {
+      const loc = [...locs][0];
+      if (loc >= 0 && loc <= 3 && loc % 2 !== myTeamParity) {
+        anyJokerAtOpponent = true;
+        break;
+      }
+    }
+  }
 
-  if (!allUnseenJokersOnOurSide) {
-    allUnseenJokersOnOurSide = true;
+  // Helper: is a location on our side?
+  // Bottom (4) is our side if declarer is our teammate.
+  const declarerIsOurSide = config.declarerIndex % 2 === myTeamParity;
+  const isOurSideLoc = (l: number): boolean =>
+    l === myIndex || l === (myIndex + 2) % 4 ||
+    (l === 4 && declarerIsOurSide);
+
+  // Check if all ambiguous jokers can only be on our side
+  let allUnseenJokersOnOurSide = !anyJokerAtOpponent;
+  let allUnseenBigJokersOnOurSide = !anyJokerAtOpponent;
+
+  // If no definitive opponents found, check ambiguous jokers
+  if (allUnseenJokersOnOurSide) {
     for (const [id, locs] of possibleLocations) {
       if (isJokerId(id)) {
-        const onlyOurSide = [...locs].every(
-          l => l === myIndex || l === (myIndex + 2) % 4,
-        );
+        const onlyOurSide = [...locs].every(isOurSideLoc);
         if (!onlyOurSide) {
           allUnseenJokersOnOurSide = false;
           break;
@@ -313,13 +396,10 @@ function buildState(
     }
   }
 
-  if (!allUnseenBigJokersOnOurSide) {
-    allUnseenBigJokersOnOurSide = true;
+  if (allUnseenBigJokersOnOurSide) {
     for (const [id, locs] of possibleLocations) {
       if (isBigJokerId(id)) {
-        const onlyOurSide = [...locs].every(
-          l => l === myIndex || l === (myIndex + 2) % 4,
-        );
+        const onlyOurSide = [...locs].every(isOurSideLoc);
         if (!onlyOurSide) {
           allUnseenBigJokersOnOurSide = false;
           break;

@@ -1115,3 +1115,25 @@ discardSort 签名新增可选 `config` 参数，各调用点传入 ctx。
 - **影响文件**：`packages/engine/src/ai/context.ts`
 - **影响文件**：`packages/engine/src/ai/index.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-nt-tracking.test.ts`
+
+## 2026-07-16 22:30
+
+### 亮主信息推理：基于公开亮主记录推断常主归属
+
+**亮主信息是公共信息**，所有玩家均可基于亮主记录推断其他玩家是否可能持有特定常主：
+
+- **王对亮主（strength ≥ 3）**：揭示者持有全部两张对应等级的王
+- **级牌对亮主（strength ≥ 2）**：揭示者持有全部两张该花色级牌
+- **单张亮主（strength = 1）**：揭示者持有一张，另一张仍不确定
+- **提前亮主被反**：先亮主者（非庄家）的牌不确定仍在手牌中
+- **庄家亮主**：最后亮主的是庄家，亮出的牌在 `{庄家, 底牌}`，非 `{庄家}` 确定
+
+**修正**：
+- `remainingBigJokers`/`remainingSmallJokers` 只统计模糊牌（`locs.size > 1`），已确定归属的不计入
+- `allUnseenJokersOnOurSide` 将庄家队友的底牌视为我方
+- `isOurSideLoc` 考虑底牌归属：庄家是队友时底牌是我方
+
+**新增 9 项测试**（ai-nt-tracking.test.ts：23→32 项），392 项通过。
+
+- **影响文件**：`packages/engine/src/ai/nt-tracking.ts`
+- **影响文件**：`packages/engine/src/__tests__/ai-nt-tracking.test.ts`

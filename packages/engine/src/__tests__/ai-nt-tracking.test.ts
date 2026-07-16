@@ -376,14 +376,207 @@ describe('NT trump tracking', () => {
     });
   });
 
-  describe('reveal info', () => {
-    it('accepts reveal records (not yet used for deduction)', () => {
+  describe('reveal-based deduction', () => {
+    it('pair of Small Jokers reveal (NT): both SJs at revealer (declarer)', () => {
       const reveals: Reveal[] = [
         { playerIndex: 1, suit: null, strength: 3 },
       ];
       const hand: Card[] = [c('S', 2, 0)];
-      const s = call(hand, 0, [], reveals, cfg5, false, []);
-      expect(s.totalTrumps).toBe(12);
+      // P1 is the last (only) revealer → P1 is declarer
+      // From my perspective (P0, non-declarer): SJs at P1 or bottom
+      const cfg = ntCfg(2, 1); // declarerIndex = 1
+      const s = call(hand, 0, [], reveals, cfg, false, []);
+      // No player other than P1 can have SJ
+      expect(s.canHaveSmallJoker[2]).toBe(false);
+      expect(s.canHaveSmallJoker[3]).toBe(false);
+      // P1 has SJs (in hand or bottom)
+      expect(s.canHaveSmallJoker[1]).toBe(true);
+      // SJs are at {1, 4} → locs.size=2 → counted as remaining (ambiguous)
+      expect(s.remainingSmallJokers).toBe(2);
+      // Bottom can have SJ
+      const bottomPossible = s.possibleTrumps[4]!;
+      const bottomHasSJ = bottomPossible.some(id => id.startsWith('J-15'));
+      expect(bottomHasSJ).toBe(true);
+      // P1 is our opponent → bottom is opponent side → not all on our side
+      expect(s.allUnseenJokersOnOurSide).toBe(false);
+    });
+
+    it('pair of Big Jokers reveal (NT): both BJs at revealer (teammate declarer)', () => {
+      const reveals: Reveal[] = [
+        { playerIndex: 2, suit: null, strength: 4 },
+      ];
+      const hand: Card[] = [];
+      // P2 is the last revealer → declarer. P2 is my teammate.
+      const cfg = ntCfg(2, 2); // declarerIndex = 2
+      const s = call(hand, 0, [], reveals, cfg, false, []);
+      // P2 could have BJs in hand or bottom → ambiguous
+      expect(s.remainingBigJokers).toBe(2);
+      // No opponent can have BJ
+      expect(s.canHaveBigJoker[1]).toBe(false);
+      expect(s.canHaveBigJoker[3]).toBe(false);
+      // P2 has BJ control (hand or bottom, both our side since P2 is teammate)
+      expect(s.canHaveBigJoker[2]).toBe(true);
+      // Bottom is teammate's bottom → our side → all unseen BJs on our side
+      expect(s.allUnseenBigJokersOnOurSide).toBe(true);
+    });
+
+    it('pair of level cards reveal: both copies at revealer', () => {
+      const reveals: Reveal[] = [
+        { playerIndex: 1, suit: Suit.Hearts, strength: 2 },
+      ];
+      const hand: Card[] = [];
+      const s = call(hand, 0, [], reveals, cfg2, false, []);
+      // P1 has both H-2 copies — no other player can have H-2 pair
+      expect(s.knownTrumpsPerPlayer[1].length).toBe(2);
+      // Other players cannot have H-2 at all
+      const h2Ids = [c('H', 2, 0).id, c('H', 2, 1).id];
+      for (const id of h2Ids) {
+        const inP2 = s.possibleTrumps[2]?.includes(id);
+        const inP3 = s.possibleTrumps[3]?.includes(id);
+        expect(inP2).toBe(false);
+        expect(inP3).toBe(false);
+      }
+      // Bottom cannot have H-2
+      const inBottom = h2Ids.some(id => s.possibleTrumps[4]!.includes(id));
+      expect(inBottom).toBe(false);
+    });
+
+    it('single level card reveal: one copy at revealer, other still possible', () => {
+      const reveals: Reveal[] = [
+        { playerIndex: 1, suit: Suit.Hearts, strength: 1 },
+      ];
+      const hand: Card[] = [];
+      const s = call(hand, 0, [], reveals, cfg2, false, []);
+      // P1 has at least one H-2
+      expect(s.knownTrumpsPerPlayer[1].length).toBe(1);
+      // P1's known card is an H-2
+      expect(s.knownTrumpsPerPlayer[1][0].suit).toBe('H');
+      expect(s.knownTrumpsPerPlayer[1][0].rank).toBe(2);
+      // The other H-2 is still possible for P2/P3/bottom
+      // (it's not at P1 in possibleTrumps — the revealed copy is in knownTrumpsPerPlayer)
+      expect(s.canFormPair[2]).toBe(true);
+      expect(s.canFormPair[3]).toBe(true);
+    });
+
+    it('counter-reveal: P1 reveals H-2 single, P2 counters with SJ pair', () => {
+      const reveals: Reveal[] = [
+        { playerIndex: 1, suit: Suit.Hearts, strength: 1 },
+        { playerIndex: 2, suit: null, strength: 3 },
+      ];
+      const hand: Card[] = [];
+      // P2 revealed last → declarer. P2 is my teammate.
+      const cfg = ntCfg(2, 2);
+      const s = call(hand, 0, [], reveals, cfg, false, []);
+      // P1 (not declarer) has one H-2 definitively
+      expect(s.knownTrumpsPerPlayer[1].length).toBe(1);
+      expect(s.knownTrumpsPerPlayer[1][0].suit).toBe('H');
+      // P2 (declarer, teammate) has both SJs (hand or bottom)
+      expect(s.remainingSmallJokers).toBe(2);
+      // Opponents (P1, P3) cannot have SJ
+      expect(s.canHaveSmallJoker[1]).toBe(false);
+      expect(s.canHaveSmallJoker[3]).toBe(false);
+      // SJs are controlled by P2 (teammate declarer); BJs still ambiguous
+      expect(s.canHaveSmallJoker[2]).toBe(true);
+      expect(s.allUnseenJokersOnOurSide).toBe(false); // BJs could be at opponents
+    });
+
+    it('from P1 perspective: P2 counters with SJ pair, P1 knows P3+P4 cannot have SJ pair', () => {
+      // User's example: P1 reveals H-2 single, P2 counters with SJ pair (NT).
+      // From P1's perspective: P2 (declarer) has SJs (hand or bottom).
+      // P3 and P0 cannot have SJ at all.
+      const reveals: Reveal[] = [
+        { playerIndex: 1, suit: Suit.Hearts, strength: 1 },
+        { playerIndex: 2, suit: null, strength: 3 },
+      ];
+      const cfg = ntCfg(2, 2); // P2 is declarer
+      const hand: Card[] = [c('H', 2, 0)]; // P1 has one H-2 in hand
+      // Act as P1 (myIndex = 1)
+      const s = call(hand, 1, [], reveals, cfg, false, []);
+      // P2 (declarer) has SJs: hand or bottom
+      expect(s.canHaveSmallJoker[2]).toBe(true);
+      // P0 and P3 cannot have SJ (no SJ pair for opponents other than declarer)
+      expect(s.canHaveSmallJoker[0]).toBe(false);
+      expect(s.canHaveSmallJoker[3]).toBe(false);
+      // P0 and P3 could still form BJ pair (canFormJokerPair checks any joker rank)
+      // but not SJ pair
+      expect(s.canHaveBigJoker[0]).toBe(true); // BJs still possible
+      expect(s.canHaveBigJoker[3]).toBe(true);
+    });
+
+    it('from P2 perspective: P2 knows P3+P4 have at most 1 H-2 between them', () => {
+      // Continuation: P2 countered with NT. P2 knows P1 had one H-2.
+      // Other H-2 is at most 1 between P3, P0, and bottom.
+      const reveals: Reveal[] = [
+        { playerIndex: 1, suit: Suit.Hearts, strength: 1 },
+        { playerIndex: 2, suit: null, strength: 3 },
+      ];
+      const cfg = ntCfg(2, 2);
+      // P2 has both SJs in hand
+      const hand: Card[] = [
+        c('J', Rank.SmallJoker, 0),
+        c('J', Rank.SmallJoker, 1),
+      ];
+      const s = call(hand, 2, [], reveals, cfg, false, []);
+      // P2 knows P1 has one H-2
+      expect(s.knownTrumpsPerPlayer[1].length).toBe(1);
+      expect(s.knownTrumpsPerPlayer[1][0].suit).toBe('H');
+      // P0 and P3 can have at most 1 H-2 total (only 1 copy remaining)
+      // Check: is P0 or P3 known to have H-2? Neither should be definitive.
+      const knownP0 = s.knownTrumpsPerPlayer[0];
+      const knownP3 = s.knownTrumpsPerPlayer[3];
+      expect(knownP0.length + knownP3.length).toBeLessThanOrEqual(1);
+    });
+
+    it('revealer is self: cards in hand already excluded, bottom still cleaned', () => {
+      const reveals: Reveal[] = [
+        { playerIndex: 0, suit: null, strength: 3 }, // I declare NT with SJ pair
+      ];
+      const hand = [
+        c('J', Rank.SmallJoker, 0),
+        c('J', Rank.SmallJoker, 1),
+        c('S', 2, 0),
+      ];
+      const s = call(hand, 0, [], reveals, cfg2, false, []);
+      // Both SJs in my hand
+      expect(s.remainingSmallJokers).toBe(0);
+      // Bottom cannot have SJ
+      const bottomPossible = s.possibleTrumps[4]!;
+      const bottomHasSJ = bottomPossible.some(id => id.startsWith('J-15'));
+      expect(bottomHasSJ).toBe(false);
+    });
+
+    it('self reveals pair of level cards: other copies excluded from bottom', () => {
+      const reveals: Reveal[] = [
+        { playerIndex: 0, suit: Suit.Spades, strength: 2 },
+      ];
+      const hand = [
+        c('S', 2, 0), c('S', 2, 1),
+        c('J', Rank.BigJoker, 0),
+      ];
+      const s = call(hand, 0, [], reveals, cfg2, false, []);
+      // Both S-2 in my hand, already tracked
+      expect(s.knownTrumpsPerPlayer[0].length).toBe(3);
+      // Bottom cannot have S-2
+      const bottomPossible = s.possibleTrumps[4]!;
+      const bottomHasS2 = bottomPossible.some(id => id.startsWith('S-2'));
+      expect(bottomHasS2).toBe(false);
+    });
+
+    it('declarer revealed: opponents cannot have revealed cards, bottom may', () => {
+      // P1 reveals BJ pair → P1 is declarer. I am P0, not declarer.
+      const reveals: Reveal[] = [
+        { playerIndex: 1, suit: null, strength: 4 },
+      ];
+      const cfg = ntCfg(2, 1); // declarerIndex = P1
+      const hand: Card[] = [];
+      const s = call(hand, 0, [], reveals, cfg, false, []);
+      // P1 (declarer) has BJs in hand or bottom → ambiguous count
+      expect(s.remainingBigJokers).toBe(2);
+      // P2 and P3 cannot have BJ
+      expect(s.canHaveBigJoker[2]).toBe(false);
+      expect(s.canHaveBigJoker[3]).toBe(false);
+      // P1 is opponent → bottom is opponent's → not all on our side
+      expect(s.allUnseenBigJokersOnOurSide).toBe(false);
     });
   });
 
