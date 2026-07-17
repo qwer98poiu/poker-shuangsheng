@@ -1191,7 +1191,9 @@ discardSort 签名新增可选 `config` 参数，各调用点传入 ctx。
 
 **场景细节**：P0(4)→H-2-0,H-2-1,BJ-0,C-2-0 | P1(4)+S-2-0底→SJ-0,SJ-1,D-2-0,C-2-1 | P2(1)→D-2-1 | P3(2)→S-2-1,BJ-1
 
-**新增 1 项测试**（ai-nt-tracking.test.ts：39 项），413 项通过。
+**新增 exhaustive 逐卡验证**：4 视角 × 3 玩家 × 12 常主 = 144 次逐卡归属检查（含底牌共 180 次），出牌前后各一轮。
+
+**新增 3 项测试**（ai-nt-tracking.test.ts：41 项），415 项通过。
 
 - **影响文件**：`packages/engine/src/ai/nt-tracking.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-nt-tracking.test.ts`

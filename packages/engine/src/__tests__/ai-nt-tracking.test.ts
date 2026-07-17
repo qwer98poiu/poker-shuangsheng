@@ -850,6 +850,235 @@ describe('NT trump tracking', () => {
         }
       }
     });
+
+    // ---- Exhaustive: all 12 trump cards at all 3 other players x 4 perspectives ----
+    const all12 = [
+      cid('J', 15, 0), cid('J', 15, 1), cid('J', 16, 0), cid('J', 16, 1),
+      cid('H', 2, 0), cid('H', 2, 1), cid('C', 2, 0), cid('C', 2, 1),
+      cid('D', 2, 0), cid('D', 2, 1), cid('S', 2, 0), cid('S', 2, 1),
+    ];
+
+    it('pre-trick: exhaustive 12-card x 4-perspective x 3-other-players verification', () => {
+      // For each (viewIdx, targetPlayer, cardId), whether cardId is expected
+      // in possibleTrumps[targetPlayer]. null/undefined check happens automatically
+      // since we only access possibleTrumps for targetPlayer != viewIdx.
+
+      function checkView(
+        viewIdx: number, hand: Card[], isDecl: boolean, bottom: Card[],
+        expectPresent: (p: number, cardId: string) => boolean,
+      ) {
+        const s = call(hand, viewIdx, [], reveals, cfg, isDecl, bottom);
+        for (let p = 0; p < 4; p++) {
+          if (p === viewIdx) {
+            expect(s.possibleTrumps[p]).toBeNull();
+            continue;
+          }
+          const bag = s.possibleTrumps[p]!;
+          for (const cid12 of all12) {
+            if (expectPresent(p, cid12)) {
+              expect(bag).toContain(cid12);
+            } else {
+              expect(bag).not.toContain(cid12);
+            }
+          }
+        }
+        if (isDecl) {
+          expect(s.possibleTrumps[4]).toBeNull();
+        } else {
+          const bag = s.possibleTrumps[4]!;
+          for (const cid12 of all12) {
+            if (expectPresent(4, cid12)) {
+              expect(bag).toContain(cid12);
+            } else {
+              expect(bag).not.toContain(cid12);
+            }
+          }
+        }
+      }
+
+      // P0 view: hand={J-16-0,H-2-0,H-2-1,C-2-0}. SJ at {1,4}.
+      // Unrestricted others: J-16-1, C-2-1, D-2-0, D-2-1, S-2-0, S-2-1
+
+      // P0 view
+      const p0Hand = [c('H', 2, 0), c('H', 2, 1), c('J', Rank.BigJoker, 0), c('C', 2, 0)];
+      const p0InHand = new Set([cid('J',16,0), cid('H',2,0), cid('H',2,1), cid('C',2,0)]);
+      checkView(0, p0Hand, false, [], (p, id) => {
+        if (p0InHand.has(id)) return false;
+        if (p >= 0 && p <= 3 && (id === cid('J',15,0) || id === cid('J',15,1))) {
+          return p === 1; // SJ only at P1 (declarer)
+        }
+        if (id === cid('J',15,0) || id === cid('J',15,1)) {
+          return p === 1 || p === 4; // SJ at {1, bottom}
+        }
+        return true; // all other unseen cards at all possible locations
+      });
+
+      // P1 declarer view
+      const p1InHand = new Set([cid('J',15,0), cid('J',15,1), cid('D',2,0), cid('C',2,1)]);
+      const p1InBottom = new Set([cid('S',2,0)]);
+      checkView(1, p1Hand, true, p1Bottom, (p, id) => {
+        if (p1InHand.has(id) || p1InBottom.has(id)) return false;
+        // H-2-0: P0 revealed (not declarer) → definitively at P0
+        if (id === cid('H',2,0)) return p === 0;
+        return p >= 0 && p <= 3; // all other unseen at {0,2,3}
+      });
+
+      // P2 view
+      const p2InHand = new Set([cid('D',2,1)]);
+      checkView(2, p2Hand, false, [], (p, id) => {
+        if (p2InHand.has(id)) return false;
+        if (id === cid('H',2,0)) return p === 0; // P0 definitive
+        if (id === cid('J',15,0) || id === cid('J',15,1)) return p === 1 || p === 4; // SJ at {1,4}
+        return true;
+      });
+
+      // P3 view
+      const p3InHand = new Set([cid('J',16,1), cid('S',2,1)]);
+      checkView(3, p3Hand, false, [], (p, id) => {
+        if (p3InHand.has(id)) return false;
+        if (id === cid('H',2,0)) return p === 0;
+        if (id === cid('J',15,0) || id === cid('J',15,1)) return p === 1 || p === 4;
+        return true;
+      });
+
+      // Verify counts match expected
+      const s0 = call(p0Hand, 0, [], reveals, cfg, false, []);
+      expect(s0.possibleTrumps[1]!).toHaveLength(8);
+      expect(s0.possibleTrumps[2]!).toHaveLength(6);
+      expect(s0.possibleTrumps[3]!).toHaveLength(6);
+      expect(s0.possibleTrumps[4]!).toHaveLength(8);
+      const s1 = call(p1Hand, 1, [], reveals, cfg, true, p1Bottom);
+      expect(s1.possibleTrumps[0]!).toHaveLength(7);
+      expect(s1.possibleTrumps[2]!).toHaveLength(6);
+      expect(s1.possibleTrumps[3]!).toHaveLength(6);
+      const s2 = call(p2Hand, 2, [], reveals, cfg, false, []);
+      expect(s2.possibleTrumps[0]!).toHaveLength(9);
+      expect(s2.possibleTrumps[1]!).toHaveLength(10);
+      expect(s2.possibleTrumps[3]!).toHaveLength(8);
+      const s3 = call(p3Hand, 3, [], reveals, cfg, false, []);
+      expect(s3.possibleTrumps[0]!).toHaveLength(8);
+      expect(s3.possibleTrumps[1]!).toHaveLength(9);
+      expect(s3.possibleTrumps[2]!).toHaveLength(7);
+    });
+
+    it('post-trick: exhaustive 12-card x 4-perspective x 3-other-players verification', () => {
+      const trick1 = mockTrickWithPattern(
+        [
+          [c('J', Rank.SmallJoker, 0), c('J', Rank.SmallJoker, 1)],
+          [c('D', 2, 1), offsuit],
+          [c('S', 2, 1), c('J', Rank.BigJoker, 1)],
+          [c('H', 2, 0), c('H', 2, 1)],
+        ],
+        1, 1, 'pair', 1, false,
+      );
+
+      const p0Post = [c('J', Rank.BigJoker, 0), c('C', 2, 0)];
+      const p1Post = [c('D', 2, 0), c('C', 2, 1)];
+      const p2Post: Card[] = [];
+      const p3Post: Card[] = [];
+      // Played: J-15-0,J-15-1,D-2-1,S-2-1,J-16-1,H-2-0,H-2-1
+      // Unplayed: J-16-0(P0),C-2-0(P0),D-2-0(P1),C-2-1(P1),S-2-0(bottom)
+
+      const played = new Set([
+        cid('J',15,0), cid('J',15,1), cid('D',2,1), cid('S',2,1),
+        cid('J',16,1), cid('H',2,0), cid('H',2,1),
+      ]);
+      const p0PostInHand = new Set([cid('J',16,0), cid('C',2,0)]);
+      const p1PostInHand = new Set([cid('D',2,0), cid('C',2,1)]);
+      const p1BottomIds = new Set([cid('S',2,0)]);
+
+      function checkPostView(
+        viewIdx: number, hand: Card[], isDecl: boolean, bottom: Card[],
+        expectPresent: (p: number, cardId: string) => boolean,
+      ) {
+        const s = call(hand, viewIdx, [trick1], reveals, cfg, isDecl, bottom);
+        for (let p = 0; p < 4; p++) {
+          if (p === viewIdx) {
+            expect(s.possibleTrumps[p]).toBeNull();
+            continue;
+          }
+          const bag = s.possibleTrumps[p]!;
+          for (const cid12 of all12) {
+            if (expectPresent(p, cid12)) {
+              expect(bag).toContain(cid12);
+            } else {
+              expect(bag).not.toContain(cid12);
+            }
+          }
+        }
+        if (isDecl) {
+          expect(s.possibleTrumps[4]).toBeNull();
+        } else {
+          const bag = s.possibleTrumps[4]!;
+          for (const cid12 of all12) {
+            if (expectPresent(4, cid12)) {
+              expect(bag).toContain(cid12);
+            } else {
+              expect(bag).not.toContain(cid12);
+            }
+          }
+        }
+        return s;
+      }
+
+      // P0 view post-trick
+      checkPostView(0, p0Post, false, [], (p, id) => {
+        return !played.has(id) && !p0PostInHand.has(id) && p !== 2;
+      });
+
+      // P1 declarer view post-trick
+      checkPostView(1, p1Post, true, p1Bottom, (p, id) => {
+        return !played.has(id) && !p1PostInHand.has(id)
+          && !p1BottomIds.has(id) && p !== 2 && p <= 3;
+      });
+
+      // P2 view post-trick: P3 C-2 deduction handled separately
+      const s2 = call(p2Post, 2, [trick1], reveals, cfg, false, []);
+      for (let p = 0; p < 4; p++) {
+        if (p === 2) { expect(s2.possibleTrumps[p]).toBeNull(); continue; }
+        const bag = s2.possibleTrumps[p]!;
+        for (const cid12 of all12) {
+          if (played.has(cid12)) { expect(bag).not.toContain(cid12); continue; }
+          if (p === 3 && (cid12 === cid('C',2,0) || cid12 === cid('C',2,1))) continue; // one C-2 removed
+          expect(bag).toContain(cid12);
+        }
+        // P3: exactly one C-2 present, one absent
+        if (p === 3) {
+          const hasC20 = has(bag, 'C', 2, 0);
+          const hasC21 = has(bag, 'C', 2, 1);
+          expect(hasC20 !== hasC21).toBe(true);
+          expect(hasC20 || hasC21).toBe(true); // at least one present
+        }
+      }
+      for (const cid12 of all12) {
+        if (played.has(cid12)) { expect(s2.possibleTrumps[4]!).not.toContain(cid12); continue; }
+        expect(s2.possibleTrumps[4]!).toContain(cid12);
+      }
+
+      // P3 view post-trick
+      checkPostView(3, p3Post, false, [], (p, id) => {
+        return !played.has(id) && p !== 2;
+      });
+
+      // Verify counts
+      const s0 = call(p0Post, 0, [trick1], reveals, cfg, false, []);
+      expect(s0.possibleTrumps[1]!).toHaveLength(3);
+      expect(s0.possibleTrumps[2]!).toHaveLength(0);
+      expect(s0.possibleTrumps[3]!).toHaveLength(3);
+      expect(s0.possibleTrumps[4]!).toHaveLength(3);
+      expect(s0.playersWithNoTrump.has(2)).toBe(true);
+      const s1 = call(p1Post, 1, [trick1], reveals, cfg, true, p1Bottom);
+      expect(s1.possibleTrumps[0]!).toHaveLength(2);
+      expect(s1.possibleTrumps[2]!).toHaveLength(0);
+      expect(s1.possibleTrumps[3]!).toHaveLength(2);
+      expect(s1.playersWithNoTrump.has(2)).toBe(true);
+      const s3 = call(p3Post, 3, [trick1], reveals, cfg, false, []);
+      expect(s3.possibleTrumps[0]!).toHaveLength(5);
+      expect(s3.possibleTrumps[1]!).toHaveLength(5);
+      expect(s3.possibleTrumps[2]!).toHaveLength(0);
+      expect(s3.possibleTrumps[4]!).toHaveLength(5);
+      expect(s3.playersWithNoTrump.has(2)).toBe(true);
+    });
   });
 
   describe('consecutive deductions', () => {
