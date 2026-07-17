@@ -106,8 +106,61 @@ async function main() {
 
     if (DEBUG) console.log(CYAN + '调试模式已开启。可用命令: /hand <0-3>, /history, /score, /hint, /bottom, /dump' + RESET);
 
+    let forcedDeclarer = -1;
+    let targetSuit: Suit | null | undefined;
+    let targetLevel: number | undefined;
+    let autoReveal = false; // only auto-reveal when user explicitly specified suit
+    if (DEBUG) {
+      const input = await q('首局等级和花色? (如 2C、KNT, 默认2): ');
+      const trimmed = input.trim().toUpperCase();
+      if (trimmed) {
+        // Parse level: numeric or J/Q/K/A
+        const levelMatch = trimmed.match(/(\d+|[JQKA]+)/i);
+        if (levelMatch) {
+          const lv = levelMatch[0].toUpperCase();
+          if (lv === 'J') targetLevel = 11;
+          else if (lv === 'Q') targetLevel = 12;
+          else if (lv === 'K') targetLevel = 13;
+          else if (lv === 'A') targetLevel = 14;
+          else targetLevel = parseInt(lv);
+          if (targetLevel > 14) {
+            console.log('等级不能超过A(14)，使用默认等级2');
+            targetLevel = 2;
+          }
+        } else {
+          targetLevel = 2;
+        }
+        // Parse suit
+        const suitMatch = trimmed.match(/[SHDC]|NT/i);
+        if (suitMatch) {
+          const s = suitMatch[0].toUpperCase();
+          if (s === 'NT') targetSuit = null;
+          else if (s === 'S') targetSuit = Suit.Spades;
+          else if (s === 'H') targetSuit = Suit.Hearts;
+          else if (s === 'C') targetSuit = Suit.Clubs;
+          else if (s === 'D') targetSuit = Suit.Diamonds;
+          autoReveal = true; // user explicitly chose suit, auto-reveal
+        }
+      } else {
+        targetLevel = 2;
+      }
+
+      const decl = await q('指定庄家? (p0-p3, n=不指定, 回车=自己): ');
+      const dp = decl.trim().toUpperCase();
+      if (dp === 'N') {
+        forcedDeclarer = -1;
+      } else if (dp === 'P0' || dp === 'P1' || dp === 'P2' || dp === 'P3') {
+        forcedDeclarer = parseInt(dp[1]);
+      } else if (dp === '') {
+        forcedDeclarer = 0;
+      } else {
+        console.log('无效输入，默认自己当庄家');
+        forcedDeclarer = 0;
+      }
+    }
+
     const spectator = aiPlayers.every(v => v);
-    await gameLoop(0, 2, spectator);
+    await gameLoop(0, 2, spectator, forcedDeclarer, targetSuit, targetLevel, autoReveal);
   }
 
   rl.close();
@@ -162,7 +215,11 @@ function dumpCrash(state: any, aiPlayers: boolean[], error: unknown): string {
 }
 
 // ---- continuous game loop ----
-async function gameLoop(firstDeclarer: number, currentLevel: number, spectator: boolean): Promise<void> {
+async function gameLoop(
+  firstDeclarer: number, currentLevel: number, spectator: boolean,
+  forcedDeclarer?: number, targetSuit?: Suit | null, targetLevel?: number,
+  autoReveal?: boolean,
+): Promise<void> {
   // The declarer (庄家) gets the bottom cards and leads the first trick.
   // In round 1: if someone reveals, they become the declarer; otherwise
   // the firstDeclarer (e.g. P0) becomes the declarer.
@@ -176,7 +233,10 @@ async function gameLoop(firstDeclarer: number, currentLevel: number, spectator: 
   const matchLogs: string[] = [];
 
   while (!gameOver) {
-    await startNewRound(nextDeclarer, nextDeclarer % 2 === 0 ? levelAC : levelBD, firstRound);
+    await startNewRound(nextDeclarer, nextDeclarer % 2 === 0 ? levelAC : levelBD, firstRound,
+      firstRound ? forcedDeclarer : undefined,
+      firstRound ? targetSuit : undefined,
+      firstRound ? autoReveal : undefined);
     firstRound = false;
 
     const result = showRoundResult();
@@ -233,9 +293,48 @@ function sleep(ms: number): Promise<void> {
   return new Promise(r => setTimeout(r, ms));
 }
 
+// ---- deck rigging for debug ----
+function rigDeck(declarerIdx: number, targetSuit: Suit | null, level: number): Card[] {
+  const deck = shuffle(createFullDeck());
+
+  const needed: Card[] = [];
+  if (targetSuit === null) {
+    // NT: BigJoker pair or SmallJoker pair (random)
+    const bj = deck.filter(c => c.rank === Rank.BigJoker);
+    const sj = deck.filter(c => c.rank === Rank.SmallJoker);
+    const pick = Math.random() < 0.5 ? bj.slice(0, 2) : sj.slice(0, 2);
+    needed.push(...pick);
+  } else {
+    // Suited: 1 or 2 level cards of target suit (random)
+    const cards = deck.filter(c => c.suit === targetSuit && c.rank === level);
+    const count = Math.random() < 0.5 && cards.length >= 2 ? 2 : 1;
+    needed.push(...cards.slice(0, count));
+  }
+
+  // Swap needed cards into declarer's positions (round-robin deal order)
+  for (let i = 0; i < needed.length; i++) {
+    const targetIdx = declarerIdx + i * 4;
+    const currentIdx = deck.findIndex(c => c.id === needed[i].id);
+    if (currentIdx !== targetIdx) {
+      [deck[targetIdx], deck[currentIdx]] = [deck[currentIdx], deck[targetIdx]];
+    }
+  }
+  return deck;
+}
+
 // ---- game round ----
-async function startNewRound(declarerIndex: number, currentLevel: number, isFirstRound: boolean) {
-  deck = shuffle(createFullDeck());
+async function startNewRound(
+  declarerIndex: number, currentLevel: number, isFirstRound: boolean,
+  forcedDeclarer?: number, targetSuit?: Suit | null,
+  autoReveal?: boolean,
+) {
+  const useRigged = forcedDeclarer !== undefined && forcedDeclarer >= 0;
+  const rigSuit = targetSuit !== undefined ? targetSuit
+    : useRigged ? (Math.random() < 0.2 ? null : [Suit.Spades, Suit.Hearts, Suit.Clubs, Suit.Diamonds][Math.floor(Math.random() * 4)]) as Suit | null
+    : undefined;
+  deck = useRigged
+    ? rigDeck(forcedDeclarer, rigSuit!, currentLevel)
+    : shuffle(createFullDeck());
 
   const emptyPlayers: PlayerState[] = [0, 1, 2, 3].map(i => ({
     hand: [] as Card[],
@@ -250,10 +349,19 @@ async function startNewRound(declarerIndex: number, currentLevel: number, isFirs
 
   // Debug mode: when human is declarer, AI defers reveal during dealing
   // so the human has a chance to reveal first.
-  const humanIsDeclarer = DEBUG && declarerIndex === 0;
+  // When forcedDeclarer is set, also defer AI reveal.
+  const skipAiRevealInDeal = (DEBUG && declarerIndex === 0)
+    || (forcedDeclarer !== undefined && forcedDeclarer >= 0);
 
-  await doDeal(humanIsDeclarer);
-  await doReveal(isFirstRound);
+  await doDeal(skipAiRevealInDeal);
+
+  // Auto-reveal only when user explicitly chose a suit
+  if (autoReveal && forcedDeclarer !== undefined && forcedDeclarer >= 0
+    && targetSuit !== undefined) {
+    gameState = tryReveal(gameState, forcedDeclarer, targetSuit);
+  }
+
+  await doReveal(isFirstRound, forcedDeclarer);
   await doBottomExchange();
   await doPlayPhase();
 }
@@ -325,7 +433,7 @@ function showRevealStatus() {
 }
 
 // ---- reveal ----
-async function doReveal(isFirstRound: boolean) {
+async function doReveal(isFirstRound: boolean, skipPlayer?: number) {
   console.log('\n' + BOLD + '=== 亮主阶段 ===' + RESET);
   if (gameState.currentReveal) {
     showRevealStatus();
@@ -334,6 +442,7 @@ async function doReveal(isFirstRound: boolean) {
   }
 
   for (const pi of [0, 1, 2, 3]) {
+    if (pi === skipPlayer) continue;
     if (!aiPlayers[pi]) {
       const player = gameState.players[pi];
       const level = gameState.currentLevel;
