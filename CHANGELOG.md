@@ -1218,3 +1218,22 @@ discardSort 签名新增可选 `config` 参数，各调用点传入 ctx。
 
 - **影响文件**：`packages/cli/src/index.ts`
 
+
+## 2026-07-18 00:25
+
+### 对子跟牌修复：扫描能盖过的对子 + 第四家优先用分牌盖
+
+**问题**：`pairKillSort` 选取最小对子后，若不能盖过则直接放弃，从不检查其他对子能否盖过。例如 AI 有 ♣4♣4 和 ♣10♣10，跟 ♣8♣8 时选 ♣4♣4 盖不过，就垫了。
+
+**修复**：
+
+1. **扫描能盖过的对子**（`followOffSuitMulti`、`followTrumpLead`）：最小对子不能盖过时，扫描其余对子，选最小的能盖过的对子。
+
+2. **第四家优先用分牌盖**（`followOffSuitMulti`、`followTrumpLead`）：第四家能盖过时，有分对子则用分对子盖（最小），无分则用最小能盖过的。
+
+3. **毙牌对子扫描**（`trumpKill`）：毙牌时选中的对子不能毙则扫描其余能毙的。
+
+**新增 4 项测试**（ai-follow.test.ts：72 项），419 项通过。
+
+- **影响文件**：`packages/engine/src/ai/index.ts`
+- **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`

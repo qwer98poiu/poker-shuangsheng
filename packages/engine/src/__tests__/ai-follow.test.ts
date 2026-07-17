@@ -506,6 +506,72 @@ describe('trump kill validity (hearts trump, level=5)', () => {
     });
   });
 
+  describe('fourth position pair follow: prefer point cards when beating', () => {
+    // diamonds trump, level=2, P0 declarer
+    const cfg4: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Diamonds, level: 2 };
+    const lead88 = [c2('C', 8, 200), c2('C', 8, 201)];
+    const best88 = { cards: lead88, playerIdx: 0 };
+
+    it('beats with point pair (10-10) when smallest pair (4-4) cannot beat', () => {
+      // 4-4 (rank 4) cannot beat 8-8. AI should scan and find 10-10.
+      const hand = [
+        c2('C', 4, 0), c2('C', 4, 1),   // 4-4 pair (non-point, cannot beat 8-8)
+        c2('C', 10, 0), c2('C', 10, 1),  // 10-10 pair (point, 20pts, can beat)
+        c2('H', 8, 0), c2('D', 7, 0),
+      ];
+      const r = aiFollowPlay(hand, lead88, 'C', cfg4, best88, 3);
+      checkFollow(r.cards, hand, lead88, 'C', cfg4);
+      expect(r.cards.length).toBe(2);
+      // Should pick 10-10 (only beating pair)
+      expect(r.cards.every(c => c.rank === 10)).toBe(true);
+    });
+
+    it('beats with smallest non-point pair when no point pair available', () => {
+      const hand = [
+        c2('C', 9, 0), c2('C', 9, 1),   // 9-9 pair (non-point, beats 8-8)
+        c2('C', 12, 0), c2('C', 12, 1),  // Q-Q pair (non-point, beats 8-8)
+        c2('H', 8, 0), c2('D', 7, 0),
+      ];
+      const r = aiFollowPlay(hand, lead88, 'C', cfg4, best88, 3);
+      checkFollow(r.cards, hand, lead88, 'C', cfg4);
+      expect(r.cards.length).toBe(2);
+      // Should pick smallest beating non-point pair (9-9)
+      expect(r.cards.every(c => c.rank === 9)).toBe(true);
+    });
+
+    it('scans for beating pair when smallest pair cannot beat', () => {
+      // Smallest pair 3-3 cannot beat 8-8, but 9-9 can
+      const hand = [
+        c2('C', 3, 0), c2('C', 3, 1),   // 3-3 pair (cannot beat 8-8)
+        c2('C', 9, 0), c2('C', 9, 1),   // 9-9 pair (can beat 8-8)
+        c2('C', 5, 0),                    // single
+        c2('H', 8, 0), c2('D', 7, 0),
+      ];
+      const r = aiFollowPlay(hand, lead88, 'C', cfg4, best88, 3);
+      checkFollow(r.cards, hand, lead88, 'C', cfg4);
+      expect(r.cards.length).toBe(2);
+      // Should pick 9-9 (beats) over 3-3 (cannot)
+      expect(r.cards.every(c => c.rank === 9)).toBe(true);
+    });
+
+    it('scans for beating pair, prefers point when fourth and beating is possible', () => {
+      // Smallest pair 3-3 cannot beat 8-8. Both 9-9 and 10-10 can beat.
+      // Fourth should pick 10-10 (point) over 9-9 (non-point).
+      const hand = [
+        c2('C', 3, 0), c2('C', 3, 1),   // 3-3 pair (cannot beat)
+        c2('C', 9, 0), c2('C', 9, 1),   // 9-9 pair (non-point)
+        c2('C', 10, 0), c2('C', 10, 1), // 10-10 pair (point)
+        c2('H', 8, 0), c2('D', 7, 0),
+      ];
+      const r = aiFollowPlay(hand, lead88, 'C', cfg4, best88, 3);
+      checkFollow(r.cards, hand, lead88, 'C', cfg4);
+      expect(r.cards.length).toBe(2);
+      // Should pick 10-10 (point, beating) over 9-9 (non-point, beating)
+      expect(r.cards.every(c => c.rank === 10)).toBe(true);
+    });
+
+  });
+
   describe('pair lead, void, can beat', () => {
     it('kills off-suit pair with smallest trump pair - "用主牌毙"', () => {
       const lead: Card[] = [c2('S', 9, 200), c2('S', 9, 201)];

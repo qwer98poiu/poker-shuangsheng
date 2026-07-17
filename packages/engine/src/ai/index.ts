@@ -637,7 +637,34 @@ function matchTrumpPattern(
 
   if (leadCombo.pairCount > 0) {
     const myPairs = findAllPairs(myTrump); pairKillSort(myPairs, myTrump, ctx);
-    const chosen = myPairs.slice(0, leadCombo.pairCount).flat();
+    let chosen = myPairs.slice(0, leadCombo.pairCount).flat();
+    // If smallest pair(s) cannot beat, try finding a pair that can.
+    // For fourth position that can beat, prefer point-card pairs.
+    const pairBeating = canBeat(chosen, ctx.bestSoFar, ctx);
+    if (!pairBeating) {
+      const beatingPairs = myPairs.filter(p => canBeat(p, ctx.bestSoFar, ctx));
+      if (beatingPairs.length >= leadCombo.pairCount) {
+        const isFourth = position === 'fourth';
+        beatingPairs.sort((a, b) => {
+          if (isFourth) {
+            const aPts = isPointRank(a[0].rank) ? 0 : 100;
+            const bPts = isPointRank(b[0].rank) ? 0 : 100;
+            if (aPts !== bPts) return aPts - bPts;
+          }
+          return getEffectiveRank(a[0], ctx) - getEffectiveRank(b[0], ctx);
+        });
+        chosen = beatingPairs.slice(0, leadCombo.pairCount).flat();
+      }
+    } else if (position === 'fourth') {
+      // Fourth can beat — prefer point cards
+      const pointBeating = myPairs.filter(p =>
+        isPointRank(p[0].rank) && canBeat(p, ctx.bestSoFar, ctx));
+      if (pointBeating.length >= leadCombo.pairCount) {
+        pointBeating.sort((a, b) =>
+          getEffectiveRank(a[0], ctx) - getEffectiveRank(b[0], ctx));
+        chosen = pointBeating.slice(0, leadCombo.pairCount).flat();
+      }
+    }
     if (chosen.length < leadLen) {
       const used = new Set(chosen.map(c => c.id));
       const rest = myTrump.filter(c => !used.has(c.id));
@@ -799,7 +826,34 @@ function followOffSuitMulti(
   // Pair lead - match with pairs
   if (leadCombo.pairCount > 0 && myPairs.length >= leadCombo.pairCount) {
     pairKillSort(myPairs, leadSuitCards, ctx);
-    const chosen = myPairs.slice(0, leadCombo.pairCount).flat();
+    let chosen = myPairs.slice(0, leadCombo.pairCount).flat();
+    // If smallest pair(s) cannot beat, try finding a pair that can.
+    // For fourth position that can beat, prefer point-card pairs.
+    const pairBeats = canBeat(chosen, ctx.bestSoFar, ctx);
+    if (!pairBeats) {
+      const beatingPairs = myPairs.filter(p => canBeat(p, ctx.bestSoFar, ctx));
+      if (beatingPairs.length >= leadCombo.pairCount) {
+        const isFourth = position === 'fourth';
+        beatingPairs.sort((a, b) => {
+          if (isFourth) {
+            const aPts = isPointRank(a[0].rank) ? 0 : 100;
+            const bPts = isPointRank(b[0].rank) ? 0 : 100;
+            if (aPts !== bPts) return aPts - bPts;
+          }
+          return getEffectiveRank(a[0], ctx) - getEffectiveRank(b[0], ctx);
+        });
+        chosen = beatingPairs.slice(0, leadCombo.pairCount).flat();
+      }
+    } else if (position === 'fourth') {
+      // Fourth can beat — prefer point cards (用分牌盖)
+      const pointBeating = myPairs.filter(p =>
+        isPointRank(p[0].rank) && canBeat(p, ctx.bestSoFar, ctx));
+      if (pointBeating.length >= leadCombo.pairCount) {
+        pointBeating.sort((a, b) =>
+          getEffectiveRank(a[0], ctx) - getEffectiveRank(b[0], ctx));
+        chosen = pointBeating.slice(0, leadCombo.pairCount).flat();
+      }
+    }
     const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
     if (chosen.length < leadLen) {
       const used = new Set(chosen.map(c => c.id));
@@ -906,13 +960,24 @@ function trumpKill(
     pairKillSort(myPairs, trumpCards, ctx);
     if (hasPoints && !overkill) myPairs.reverse(); // biggest first for points
     if (myPairs.length >= leadCombo.pairCount) {
-      const chosen = myPairs.slice(0, leadCombo.pairCount).flat();
-      if (chosen.length === leadLen) {
-        if (canTrumpKillBeat(chosen, leadCards, ctx)) {
-          const reason = overkill ? '盖毙' : '用主牌毙';
-          return { cards: chosen, reason };
+      let chosen = myPairs.slice(0, leadCombo.pairCount).flat();
+      // If selected pair cannot beat, scan for one that can
+      if (!canTrumpKillBeat(chosen, leadCards, ctx)) {
+        const beatingPairs = myPairs.filter(p => canTrumpKillBeat(p, leadCards, ctx));
+        if (beatingPairs.length >= leadCombo.pairCount) {
+          // For overkill/no-points: smallest beating. For hasPoints: biggest beating.
+          beatingPairs.sort((a, b) =>
+            getEffectiveRank(a[0], ctx) - getEffectiveRank(b[0], ctx));
+          if (hasPoints && !overkill) beatingPairs.reverse();
+          chosen = beatingPairs.slice(0, leadCombo.pairCount).flat();
         }
+      }
+      if (!canTrumpKillBeat(chosen, leadCards, ctx)) {
         return discardNonTrump(hand, leadLen, ctx, position, tmWin);
+      }
+      if (chosen.length === leadLen) {
+        const reason = overkill ? '盖毙' : '用主牌毙';
+        return { cards: chosen, reason };
       }
       const used = new Set(chosen.map(c => c.id));
       const rest = trumpCards.filter(c => !used.has(c.id));
