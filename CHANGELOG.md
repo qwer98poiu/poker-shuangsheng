@@ -1172,3 +1172,26 @@ discardSort 签名新增可选 `config` 参数，各调用点传入 ctx。
 **新增 6 项测试**（ai-nt-tracking.test.ts：38 项），412 项通过。
 
 - **影响文件**：`packages/engine/src/__tests__/ai-nt-tracking.test.ts`
+
+## 2026-07-17 19:50
+
+### Post-trick 多视角无对扣除推理测试 + void-after-play 修复
+
+**场景**：P1 吊 SJ 对后，P2（1张，不足2张）和 P3（2张，未跟对）均受扣除，P0 出 H-2 对无扣除。
+
+**新增 void-after-play 规则**：多张吊主时，跟牌者打出 M < N 张主牌，说明只有 M 张主，打出后手牌无常主 → 所有视角下该玩家的 `possibleTrumps` 清空。
+
+**关键验证**：
+- P2 1张 < 2张 → void-after-play 清空（所有视角 `possibleTrumps[2] = []`）
+- P3 未跟对 → no-pair 扣失去一张 C-2（C-2-0 和 C-2-1 可凑对）
+- P0 视角下每个 suit-rank 最多 1 张 → 不触发 no-pair 扣除
+- P1（庄家）视角仅剩 BJ-0, C-2-0 两张在 {0,3} 间模糊
+
+**P3 出牌前视角计数修正**：`possibleTrumps` 从 9/10/8/10 修正为 8/9/7/9
+
+**场景细节**：P0(4)→H-2-0,H-2-1,BJ-0,C-2-0 | P1(4)+S-2-0底→SJ-0,SJ-1,D-2-0,C-2-1 | P2(1)→D-2-1 | P3(2)→S-2-1,BJ-1
+
+**新增 1 项测试**（ai-nt-tracking.test.ts：39 项），413 项通过。
+
+- **影响文件**：`packages/engine/src/ai/nt-tracking.ts`
+- **影响文件**：`packages/engine/src/__tests__/ai-nt-tracking.test.ts`

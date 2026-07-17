@@ -601,25 +601,25 @@ describe('NT trump tracking', () => {
     // Scenario: P0 reveals H-2 single, P1 counters with SJ pair → P1 is declarer.
     // Trump distribution (12 total, 1 in bottom):
     //   P0(4 in hand): H-2-0(revealed), H-2-1, BJ-0, C-2-0
-    //   P1(4+1): SJ-0, D-2-0, D-2-1, C-2-1 in hand; SJ-1 in bottom (declarer)
-    //   P2(1 in hand): BJ-1
-    //   P3(2 in hand): S-2-0, S-2-1
+    //   P1(4+1): SJ-0, SJ-1, D-2-0, C-2-1 in hand; S-2-0 in bottom (declarer)
+    //   P2(1 in hand): D-2-1
+    //   P3(2 in hand): S-2-1, BJ-1
     const cfg = ntCfg(2, 1); // P1 is declarer
     const reveals: Reveal[] = [
       { playerIndex: 0, suit: Suit.Hearts, strength: 1 },
       { playerIndex: 1, suit: null, strength: 3 },
     ];
     const p0Hand = [c('H', 2, 0), c('H', 2, 1), c('J', Rank.BigJoker, 0), c('C', 2, 0)];
-    const p1Hand = [c('J', Rank.SmallJoker, 0), c('D', 2, 0), c('D', 2, 1), c('C', 2, 1)];
-    const p1Bottom = [c('J', Rank.SmallJoker, 1)];
-    const p2Hand = [c('J', Rank.BigJoker, 1)];
-    const p3Hand = [c('S', 2, 0), c('S', 2, 1)];
+    const p1Hand = [c('J', Rank.SmallJoker, 0), c('J', Rank.SmallJoker, 1), c('D', 2, 0), c('C', 2, 1)];
+    const p1Bottom = [c('S', 2, 0)];
+    const p2Hand = [c('D', 2, 1)];
+    const p3Hand = [c('S', 2, 1), c('J', Rank.BigJoker, 1)];
 
     // Card ID helpers
     function cid(suit: string, rank: number, idx: number): string {
       return c(suit, rank, idx).id;
     }
-    function has(bag: (string[] | null) | undefined, suit: string, rank: number, idx: number): boolean {
+    function has(bag: readonly string[] | null | undefined, suit: string, rank: number, idx: number): boolean {
       const id = cid(suit, rank, idx);
       return (bag ?? []).includes(id);
     }
@@ -668,9 +668,9 @@ describe('NT trump tracking', () => {
       const s = call(p1Hand, 1, [], reveals, cfg, true, p1Bottom);
       // Bottom excluded
       expect(s.possibleTrumps[4]).toBeNull();
-      // 7 unseen cards: {J-16-0, J-16-1, S-2-0, S-2-1, H-2-0, H-2-1, C-2-0}
-      // H-2-0 definitive at P0, rest at {0,2,3}
-      const unseen = ['J-16-0', 'J-16-1', 'S-2-0', 'S-2-1', 'H-2-0', 'H-2-1', 'C-2-0'];
+      // 6 unseen + H-2-0 definitive at P0: {J-16-0,J-16-1,S-2-1,H-2-1,C-2-0,D-2-1} + H-2-0
+      // S-2-0 is in bottom (known to declarer, excluded).
+      const unseen = ['J-16-0', 'J-16-1', 'S-2-1', 'H-2-0', 'H-2-1', 'C-2-0', 'D-2-1'];
       // P0 possible: 6 ambiguous + H-2-0 = 7
       expect(s.possibleTrumps[0]!).toHaveLength(7);
       for (const id of unseen) expect(s.possibleTrumps[0]!).toContain(id);
@@ -717,17 +717,117 @@ describe('NT trump tracking', () => {
     it('P3 view: SJs at {P1, bottom}, H-2-0 at P0 only', () => {
       const s = call(p3Hand, 3, [], reveals, cfg, false, []);
       expect(s.possibleTrumps[3]).toBeNull();
-      // P0 possible: 8 ambiguous + H-2-0 = 9
+      // P3 has 2 trumps, 10 unseen. H-2-0 at {0}, SJs at {1,4}.
+      // 7 unrestricted: BJ-0, H-2-1, C-2-0, C-2-1, D-2-0, D-2-1, S-2-0
+      // P0: 7 + H-2-0 = 8
+      expect(s.possibleTrumps[0]!).toHaveLength(8);
       expect(has(s.possibleTrumps[0], 'H', 2, 0)).toBe(true);
       expect(has(s.possibleTrumps[0], 'J', 15, 0)).toBe(false);
-      // P1 possible: 8 ambiguous + 2 SJs = 10
+      // P1: 7 + 2 SJs = 9
+      expect(s.possibleTrumps[1]!).toHaveLength(9);
       expect(has(s.possibleTrumps[1], 'J', 15, 0)).toBe(true);
       expect(has(s.possibleTrumps[1], 'J', 15, 1)).toBe(true);
-      // P2 possible: 8 ambiguous only (no H-2-0, no SJs)
+      // P2: 7 (no H-2-0 at P2, no SJs)
+      expect(s.possibleTrumps[2]!).toHaveLength(7);
       expect(has(s.possibleTrumps[2], 'H', 2, 0)).toBe(false);
       expect(has(s.possibleTrumps[2], 'J', 15, 0)).toBe(false);
-      // Bottom: 8 ambiguous + 2 SJs = 10
+      // Bottom: 7 + 2 SJs = 9
+      expect(s.possibleTrumps[4]!).toHaveLength(9);
       expect(has(s.possibleTrumps[4], 'J', 15, 0)).toBe(true);
+      expect(has(s.possibleTrumps[4], 'J', 15, 1)).toBe(true);
+    });
+
+    const offsuit = c('S', 3, 0); // non-trump pad card
+
+    it('after P1 leads SJ pair: verify each post-trick perspective', () => {
+      // Trick 1: P1 leads SJ-0, SJ-1 (trump pair, 2 cards).
+      // P2: D-2-1 + pad (1 trump < 2 → void-after-play, also no pair)
+      // P3: S-2-1, BJ-1 (2 singles, no pair → no-pair deduction)
+      // P0: H-2-0, H-2-1 (mandatory pair, no deduction)
+      const trick1 = mockTrickWithPattern(
+        [
+          [c('J', Rank.SmallJoker, 0), c('J', Rank.SmallJoker, 1)],
+          [c('D', 2, 1), offsuit],
+          [c('S', 2, 1), c('J', Rank.BigJoker, 1)],
+          [c('H', 2, 0), c('H', 2, 1)],
+        ],
+        1, 1, 'pair', 1, false,
+      );
+
+      // Post-play hands:
+      const p0Post = [c('J', Rank.BigJoker, 0), c('C', 2, 0)];
+      const p1Post = [c('D', 2, 0), c('C', 2, 1)];
+      const p2Post: Card[] = [];
+      const p3Post: Card[] = [];
+      // Bottom: S-2-0 (known to P1 declarer)
+      // Unplayed: BJ-0(P0), C-2-0(P0), D-2-0(P1), C-2-1(P1), S-2-0(bottom) = 5
+
+      // Key deduction: P2 played 1 trump against 2-card lead → void after play.
+      // In all perspectives, possibleTrumps[2] should be empty.
+
+      // === P0 view: self BJ-0, C-2-0. 3 unseen at {1,3,4}. P2 void. ===
+      const s0 = call(p0Post, 0, [trick1], reveals, cfg, false, []);
+      expect(s0.possibleTrumps[0]).toBeNull();
+      expect(s0.possibleTrumps[1]!).toHaveLength(3);
+      expect(has(s0.possibleTrumps[1], 'D', 2, 0)).toBe(true);
+      expect(has(s0.possibleTrumps[1], 'C', 2, 1)).toBe(true);
+      expect(has(s0.possibleTrumps[1], 'S', 2, 0)).toBe(true);
+      // P2 void (played 1 trump < 2-card lead)
+      expect(s0.possibleTrumps[2]!).toHaveLength(0);
+      expect(s0.playersWithNoTrump.has(2)).toBe(true);
+      // P3: 3 unseen. No pair deduction (C-2 key has only 1 copy per player)
+      expect(s0.possibleTrumps[3]!).toHaveLength(3);
+      // Bottom: 3
+      expect(s0.possibleTrumps[4]!).toHaveLength(3);
+
+      // === P1 view (declarer): self D-2-0, C-2-1; bottom S-2-0 known. 2 unseen at {0,3}. P2 void. ===
+      const s1 = call(p1Post, 1, [trick1], reveals, cfg, true, p1Bottom);
+      expect(s1.possibleTrumps[4]).toBeNull();
+      expect(s1.possibleTrumps[0]!).toHaveLength(2);
+      expect(has(s1.possibleTrumps[0], 'J', 16, 0)).toBe(true);
+      expect(has(s1.possibleTrumps[0], 'C', 2, 0)).toBe(true);
+      // P2 void
+      expect(s1.possibleTrumps[2]!).toHaveLength(0);
+      expect(s1.playersWithNoTrump.has(2)).toBe(true);
+      expect(s1.possibleTrumps[3]!).toHaveLength(2);
+
+      // === P2 view: self void. 5 unseen at {0,1,3,4}. P3 gets C-2 deduction. ===
+      const s2 = call(p2Post, 2, [trick1], reveals, cfg, false, []);
+      expect(s2.possibleTrumps[2]).toBeNull();
+      expect(s2.possibleTrumps[0]!).toHaveLength(5);
+      expect(s2.possibleTrumps[1]!).toHaveLength(5);
+      // P3: 4 (lost one C-2 from pair deduction, but P2 is NOT void from P2's own view)
+      expect(s2.possibleTrumps[3]!).toHaveLength(4);
+      const p3missC2 = has(s2.possibleTrumps[3], 'C', 2, 0)
+        ? !has(s2.possibleTrumps[3], 'C', 2, 1)
+        : !has(s2.possibleTrumps[3], 'C', 2, 0);
+      expect(p3missC2).toBe(true);
+      expect(has(s2.possibleTrumps[3], 'D', 2, 0)).toBe(true);
+      expect(has(s2.possibleTrumps[3], 'S', 2, 0)).toBe(true);
+      expect(s2.possibleTrumps[4]!).toHaveLength(5);
+
+      // === P3 view: self void. 5 unseen at {0,1,2,4}. P2 void (1 trump < 2-card lead). ===
+      const s3 = call(p3Post, 3, [trick1], reveals, cfg, false, []);
+      expect(s3.possibleTrumps[3]).toBeNull();
+      expect(s3.possibleTrumps[0]!).toHaveLength(5);
+      expect(s3.possibleTrumps[1]!).toHaveLength(5);
+      // P2 void after play
+      expect(s3.possibleTrumps[2]!).toHaveLength(0);
+      expect(s3.playersWithNoTrump.has(2)).toBe(true);
+      expect(s3.possibleTrumps[4]!).toHaveLength(5);
+
+      // All views: played cards not in any possibleTrumps
+      const playedIds = [
+        cid('J', 15, 0), cid('J', 15, 1), cid('D', 2, 1),
+        cid('S', 2, 1), cid('J', 16, 1), cid('H', 2, 0), cid('H', 2, 1),
+      ];
+      for (const v of [s0, s1, s2, s3]) {
+        for (let p = 0; p < 5; p++) {
+          const bag = v.possibleTrumps[p];
+          if (!bag) continue;
+          for (const pid of playedIds) expect(bag).not.toContain(pid);
+        }
+      }
     });
 
     it('all non-P1 perspectives agree: only P1/bottom can have SJ', () => {

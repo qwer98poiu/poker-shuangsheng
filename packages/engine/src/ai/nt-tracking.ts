@@ -204,6 +204,8 @@ export function computeNTTrumpState(
         .filter(c => isTrump(c, config))
         .map(c => c.id);
 
+      const leadLen = leadCards.length;
+
       if (playedTrumpIds.length > 0) {
         // Played trump cards are no longer in any hand — remove from tracking
         for (const id of playedTrumpIds) {
@@ -219,8 +221,18 @@ export function computeNTTrumpState(
             applyNoPairDeduction(actualPlayer, possibleLocations);
           }
         }
+
+        // Void-after-play deduction: if player followed a multi-card trump
+        // lead with fewer trumps than required (M < N), they had exactly M
+        // trump cards and are now void.
+        if (isTrumpLead && actualPlayer !== myIndex
+          && playedTrumpIds.length < leadLen) {
+          for (const locs of possibleLocations.values()) {
+            locs.delete(actualPlayer);
+          }
+        }
       } else if (isTrumpLead) {
-        // Player discarded against a trump lead → void in trump.
+        // Player discarded entirely against a trump lead → void in trump.
         // Clear this player from all possible locations.
         for (const locs of possibleLocations.values()) {
           locs.delete(actualPlayer);
