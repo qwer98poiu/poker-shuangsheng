@@ -1277,6 +1277,18 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
       expect(r.cards[0].rank).toBe(14);
       expect(r.reason).toContain('同花色出大');
     });
+
+    it('cannot beat, fourth+!tmWin: avoid points annotation', () => {
+      // P0 leads ♠4, P1 plays ♠5, P2 plays JOKER, AI=P3 fourth can't beat.
+      const lead: Card[] = [ct('H', 4, 200)];
+      const best = { cards: [ct('J', 16, 0)], playerIdx: 2 };
+      const hand = [ct('H', 12, 0), ct('H', 10, 0), ct('H', 5, 0)];
+      const r = aiFollowPlay(hand, lead, 'H', cfgT, best, 3);
+      checkFollow(r.cards, hand, lead, null, cfgT);
+      expect(r.cards.length).toBe(1);
+      expect(r.reason).toContain('同花色出小');
+      expect(r.reason).toContain('尽量不加分');
+    });
   });
 
   describe('trump follow pair with points (hearts trump, level=5)', () => {

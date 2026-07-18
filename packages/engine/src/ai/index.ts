@@ -624,9 +624,15 @@ function followTrumpLead(
           leadCombo, 1, ctx, position, tmWin, false, intent);
         return { cards, reason };
       }
-      myTrump.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+      const shouldAvoid = (position === 'fourth' && !tmWin)
+        || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx));
+      if (shouldAvoid) {
+        myTrump.sort(discardSort(false, ctx));
+      } else {
+        myTrump.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+      }
       const cards = [myTrump[0]];
-      const intent = 'none';
+      const intent = shouldAvoid ? 'avoid' : 'none';
       const reason = annotateReason('同花色出小', cards, [], myTrump,
         leadCombo, 1, ctx, position, tmWin, false, intent);
       return { cards, reason };
@@ -1284,9 +1290,15 @@ function followNTTrumpLead(
           leadCombo, 1, ctx, position, tmWin, false, intent);
         return { cards, reason };
       }
-      myTrump.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+      const shouldAvoid = (position === 'fourth' && !tmWin)
+        || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx));
+      if (shouldAvoid) {
+        myTrump.sort(discardSort(false, ctx));
+      } else {
+        myTrump.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+      }
       const cards = [myTrump[0]];
-      const intent = 'none';
+      const intent = shouldAvoid ? 'avoid' : 'none';
       const reason = annotateReason('同花色出小', cards, [], myTrump,
         leadCombo, 1, ctx, position, tmWin, false, intent);
       return { cards, reason };

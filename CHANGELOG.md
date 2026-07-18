@@ -1320,3 +1320,17 @@ discardSort 签名新增可选 `config` 参数，各调用点传入 ctx。
 **新增 1 项测试**（ai-follow.test.ts：84 项），431 项通过。
 
 - **影响文件**：`packages/engine/src/ai/index.ts`
+## 2026-07-18 17:10
+
+### 吊主单张盖不过分支增加 shouldAvoid + 弃分配非分优先
+
+**问题 1**：`followTrumpLead`/`followNTTrumpLead` 单张盖不过分支始终不标注"尽量不加分"。
+
+**问题 2**：shouldAvoid 时选牌应优先非分牌（`discardSort(false)`），否则最小牌是分牌时不必要的送了分。
+
+**修复**：shouldAvoid 时用 `discardSort(false)` 排序，标注 `intent='avoid'`。
+
+**新增 1 项测试**（ai-follow.test.ts：85 项），432 项通过。
+
+- **影响文件**：`packages/engine/src/ai/index.ts`
+- **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
