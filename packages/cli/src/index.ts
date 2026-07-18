@@ -361,7 +361,7 @@ async function startNewRound(
     gameState = tryReveal(gameState, forcedDeclarer, targetSuit);
   }
 
-  await doReveal(isFirstRound, forcedDeclarer);
+  await doReveal(isFirstRound, autoReveal ? forcedDeclarer : undefined);
   await doBottomExchange();
   await doPlayPhase();
 }

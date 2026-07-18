@@ -1247,3 +1247,13 @@ discardSort 签名新增可选 `config` 参数，各调用点传入 ctx。
 **修复**（`matchTrumpPattern`、`followOffSuitMulti`、`trumpKill`）：所选拖拉机不能盖过时，反向排序重试找能盖过的。
 
 **影响文件**：`packages/engine/src/ai/index.ts`
+
+## 2026-07-18 12:00
+
+### 修正：不指定花色时不应跳过人类亮主
+
+**问题**：`doReveal` 的 `skipPlayer` 参数始终设为 `forcedDeclarer`，导致未指定花色时（不自动亮主）也跳过人类玩家的亮主提示。
+
+**修复**：仅在 `autoReveal` 为 true（明确指定了花色）时才跳过该玩家。
+
+- **影响文件**：`packages/cli/src/index.ts`
