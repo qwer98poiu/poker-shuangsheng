@@ -1237,3 +1237,13 @@ discardSort 签名新增可选 `config` 参数，各调用点传入 ctx。
 
 - **影响文件**：`packages/engine/src/ai/index.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
+
+## 2026-07-18 11:40
+
+### 拖拉机跟牌修复：扫描能盖过的拖拉机
+
+**问题**：`tryMatchTractorSlots` 选取最短/最小的拖拉机，若不能盖过则直接放弃，不检查其他拖拉机能否盖过。
+
+**修复**（`matchTrumpPattern`、`followOffSuitMulti`、`trumpKill`）：所选拖拉机不能盖过时，反向排序重试找能盖过的。
+
+**影响文件**：`packages/engine/src/ai/index.ts`

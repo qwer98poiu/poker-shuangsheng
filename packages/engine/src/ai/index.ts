@@ -609,7 +609,17 @@ function matchTrumpPattern(
         const bMax = getEffectiveRank(maxCardT(b, ctx), ctx);
         return aMax - bMax;
       });
-      const picked = tryMatchTractorSlots(leadCombo, myTractors, myTrump, leadLen, ctx);
+      let picked = tryMatchTractorSlots(leadCombo, myTractors, myTrump, leadLen, ctx);
+      if (picked && !canBeat(picked, ctx.bestSoFar, ctx)) {
+        // Sort biggest-first to try finding a beating tractor
+        myTractors.sort((a, b) => {
+          const aMax = getEffectiveRank(maxCardT(a, ctx), ctx);
+          const bMax = getEffectiveRank(maxCardT(b, ctx), ctx);
+          return bMax - aMax;
+        });
+        const alt = tryMatchTractorSlots(leadCombo, myTractors, myTrump, leadLen, ctx);
+        if (alt && canBeat(alt, ctx.bestSoFar, ctx)) picked = alt;
+      }
       if (picked) {
         const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
         const intent = addPoints ? 'add' : 'none';
@@ -787,7 +797,17 @@ function followOffSuitMulti(
     const myTractors = detectTractors(leadSuitCards, ctx);
     if (myTractors.length > 0) {
       myTractors.sort((a, b) => b.length - a.length);
-      const picked = tryMatchTractorSlots(leadCombo, myTractors, leadSuitCards, leadLen, ctx);
+      let picked = tryMatchTractorSlots(leadCombo, myTractors, leadSuitCards, leadLen, ctx);
+      if (picked && !canBeat(picked, ctx.bestSoFar, ctx)) {
+        // Sort by max rank descending to try finding a beating tractor
+        myTractors.sort((a, b) => {
+          const aMax = getEffectiveRank(maxCardT(a, ctx), ctx);
+          const bMax = getEffectiveRank(maxCardT(b, ctx), ctx);
+          return bMax - aMax;
+        });
+        const alt = tryMatchTractorSlots(leadCombo, myTractors, leadSuitCards, leadLen, ctx);
+        if (alt && canBeat(alt, ctx.bestSoFar, ctx)) picked = alt;
+      }
       if (picked) {
         const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
         const intent = addPoints ? 'add' : 'none';
@@ -945,7 +965,13 @@ function trumpKill(
         return aMax - bMax;
       });
       if (hasPoints && !overkill) myTractors.reverse(); // biggest first
-      const picked = tryMatchTractorSlots(leadCombo, myTractors, trumpCards, leadLen, ctx);
+      let picked = tryMatchTractorSlots(leadCombo, myTractors, trumpCards, leadLen, ctx);
+      if (picked && !canTrumpKillBeat(picked, leadCards, ctx)) {
+        // Reverse sort to try finding a tractor that can beat
+        myTractors.reverse();
+        const alt = tryMatchTractorSlots(leadCombo, myTractors, trumpCards, leadLen, ctx);
+        if (alt && canTrumpKillBeat(alt, leadCards, ctx)) picked = alt;
+      }
       if (picked && canTrumpKillBeat(picked, leadCards, ctx)) {
         const reason = overkill ? '盖毙' : '用主牌毙';
         return { cards: picked, reason };
