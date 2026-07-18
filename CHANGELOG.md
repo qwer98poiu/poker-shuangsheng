@@ -1257,3 +1257,13 @@ discardSort 签名新增可选 `config` 参数，各调用点传入 ctx。
 **修复**：仅在 `autoReveal` 为 true（明确指定了花色）时才跳过该玩家。
 
 - **影响文件**：`packages/cli/src/index.ts`
+
+## 2026-07-18 12:15
+
+### 修正：缺门且队友已大可加分时不应毙牌
+
+**问题**：缺门时无条件进 `trumpKill`，即使队友已经赢了。例如队友领出副牌 A（最大），对手跟小牌，自己是第三家缺门——应通过垫分牌加分而非浪费主牌毙。
+
+**修复**（`followOffSuit` void 分支）：缺门时先检查 `tmWin && canAddPoints`——队友已大可安全加分则垫分牌；否则正常毙牌。
+
+**影响文件**：`packages/engine/src/ai/index.ts`

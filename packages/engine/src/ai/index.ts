@@ -517,8 +517,17 @@ function _aiFollowPlay(
     return { cards, reason };
   }
 
-  // Void in lead suit - try to trump
+  // Void in lead suit
   if (trumpCards.length >= leadLen) {
+    // Teammate already wins + safe to add points → dump points instead of wasting trump
+    if (tmWin && canAddPoints(tmWin, position, leadCombo, ctx)) {
+      const nonTrump = hand.filter(c => !isTrump(c, ctx));
+      nonTrump.sort(discardSort(true, ctx));
+      const cards = nonTrump.slice(0, leadLen);
+      const reason = annotateReason('垫牌', cards, [], trumpCards,
+        leadCombo, leadLen, ctx, position, tmWin, false, 'add');
+      return { cards, reason };
+    }
     return trumpKill(trumpCards, hand, leadCards, leadCombo, leadLen, ctx, position, tmWin);
   }
 
