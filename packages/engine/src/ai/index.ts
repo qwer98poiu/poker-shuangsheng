@@ -564,15 +564,60 @@ function followTrumpLead(
     if (myTrump.length > 0) {
       const canBeatCards = myTrump.filter(c => getEffectiveRank(c, ctx) > currentMax);
       if (canBeatCards.length > 0) {
-        // Position 2: generally play small unless have tractor/throw to seize lead
+        // Second position: generally play small unless can seize lead
         if (position === 'second') {
-          myTrump.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
-          return { cards: [myTrump[0]], reason: '同花色出小' };
+          const hasTractor = detectTractors(hand, ctx).length > 0;
+          const hasThrow = findThrowableOffSuitCombos(hand, ctx).length > 0;
+          if (!hasTractor && !hasThrow) {
+            myTrump.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+            return { cards: [myTrump[0]], reason: '同花色出小' };
+          }
+          // Has tractor/throw → seize lead
+          if (hasTractor) {
+            canBeatCards.sort((a, b) => getEffectiveRank(b, ctx) - getEffectiveRank(a, ctx));
+          } else {
+            const aceRank = getEffectiveRank(
+              { suit: ctx.trumpSuit ?? Suit.Spades, rank: Rank.Ace, isJoker: false, id: '' } as Card, ctx);
+            const bigBeaters = canBeatCards.filter(c => getEffectiveRank(c, ctx) >= aceRank);
+            if (bigBeaters.length > 0) {
+              bigBeaters.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+              const cards = [bigBeaters[0]];
+              const reason = annotateReason('同花色出大', cards, [], myTrump,
+                leadCombo, 1, ctx, position, tmWin, false, 'none');
+              return { cards, reason };
+            }
+            canBeatCards.sort((a, b) => getEffectiveRank(b, ctx) - getEffectiveRank(a, ctx));
+          }
+          const cards = [canBeatCards[0]];
+          const reason = annotateReason('同花色出大', cards, [], myTrump,
+            leadCombo, 1, ctx, position, tmWin, false, 'none');
+          return { cards, reason };
         }
-        canBeatCards.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+
+        // Non-second position: has points → biggest; no points → ≥A or biggest
+        const hasPoints = leadCards.some(c => isPointRank(c.rank))
+          || (ctx.bestSoFar && ctx.bestSoFar.cards.some(c => isPointRank(c.rank)));
+        if (hasPoints) {
+          canBeatCards.sort((a, b) => getEffectiveRank(b, ctx) - getEffectiveRank(a, ctx));
+        } else {
+          const aceRank = getEffectiveRank(
+            { suit: ctx.trumpSuit ?? Suit.Spades, rank: Rank.Ace, isJoker: false, id: '' } as Card, ctx);
+          const bigBeaters = canBeatCards.filter(c => getEffectiveRank(c, ctx) >= aceRank);
+          if (bigBeaters.length > 0) {
+            bigBeaters.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+            const cards = [bigBeaters[0]];
+            const fourthBeat = position === 'fourth' && !tmWin;
+            const intent = fourthBeat ? 'beat_points' : 'none';
+            const reason = annotateReason('同花色出大', cards, [], myTrump,
+              leadCombo, 1, ctx, position, tmWin, false, intent);
+            return { cards, reason };
+          }
+          canBeatCards.sort((a, b) => getEffectiveRank(b, ctx) - getEffectiveRank(a, ctx));
+        }
         const cards = [canBeatCards[0]];
         const fourthBeat = position === 'fourth' && !tmWin;
-        const intent = (tmWin && canAddPoints(tmWin, position, leadCombo, ctx)) ? 'add'
+        const intent = hasPoints ? 'none'
+          : (tmWin && canAddPoints(tmWin, position, leadCombo, ctx)) ? 'add'
           : fourthBeat ? 'beat_points' : 'none';
         const reason = annotateReason('同花色出大', cards, [], myTrump,
           leadCombo, 1, ctx, position, tmWin, false, intent);
@@ -656,8 +701,12 @@ function matchTrumpPattern(
 
   if (leadCombo.pairCount > 0) {
     const myPairs = findAllPairs(myTrump); pairKillSort(myPairs, myTrump, ctx);
+    // Has points in trick → use biggest pair to beat
+    const hasPoints = (ctx.bestSoFar && ctx.bestSoFar.cards.some(c => isPointRank(c.rank)))
+      || leadCards.some(c => isPointRank(c.rank));
+    if (hasPoints) myPairs.reverse();
     let chosen = myPairs.slice(0, leadCombo.pairCount).flat();
-    // If smallest pair(s) cannot beat, try finding a pair that can.
+    // If pair(s) cannot beat, try finding a pair that can.
     // For fourth position that can beat, prefer point-card pairs.
     const pairBeating = canBeat(chosen, ctx.bestSoFar, ctx);
     if (!pairBeating) {
@@ -670,6 +719,7 @@ function matchTrumpPattern(
             const bPts = isPointRank(b[0].rank) ? 0 : 100;
             if (aPts !== bPts) return aPts - bPts;
           }
+          if (hasPoints) return getEffectiveRank(b[0], ctx) - getEffectiveRank(a[0], ctx);
           return getEffectiveRank(a[0], ctx) - getEffectiveRank(b[0], ctx);
         });
         chosen = beatingPairs.slice(0, leadCombo.pairCount).flat();
@@ -771,15 +821,25 @@ function followOffSuitSingle(
     return { cards, reason };
   }
 
-  // Can beat opponent - play smallest that beats
+  // Can beat opponent - play smallest that beats, fourth prefers point cards
   if (ctx.bestSoFar && ctx.bestSoFar.cards.length > 0) {
     const bestRank = Math.max(...ctx.bestSoFar.cards.map(c => getEffectiveRank(c, ctx)));
     const beaters = leadSuitCards.filter(c => getEffectiveRank(c, ctx) > bestRank);
     if (beaters.length > 0) {
+      const fourthBeat = position === 'fourth' && !tmWin;
+      if (fourthBeat) {
+        // Fourth beating — prefer point cards
+        const pointBeaters = beaters.filter(c => isPointRank(c.rank));
+        if (pointBeaters.length > 0) {
+          pointBeaters.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+          const cards = [pointBeaters[0]];
+          const reason = annotateReason('同花色出大', cards, leadSuitCards, trumpCards,
+            leadCombo, 1, ctx, position, tmWin, false, 'beat_points');
+          return { cards, reason };
+        }
+      }
       beaters.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
       const cards = [beaters[0]];
-      // Fourth position beating opponent: try to use point cards
-      const fourthBeat = position === 'fourth' && !tmWin;
       const intent = fourthBeat ? 'beat_points' : 'none';
       const reason = annotateReason('同花色出大', cards, leadSuitCards, trumpCards,
         leadCombo, 1, ctx, position, tmWin, false, intent);
