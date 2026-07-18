@@ -17,6 +17,7 @@ import {
   groupBySuit, suitLabelCn, cardName, getTopOffSuitRank,
 } from './utils.js';
 import { findThrowableOffSuitCombos } from './throw-detector.js';
+import { computeIdealFollow } from '../following/index.js';
 import { aiChooseBottomCards as aiChooseBottomImpl } from './bottom-strategy.js';
 import {
   canFormJokerPair, opponentsHaveTrump, canAnyOpponentBeatSingle, canAnyOpponentBeatPair,
@@ -1444,74 +1445,90 @@ function isMaxPattern(leadCombo: ComboClass, ctx: AIContext): boolean {
 
 /**
  * Check if the chosen cards are the only legal play from this hand.
- * True when: lead-suit cards exactly match what's needed (single=1 card,
- * pair=1 pair or 2 cards, tractor=1 matching tractor or N pairs or N*2 cards),
- * AND no cross-suit filling is needed.
- * Does NOT apply to short-suited fills or last-card situations.
+ *
+ * Definition: The follower's hand has exactly one set of cards matching the
+ * lead pattern, where not a single card can be changed.
+ *
+ * Rules:
+ * 1. If lead-suit count equals lead length, all cards are forced (unique).
+ * 2. If the lead contains singles, not unique (singles can be chosen freely).
+ * 3. Lead only has pairs/tractors (no singles):
+ *    a. No tractor in lead or no tractor in hand: compare pair counts.
+ *    b. Both have tractors: use computeIdealFollow to compare pattern totals.
  */
 function isOnlyLegalPlay(
-  cards: Card[],
+  _cards: Card[],
   leadSuitCards: Card[],
   leadLen: number,
-  trumpCards: Card[],
+  _trumpCards: Card[],
   isTrumpKill: boolean,
   config: AIContext,
   leadCombo: ComboClass,
 ): boolean {
   if (isTrumpKill) return false;
-  if (leadSuitCards.length === 0) return false; // void + discard, many choices
-  if (leadSuitCards.length < leadLen) return false; // short-suited, need fillers
+  if (leadSuitCards.length === 0) return false;
+  if (leadSuitCards.length < leadLen) return false;
 
-  // Single lead: only 1 lead-suit card → unique
-  if (leadLen === 1 && leadSuitCards.length === 1) return true;
+  // Rule 1: same-suit count equals lead length, all cards forced.
+  if (leadSuitCards.length === leadLen) return true;
 
-  // Pair lead: unique if only 1 pair exists among lead-suit cards
-  if (leadCombo.pairCount > 0 && !leadCombo.hasTractor) {
-    const pairs = findAllPairs(leadSuitCards);
-    const tractorPairs = detectTractors(leadSuitCards, config);
-    // Tractors can be broken, so only count standalone pairs + pairs in tractors
-    // Simple check: if findAllPairs returns exactly leadCombo.pairCount pairs
-    // and total cards are accounted for by those pairs + remaining singles,
-    // then unique means only 1 legal way to form the required pairs.
-    if (pairs.length === leadCombo.pairCount && leadSuitCards.length === leadLen) {
-      // All lead-suit cards are used in pairs → exactly these pairs must be played
-      return true;
-    }
-    // Only 1 way to pick pairs. Singles are forced only if no filler slots remain.
-    if (leadCombo.pairCount === 1 && pairs.length === 1) {
-      const pairSlots = leadCombo.pairCount * 2;
-      if (leadLen === pairSlots) return true; // pairs fill all slots
-      // Throw/extra singles: unique only if no spare cards for filler choice
-      if (leadSuitCards.length === leadLen) return true;
-      return false;
-    }
-    if (leadCombo.pairCount > 1 && pairs.length === leadCombo.pairCount
-        && leadSuitCards.length === leadLen) return true;
-    return false;
+  // Rule 2: lead contains singles, not unique.
+  const tractorPairCount = leadCombo.tractors.reduce((s, t) => s + t.pairCount, 0);
+  const totalPairCards = (leadCombo.pairCount + tractorPairCount) * 2;
+  const hasSingles = leadCombo.type === 'single' || totalPairCards < leadLen;
+  if (hasSingles) return false;
+
+  // Rule 3: lead only has pairs/tractors (no singles).
+  const handTractors = detectTractors(leadSuitCards, config);
+  const leadHasTractor = leadCombo.hasTractor;
+  const handHasTractor = handTractors.length > 0;
+
+  if (!leadHasTractor || !handHasTractor) {
+    // Rule 3a: compare pair counts (including tractor pairs).
+    const leadTotalPairs = leadCombo.pairCount + tractorPairCount;
+    const handTotalPairs = findAllPairs(leadSuitCards).length;
+    return leadTotalPairs === handTotalPairs;
   }
 
-  // Tractor lead: unique if exactly 1 matching tractor exists and all cards pair up
-  if (leadCombo.hasTractor) {
-    const tractors = detectTractors(leadSuitCards, config);
-    if (tractors.length > 0) {
-      const matched = tryMatchTractorSlots(leadCombo, tractors, leadSuitCards, leadLen, config);
-      if (matched && matched.length === leadLen) {
-        // Only one way to match → unique
-        return true;
+  // Rule 3b: both have tractors, use computeIdealFollow.
+  const tr = leadCombo.tractors.map(t => t.pairCount);
+  tr.sort((a, b) => b - a);
+  const ideal = computeIdealFollow(
+    leadSuitCards,
+    { tractorReqs: tr, pairReqs: leadCombo.pairCount },
+    config,
+  );
+
+  // Build follow pattern: tractor pair counts + standalone pairs (each = 1).
+  const played = ideal.tractorPairCounts.reduce((s, n) => s + n, 0);
+  const standalonePairs = ideal.minTotalPairs - played;
+  const allPairCounts = [...ideal.tractorPairCounts];
+  for (let i = 0; i < standalonePairs; i++) allPairCounts.push(1);
+
+  if (allPairCounts.length === 0) return false;
+  const minIdeal = Math.min(...allPairCounts);
+
+  // Remove hand tractors/pairs with pair count < minIdeal,
+  // then compare remaining hand total pairs with ideal total.
+  const allPairs = findAllPairs(leadSuitCards);
+  const tractorSets = handTractors.map(t => ({ cards: new Set(t.map(c => c.id)), pc: t.length / 2 }));
+
+  let handTotal = 0;
+  for (const pair of allPairs) {
+    let qualifies = minIdeal <= 1;
+    if (!qualifies) {
+      for (const ts of tractorSets) {
+        if (ts.pc >= minIdeal && pair.every(c => ts.cards.has(c.id))) {
+          qualifies = true;
+          break;
+        }
       }
     }
-    // No matching tractor: fill with pairs + singles
-    const pairs = findAllPairs(leadSuitCards);
-    if (leadCombo.pairCount >= 1 && pairs.length === leadCombo.pairCount
-        && leadSuitCards.length === leadLen) return true;
-    return false;
+    if (qualifies) handTotal++;
   }
 
-  // Pure singles: unique if lead-suit cards === leadLen (only these to play)
-  if (leadCombo.pairCount === 0 && !leadCombo.hasTractor
-      && leadSuitCards.length === leadLen) return true;
-
-  return false;
+  const idealTotal = allPairCounts.reduce((a, b) => a + b, 0);
+  return idealTotal === handTotal;
 }
 
 /**

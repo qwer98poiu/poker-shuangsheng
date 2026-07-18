@@ -1349,3 +1349,26 @@ discardSort 签名新增可选 `config` 参数，各调用点传入 ctx。
 4. 删除 `followTrumpThrow` 中 `padWithDiscards` 的死代码调用
 
 - **影响文件**：`packages/engine/src/ai/index.ts`
+
+## 2026-07-19 01:34
+
+### 重写 isOnlyLegalPlay 唯一可出判断
+
+**问题**：旧逻辑依赖 `tryMatchTractorSlots` 精确定位唯一匹配，对含单牌的甩牌判断过于宽松，拖拉机分支无法正确区分多选情况。
+
+**新规则**：
+
+1. 手牌同花色张数 = 领出张数 → 唯一可出（全强制）
+2. 领出含有单牌 → 不唯一（单牌可自由选）
+3. 领出仅含对/拖拉机：
+   - 领出/手牌无拖拉机 → 比较总对数
+   - 双方均有拖拉机 → 调用 `computeIdealFollow`，滤掉不足长度的对/拖拉机后比较总对数
+
+**新增 `computeIdealFollow` import**：从 `following/index.ts` 复用已有函数。
+
+**新增 5 项测试**（ai-follow.test.ts：90 项），437 项通过。
+
+**已知问题**：`tryMatchTractorSlots` 在级牌跳跃导致拖拉机合并时（如 level=6 时 88775544 被合并为 4 对拖拉机），无法正确拆分为两个 2 对拖拉机，导致 `validateFollow` 拒绝 AI 的合法跟牌。该 bug 在本次重写前已存在，未修复。
+
+- **影响文件**：`packages/engine/src/ai/index.ts`
+- **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
