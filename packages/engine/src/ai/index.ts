@@ -946,11 +946,16 @@ function followOffSuitMulti(
       }
     }
     const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
+    const shouldAvoid = !addPoints
+      && ((position === 'fourth' && !tmWin)
+        || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx)));
     if (chosen.length < leadLen) {
       const used = new Set(chosen.map(c => c.id));
       const rest = leadSuitCards.filter(c => !used.has(c.id));
       if (addPoints) {
         rest.sort(discardSort(true, ctx));
+      } else if (shouldAvoid) {
+        rest.sort(discardSort(false, ctx));
       } else {
         rest.sort((a, b) => a.rank - b.rank);
       }
@@ -959,7 +964,7 @@ function followOffSuitMulti(
     const cards = chosen.slice(0, leadLen);
     const beating = canBeat(cards, ctx.bestSoFar, ctx);
     const baseReason = beating ? '同花色出大' : '同花色出小';
-    const intent = addPoints ? 'add' : 'none';
+    const intent = addPoints ? 'add' : shouldAvoid ? 'avoid' : 'none';
     const reason = annotateReason(baseReason, cards, leadSuitCards, [],
       leadCombo, leadLen, ctx, position, tmWin, false, intent);
     return { cards, reason };
@@ -1455,9 +1460,14 @@ function isOnlyLegalPlay(
       // All lead-suit cards are used in pairs → exactly these pairs must be played
       return true;
     }
-    // More cards than needed, but only 1 way to pick pairs:
-    // e.g. 3 lead-suit cards, 1 pair needed, only 1 pair exists → unique
-    if (leadCombo.pairCount === 1 && pairs.length === 1) return true;
+    // Only 1 way to pick pairs. Singles are forced only if no filler slots remain.
+    if (leadCombo.pairCount === 1 && pairs.length === 1) {
+      const pairSlots = leadCombo.pairCount * 2;
+      if (leadLen === pairSlots) return true; // pairs fill all slots
+      // Throw/extra singles: unique only if no spare cards for filler choice
+      if (leadSuitCards.length === leadLen) return true;
+      return false;
+    }
     if (leadCombo.pairCount > 1 && pairs.length === leadCombo.pairCount
         && leadSuitCards.length === leadLen) return true;
     return false;

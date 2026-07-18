@@ -1304,3 +1304,19 @@ discardSort 签名新增可选 `config` 参数，各调用点传入 ctx。
 
 **影响文件**：`packages/engine/src/ai/index.ts`
 **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
+
+## 2026-07-18 16:55
+
+### 修正 isOnlyLegalPlay + 对子跟牌分支缺少 shouldAvoid
+
+**问题 1**：甩牌含对子+单张时，`isOnlyLegalPlay` 误判为唯一可出（pairCount=1 且只有 1 对），忽略多张单张可选。
+
+**问题 2**：`followOffSuitMulti` 对子跟牌分支缺少 `shouldAvoid` 逻辑，第二家/第四家对子盖不过时不标注"尽量不加分"。
+
+**修复**：
+- `isOnlyLegalPlay`：pairCount=1+pairs.length=1 时，增加 leadLen===pairSlots 或 leadSuitCards===leadLen 的精确条件
+- `followOffSuitMulti`：对子跟牌分支增加 `shouldAvoid` 判断，第二家+max pattern+!tmWin 或第四家+!tmWin 时标注 avoid
+
+**新增 1 项测试**（ai-follow.test.ts：84 项），431 项通过。
+
+- **影响文件**：`packages/engine/src/ai/index.ts`

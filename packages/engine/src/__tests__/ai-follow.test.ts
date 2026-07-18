@@ -1380,6 +1380,34 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
     });
   });
 
+  describe('throw pair+single, has one pair but multiple singles → not unique', () => {
+    // Reproduces: P0 (declarer) leads ♦A♦A♦K. AI-2 (P1, second+!tmWin) has
+    // ♦7♦7 + 6 other singles. Must follow with the pair, but many single choices
+    // → NOT 唯一可出. Second + max pattern → avoid points.
+    const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
+    function ct(s: string, r: number, i: number): Card {
+      return createCard(s as any, r as any, i);
+    }
+
+    it('pair+single throw, one pair + spare singles → not 唯一可出, avoid points', () => {
+      const lead: Card[] = [ct('D', 14, 200), ct('D', 14, 201), ct('D', 13, 200)];
+      const best = { cards: lead, playerIdx: 0 };
+      const hand = [
+        ct('D', 7, 0), ct('D', 7, 1),  // pair
+        ct('D', 4, 0), ct('D', 10, 0), ct('D', 9, 0),
+        ct('D', 8, 0), ct('D', 6, 0), ct('D', 5, 0),
+        ct('S', 8, 0), ct('H', 3, 0),
+      ];
+      const r = aiFollowPlay(hand, lead, 'D', cfg, best, 1);
+      checkFollow(r.cards, hand, lead, 'D', cfg);
+      expect(r.cards.length).toBe(3);
+      // Must play ♦7♦7 pair + a filler single — many singleton choices → NOT 唯一可出
+      expect(r.reason).not.toContain('唯一可出');
+      // Second + !tmWin + max pattern → avoid points on filler single
+      expect(r.reason).toContain('尽量不加分');
+    });
+  });
+
   describe('team-win void avoids unnecessary trump kill', () => {
     const cfgD: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Diamonds, level: 2 };
     function ct(s: string, r: number, i: number): Card {
