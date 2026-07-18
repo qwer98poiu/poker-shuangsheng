@@ -486,7 +486,7 @@ function _aiFollowPlay(
   // ---- Throw lead (甩牌) ----
   if (leadCombo.type === 'throw') {
     if (leadIsTrump) {
-      return followTrumpThrow(hand, leadLen, ctx, position, tmWin);
+      return followTrumpThrow(hand, leadCards, leadLen, leadCombo, ctx, position, tmWin);
     }
     return followOffSuitThrow(hand, leadCards, leadSuitCards, trumpCards, leadLen, ctx, position, tmWin);
   }
@@ -1243,7 +1243,9 @@ function followOffSuitThrow(
 
 function followTrumpThrow(
   hand: Card[],
+  leadCards: Card[],
   leadLen: number,
+  leadCombo: ComboClass,
   ctx: AIContext,
   position: string,
   tmWin: boolean,
@@ -1251,14 +1253,13 @@ function followTrumpThrow(
   const trump = hand.filter(c => isTrump(c, ctx));
   if (trump.length >= leadLen) {
     trump.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
-    return { cards: trump.slice(0, leadLen), reason: '垫主牌' };
+    const cards = trump.slice(0, leadLen);
+    const reason = annotateReason('同花色出小', cards, [], trump,
+      leadCombo, leadLen, ctx, position, tmWin, false, 'none');
+    return { cards, reason };
   }
-  // Not enough trump
-  padWithDiscards(hand, trump, leadLen, ctx, tmWin);
-  return {
-    cards: [...trump, ...hand.filter(c => !isTrump(c, ctx)).slice(0, leadLen - trump.length)],
-    reason: '主牌不够，垫副牌',
-  };
+  // Not enough trump — pad with off-suit fillers
+  return padWithDiscards(hand, trump, leadLen, ctx, tmWin);
 }
 
 // ---- NT trump follow ----
@@ -1375,21 +1376,25 @@ function discardNonTrump(
   ctx: AIContext,
   position: string,
   tmWin: boolean,
+  leadCombo?: ComboClass,
 ): { cards: Card[]; reason: string } {
   const nonTrump = hand.filter(c => !isTrump(c, ctx));
   nonTrump.sort(discardSort(!!tmWin, ctx));
+  const combo = leadCombo || { type: 'single' as const, cards: [], length: leadLen, pairCount: 0, tractors: [], hasTractor: false };
   if (nonTrump.length >= leadLen) {
     const cards = nonTrump.slice(0, leadLen);
     const intent = (tmWin && position === 'fourth') ? 'add' : 'none';
-    const reason = intent === 'add' ? '垫牌（队友已大，尽量加分）' : '垫牌';
+    const reason = annotateReason('垫牌', cards, [], [],
+      combo, leadLen, ctx, position, tmWin, false, intent);
     return { cards, reason };
   }
   const trump = hand.filter(c => isTrump(c, ctx));
   trump.sort(discardSort(!!tmWin, ctx));
-  return {
-    cards: [...nonTrump, ...trump].slice(0, leadLen),
-    reason: '垫牌(含主牌)',
-  };
+  const cards = [...nonTrump, ...trump].slice(0, leadLen);
+  const intent = (tmWin && position === 'fourth') ? 'add' : 'none';
+  const reason = annotateReason('垫牌', cards, [], [],
+    combo, leadLen, ctx, position, tmWin, false, intent);
+  return { cards, reason };
 }
 
 function padWithDiscards(
@@ -1403,7 +1408,7 @@ function padWithDiscards(
   nonTrump.sort(discardSort(!!tmWin, ctx));
   return {
     cards: [...myTrump, ...nonTrump].slice(0, leadLen),
-    reason: '主牌不足，补垫牌',
+    reason: '主牌不够，垫副牌',
   };
 }
 

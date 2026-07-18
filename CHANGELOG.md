@@ -1334,3 +1334,18 @@ discardSort 签名新增可选 `config` 参数，各调用点传入 ctx。
 
 - **影响文件**：`packages/engine/src/ai/index.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
+
+## 2026-07-18 17:30
+
+### 统一跟牌理由，消除硬编码标注和死代码
+
+**问题**：多个跟牌分支绕过 `annotateReason` 直接硬编码标注，导致理由不一致。
+
+**修复**：
+
+1. `discardNonTrump`：`垫牌（队友已大，尽量加分）` 和 `垫牌(含主牌)` 改为走 `annotateReason('垫牌', ...)`
+2. `followTrumpThrow`：`垫主牌` 改为 `同花色出小`（跟主牌就是跟同花色）+ `annotateReason` 标注
+3. `padWithDiscards`：`主牌不足，补垫牌` 与 `主牌不够，垫副牌` 统一为后者
+4. 删除 `followTrumpThrow` 中 `padWithDiscards` 的死代码调用
+
+- **影响文件**：`packages/engine/src/ai/index.ts`
