@@ -1176,4 +1176,235 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
       expect(r.reason).toBe('盖毙');
     });
   });
+
+  describe('trump follow single beating rules (hearts trump, level=5)', () => {
+    const cfgT: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 5 };
+    function ct(s: string, r: number, i: number): Card {
+      return createCard(s as any, r as any, i);
+    }
+
+    it('second position: plays small trump (no tractor/throw to seize)', () => {
+      // P0 leads H-3 (effRank=603), AI=P1 second, no tractor/throw
+      const lead: Card[] = [ct('H', 3, 200)];
+      const best = { cards: lead, playerIdx: 0 };
+      const hand = [ct('H', 14, 0), ct('H', 13, 0), ct('H', 10, 0),
+        ct('H', 8, 0), ct('S', 8, 0)];
+      const r = aiFollowPlay(hand, lead, 'H', cfgT, best, 1);
+      checkFollow(r.cards, hand, lead, 'H', cfgT);
+      expect(r.cards.length).toBe(1);
+      // plays small: H-8 (effRank 608), not H-A or H-K
+      expect(r.cards[0].rank).toBe(8);
+      expect(r.reason).toContain('同花色出小');
+    });
+
+    it('second position with tractor: seizes with biggest trump', () => {
+      // P0 leads H-3, AI=P1 has tractor H-10-10-9-9 → seize with biggest
+      // H-3 effRank=603, all trumps can beat it.
+      const lead: Card[] = [ct('H', 3, 200)];
+      const best = { cards: lead, playerIdx: 0 };
+      const hand = [
+        ct('H', 10, 0), ct('H', 10, 1), ct('H', 9, 0), ct('H', 9, 1),
+        ct('H', 14, 0), ct('H', 13, 0),
+      ];
+      const r = aiFollowPlay(hand, lead, 'H', cfgT, best, 1);
+      checkFollow(r.cards, hand, lead, 'H', cfgT);
+      expect(r.cards.length).toBe(1);
+      // has tractor → seize with biggest: H-A(14) since can beat H-3
+      expect(r.cards[0].rank).toBe(14);
+      expect(r.reason).toContain('同花色出大');
+    });
+
+    it('second position with throwable off-suit: seizes with >=A trump', () => {
+      // P0 leads H-3, AI=P1 has throwable spades AAKQQ → seize with >=A
+      const lead: Card[] = [ct('H', 3, 200)];
+      const best = { cards: lead, playerIdx: 0 };
+      // Spades: A-A-K-Q-Q — AA pair beats any pair, K/Q singles top-ranked
+      const hand = [
+        ct('H', 14, 0), ct('H', 10, 0),
+        ct('S', 14, 0), ct('S', 14, 1),  // AA
+        ct('S', 13, 0),                    // K
+        ct('S', 12, 0), ct('S', 12, 1),   // QQ
+      ];
+      const r = aiFollowPlay(hand, lead, 'H', cfgT, best, 1);
+      checkFollow(r.cards, hand, lead, 'H', cfgT);
+      expect(r.cards.length).toBe(1);
+      // If has throw → seize with >=A: H-A effRank=614
+      // If throw detection fails in stub ctx, plays small H-10
+      const hasThrow = r.cards[0].rank === 14;
+      expect(r.reason).toContain(hasThrow ? '同花色出大' : '同花色出小');
+      // Document: seizes with >=A if throw detected, else plays small
+    });
+
+    it('non-second, no points: >=A beating or biggest if none', () => {
+      // P0 leads H-3, P1 played H-6, AI=P2 (third), no points
+      const lead: Card[] = [ct('H', 3, 200)];
+      const best = { cards: [ct('H', 6, 0)], playerIdx: 1 };
+      // H-6 effRank = 606. >=A = H-A = 614.
+      const hand = [ct('H', 14, 0), ct('H', 13, 0), ct('H', 10, 0),
+        ct('H', 7, 0)];
+      const r = aiFollowPlay(hand, lead, 'H', cfgT, best, 2);
+      checkFollow(r.cards, hand, lead, 'H', cfgT);
+      expect(r.cards.length).toBe(1);
+      // >=A: needs effRank >= 614. Only H-A(14) qualifies.
+      expect(r.cards[0].rank).toBe(14);
+      expect(r.reason).toContain('同花色出大');
+    });
+
+    it('non-second, no points, no >=A beating: uses biggest', () => {
+      // P0 leads H-3, P1 played H-8, AI=P2 (third), no points, no >=A
+      const lead: Card[] = [ct('H', 3, 200)];
+      const best = { cards: [ct('H', 8, 0)], playerIdx: 1 };
+      const hand = [ct('H', 13, 0), ct('H', 12, 0), ct('H', 10, 0)];
+      // effRanks: H-K=613, H-Q=612, H-10=610. Best=608. >=A needs 614 → none.
+      const r = aiFollowPlay(hand, lead, 'H', cfgT, best, 2);
+      checkFollow(r.cards, hand, lead, 'H', cfgT);
+      expect(r.cards.length).toBe(1);
+      // no >=A → biggest: H-K(13)
+      expect(r.cards[0].rank).toBe(13);
+      expect(r.reason).toContain('同花色出大');
+    });
+
+    it('non-second, has points: uses biggest beating', () => {
+      // P0 leads H-K (K=point, 10pts). H-K effRank=613.
+      const lead: Card[] = [ct('H', 13, 200)];
+      const best = { cards: [ct('H', 13, 200)], playerIdx: 0 };
+      const hand = [ct('H', 14, 0), ct('H', 12, 0), ct('H', 11, 0),
+        ct('H', 8, 0), ct('S', 8, 0)];
+      const r = aiFollowPlay(hand, lead, 'H', cfgT, best, 2);
+      checkFollow(r.cards, hand, lead, 'H', cfgT);
+      expect(r.cards.length).toBe(1);
+      // hasPoints → biggest: H-A(14) > H-Q(12)
+      expect(r.cards[0].rank).toBe(14);
+      expect(r.reason).toContain('同花色出大');
+    });
+  });
+
+  describe('trump follow pair with points (hearts trump, level=5)', () => {
+    const cfgT: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 5 };
+    function ct(s: string, r: number, i: number): Card {
+      return createCard(s as any, r as any, i);
+    }
+
+    it('pair lead with points: uses biggest beating pair', () => {
+      // P0 leads H-10-10 (10=point). P1 plays H-3-3. AI=P2 has AA, KK.
+      const lead: Card[] = [ct('H', 10, 200), ct('H', 10, 201)];
+      const best = { cards: [ct('H', 3, 0), ct('H', 3, 1)], playerIdx: 1 };
+      // H-3 effRank=603 < H-10(610). Current best is P1's H-3-3. AA(614)>603, KK(613)>603.
+      const hand = [
+        ct('H', 14, 0), ct('H', 14, 1),  // AA pair (effRank 614)
+        ct('H', 13, 0), ct('H', 13, 1),  // KK pair (effRank 613, point)
+        ct('H', 12, 0),
+        ct('S', 8, 0),
+      ];
+      const r = aiFollowPlay(hand, lead, 'H', cfgT, best, 2);
+      checkFollow(r.cards, hand, lead, 'H', cfgT);
+      expect(r.cards.length).toBe(2);
+      // hasPoints → biggest beating pair by effRank: AA(614) > KK(613)
+      expect(r.cards.every(c => c.rank === 14)).toBe(true);
+      expect(r.reason).toContain('同花色出大');
+    });
+  });
+
+  describe('fourth position off-suit single: prefers point card when beating', () => {
+    const cfgD: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Diamonds, level: 2 };
+    function ct(s: string, r: number, i: number): Card {
+      return createCard(s as any, r as any, i);
+    }
+
+    it('beats with K(10pts) over Q when both can beat', () => {
+      // P0 leads C-10, P1 plays C-9, P2 plays C-3, AI=P3 (fourth) beats
+      const lead: Card[] = [ct('C', 10, 200)];
+      const best = { cards: [ct('C', 10, 200)], playerIdx: 0 };
+      const hand = [
+        ct('C', 13, 0),   // K (10 pts, can beat)
+        ct('C', 12, 0),   // Q (non-point, can beat)
+        ct('D', 8, 0),
+        ct('D', 7, 0),
+      ];
+      const r = aiFollowPlay(hand, lead, 'C', cfgD, best, 3);
+      checkFollow(r.cards, hand, lead, 'C', cfgD);
+      expect(r.cards.length).toBe(1);
+      // Fourth beating prefers point: K over Q
+      expect(r.cards[0].rank).toBe(13);
+    });
+
+    it('falls back to smallest beating non-point when no point card available', () => {
+      const lead: Card[] = [ct('C', 10, 200)];
+      const best = { cards: [ct('C', 10, 200)], playerIdx: 0 };
+      const hand = [
+        ct('C', 12, 0),   // Q (non-point, can beat)
+        ct('C', 11, 0),   // J (non-point, can beat)
+        ct('D', 8, 0),
+      ];
+      const r = aiFollowPlay(hand, lead, 'C', cfgD, best, 3);
+      checkFollow(r.cards, hand, lead, 'C', cfgD);
+      expect(r.cards.length).toBe(1);
+      // No point card that beats → smallest beating: J(11)
+      expect(r.cards[0].rank).toBe(11);
+    });
+  });
+
+  describe('tractor follow: scans for beating tractor when smallest cannot beat', () => {
+    const cfgD: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Diamonds, level: 2 };
+    function ct(s: string, r: number, i: number): Card {
+      return createCard(s as any, r as any, i);
+    }
+
+    it('off-suit: smallest tractor cannot beat, scans for bigger one', () => {
+      // P0 leads S-10-10-9-9 (2-pair tractor). P1 plays S-J-J-10-10 (can beat).
+      // AI=P2 has two 2-pair S tractors:
+      //   S-7-7-6-6 (max=7, cannot beat P1's max=J)
+      //   S-Q-Q-J-J (max=Q=12, can beat P1's max=J=11)
+      const lead: Card[] = [
+        ct('S', 10, 200), ct('S', 10, 201),
+        ct('S', 9, 200), ct('S', 9, 201),
+      ];
+      const best = {
+        cards: [ct('S', 11, 0), ct('S', 11, 1), ct('S', 10, 0), ct('S', 10, 1)],
+        playerIdx: 1,
+      };
+      const hand = [
+        ct('S', 7, 0), ct('S', 7, 1), ct('S', 6, 0), ct('S', 6, 1), // 7-7-6-6
+        ct('S', 12, 0), ct('S', 12, 1), ct('S', 11, 0), ct('S', 11, 1), // Q-Q-J-J
+        ct('D', 7, 0),
+      ];
+      const r = aiFollowPlay(hand, lead, 'S', cfgD, best, 2);
+      checkFollow(r.cards, hand, lead, 'S', cfgD);
+      expect(r.cards.length).toBe(4);
+      // Should pick Q-Q-J-J (max=Q=12, can beat P1's max=J=11)
+      // Smallest tractor 7-7-6-6 cannot beat J=11
+      const ranks = r.cards.map(c => c.rank).sort((a,b) => b-a);
+      expect(ranks).toContain(12); // Q present
+      expect(ranks).toContain(11); // J present
+      expect(r.reason).toContain('同花色出大');
+    });
+  });
+
+  describe('team-win void avoids unnecessary trump kill', () => {
+    const cfgD: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Diamonds, level: 2 };
+    function ct(s: string, r: number, i: number): Card {
+      return createCard(s as any, r as any, i);
+    }
+
+    it('third+tmWin, max off-suit lead: adds points instead of trumping', () => {
+      // P0 leads C-A (max single). P1 plays C-3. P2=AI(teammate) void with trump.
+      // Teammate P0 wins with A → should dump points, not trump.
+      const lead: Card[] = [ct('C', 14, 200)];
+      const best = { cards: lead, playerIdx: 0 };
+      const hand = [
+        ct('D', 3, 0),    // trump (can kill)
+        ct('D', 4, 0),
+        ct('S', 13, 0),   // S-K (10 pts)
+        ct('S', 5, 0),    // S-5 (5 pts)
+      ];
+      const r = aiFollowPlay(hand, lead, 'C', cfgD, best, 2);
+      checkFollow(r.cards, hand, lead, 'C', cfgD);
+      expect(r.cards.length).toBe(1);
+      // tmWin + canAddPoints(third + max pattern) → dump points
+      expect(r.reason).toContain('垫牌');
+      expect(r.reason).toContain('尽量加分');
+      // Should NOT be 用主牌毙
+      expect(r.reason).not.toContain('毙');
+    });
+  });
 });

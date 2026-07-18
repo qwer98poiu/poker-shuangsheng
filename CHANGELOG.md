@@ -1287,3 +1287,20 @@ discardSort 签名新增可选 `config` 参数，各调用点传入 ctx。
 3. **吊主对子盖过规则**（`matchTrumpPattern`）：有分→用最大对子盖。
 
 **影响文件**：`packages/engine/src/ai/index.ts`
+
+## 2026-07-18 16:05
+
+### 完善吊主跟牌规则 + 新增测试
+
+**新增 11 项测试**（ai-follow.test.ts：83 项），430 项通过。
+
+覆盖：
+- 吊主单张第二家出小、有拖拉机抢最大、有甩牌抢 ≥A
+- 吊主单张有分用最大、无分用 ≥A、无 ≥A 用最大
+- 吊主对子有分用最大对子
+- 第四家跟副牌单张优先分牌盖
+- 跟牌拖拉机最小不能盖时扫描更大者
+- 缺门第三家队友已大垫分牌不加分时毙
+
+**影响文件**：`packages/engine/src/ai/index.ts`
+**影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`

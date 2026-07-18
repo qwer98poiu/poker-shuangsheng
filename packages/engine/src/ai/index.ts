@@ -567,7 +567,8 @@ function followTrumpLead(
         // Second position: generally play small unless can seize lead
         if (position === 'second') {
           const hasTractor = detectTractors(hand, ctx).length > 0;
-          const hasThrow = findThrowableOffSuitCombos(hand, ctx).length > 0;
+          const throwResult = findThrowableOffSuitCombos(hand, ctx);
+          const hasThrow = (throwResult?.cards.length ?? 0) > 0;
           if (!hasTractor && !hasThrow) {
             myTrump.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
             return { cards: [myTrump[0]], reason: '同花色出小' };
@@ -704,7 +705,8 @@ function matchTrumpPattern(
     // Has points in trick → use biggest pair to beat
     const hasPoints = (ctx.bestSoFar && ctx.bestSoFar.cards.some(c => isPointRank(c.rank)))
       || leadCards.some(c => isPointRank(c.rank));
-    if (hasPoints) myPairs.reverse();
+    if (hasPoints) myPairs.sort((a, b) =>
+      getEffectiveRank(b[0], ctx) - getEffectiveRank(a[0], ctx));
     let chosen = myPairs.slice(0, leadCombo.pairCount).flat();
     // If pair(s) cannot beat, try finding a pair that can.
     // For fourth position that can beat, prefer point-card pairs.
