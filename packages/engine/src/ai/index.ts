@@ -1548,7 +1548,7 @@ function isOnlyLegalPlay(
 /**
  * Append point-strategy annotation to a base reason.
  * The annotation explains WHY certain cards were chosen,
- * e.g. "（队友已大，尽量加分）", "（盖不过，尽量不加分）",
+ * e.g. "（队友已大，加分）", "（盖不过，不加分）",
  * "（唯一可出）", "（用分牌盖）", "（但没分可加）", etc.
  */
 function annotateReason(
@@ -1573,7 +1573,7 @@ function annotateReason(
     // Tried to add points.
     const hasPoints = cards.some(c => isPointRank(c.rank));
     if (!hasPoints) return `${baseReason}（但没分可加）`;
-    const suffix = (tmWin && leadCombo.hasTractor) ? '队友出拖拉机，尽量加分' : '队友已大，尽量加分';
+    const suffix = (tmWin && leadCombo.hasTractor) ? '队友出拖拉机，加分' : '队友已大，加分';
     return `${baseReason}（${suffix}）`;
   }
 
@@ -1582,8 +1582,8 @@ function annotateReason(
     const hasPoints = cards.some(c => isPointRank(c.rank));
     if (hasPoints) return `${baseReason}（尽量少加分）`;
     // Second or third position avoiding
-    if (position === 'second' && !isTrumpKill) return `${baseReason}（盖不过，尽量不加分）`;
-    return `${baseReason}（盖不过，尽量不加分）`;
+    if (position === 'second' && !isTrumpKill) return `${baseReason}（盖不过，不加分）`;
+    return `${baseReason}（盖不过，不加分）`;
   }
 
   if (intent === 'beat_points') {

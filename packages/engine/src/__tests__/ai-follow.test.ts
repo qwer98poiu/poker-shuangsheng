@@ -855,16 +855,16 @@ describe('reason annotation format', () => {
   const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 5 };
   function cc(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
 
-  it('third + teammate wins + max pattern: "同花色出小（队友已大，尽量加分）"', () => {
+  it('third + teammate wins + max pattern: "同花色出小（队友已大，加分）"', () => {
     const lead: Card[] = [cc('S', 14, 200)]; // S-A (max single)
     const best = { cards: lead, playerIdx: 0 };
     const hand = [cc('S', 13, 0), cc('S', 12, 0), cc('S', 8, 0)];
     const r = aiFollowPlay(hand, lead, 'S', cfg, best, 2);
     checkFollow(r.cards, hand, lead, 'S', cfg);
-    expect(r.reason).toBe('同花色出小（队友已大，尽量加分）');
+    expect(r.reason).toBe('同花色出小（队友已大，加分）');
   });
 
-  it('third + teammate wins + tractor: "同花色出大（队友出拖拉机，尽量加分）"', () => {
+  it('third + teammate wins + tractor: "同花色出大（队友出拖拉机，加分）"', () => {
     const lead: Card[] = [
       cc('S', 12, 200), cc('S', 12, 201),
       cc('S', 11, 200), cc('S', 11, 201),
@@ -880,7 +880,7 @@ describe('reason annotation format', () => {
     expect(r.reason).toContain('唯一可出');
   });
 
-  it('third + teammate wins + not max: "同花色出小（盖不过，尽量不加分）"', () => {
+  it('third + teammate wins + not max: "同花色出小（盖不过，不加分）"', () => {
     // Lead is small, teammate still wins, third should avoid adding
     const lead: Card[] = [cc('S', 9, 200)];
     const best = { cards: lead, playerIdx: 0 };
@@ -892,17 +892,17 @@ describe('reason annotation format', () => {
     expect(r.reason).not.toContain('不加分');
   });
 
-  it('second + max pattern + cannot beat: "同花色出小（盖不过，尽量不加分）"', () => {
+  it('second + max pattern + cannot beat: "同花色出小（盖不过，不加分）"', () => {
     // P0 leads S-A (max). P1=second, has S-K,Q,8. Cannot beat A.
     const lead: Card[] = [cc('S', 14, 200)];
     const best = { cards: lead, playerIdx: 0 };
     const hand = [cc('S', 13, 0), cc('S', 12, 0), cc('S', 8, 0)];
     const r = aiFollowPlay(hand, lead, 'S', cfg, best, 1);
     checkFollow(r.cards, hand, lead, 'S', cfg);
-    expect(r.reason).toContain('尽量不加分');
+    expect(r.reason).toContain('不加分');
   });
 
-  it('third + tmWin + tractor, only one pair + point filler: "垫同花色（队友出拖拉机，尽量加分）"', () => {
+  it('third + tmWin + tractor, only one pair + point filler: "垫同花色（队友出拖拉机，加分）"', () => {
     // P0 leads S-QQ+JJ tractor. P2=third, teammate wins, lead has tractor.
     // P2 has: one 10-10 pair + 5(point) + 9 + 7 + 3 = 5 cards.
     // Use level=2 so S-5 is off-suit point (not trump at level 5).
@@ -926,7 +926,7 @@ describe('reason annotation format', () => {
     expect(r.cards.some(c => c.rank === 5)).toBe(true);
     expect(r.reason).toContain('垫同花色');
     expect(r.reason).toContain('队友出拖拉机');
-    expect(r.reason).toContain('尽量加分');
+    expect(r.reason).toContain('加分');
   });
 });
 
@@ -940,7 +940,7 @@ describe('short-suited / fourth avoid points on max pattern (spades trump, level
   // P0 leads D-A-K-K (AAK throw, max pattern). P1=second, has D-9 + D-A + C-K(10pts).
   // Short-suited: only D-9 + D-A = 2 diamonds < 3. Filler needed.
   // Has C-K (point) and H-3 (non-point) as fillers. Should avoid C-K.
-  it('second+short+max throw avoids point filler: "同花色不够，垫其他花色（盖不过，尽量不加分）"', () => {
+  it('second+short+max throw avoids point filler: "同花色不够，垫其他花色（盖不过，不加分）"', () => {
     const lead: Card[] = [cc('D', 14, 200), cc('D', 14, 201), cc('D', 13, 200)];
     const best = { cards: lead, playerIdx: 0 };
     const hand = [
@@ -955,12 +955,12 @@ describe('short-suited / fourth avoid points on max pattern (spades trump, level
     expect(r.cards.length).toBe(3);
     // Should NOT include C-K (13)
     expect(r.cards.every(c => c.rank !== 13 || c.suit !== 'C')).toBe(true);
-    expect(r.reason).toContain('尽量不加分');
+    expect(r.reason).toContain('不加分');
   });
 
   // P0 leads D-A-K-K (AAK throw). P3=fourth, has D-6, D-7, D-9, D-5(5pts).
   // Enough diamonds (3 >= 3) to follow, but max pattern + fourth -> avoid points.
-  it('fourth+enough+max throw avoids point: "垫同花色（盖不过，尽量不加分）"', () => {
+  it('fourth+enough+max throw avoids point: "垫同花色（盖不过，不加分）"', () => {
     const lead: Card[] = [cc('D', 14, 200), cc('D', 14, 201), cc('D', 13, 200)];
     const best = { cards: lead, playerIdx: 0 };
     const hand = [
@@ -975,7 +975,7 @@ describe('short-suited / fourth avoid points on max pattern (spades trump, level
     expect(r.cards.length).toBe(3);
     // Should NOT include D-5
     expect(r.cards.every(c => c.rank !== 5 || c.suit !== 'D')).toBe(true);
-    expect(r.reason).toContain('尽量不加分');
+    expect(r.reason).toContain('不加分');
   });
 });
 
@@ -988,7 +988,7 @@ describe('tractor lead fill-with-pairs annotations (level=2, spades trump)', () 
 
   // P0 leads H-KK+QQ (tractor, max). P1=second, has H-6-6 pair + H-4,H-5,H-8.
   // No tractor match → fill with H-6-6 + 2 smallest non-point singles.
-  it('second+no-tractor avoids point fillers: "垫同花色（盖不过，尽量不加分）"', () => {
+  it('second+no-tractor avoids point fillers: "垫同花色（盖不过，不加分）"', () => {
     const lead: Card[] = [
       cc('H', 13, 200), cc('H', 13, 201),
       cc('H', 12, 200), cc('H', 12, 201),
@@ -1006,7 +1006,7 @@ describe('tractor lead fill-with-pairs annotations (level=2, spades trump)', () 
     expect(r.cards.length).toBe(4);
     // Should NOT include H-5
     expect(r.cards.every(c => c.rank !== 5 || c.suit !== 'H')).toBe(true);
-    expect(r.reason).toContain('尽量不加分');
+    expect(r.reason).toContain('不加分');
   });
 
   // P0 leads H-KK+QQ (tractor). P2=third, teammate wins.
@@ -1288,7 +1288,7 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
       checkFollow(r.cards, hand, lead, null, cfgT);
       expect(r.cards.length).toBe(1);
       expect(r.reason).toContain('同花色出小');
-      expect(r.reason).toContain('尽量不加分');
+      expect(r.reason).toContain('不加分');
     });
   });
 
@@ -1417,7 +1417,7 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
       // Must play ♦7♦7 pair + a filler single — many singleton choices → NOT 唯一可出
       expect(r.reason).not.toContain('唯一可出');
       // Second + !tmWin + max pattern → avoid points on filler single
-      expect(r.reason).toContain('尽量不加分');
+      expect(r.reason).toContain('不加分');
     });
   });
 
@@ -1660,7 +1660,7 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
       expect(r.cards.length).toBe(1);
       // tmWin + canAddPoints(third + max pattern) → dump points
       expect(r.reason).toContain('垫牌');
-      expect(r.reason).toContain('尽量加分');
+      expect(r.reason).toContain('加分');
       // Should NOT be 用主牌毙
       expect(r.reason).not.toContain('毙');
     });

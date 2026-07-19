@@ -1408,3 +1408,12 @@ discardSort 签名新增可选 `config` 参数，各调用点传入 ctx。
 
 - **影响文件**：`packages/engine/src/ai/index.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
+
+## 2026-07-19 12:57
+
+### 简化标注文字：尽量加分→加分，尽量不加分→不加分
+
+尽量少加分保持不变。
+
+- **影响文件**：`packages/engine/src/ai/index.ts`
+- **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
