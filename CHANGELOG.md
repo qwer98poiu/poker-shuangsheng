@@ -1417,3 +1417,14 @@ discardSort 签名新增可选 `config` 参数，各调用点传入 ctx。
 
 - **影响文件**：`packages/engine/src/ai/index.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
+
+## 2026-07-19 13:18
+
+### 移动 isOnlyLegalPlay 到 following 模块，AI 增加唯一可出快速路径
+
+`isOnlyLegalPlay` 是跟牌规则而非 AI 策略，移至 `following/index.ts` 并导出。签名简化为 `(leadSuitCards, leadLen, leadCombo, config)`，移除未使用的参数。
+
+AI 策略在 `_aiFollowPlay` 和 `followTrumpLead` 中先调用该判断：若同花色张数等于领出张数且唯一可出，直接打出排序后的强制牌，跳过策略逻辑。447 项通过。
+
+- **影响文件**：`packages/engine/src/following/index.ts`
+- **影响文件**：`packages/engine/src/ai/index.ts`

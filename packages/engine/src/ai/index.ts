@@ -17,7 +17,7 @@ import {
   groupBySuit, suitLabelCn, cardName, getTopOffSuitRank,
 } from './utils.js';
 import { findThrowableOffSuitCombos } from './throw-detector.js';
-import { computeIdealFollow } from '../following/index.js';
+import { isOnlyLegalPlay } from '../following/index.js';
 import { aiChooseBottomCards as aiChooseBottomImpl } from './bottom-strategy.js';
 import {
   canFormJokerPair, opponentsHaveTrump, canAnyOpponentBeatSingle, canAnyOpponentBeatPair,
@@ -484,6 +484,23 @@ function _aiFollowPlay(
   );
   const trumpCards = hand.filter(c => isTrump(c, ctx));
 
+  // Fast path: only one legal play — skip strategy, play forced cards.
+  // When lead-suit count equals leadLen, all cards in that suit group
+  // must be played (no choice), so sorting and taking all is correct.
+  if (leadSuitCards.length === leadLen && isOnlyLegalPlay(leadSuitCards, leadLen, leadCombo, ctx)) {
+    const sorted = [...leadSuitCards].sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+    const cards = sorted.slice(0, leadLen);
+    let baseReason: string;
+    if (leadCombo.type === 'throw') {
+      baseReason = '垫同花色';
+    } else {
+      baseReason = canBeat(cards, ctx.bestSoFar, ctx) ? '同花色出大' : '同花色出小';
+    }
+    const reason = annotateReason(baseReason, cards, leadSuitCards, trumpCards,
+      leadCombo, leadLen, ctx, position, tmWin, false, 'none');
+    return { cards, reason };
+  }
+
   // ---- Throw lead (甩牌) ----
   if (leadCombo.type === 'throw') {
     if (leadIsTrump) {
@@ -548,6 +565,17 @@ function followTrumpLead(
 ): { cards: Card[]; reason: string } {
   const leadLen = leadCards.length;
   const myTrump = hand.filter(c => isTrump(c, ctx));
+
+  // Fast path: only one legal play — skip strategy, play forced cards.
+  if (myTrump.length === leadLen && isOnlyLegalPlay(myTrump, leadLen, leadCombo, ctx)) {
+    const sorted = [...myTrump].sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+    const cards = sorted.slice(0, leadLen);
+    const beating = canBeat(cards, ctx.bestSoFar, ctx);
+    const baseReason = beating ? '同花色出大' : '同花色出小';
+    const reason = annotateReason(baseReason, cards, [], myTrump,
+      leadCombo, leadLen, ctx, position, tmWin, false, 'none');
+    return { cards, reason };
+  }
 
   // NT special handling for trump follow
   if (ctx.trumpSuit === null && ctx.ntState) {
@@ -1458,94 +1486,6 @@ function isMaxPattern(leadCombo: ComboClass, ctx: AIContext): boolean {
 }
 
 /**
- * Check if the chosen cards are the only legal play from this hand.
- *
- * Definition: The follower's hand has exactly one set of cards matching the
- * lead pattern, where not a single card can be changed.
- *
- * Rules:
- * 1. If lead-suit count equals lead length, all cards are forced (unique).
- * 2. If the lead contains singles, not unique (singles can be chosen freely).
- * 3. Lead only has pairs/tractors (no singles):
- *    a. No tractor in lead or no tractor in hand: compare pair counts.
- *    b. Both have tractors: use computeIdealFollow to compare pattern totals.
- */
-function isOnlyLegalPlay(
-  _cards: Card[],
-  leadSuitCards: Card[],
-  leadLen: number,
-  _trumpCards: Card[],
-  isTrumpKill: boolean,
-  config: AIContext,
-  leadCombo: ComboClass,
-): boolean {
-  if (isTrumpKill) return false;
-  if (leadSuitCards.length === 0) return false;
-  if (leadSuitCards.length < leadLen) return false;
-
-  // Rule 1: same-suit count equals lead length, all cards forced.
-  if (leadSuitCards.length === leadLen) return true;
-
-  // Rule 2: lead contains singles, not unique.
-  const tractorPairCount = leadCombo.tractors.reduce((s, t) => s + t.pairCount, 0);
-  const totalPairCards = (leadCombo.pairCount + tractorPairCount) * 2;
-  const hasSingles = leadCombo.type === 'single' || totalPairCards < leadLen;
-  if (hasSingles) return false;
-
-  // Rule 3: lead only has pairs/tractors (no singles).
-  const handTractors = detectTractors(leadSuitCards, config);
-  const leadHasTractor = leadCombo.hasTractor;
-  const handHasTractor = handTractors.length > 0;
-
-  if (!leadHasTractor || !handHasTractor) {
-    // Rule 3a: compare pair counts (including tractor pairs).
-    const leadTotalPairs = leadCombo.pairCount + tractorPairCount;
-    const handTotalPairs = findAllPairs(leadSuitCards).length;
-    return leadTotalPairs === handTotalPairs;
-  }
-
-  // Rule 3b: both have tractors, use computeIdealFollow.
-  const tr = leadCombo.tractors.map(t => t.pairCount);
-  tr.sort((a, b) => b - a);
-  const ideal = computeIdealFollow(
-    leadSuitCards,
-    { tractorReqs: tr, pairReqs: leadCombo.pairCount },
-    config,
-  );
-
-  // Build follow pattern: tractor pair counts + standalone pairs (each = 1).
-  const played = ideal.tractorPairCounts.reduce((s, n) => s + n, 0);
-  const standalonePairs = ideal.minTotalPairs - played;
-  const allPairCounts = [...ideal.tractorPairCounts];
-  for (let i = 0; i < standalonePairs; i++) allPairCounts.push(1);
-
-  if (allPairCounts.length === 0) return false;
-  const minIdeal = Math.min(...allPairCounts);
-
-  // Remove hand tractors/pairs with pair count < minIdeal,
-  // then compare remaining hand total pairs with ideal total.
-  const allPairs = findAllPairs(leadSuitCards);
-  const tractorSets = handTractors.map(t => ({ cards: new Set(t.map(c => c.id)), pc: t.length / 2 }));
-
-  let handTotal = 0;
-  for (const pair of allPairs) {
-    let qualifies = minIdeal <= 1;
-    if (!qualifies) {
-      for (const ts of tractorSets) {
-        if (ts.pc >= minIdeal && pair.every(c => ts.cards.has(c.id))) {
-          qualifies = true;
-          break;
-        }
-      }
-    }
-    if (qualifies) handTotal++;
-  }
-
-  const idealTotal = allPairCounts.reduce((a, b) => a + b, 0);
-  return idealTotal === handTotal;
-}
-
-/**
  * Append point-strategy annotation to a base reason.
  * The annotation explains WHY certain cards were chosen,
  * e.g. "（队友已大，加分）", "（盖不过，不加分）",
@@ -1564,8 +1504,8 @@ function annotateReason(
   isTrumpKill: boolean,
   intent: 'add' | 'avoid' | 'beat_points' | 'none',
 ): string {
-  // Check unique-play first
-  if (isOnlyLegalPlay(cards, leadSuitCards, leadLen, trumpCards, isTrumpKill, ctx, leadCombo)) {
+  // Check unique-play first (not applicable to trump kill)
+  if (!isTrumpKill && isOnlyLegalPlay(leadSuitCards, leadLen, leadCombo, ctx)) {
     return `${baseReason}（唯一可出）`;
   }
 

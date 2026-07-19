@@ -140,6 +140,92 @@ function checkTractorOrThrowFollow(
   return { valid: true };
 }
 
+// ---- Unique-play detection ----
+
+/**
+ * Check whether the follower's hand has exactly one legal play.
+ *
+ * Definition: not a single card in the chosen set can be swapped for
+ * another card in the same suit group without breaking the follow rules.
+ *
+ * Rules:
+ * 1. If lead-suit count equals lead length, all cards are forced (unique).
+ * 2. If the lead contains singles, not unique (singles can be chosen freely).
+ * 3. Lead only has pairs/tractors (no singles):
+ *    a. No tractor in lead or no tractor in hand: compare pair counts.
+ *    b. Both have tractors: use computeIdealFollow to compare pattern totals.
+ */
+export function isOnlyLegalPlay(
+  leadSuitCards: Card[],
+  leadLen: number,
+  leadCombo: ComboClass,
+  config: TrumpDeclaration,
+): boolean {
+  if (leadSuitCards.length === 0) return false;
+  if (leadSuitCards.length < leadLen) return false;
+
+  // Rule 1: same-suit count equals lead length, all cards forced.
+  if (leadSuitCards.length === leadLen) return true;
+
+  // Rule 2: lead contains singles, not unique.
+  const tractorPairCount = leadCombo.tractors.reduce((s, t) => s + t.pairCount, 0);
+  const totalPairCards = (leadCombo.pairCount + tractorPairCount) * 2;
+  const hasSingles = leadCombo.type === 'single' || totalPairCards < leadLen;
+  if (hasSingles) return false;
+
+  // Rule 3: lead only has pairs/tractors (no singles).
+  const handTractors = detectTractors(leadSuitCards, config);
+  const leadHasTractor = leadCombo.hasTractor;
+  const handHasTractor = handTractors.length > 0;
+
+  if (!leadHasTractor || !handHasTractor) {
+    // Rule 3a: compare pair counts (including tractor pairs).
+    const leadTotalPairs = leadCombo.pairCount + tractorPairCount;
+    const handTotalPairs = findAllPairs(leadSuitCards).length;
+    return leadTotalPairs === handTotalPairs;
+  }
+
+  // Rule 3b: both have tractors, use computeIdealFollow.
+  const tr = leadCombo.tractors.map(t => t.pairCount);
+  tr.sort((a, b) => b - a);
+  const ideal = computeIdealFollow(
+    leadSuitCards,
+    { tractorReqs: tr, pairReqs: leadCombo.pairCount },
+    config,
+  );
+
+  // Build follow pattern: tractor pair counts + standalone pairs (each = 1).
+  const played = ideal.tractorPairCounts.reduce((s, n) => s + n, 0);
+  const standalonePairs = ideal.minTotalPairs - played;
+  const allPairCounts = [...ideal.tractorPairCounts];
+  for (let i = 0; i < standalonePairs; i++) allPairCounts.push(1);
+
+  if (allPairCounts.length === 0) return false;
+  const minIdeal = Math.min(...allPairCounts);
+
+  // Remove hand tractors/pairs with pair count < minIdeal,
+  // then compare remaining hand total pairs with ideal total.
+  const allPairs = findAllPairs(leadSuitCards);
+  const tractorSets = handTractors.map(t => ({ cards: new Set(t.map(c => c.id)), pc: t.length / 2 }));
+
+  let handTotal = 0;
+  for (const pair of allPairs) {
+    let qualifies = minIdeal <= 1;
+    if (!qualifies) {
+      for (const ts of tractorSets) {
+        if (ts.pc >= minIdeal && pair.every(c => ts.cards.has(c.id))) {
+          qualifies = true;
+          break;
+        }
+      }
+    }
+    if (qualifies) handTotal++;
+  }
+
+  const idealTotal = allPairCounts.reduce((a, b) => a + b, 0);
+  return idealTotal === handTotal;
+}
+
 // ---- Ideal follow computation ----
 
 export interface FollowSpec {
