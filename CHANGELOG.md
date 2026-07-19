@@ -1453,3 +1453,24 @@ AI 策略在 `_aiFollowPlay` 和 `followTrumpLead` 中先调用该判断：若�
 面向普通玩家的完整出牌策略文档，包含领出、跟牌、扣底、NT 模式的策略表格和理由速查表。
 
 - **新增文件**：`packages/engine/src/ai/STRATEGY.md`
+
+## 2026-07-19 15:53
+
+### 修复 discardNonTrump 第三家加分判断 + followOffSuitThrow 缺门加分
+
+**问题 1**：`discardNonTrump` 的 intent 仅判断 `position === 'fourth'`，第三家即使 `canAddPoints` 成立也得不到加分标注。
+
+**问题 2**：`followOffSuitThrow` 缺门路径直接调 `trumpKill`，没有检查队友已大+可加分。
+
+**修复**：
+1. `discardNonTrump` 改为调用 `canAddPoints(tmWin, position, combo, ctx)` 判断 intent
+2. `followOffSuitThrow` 缺门路径增加 `tmWin && canAddPoints` 检查，队友已大时优先垫分
+3. 所有 `discardNonTrump` 调用方传入 `leadCombo`
+4. 两处加分路径增加 `nonTrump.length >= leadLen` 守卫
+
+**新增 1 项测试**（ai-follow.test.ts：90 项），450 项通过。
+
+- **影响文件**：`packages/engine/src/ai/index.ts`
+- **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
+
+- **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`

@@ -1531,6 +1531,36 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
       return createCard(s as any, r as any, i);
     }
 
+    it('third+tmWin, throw lead void, has enough trump: dumps points instead of trumping', () => {
+      // Reproduces: P0 leads C-AAK (throw, 3 cards). P1 plays C-4-6-8.
+      // P2=AI(teammate) void in clubs. Has 3 trump (enough to kill) but
+      // teammate P0 already wins. Should dump points, not waste trump.
+      const cfgS: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
+      function ct2(s: string, r: number, i: number): Card {
+        return createCard(s as any, r as any, i);
+      }
+      const lead: Card[] = [ct2('C', 14, 200), ct2('C', 14, 201), ct2('C', 13, 200)];
+      const best = { cards: lead, playerIdx: 0 };
+      const hand = [
+        ct2('S', 10, 0), ct2('S', 10, 1),     // trump pair, can kill (10 is point)
+        ct2('S', 3, 0),                         // trump single
+        ct2('H', 5, 0),                         // 5 pts, off-suit
+        ct2('D', 10, 0),                        // 10 pts, off-suit, different suit
+        ct2('D', 4, 0),                         // non-point
+        ct2('H', 3, 0),                         // non-point
+      ];
+      const r = aiFollowPlay(hand, lead, 'C', cfgS, best, 2);
+      checkFollow(r.cards, hand, lead, 'C', cfgS);
+      expect(r.cards.length).toBe(3);
+      expect(r.reason).toContain('垫牌');
+      expect(r.reason).toContain('加分');
+      expect(r.reason).not.toContain('毙');
+      // Dumped cards should include points from different suits
+      const playedIds = r.cards.map(c => c.id);
+      const ptIds = [ct2('H', 5, 0).id, ct2('D', 10, 0).id];
+      expect(playedIds.some(id => ptIds.includes(id))).toBe(true);
+    });
+
     it('third+tmWin, max off-suit lead: adds points instead of trumping', () => {
       // P0 leads C-A (max single). P1 plays C-3. P2=AI(teammate) void with trump.
       // Teammate P0 wins with A → should dump points, not trump.

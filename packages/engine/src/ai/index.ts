@@ -540,17 +540,19 @@ function _aiFollowPlay(
     // Teammate already wins + safe to add points → dump points instead of wasting trump
     if (tmWin && canAddPoints(tmWin, position, leadCombo, ctx)) {
       const nonTrump = hand.filter(c => !isTrump(c, ctx));
-      nonTrump.sort(discardSort(true, ctx));
-      const cards = nonTrump.slice(0, leadLen);
-      const reason = annotateReason('垫牌', cards, [], trumpCards,
-        leadCombo, leadLen, ctx, position, tmWin, false, 'add');
-      return { cards, reason };
+      if (nonTrump.length >= leadLen) {
+        nonTrump.sort(discardSort(true, ctx));
+        const cards = nonTrump.slice(0, leadLen);
+        const reason = annotateReason('垫牌', cards, [], trumpCards,
+          leadCombo, leadLen, ctx, position, tmWin, false, 'add');
+        return { cards, reason };
+      }
     }
     return trumpKill(trumpCards, hand, leadCards, leadCombo, leadLen, ctx, position, tmWin);
   }
 
   // Can't fully trump - discard
-  return discardNonTrump(hand, leadLen, ctx, position, tmWin);
+  return discardNonTrump(hand, leadLen, ctx, position, tmWin, leadCombo);
 }
 
 // ---- Follow trump lead ----
@@ -1103,7 +1105,7 @@ function trumpKill(
       }
     }
     // Can't match tractor or can't beat - discard
-    return discardNonTrump(hand, leadLen, ctx, position, tmWin);
+    return discardNonTrump(hand, leadLen, ctx, position, tmWin, leadCombo);
   }
 
   if (leadCombo.pairCount > 0) {
@@ -1124,7 +1126,7 @@ function trumpKill(
         }
       }
       if (!canTrumpKillBeat(chosen, leadCards, ctx)) {
-        return discardNonTrump(hand, leadLen, ctx, position, tmWin);
+        return discardNonTrump(hand, leadLen, ctx, position, tmWin, leadCombo);
       }
       if (chosen.length === leadLen) {
         const reason = overkill ? '盖毙' : '用主牌毙';
@@ -1138,10 +1140,10 @@ function trumpKill(
         const reason = overkill ? '盖毙' : '用主牌毙';
         return { cards: result, reason };
       }
-      return discardNonTrump(hand, leadLen, ctx, position, tmWin);
+      return discardNonTrump(hand, leadLen, ctx, position, tmWin, leadCombo);
     }
     // Not enough trump pairs to kill pairs/tractor - discard instead
-    return discardNonTrump(hand, leadLen, ctx, position, tmWin);
+    return discardNonTrump(hand, leadLen, ctx, position, tmWin, leadCombo);
   }
 
   // Pure singles
@@ -1181,7 +1183,7 @@ function trumpKill(
     const reason = overkill ? '盖毙' : '用主牌毙';
     return { cards: kill, reason };
   }
-  return discardNonTrump(hand, leadLen, ctx, position, tmWin);
+  return discardNonTrump(hand, leadLen, ctx, position, tmWin, leadCombo);
 }
 
 function trumpKillSingle(
@@ -1273,13 +1275,26 @@ function followOffSuitThrow(
   }
 
   // Void in lead suit - try to trump the throw.
-  // Delegate to trumpKill for proper pattern matching (pairs/tractors).
+  // But first: if teammate already wins and we can safely add points,
+  // dump points instead of wasting trump.
   if (trumpCards.length >= leadLen) {
-    const leadCombo = classifyCombo(leadCards, ctx);
-    return trumpKill(trumpCards, hand, leadCards, leadCombo, leadLen, ctx, position, tmWin);
+    const throwCombo = classifyCombo(leadCards, ctx);
+    if (tmWin && canAddPoints(tmWin, position, throwCombo, ctx)) {
+      const nonTrump = hand.filter(c => !isTrump(c, ctx));
+      if (nonTrump.length >= leadLen) {
+        nonTrump.sort(discardSort(true, ctx));
+        const cards = nonTrump.slice(0, leadLen);
+        const reason = annotateReason('垫牌', cards, [], trumpCards,
+          throwCombo, leadLen, ctx, position, tmWin, false, 'add');
+        return { cards, reason };
+      }
+    }
+    return trumpKill(trumpCards, hand, leadCards, throwCombo, leadLen, ctx, position, tmWin);
   }
 
-  return discardNonTrump(hand, leadLen, ctx, position, tmWin);
+  // Not enough trump to kill — discard. Pass the throw combo for canAddPoints.
+  const throwCombo = classifyCombo(leadCards, ctx);
+  return discardNonTrump(hand, leadLen, ctx, position, tmWin, throwCombo);
 }
 
 // ---- Follow trump throw ----
@@ -1426,7 +1441,8 @@ function discardNonTrump(
   const combo = leadCombo || { type: 'single' as const, cards: [], length: leadLen, pairCount: 0, tractors: [], hasTractor: false };
   if (nonTrump.length >= leadLen) {
     const cards = nonTrump.slice(0, leadLen);
-    const intent = (tmWin && position === 'fourth') ? 'add' : 'none';
+    const addPt = tmWin && canAddPoints(tmWin, position, combo, ctx);
+    const intent = addPt ? 'add' : 'none';
     const reason = annotateReason('垫牌', cards, [], [],
       combo, leadLen, ctx, position, tmWin, false, intent);
     return { cards, reason };
@@ -1434,7 +1450,8 @@ function discardNonTrump(
   const trump = hand.filter(c => isTrump(c, ctx));
   trump.sort(discardSort(!!tmWin, ctx));
   const cards = [...nonTrump, ...trump].slice(0, leadLen);
-  const intent = (tmWin && position === 'fourth') ? 'add' : 'none';
+  const addPt2 = tmWin && canAddPoints(tmWin, position, combo, ctx);
+  const intent = addPt2 ? 'add' : 'none';
   const reason = annotateReason('垫牌', cards, [], [],
     combo, leadLen, ctx, position, tmWin, false, intent);
   return { cards, reason };
