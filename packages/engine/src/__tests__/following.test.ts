@@ -792,4 +792,100 @@ describe('complex tractor follow (diamonds trump, ace level)', () => {
       expect(r.valid).toBe(true);
     });
   });
+
+  describe('level-skip merged tractor: 6 pairs, pick two 2-pair tractors (level=6, spade trump)', () => {
+    // At level 6, 8-7-5-4-3-2 form a consecutive chain (6 pairs merge into a tractor).
+    // Following a throw with two 2-pair tractors (AAKK + JJ1010 = 8 cards),
+    // player must pick any 2 disjoint 2-pair tractors from the 6 pairs.
+    const cfg6: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 6 };
+    function ct(s: string, r: number, i: number): Card {
+      return createCard(s as any, r as any, i);
+    }
+
+    const lead: Card[] = [
+      ct('C', 14, 200), ct('C', 14, 201),   // AA
+      ct('C', 13, 200), ct('C', 13, 201),   // KK
+      ct('C', 11, 200), ct('C', 11, 201),   // JJ
+      ct('C', 10, 200), ct('C', 10, 201),   // 1010
+    ];
+
+    const hand = [
+      ct('C', 8, 0), ct('C', 8, 1),   // 88
+      ct('C', 7, 0), ct('C', 7, 1),   // 77
+      ct('C', 5, 0), ct('C', 5, 1),   // 55
+      ct('C', 4, 0), ct('C', 4, 1),   // 44
+      ct('C', 3, 0), ct('C', 3, 1),   // 33
+      ct('C', 2, 0), ct('C', 2, 1),   // 22
+      ct('S', 8, 0), ct('S', 9, 0),
+    ];
+
+    const lp = classify(lead, cfg6);
+
+    // 6 disjoint ways to pick two 2-pair tractors from [88,77,55,44,33,22]:
+    it('8877 + 5544', () => {
+      const play: Card[] = [
+        ct('C', 8, 0), ct('C', 8, 1),
+        ct('C', 7, 0), ct('C', 7, 1),
+        ct('C', 5, 0), ct('C', 5, 1),
+        ct('C', 4, 0), ct('C', 4, 1),
+      ];
+      const r = validateFollow(play, hand, lead, lp, 'C' as any, cfg6);
+      expect(r.valid).toBe(true);
+    });
+
+    it('8877 + 4433', () => {
+      const play: Card[] = [
+        ct('C', 8, 0), ct('C', 8, 1),
+        ct('C', 7, 0), ct('C', 7, 1),
+        ct('C', 4, 0), ct('C', 4, 1),
+        ct('C', 3, 0), ct('C', 3, 1),
+      ];
+      const r = validateFollow(play, hand, lead, lp, 'C' as any, cfg6);
+      expect(r.valid).toBe(true);
+    });
+
+    it('8877 + 3322', () => {
+      const play: Card[] = [
+        ct('C', 8, 0), ct('C', 8, 1),
+        ct('C', 7, 0), ct('C', 7, 1),
+        ct('C', 3, 0), ct('C', 3, 1),
+        ct('C', 2, 0), ct('C', 2, 1),
+      ];
+      const r = validateFollow(play, hand, lead, lp, 'C' as any, cfg6);
+      expect(r.valid).toBe(true);
+    });
+
+    it('7755 + 4433', () => {
+      const play: Card[] = [
+        ct('C', 7, 0), ct('C', 7, 1),
+        ct('C', 5, 0), ct('C', 5, 1),
+        ct('C', 4, 0), ct('C', 4, 1),
+        ct('C', 3, 0), ct('C', 3, 1),
+      ];
+      const r = validateFollow(play, hand, lead, lp, 'C' as any, cfg6);
+      expect(r.valid).toBe(true);
+    });
+
+    it('7755 + 3322', () => {
+      const play: Card[] = [
+        ct('C', 7, 0), ct('C', 7, 1),
+        ct('C', 5, 0), ct('C', 5, 1),
+        ct('C', 3, 0), ct('C', 3, 1),
+        ct('C', 2, 0), ct('C', 2, 1),
+      ];
+      const r = validateFollow(play, hand, lead, lp, 'C' as any, cfg6);
+      expect(r.valid).toBe(true);
+    });
+
+    it('5544 + 3322', () => {
+      const play: Card[] = [
+        ct('C', 5, 0), ct('C', 5, 1),
+        ct('C', 4, 0), ct('C', 4, 1),
+        ct('C', 3, 0), ct('C', 3, 1),
+        ct('C', 2, 0), ct('C', 2, 1),
+      ];
+      const r = validateFollow(play, hand, lead, lp, 'C' as any, cfg6);
+      expect(r.valid).toBe(true);
+    });
+  });
 });

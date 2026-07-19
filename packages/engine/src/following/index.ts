@@ -120,17 +120,19 @@ function checkTractorOrThrowFollow(
   const playedPairIds = new Set(playedTractors.flat().map(c => c.id));
   const playedPairs = findAllPairs(played).filter(p => !playedPairIds.has(p[0].id));
 
-  // 1. Must have enough tractors (check count before comparing pair counts)
-  if (playedTractorPairCounts.length < ideal.tractorPairCounts.length)
-    return { valid: false, error: `must play ${ideal.tractorPairCounts.length} tractor(s)` };
-
-  // 2. Each tractor must match the required pair count
-  for (let i = 0; i < ideal.tractorPairCounts.length; i++) {
-    if (playedTractorPairCounts[i] !== ideal.tractorPairCounts[i])
-      return { valid: false, error: `tractor must have ${ideal.tractorPairCounts[i]} pairs, got ${playedTractorPairCounts[i]}` };
+  // Greedy assignment: a played tractor of N pairs can satisfy a requirement
+  // of ≤N pairs, with leftover N-req pairs contributed to fill.
+  const remaining: number[] = [...playedTractorPairCounts];
+  for (const req of ideal.tractorPairCounts) {
+    const idx = remaining.findIndex(n => n >= req);
+    if (idx === -1)
+      return { valid: false, error: `must play a tractor with ${req} or more pairs` };
+    const leftover = remaining[idx] - req;
+    remaining.splice(idx, 1);
+    if (leftover > 0) remaining.push(leftover);
   }
 
-  // 3. Total pair count must meet minimum
+  // Total pair count must meet minimum (includes leftover tractor pairs + standalone pairs)
   const playedTotal = playedTractorPairCounts.reduce((s, n) => s + n, 0) + playedPairs.length;
   if (playedTotal < ideal.minTotalPairs)
     return { valid: false, error: `must play at least ${ideal.minTotalPairs} pairs (only ${playedTotal})` };

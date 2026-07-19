@@ -1510,11 +1510,7 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
 
     it('lead AAKKJJ1010, hand 55443322 + extra tractor 8877 → not unique', () => {
       // Same lead but hand has extra tractor 8877.
-      // Level 6 means 8-7-5-4 chains into a merged tractor via level-skip,
-      // but that doesn't affect uniqueness: more cards than leadLen → not unique.
-      // Note: follow validation may fail here due to a pre-existing issue in
-      // tryMatchTractorSlots (merged tractors can't be cleanly split), so we
-      // skip checkFollow and only verify the isOnlyLegalPlay result.
+      // 12 lead-suit cards > 8 leadLen, extra tractor → not unique.
       const lead: Card[] = [
         ct('C', 14, 200), ct('C', 14, 201),   // AA
         ct('C', 13, 200), ct('C', 13, 201),   // KK
@@ -1532,8 +1528,64 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
         ct('S', 8, 0), ct('S', 9, 0),
       ];
       const r = aiFollowPlay(hand, lead, 'C', cfg6, best, 1);
+      checkFollow(r.cards, hand, lead, 'C', cfg6);
       // 12 lead-suit cards > 8 leadLen, extra tractor → not unique.
       expect(r.reason).not.toContain('唯一可出');
+    });
+  });
+
+  describe('tryMatchTractorSlots: level-skip merged tractor splitting', () => {
+    // At level 6, clubs C-8-7-5-4 form a chain (7-5 skip level 6),
+    // causing detectTractors to merge 88775544 into a single 4-pair tractor.
+    // tryMatchTractorSlots must pick non-merging tractors (e.g. 8877 + 4433)
+    // instead of ones that merge (8877 + 5544).
+    const cfg6: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 6 };
+    function ct(s: string, r: number, i: number): Card {
+      return createCard(s as any, r as any, i);
+    }
+
+    it('two 2-pair tractor lead, hand has 88775544 → splits correctly', () => {
+      // Lead: AAKK + JJ1010 (two 2-pair tractors, 8 cards).
+      // Hand clubs: 88775544 (4-pair chain via level-skip) + 33 + 22.
+      const lead: Card[] = [
+        ct('C', 14, 200), ct('C', 14, 201),   // AA
+        ct('C', 13, 200), ct('C', 13, 201),   // KK
+        ct('C', 11, 200), ct('C', 11, 201),   // JJ
+        ct('C', 10, 200), ct('C', 10, 201),   // 1010
+      ];
+      const best = { cards: lead, playerIdx: 0 };
+      const hand = [
+        ct('C', 8, 0), ct('C', 8, 1),   // 88
+        ct('C', 7, 0), ct('C', 7, 1),   // 77
+        ct('C', 5, 0), ct('C', 5, 1),   // 55
+        ct('C', 4, 0), ct('C', 4, 1),   // 44
+        ct('C', 3, 0), ct('C', 3, 1),   // 33
+        ct('C', 2, 0), ct('C', 2, 1),   // 22
+        ct('S', 8, 0), ct('S', 9, 0),
+      ];
+      const r = aiFollowPlay(hand, lead, 'C', cfg6, best, 1);
+      checkFollow(r.cards, hand, lead, 'C', cfg6);
+      expect(r.cards.length).toBe(8);
+      // Must not merge into a single 4-pair tractor.
+      // Should play two 2-pair tractors (e.g. 8877 + 4433 or 8877 + 3322).
+    });
+
+    it('lead AAKK, hand 5544 (2 pairs, exact match) → valid follow', () => {
+      // Simple 2-pair tractor lead, hand has exactly 2 pairs → unique.
+      const lead: Card[] = [
+        ct('C', 14, 200), ct('C', 14, 201),
+        ct('C', 13, 200), ct('C', 13, 201),
+      ];
+      const best = { cards: lead, playerIdx: 0 };
+      const hand = [
+        ct('C', 5, 0), ct('C', 5, 1),   // 55
+        ct('C', 4, 0), ct('C', 4, 1),   // 44
+        ct('S', 8, 0), ct('S', 9, 0),
+      ];
+      const r = aiFollowPlay(hand, lead, 'C', cfg6, best, 1);
+      checkFollow(r.cards, hand, lead, 'C', cfg6);
+      expect(r.cards.length).toBe(4);
+      expect(r.reason).toContain('唯一可出');
     });
   });
 

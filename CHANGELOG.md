@@ -1368,7 +1368,19 @@ discardSort 签名新增可选 `config` 参数，各调用点传入 ctx。
 
 **新增 5 项测试**（ai-follow.test.ts：90 项），437 项通过。
 
-**已知问题**：`tryMatchTractorSlots` 在级牌跳跃导致拖拉机合并时（如 level=6 时 88775544 被合并为 4 对拖拉机），无法正确拆分为两个 2 对拖拉机，导致 `validateFollow` 拒绝 AI 的合法跟牌。该 bug 在本次重写前已存在，未修复。
-
 - **影响文件**：`packages/engine/src/ai/index.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
+
+## 2026-07-19 11:59
+
+### 修复 checkTractorOrThrowFollow：大拖拉机可满足小拖拉机要求
+
+**问题**：级牌跳跃导致 detectTractors 合并拖拉机时（如 level=6 时 88775544 合并为 4 对拖拉机），validateFollow 的 `checkTractorOrThrowFollow` 要求每个拖拉机对数精确匹配，拒绝大拖拉机满足小要求的合法跟牌。
+
+**修复**：替换精确匹配为贪心分配——一个 N 对的拖拉机可满足 ≤N 对的要求，剩余对数计入 fill。例如 [4] 可满足 [2, 2]（分别分配 2+2），[5] 可满足 [3, 2]（分配 3+2，剩余 0）。
+
+**新增 2 项测试**（ai-follow.test.ts：92 项）+ **6 项 validation 测试**（following.test.ts：53 项），445 项通过。
+
+- **影响文件**：`packages/engine/src/following/index.ts`
+- **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
+- **影响文件**：`packages/engine/src/__tests__/following.test.ts`
