@@ -1445,3 +1445,11 @@ AI 策略在 `_aiFollowPlay` 和 `followTrumpLead` 中先调用该判断：若�
 
 - **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
 - **影响文件**：`packages/engine/src/__tests__/following.test.ts`
+
+## 2026-07-19 14:00
+
+### 新增 AI 策略文档 STRATEGY.md
+
+面向普通玩家的完整出牌策略文档，包含领出、跟牌、扣底、NT 模式的策略表格和理由速查表。
+
+- **新增文件**：`packages/engine/src/ai/STRATEGY.md`
