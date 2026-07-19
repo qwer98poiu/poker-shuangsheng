@@ -1436,3 +1436,12 @@ AI 策略在 `_aiFollowPlay` 和 `followTrumpLead` 中先调用该判断：若�
 6 pairs + 2 singles → 唯一可出；多加一对大王 → 不唯一。449 项通过。
 
 - **影响文件**：`packages/engine/src/__tests__/following.test.ts`
+
+## 2026-07-19 13:41
+
+### 移动 isOnlyLegalPlay 测试从 ai-follow 到 following
+
+`isOnlyLegalPlay` 已移至 following 模块，相关测试也应跟随。5 项测试从 `ai-follow.test.ts`（89 项）移到 `following.test.ts`（58 项），改为直接调用 `isOnlyLegalPlay()`。
+
+- **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
+- **影响文件**：`packages/engine/src/__tests__/following.test.ts`

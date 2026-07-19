@@ -918,5 +918,62 @@ describe('complex tractor follow (diamonds trump, ace level)', () => {
       const r = validateFollow(play, hand, lead, lp, 'C' as any, cfg6);
       expect(r.valid).toBe(true);
     });
+
+    it('lead AAKK, hand 5533 (2 pairs, no tractor) -> unique', () => {
+      const lead2 = [ct('C', 14, 200), ct('C', 14, 201), ct('C', 13, 200), ct('C', 13, 201)];
+      const hand2 = [ct('C', 5, 0), ct('C', 5, 1), ct('C', 3, 0), ct('C', 3, 1)];
+      const lp2 = classify(lead2, cfg6);
+      expect(isOnlyLegalPlay(hand2, lead2.length, lp2, cfg6)).toBe(true);
+    });
+
+    it('lead AAKK, hand 554433 (3-pair tractor, 6 cards) -> not unique', () => {
+      const lead2 = [ct('C', 14, 200), ct('C', 14, 201), ct('C', 13, 200), ct('C', 13, 201)];
+      const hand2 = [
+        ct('C', 5, 0), ct('C', 5, 1), ct('C', 4, 0), ct('C', 4, 1),
+        ct('C', 3, 0), ct('C', 3, 1),
+      ];
+      const lp2 = classify(lead2, cfg6);
+      expect(isOnlyLegalPlay(hand2, lead2.length, lp2, cfg6)).toBe(false);
+    });
+
+    it('lead AAQQJJ, hand 554433 (6 cards, exact match) -> unique', () => {
+      const lead2 = [
+        ct('C', 14, 200), ct('C', 14, 201), ct('C', 12, 200), ct('C', 12, 201),
+        ct('C', 11, 200), ct('C', 11, 201),
+      ];
+      const hand2 = [
+        ct('C', 5, 0), ct('C', 5, 1), ct('C', 4, 0), ct('C', 4, 1),
+        ct('C', 3, 0), ct('C', 3, 1),
+      ];
+      const lp2 = classify(lead2, cfg6);
+      expect(isOnlyLegalPlay(hand2, lead2.length, lp2, cfg6)).toBe(true);
+    });
+
+    it('lead AAKKJJ1010, hand 55443322 (8 cards, exact match) -> unique', () => {
+      const lead2 = [
+        ct('C', 14, 200), ct('C', 14, 201), ct('C', 13, 200), ct('C', 13, 201),
+        ct('C', 11, 200), ct('C', 11, 201), ct('C', 10, 200), ct('C', 10, 201),
+      ];
+      const hand2 = [
+        ct('C', 5, 0), ct('C', 5, 1), ct('C', 4, 0), ct('C', 4, 1),
+        ct('C', 3, 0), ct('C', 3, 1), ct('C', 2, 0), ct('C', 2, 1),
+      ];
+      const lp2 = classify(lead2, cfg6);
+      expect(isOnlyLegalPlay(hand2, lead2.length, lp2, cfg6)).toBe(true);
+    });
+
+    it('lead AAKKJJ1010, hand 55443322+8877 (12 cards, extra tractor) -> not unique', () => {
+      const lead2 = [
+        ct('C', 14, 200), ct('C', 14, 201), ct('C', 13, 200), ct('C', 13, 201),
+        ct('C', 11, 200), ct('C', 11, 201), ct('C', 10, 200), ct('C', 10, 201),
+      ];
+      const hand2 = [
+        ct('C', 5, 0), ct('C', 5, 1), ct('C', 4, 0), ct('C', 4, 1),
+        ct('C', 3, 0), ct('C', 3, 1), ct('C', 2, 0), ct('C', 2, 1),
+        ct('C', 8, 0), ct('C', 8, 1), ct('C', 7, 0), ct('C', 7, 1),
+      ];
+      const lp2 = classify(lead2, cfg6);
+      expect(isOnlyLegalPlay(hand2, lead2.length, lp2, cfg6)).toBe(false);
+    });
   });
 });
