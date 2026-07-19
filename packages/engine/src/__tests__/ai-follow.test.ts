@@ -1589,6 +1589,55 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
     });
   });
 
+  describe('tractor follow point strategy: add/avoid (level=6)', () => {
+    // P0 declarer leads AAKK+JJ1010 (two 2-pair tractors, 8 cards), P0 wins.
+    // AI hand: 12 clubs 887755443322 + 2 spades. Must pick two 2-pair tractors.
+    // Third (P2, teammate) should add points → include 55.
+    // Fourth (P3, opponent) should avoid points → exclude 55.
+    const cfg6: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 6 };
+    function ct(s: string, r: number, i: number): Card {
+      return createCard(s as any, r as any, i);
+    }
+
+    const lead: Card[] = [
+      ct('C', 14, 200), ct('C', 14, 201),   // AA
+      ct('C', 13, 200), ct('C', 13, 201),   // KK
+      ct('C', 11, 200), ct('C', 11, 201),   // JJ
+      ct('C', 10, 200), ct('C', 10, 201),   // 1010
+    ];
+    const best = { cards: lead, playerIdx: 0 };
+    const hand = [
+      ct('C', 8, 0), ct('C', 8, 1),   // 88
+      ct('C', 7, 0), ct('C', 7, 1),   // 77
+      ct('C', 5, 0), ct('C', 5, 1),   // 55 (point pair)
+      ct('C', 4, 0), ct('C', 4, 1),   // 44
+      ct('C', 3, 0), ct('C', 3, 1),   // 33
+      ct('C', 2, 0), ct('C', 2, 1),   // 22
+      ct('S', 8, 0), ct('S', 9, 0),
+    ];
+
+    it('third position (P2, teammate wins) adds points, includes 55', () => {
+      const r = aiFollowPlay(hand, lead, 'C', cfg6, best, 2);
+      checkFollow(r.cards, hand, lead, 'C', cfg6);
+      expect(r.cards.length).toBe(8);
+      // Should include the point pair 55.
+      const ranks = r.cards.filter(c => c.suit === 'C').map(c => c.rank);
+      expect(ranks).toContain(5);
+      expect(r.reason).toContain('同花色出小');
+      expect(r.reason).toContain('加分');
+    });
+
+    it('fourth position (P3, opponent wins) avoids points, excludes 55', () => {
+      const r = aiFollowPlay(hand, lead, 'C', cfg6, best, 3);
+      checkFollow(r.cards, hand, lead, 'C', cfg6);
+      expect(r.cards.length).toBe(8);
+      // Should NOT include the point pair 55.
+      const ranks = r.cards.filter(c => c.suit === 'C').map(c => c.rank);
+      expect(ranks).not.toContain(5);
+      expect(r.reason).toContain('同花色出小');
+    });
+  });
+
   describe('team-win void avoids unnecessary trump kill', () => {
     const cfgD: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Diamonds, level: 2 };
     function ct(s: string, r: number, i: number): Card {

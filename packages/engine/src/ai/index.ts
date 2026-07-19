@@ -666,12 +666,18 @@ function matchTrumpPattern(
   if (leadCombo.hasTractor) {
     const myTractors = detectTractors(myTrump, ctx);
     if (myTractors.length > 0) {
+      const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
+      const shouldAvoidT = !addPoints
+        && ((position === 'fourth' && !tmWin)
+          || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx)));
+      const ptsStrat = addPoints ? 'add' : (shouldAvoidT ? 'avoid' : undefined);
+
       myTractors.sort((a, b) => {
         const aMax = getEffectiveRank(maxCardT(a, ctx), ctx);
         const bMax = getEffectiveRank(maxCardT(b, ctx), ctx);
         return aMax - bMax;
       });
-      let picked = tryMatchTractorSlots(leadCombo, myTractors, myTrump, leadLen, ctx);
+      let picked = tryMatchTractorSlots(leadCombo, myTractors, myTrump, leadLen, ctx, ptsStrat);
       if (picked && !canBeat(picked, ctx.bestSoFar, ctx)) {
         // Sort biggest-first to try finding a beating tractor
         myTractors.sort((a, b) => {
@@ -679,11 +685,10 @@ function matchTrumpPattern(
           const bMax = getEffectiveRank(maxCardT(b, ctx), ctx);
           return bMax - aMax;
         });
-        const alt = tryMatchTractorSlots(leadCombo, myTractors, myTrump, leadLen, ctx);
+        const alt = tryMatchTractorSlots(leadCombo, myTractors, myTrump, leadLen, ctx, ptsStrat);
         if (alt && canBeat(alt, ctx.bestSoFar, ctx)) picked = alt;
       }
       if (picked) {
-        const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
         const intent = addPoints ? 'add' : 'none';
         const beating = canBeat(picked, ctx.bestSoFar, ctx);
         const baseReason = beating ? '同花色出大' : '同花色出小';
@@ -874,8 +879,14 @@ function followOffSuitMulti(
   if (leadCombo.hasTractor) {
     const myTractors = detectTractors(leadSuitCards, ctx);
     if (myTractors.length > 0) {
+      const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
+      const shouldAvoidT = !addPoints
+        && ((position === 'fourth' && !tmWin)
+          || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx)));
+      const ptsStrat = addPoints ? 'add' : (shouldAvoidT ? 'avoid' : undefined);
+
       myTractors.sort((a, b) => b.length - a.length);
-      let picked = tryMatchTractorSlots(leadCombo, myTractors, leadSuitCards, leadLen, ctx);
+      let picked = tryMatchTractorSlots(leadCombo, myTractors, leadSuitCards, leadLen, ctx, ptsStrat);
       if (picked && !canBeat(picked, ctx.bestSoFar, ctx)) {
         // Sort by max rank descending to try finding a beating tractor
         myTractors.sort((a, b) => {
@@ -883,11 +894,10 @@ function followOffSuitMulti(
           const bMax = getEffectiveRank(maxCardT(b, ctx), ctx);
           return bMax - aMax;
         });
-        const alt = tryMatchTractorSlots(leadCombo, myTractors, leadSuitCards, leadLen, ctx);
+        const alt = tryMatchTractorSlots(leadCombo, myTractors, leadSuitCards, leadLen, ctx, ptsStrat);
         if (alt && canBeat(alt, ctx.bestSoFar, ctx)) picked = alt;
       }
       if (picked) {
-        const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
         const intent = addPoints ? 'add' : 'none';
         const beating = canBeat(picked, ctx.bestSoFar, ctx);
         const baseReason = beating ? '同花色出大' : '同花色出小';
@@ -1588,6 +1598,7 @@ function tryMatchTractorSlots(
   cardPool: Card[],
   leadLen: number,
   ctx: AIContext,
+  pointsStrategy?: 'add' | 'avoid',
 ): Card[] | null {
   const picked: Card[] = [];
   const usedIds = new Set<string>();
@@ -1597,7 +1608,18 @@ function tryMatchTractorSlots(
       t.every(c => !usedIds.has(c.id)) && t.length / 2 >= req,
     );
     if (available.length > 0) {
-      available.sort((a, b) => (a.length / 2) - (b.length / 2));
+      available.sort((a, b) => {
+        if (pointsStrategy === 'add') {
+          const aPts = a.some(c => isPointRank(c.rank)) ? 0 : 100;
+          const bPts = b.some(c => isPointRank(c.rank)) ? 0 : 100;
+          if (aPts !== bPts) return aPts - bPts;
+        } else if (pointsStrategy === 'avoid') {
+          const aPts = a.some(c => isPointRank(c.rank)) ? 100 : 0;
+          const bPts = b.some(c => isPointRank(c.rank)) ? 100 : 0;
+          if (aPts !== bPts) return aPts - bPts;
+        }
+        return (a.length / 2) - (b.length / 2);
+      });
       const sel = available[0].slice(0, req * 2);
       picked.push(...sel);
       sel.forEach(c => usedIds.add(c.id));

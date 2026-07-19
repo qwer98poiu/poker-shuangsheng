@@ -1384,3 +1384,16 @@ discardSort 签名新增可选 `config` 参数，各调用点传入 ctx。
 - **影响文件**：`packages/engine/src/following/index.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
 - **影响文件**：`packages/engine/src/__tests__/following.test.ts`
+
+## 2026-07-19 12:29
+
+### 拖拉机跟牌增加加分/避分排序
+
+**问题**：`tryMatchTractorSlots` 始终选最小拖拉机填充，不考虑加分/避分策略。第三家队友已大时应优先含分牌，第四家应避免含分牌。
+
+**修复**：`tryMatchTractorSlots` 新增 `pointsStrategy` 参数（'add' | 'avoid'）。add 时含分拖拉机优先，avoid 时含分拖拉机置后。`matchTrumpPattern` 和 `followOffSuitMulti` 两个调用方在选取前计算策略并传入。`trumpKill` 不改（有自己的抢分逻辑）。
+
+**新增 2 项测试**（ai-follow.test.ts：94 项），447 项通过。
+
+- **影响文件**：`packages/engine/src/ai/index.ts`
+- **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
