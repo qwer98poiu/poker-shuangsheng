@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { Suit } from '../types.js';
 import { createCard } from '../model.js';
-import { validateFollow } from '../following/index.js';
+import { validateFollow, isOnlyLegalPlay } from '../following/index.js';
 import { classify } from '../pattern/index.js';
 import type { TrumpDeclaration, Card } from '../types.js';
 
@@ -790,6 +790,37 @@ describe('complex tractor follow (diamonds trump, ace level)', () => {
         c('D', 2, 17), c('D', 2, 18),
       ], hand, lead, lp, null, cfgDiamondA);
       expect(r.valid).toBe(true);
+    });
+
+    it('hand: QQ+JJ+77+55+33+22 + Small Joker + C-A (6 pairs + 2 singles) → unique', () => {
+      const hand2 = [
+        c('J', 15, 1),                    // Small Joker (single)
+        c('C', 14, 5),                     // C-A (single, off-suit level, is trump)
+        c('D', 12, 7), c('D', 12, 8),     // QQ
+        c('D', 11, 9), c('D', 11, 10),    // JJ
+        c('D', 7, 11), c('D', 7, 12),     // 77
+        c('D', 5, 13), c('D', 5, 14),     // 55
+        c('D', 3, 15), c('D', 3, 16),     // 33
+        c('D', 2, 17), c('D', 2, 18),     // 22
+      ];
+      const lp = classify(lead, cfgDiamondA);
+      expect(isOnlyLegalPlay(hand2, lead.length, lp, cfgDiamondA)).toBe(true);
+    });
+
+    it('hand: BJ pair + QQ+JJ+77+55+33+22 + Small Joker + C-A (7 pairs + 2 singles) → not unique', () => {
+      const hand3 = [
+        c('J', 16, 1), c('J', 16, 2),     // Big Joker pair (extra pair)
+        c('J', 15, 3),                     // Small Joker (single)
+        c('C', 14, 5),                     // C-A (single, off-suit level, is trump)
+        c('D', 12, 7), c('D', 12, 8),     // QQ
+        c('D', 11, 9), c('D', 11, 10),    // JJ
+        c('D', 7, 11), c('D', 7, 12),     // 77
+        c('D', 5, 13), c('D', 5, 14),     // 55
+        c('D', 3, 15), c('D', 3, 16),     // 33
+        c('D', 2, 17), c('D', 2, 18),     // 22
+      ];
+      const lp = classify(lead, cfgDiamondA);
+      expect(isOnlyLegalPlay(hand3, lead.length, lp, cfgDiamondA)).toBe(false);
     });
   });
 

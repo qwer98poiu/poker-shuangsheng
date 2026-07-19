@@ -1428,3 +1428,11 @@ AI 策略在 `_aiFollowPlay` 和 `followTrumpLead` 中先调用该判断：若�
 
 - **影响文件**：`packages/engine/src/following/index.ts`
 - **影响文件**：`packages/engine/src/ai/index.ts`
+
+## 2026-07-19 13:33
+
+### following.test.ts 增加唯一可出测试（DA+HA+KK + 10109988 主牌领出）
+
+6 pairs + 2 singles → 唯一可出；多加一对大王 → 不唯一。449 项通过。
+
+- **影响文件**：`packages/engine/src/__tests__/following.test.ts`
