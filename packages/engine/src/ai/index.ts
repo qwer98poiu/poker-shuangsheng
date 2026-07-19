@@ -691,7 +691,8 @@ function matchTrumpPattern(
       if (picked) {
         const intent = addPoints ? 'add' : 'none';
         const beating = canBeat(picked, ctx.bestSoFar, ctx);
-        const baseReason = beating ? '同花色出大' : '同花色出小';
+        const isThrow = leadCombo.type === 'throw';
+        const baseReason = isThrow ? '垫同花色' : (beating ? '同花色出大' : '同花色出小');
         const reason = annotateReason(baseReason, picked, [], myTrump,
           leadCombo, leadLen, ctx, position, tmWin, false, intent);
         return { cards: picked, reason };
@@ -757,7 +758,8 @@ function matchTrumpPattern(
     const cards = chosen.slice(0, leadLen);
     const beating = canBeat(cards, ctx.bestSoFar, ctx);
     const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
-    const baseReason = beating ? '同花色出大' : '同花色出小';
+    const isThrow2 = leadCombo.type === 'throw';
+    const baseReason = isThrow2 ? '垫同花色' : (beating ? '同花色出大' : '同花色出小');
     const intent = addPoints ? 'add' : 'none';
     const reason = annotateReason(baseReason, cards, [], myTrump,
       leadCombo, leadLen, ctx, position, tmWin, false, intent);
@@ -900,7 +902,8 @@ function followOffSuitMulti(
       if (picked) {
         const intent = addPoints ? 'add' : 'none';
         const beating = canBeat(picked, ctx.bestSoFar, ctx);
-        const baseReason = beating ? '同花色出大' : '同花色出小';
+        const isThrow3 = leadCombo.type === 'throw';
+        const baseReason = isThrow3 ? '垫同花色' : (beating ? '同花色出大' : '同花色出小');
         const reason = annotateReason(baseReason, picked, leadSuitCards, [],
           leadCombo, leadLen, ctx, position, tmWin, false, intent);
         return { cards: picked, reason };
@@ -980,7 +983,8 @@ function followOffSuitMulti(
     }
     const cards = chosen.slice(0, leadLen);
     const beating = canBeat(cards, ctx.bestSoFar, ctx);
-    const baseReason = beating ? '同花色出大' : '同花色出小';
+    const isThrow4 = leadCombo.type === 'throw';
+    const baseReason = isThrow4 ? '垫同花色' : (beating ? '同花色出大' : '同花色出小');
     const intent = addPoints ? 'add' : shouldAvoid ? 'avoid' : 'none';
     const reason = annotateReason(baseReason, cards, leadSuitCards, [],
       leadCombo, leadLen, ctx, position, tmWin, false, intent);

@@ -1397,3 +1397,14 @@ discardSort 签名新增可选 `config` 参数，各调用点传入 ctx。
 
 - **影响文件**：`packages/engine/src/ai/index.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
+
+## 2026-07-19 12:38
+
+### 甩牌跟牌理由统一为垫同花色
+
+**问题**：领出是甩牌时，跟牌理由用了"同花色出大/出小"，不符合甩牌语义——甩牌是多牌型混合，跟出方匹配牌型即可，无所谓盖过。
+
+**修复**：`matchTrumpPattern` 和 `followOffSuitMulti` 中检测 `leadCombo.type === 'throw'`，甩牌跟牌理由统一用"垫同花色"（纯拖拉机仍用出大/出小）。
+
+- **影响文件**：`packages/engine/src/ai/index.ts`
+- **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`

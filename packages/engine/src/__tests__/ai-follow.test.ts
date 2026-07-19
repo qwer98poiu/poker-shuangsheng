@@ -1623,7 +1623,7 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
       // Should include the point pair 55.
       const ranks = r.cards.filter(c => c.suit === 'C').map(c => c.rank);
       expect(ranks).toContain(5);
-      expect(r.reason).toContain('同花色出小');
+      expect(r.reason).toContain('垫同花色');
       expect(r.reason).toContain('加分');
     });
 
@@ -1634,7 +1634,7 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
       // Should NOT include the point pair 55.
       const ranks = r.cards.filter(c => c.suit === 'C').map(c => c.rank);
       expect(ranks).not.toContain(5);
-      expect(r.reason).toContain('同花色出小');
+      expect(r.reason).toContain('垫同花色');
     });
   });
 
