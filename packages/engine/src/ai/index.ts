@@ -657,13 +657,16 @@ function followTrumpLead(
       }
       const shouldAvoid = (position === 'fourth' && !tmWin)
         || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx));
-      if (shouldAvoid) {
+      const addPoints = !shouldAvoid && canAddPoints(tmWin, position, leadCombo, ctx);
+      if (addPoints) {
+        myTrump.sort(discardSort(true, ctx));
+      } else if (shouldAvoid) {
         myTrump.sort(discardSort(false, ctx));
       } else {
         myTrump.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
       }
       const cards = [myTrump[0]];
-      const intent = shouldAvoid ? 'avoid' : 'none';
+      const intent = shouldAvoid ? 'avoid' : (addPoints ? 'add' : 'none');
       const reason = annotateReason('同花色出小', cards, [], myTrump,
         leadCombo, 1, ctx, position, tmWin, false, intent);
       return { cards, reason };
@@ -1349,15 +1352,16 @@ function followNTTrumpLead(
           leadCombo, 1, ctx, position, tmWin, false, intent);
         return { cards, reason };
       }
-      const shouldAvoid = (position === 'fourth' && !tmWin)
-        || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx));
-      if (shouldAvoid) {
+      const addPts = !shouldAvoid && tmWin && canAddPoints(tmWin, position, leadCombo, ctx);
+      if (addPts) {
+        myTrump.sort(discardSort(true, ctx));
+      } else if (shouldAvoid) {
         myTrump.sort(discardSort(false, ctx));
       } else {
         myTrump.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
       }
       const cards = [myTrump[0]];
-      const intent = shouldAvoid ? 'avoid' : 'none';
+      const intent = shouldAvoid ? 'avoid' : (addPts ? 'add' : 'none');
       const reason = annotateReason('同花色出小', cards, [], myTrump,
         leadCombo, 1, ctx, position, tmWin, false, intent);
       return { cards, reason };
@@ -1484,8 +1488,9 @@ function canAddPoints(tmWin: boolean, position: string, leadCombo: ComboClass, c
   if (position === 'third') {
     if (leadCombo.hasTractor) return true;
     if (leadCombo.type === 'throw') return true;
-    // Single or pair of big off-suit card (A, or K when A is level)
     if (leadCombo.type === 'single' || leadCombo.type === 'pair') {
+      const isTrumpLead = leadCombo.cards.every(c => isTrump(c, ctx));
+      if (isTrumpLead) return isTrumpMax(leadCombo, ctx);
       return leadCombo.cards.every(c => isBigOffSuitCard(c, ctx));
     }
   }
@@ -1497,8 +1502,44 @@ function canAddPoints(tmWin: boolean, position: string, leadCombo: ComboClass, c
 function isMaxPattern(leadCombo: ComboClass, ctx: AIContext): boolean {
   if (leadCombo.hasTractor) return true;
   if (leadCombo.type === 'throw') return true;
-  if (leadCombo.type === 'single' && isBigOffSuitCard(leadCombo.cards[0], ctx)) return true;
-  if (leadCombo.type === 'pair' && leadCombo.cards.every(c => isBigOffSuitCard(c, ctx))) return true;
+  if (leadCombo.type === 'single' || leadCombo.type === 'pair') {
+    const isTrumpLead = leadCombo.cards.every(c => isTrump(c, ctx));
+    if (isTrumpLead) return isTrumpMax(leadCombo, ctx);
+    if (leadCombo.type === 'single') return isBigOffSuitCard(leadCombo.cards[0], ctx);
+    return leadCombo.cards.every(c => isBigOffSuitCard(c, ctx));
+  }
+  return false;
+}
+
+function isTrumpMax(leadCombo: ComboClass, ctx: AIContext): boolean {
+  if (leadCombo.cards.some(c => c.rank === Rank.BigJoker)) return true;
+  if (leadCombo.cards.length === 2 && leadCombo.cards[0].rank === Rank.SmallJoker) {
+    return sideHasBigJoker(ctx);
+  }
+  return false;
+}
+
+function sideHasBigJoker(ctx: AIContext): boolean {
+  if (ctx.myIndex < 0) return false;
+  if (ctx.ntState) {
+    const opponents = [0, 1, 2, 3].filter(p => p % 2 !== ctx.myIndex % 2);
+    if (opponents.every(p => !ctx.ntState!.canHaveBigJoker[p])) return true;
+    if (ctx.ntState!.allUnseenBigJokersOnOurSide) return true;
+    return false;
+  }
+  const ourTeam = new Set([ctx.myIndex, (ctx.myIndex + 2) % 4]);
+  for (const trick of ctx.trickHistory) {
+    for (let pi = 0; pi < 4; pi++) {
+      for (const c of trick.plays[pi].cards) {
+        if (c.rank === Rank.BigJoker && ourTeam.has(pi)) return true;
+      }
+    }
+  }
+  for (const rev of ctx.reveals) {
+    for (const c of rev.cards) {
+      if (c.rank === Rank.BigJoker && ourTeam.has(rev.playerIndex)) return true;
+    }
+  }
   return false;
 }
 

@@ -1473,4 +1473,20 @@ AI 策略在 `_aiFollowPlay` 和 `followTrumpLead` 中先调用该判断：若�
 - **影响文件**：`packages/engine/src/ai/index.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
 
+## 2026-07-19 16:44
+
+### 扩展 canAddPoints/isMaxPattern 支持主牌最大牌型判断
+
+**问题**：`canAddPoints` 和 `isMaxPattern` 仅通过 `isBigOffSuitCard` 判断副牌最大牌型，对主牌（大王/小王对）无效。同时 `followTrumpLead` 和 `followNTTrumpLead` 盖不过分支未调用 `canAddPoints`，第三家无法标注加分。
+
+**修复**：
+
+1. 新增 `isTrumpMax`：大王单张/对子始终为最大牌型；小王对在我方有大王时为最大牌型
+2. 新增 `sideHasBigJoker`：NT 模式用记牌器判断，花色模式通过历史出牌和亮主记录推断
+3. `canAddPoints` 和 `isMaxPattern` 中先判断领出是否为主牌，是则调用 `isTrumpMax`
+4. `followTrumpLead` 和 `followNTTrumpLead` 盖不过分支增加 `canAddPoints`，可加分时用 `discardSort(true)` 选分牌
+
+**新增 3 项测试**（ai-follow.test.ts：93 项），453 项通过。
+
+- **影响文件**：`packages/engine/src/ai/index.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`

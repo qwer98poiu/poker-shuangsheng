@@ -1030,6 +1030,40 @@ describe('tractor lead fill-with-pairs annotations (level=2, spades trump)', () 
     // All cards are non-pointers
     expect(r.reason).toContain('但没分可加');
   });
+
+  it('third + tmWin + trump BJ single -> max pattern, adds points', () => {
+    // P0 leads trump BJ. P2=third, teammate P0 wins. BJ single is max -> add points.
+    const cfgH: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 5 };
+    const lead: Card[] = [cc('J', 16, 200)];
+    const best = { cards: lead, playerIdx: 0 };
+    const hand = [cc('H', 14, 0), cc('H', 13, 0), cc('H', 8, 0)];
+    const r = aiFollowPlay(hand, lead, null, cfgH, best, 2);
+    checkFollow(r.cards, hand, lead, null, cfgH);
+    expect(r.reason).toContain('加分');
+  });
+
+  it('second + trump BJ single (max) + cannot beat -> avoid', () => {
+    // P0 leads trump BJ. P1=second, has H-A,K,8. Cannot beat BJ, lead is max -> avoid.
+    const cfgH2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 5 };
+    const lead: Card[] = [cc('J', 16, 200)];
+    const best = { cards: lead, playerIdx: 0 };
+    const hand = [cc('H', 14, 0), cc('H', 13, 0), cc('H', 8, 0)];
+    const r = aiFollowPlay(hand, lead, null, cfgH2, best, 1);
+    checkFollow(r.cards, hand, lead, null, cfgH2);
+    expect(r.reason).toContain('不加分');
+  });
+
+  it('second + small trump (not max) -> no annotation', () => {
+    // P0 leads small trump H-8. P1=second, has H-9,10,A. Not max -> no avoid annotation.
+    const cfgH3: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 5 };
+    const lead: Card[] = [cc('H', 8, 200)];
+    const best = { cards: lead, playerIdx: 0 };
+    const hand = [cc('H', 9, 0), cc('H', 10, 0), cc('H', 14, 0)];
+    const r = aiFollowPlay(hand, lead, null, cfgH3, best, 1);
+    checkFollow(r.cards, hand, lead, null, cfgH3);
+    expect(r.reason).not.toContain('不加分');
+    expect(r.reason).not.toContain('加分');
+  });
 });
 
 // ================================================================
