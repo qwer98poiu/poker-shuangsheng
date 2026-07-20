@@ -5,6 +5,7 @@ import { classify } from '../pattern/index.js';
 import { validateFollow } from '../following/index.js';
 import { aiFollowPlay } from '../ai/index.js';
 import type { TrumpDeclaration, Card } from '../types.js';
+import type { AIContext, NTTrumpState } from '../ai/types.js';
 
 const cfg5: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 5 };
 const cfgDiamondA: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Diamonds, level: 14 };
@@ -442,6 +443,72 @@ describe('position-aware point adding (diamonds trump, level=2)', () => {
       // Lead is small (9 not max), so third+tmWin = NO annotation
       expect(r.reason).not.toContain('加分');
       expect(r.reason).not.toContain('不加分');
+    });
+  });
+
+  describe('NT trump follow single cannot beat (crash fix)', () => {
+    // Bug: followNTTrumpLead used `shouldAvoid` without defining it.
+    // Fix: declare shouldAvoid before usage, matching followTrumpLead.
+    // NT mode: trumpSuit=null, all jokers+level cards are trump.
+    function ct(s: string, r: number, i: number): Card {
+      return createCard(s as any, r as any, i);
+    }
+
+    // Minimal NTTrumpState mock — enough for the cannot-beat path.
+    const mockNTState: NTTrumpState = {
+      knownTrumpsPerPlayer: [[], [], [], []],
+      playersWithNoTrump: new Set(),
+      totalTrumps: 12,
+      opponentTrumpCount: 0,
+      remainingBigJokers: 0,
+      remainingSmallJokers: 0,
+      allUnseenJokersOnOurSide: false,
+      allUnseenBigJokersOnOurSide: false,
+      possibleTrumps: [null, [], [], [], []],
+      isFullyDetermined: false,
+      canFormPair: [false, false, false, false],
+      canHaveJoker: [false, false, false, false],
+      canHaveBigJoker: [false, false, false, false],
+      canHaveSmallJoker: [false, false, false, false],
+      minTrumpCounts: [0, 0, 0, 0],
+      maxTrumpCounts: [0, 0, 0, 0],
+    };
+
+    it('NT single trump, fourth+oppWins, cannot beat -> no crash', () => {
+      // P0 (declarer) leads ♣2. P1 beats with JOKER. P3=AI(fourth) has ♠2
+      // as only trump, cannot beat JOKER. opponent wins → shouldAvoid=true.
+      // Crash was: shouldAvoid used without declaration.
+      const lead: Card[] = [ct('C', 2, 200)];
+      const bestSoFar = { cards: [ct('J', 16, 201)], playerIdx: 1 };
+      const ctx: AIContext = {
+        declarerIndex: 0,
+        trumpSuit: null,
+        level: 2,
+        myIndex: 3,
+        isDeclarer: false,
+        isDeclarerPartner: false,
+        isAttacker: true,
+        attackerPoints: 0,
+        handCounts: [25, 25, 25, 25] as const,
+        trickHistory: [],
+        reveals: [],
+        playCount: 3,
+        leadPlayerIndex: 0,
+        bestSoFar: { cards: bestSoFar.cards, playerIndex: bestSoFar.playerIdx },
+        ntState: mockNTState,
+        bottomCards: [],
+        debug: false,
+      };
+      const hand = [
+        ct('S', 2, 0),     // ♠2 (trump in NT)
+        ct('H', 14, 0),    // ♥A (non-trump)
+        ct('D', 10, 0),    // ♦10 (non-trump)
+      ];
+      const r = aiFollowPlay(hand, lead, null as any, ctx);
+      checkFollow(r.cards, hand, lead, null as any, ctx);
+      expect(r.cards.length).toBe(1);
+      expect(r.reason).toBeTruthy();
+      // Should not crash
     });
   });
 

@@ -1535,3 +1535,16 @@ AI 策略在 `_aiFollowPlay` 和 `followTrumpLead` 中先调用该判断：若�
 - **影响文件**：`packages/engine/src/ai/index.ts`
 - **影响文件**：`packages/engine/src/__tests__/following.test.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
+
+## 2026-07-20 23:22
+
+### 修复 NT 吊主导致程序崩溃（`shouldAvoid` 未定义）
+
+**问题**：`followNTTrumpLead` 单张盖不过分支使用了 `shouldAvoid` 变量但从未声明，导致 `ReferenceError` 崩溃。该变量在 `followTrumpLead` 中有声明，但 NT 分支遗漏。
+
+**修复**：在 `followNTTrumpLead` 的盖不过分支前添加 `shouldAvoid` 声明，逻辑与 `followTrumpLead` 一致。
+
+**新增 1 项测试**（ai-follow.test.ts：99 项），463 项通过。
+
+- **影响文件**：`packages/engine/src/ai/index.ts`
+- **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`

@@ -1355,6 +1355,8 @@ function followNTTrumpLead(
           leadCombo, 1, ctx, position, tmWin, false, intent);
         return { cards, reason };
       }
+      const shouldAvoid = (position === 'fourth' && !tmWin)
+        || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx));
       const addPts = !shouldAvoid && tmWin && canAddPoints(tmWin, position, leadCombo, ctx);
       if (addPts) {
         myTrump.sort(discardSort(true, ctx));
