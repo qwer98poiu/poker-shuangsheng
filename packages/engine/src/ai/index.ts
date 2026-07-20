@@ -614,14 +614,14 @@ function followTrumpLead(
             if (bigBeaters.length > 0) {
               bigBeaters.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
               const cards = [bigBeaters[0]];
-              const reason = annotateReason('同花色出大', cards, [], myTrump,
+              const reason = annotateReason('同花色出大', cards, myTrump, myTrump,
                 leadCombo, 1, ctx, position, tmWin, false, 'none');
               return { cards, reason };
             }
             canBeatCards.sort((a, b) => getEffectiveRank(b, ctx) - getEffectiveRank(a, ctx));
           }
           const cards = [canBeatCards[0]];
-          const reason = annotateReason('同花色出大', cards, [], myTrump,
+          const reason = annotateReason('同花色出大', cards, myTrump, myTrump,
             leadCombo, 1, ctx, position, tmWin, false, 'none');
           return { cards, reason };
         }
@@ -640,7 +640,7 @@ function followTrumpLead(
             const cards = [bigBeaters[0]];
             const fourthBeat = position === 'fourth' && !tmWin;
             const intent = fourthBeat ? 'beat_points' : 'none';
-            const reason = annotateReason('同花色出大', cards, [], myTrump,
+            const reason = annotateReason('同花色出大', cards, myTrump, myTrump,
               leadCombo, 1, ctx, position, tmWin, false, intent);
             return { cards, reason };
           }
@@ -651,7 +651,7 @@ function followTrumpLead(
         const intent = hasPoints ? 'none'
           : (tmWin && canAddPoints(tmWin, position, leadCombo, ctx)) ? 'add'
           : fourthBeat ? 'beat_points' : 'none';
-        const reason = annotateReason('同花色出大', cards, [], myTrump,
+        const reason = annotateReason('同花色出大', cards, myTrump, myTrump,
           leadCombo, 1, ctx, position, tmWin, false, intent);
         return { cards, reason };
       }
@@ -667,7 +667,7 @@ function followTrumpLead(
       }
       const cards = [myTrump[0]];
       const intent = shouldAvoid ? 'avoid' : (addPoints ? 'add' : 'none');
-      const reason = annotateReason('同花色出小', cards, [], myTrump,
+      const reason = annotateReason('同花色出小', cards, myTrump, myTrump,
         leadCombo, 1, ctx, position, tmWin, false, intent);
       return { cards, reason };
     }
@@ -896,7 +896,10 @@ function followOffSuitSingle(
     }
   }
 
-  return { cards: [leadSuitCards[0]], reason: '同花色出大' };
+  const cards = [leadSuitCards[0]];
+  const reason = annotateReason('同花色出大', cards, leadSuitCards, trumpCards,
+    leadCombo, 1, ctx, position, tmWin, false, 'none');
+  return { cards, reason };
 }
 
 function followOffSuitMulti(
@@ -1348,7 +1351,7 @@ function followNTTrumpLead(
         const cards = [canBeatCards[0]];
         const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
         const intent = addPoints ? 'add' : 'none';
-        const reason = annotateReason('同花色出大', cards, [], myTrump,
+        const reason = annotateReason('同花色出大', cards, myTrump, myTrump,
           leadCombo, 1, ctx, position, tmWin, false, intent);
         return { cards, reason };
       }
@@ -1362,7 +1365,7 @@ function followNTTrumpLead(
       }
       const cards = [myTrump[0]];
       const intent = shouldAvoid ? 'avoid' : (addPts ? 'add' : 'none');
-      const reason = annotateReason('同花色出小', cards, [], myTrump,
+      const reason = annotateReason('同花色出小', cards, myTrump, myTrump,
         leadCombo, 1, ctx, position, tmWin, false, intent);
       return { cards, reason };
     }

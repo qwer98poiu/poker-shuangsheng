@@ -1517,3 +1517,21 @@ AI 策略在 `_aiFollowPlay` 和 `followTrumpLead` 中先调用该判断：若�
 
 - **影响文件**：`packages/engine/src/ai/index.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
+
+## 2026-07-20 22:58
+
+### 扩展"唯一可出"检测：单张领出、手牌仅有一对
+
+**问题**：单张领出时，手牌同花色只有一对（两张同点），两块牌完全等价，选哪张都一样，应判为唯一可出。此前 Rule 2（含单张即返回 false）直接跳过。
+
+**修复**：
+1. `isOnlyLegalPlay` 新增 Rule 1.5：当 `leadLen === 1` 且手牌同花色恰好一对时返回 true
+2. `followTrumpLead` 单张路径传递 `myTrump` 替代 `[]` 给 `annotateReason`，使主牌唯一可出检测生效
+3. `followOffSuitSingle` fallback 路径改为走 `annotateReason`，使副牌唯一可出检测生效
+
+**新增 6 项测试**（following.test.ts：64 项，ai-follow.test.ts：98 项），462 项通过。
+
+- **影响文件**：`packages/engine/src/following/index.ts`
+- **影响文件**：`packages/engine/src/ai/index.ts`
+- **影响文件**：`packages/engine/src/__tests__/following.test.ts`
+- **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`

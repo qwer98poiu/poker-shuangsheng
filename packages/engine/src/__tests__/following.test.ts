@@ -976,4 +976,38 @@ describe('complex tractor follow (diamonds trump, ace level)', () => {
       expect(isOnlyLegalPlay(hand2, lead2.length, lp2, cfg6)).toBe(false);
     });
   });
+
+  describe('single lead, hand has exactly one pair (level=5, hearts trump)', () => {
+    // When the lead is a single card and the hand has only one pair
+    // (2 identical cards) in that suit, playing either card is the same.
+    const cfg = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 5 } as TrumpDeclaration;
+
+    it('single off-suit lead, hand: pair of spades -> unique', () => {
+      const lead = [c('S', 12, 200)];  // lead ♠Q
+      const lp = classify(lead, cfg);
+      const hand = [c('S', 13, 0), c('S', 13, 1)];  // ♠K♠K pair
+      expect(isOnlyLegalPlay(hand, lead.length, lp, cfg)).toBe(true);
+    });
+
+    it('single trump lead, hand: pair of trump -> unique', () => {
+      const lead = [c('H', 13, 200)];  // lead ♥K
+      const lp = classify(lead, cfg);
+      const hand = [c('H', 8, 0), c('H', 8, 1)];  // ♥8♥8 pair (trump)
+      expect(isOnlyLegalPlay(hand, lead.length, lp, cfg)).toBe(true);
+    });
+
+    it('single off-suit lead, hand: 3 cards (pair + extra) -> not unique', () => {
+      const lead = [c('S', 12, 200)];  // lead ♠Q
+      const lp = classify(lead, cfg);
+      const hand = [c('S', 13, 0), c('S', 13, 1), c('S', 3, 0)];  // ♠K♠K + ♠3
+      expect(isOnlyLegalPlay(hand, lead.length, lp, cfg)).toBe(false);
+    });
+
+    it('single off-suit lead, hand: 2 singles (no pair) -> not unique', () => {
+      const lead = [c('S', 12, 200)];  // lead ♠Q
+      const lp = classify(lead, cfg);
+      const hand = [c('S', 13, 0), c('S', 8, 0)];  // ♠K + ♠8 (different ranks)
+      expect(isOnlyLegalPlay(hand, lead.length, lp, cfg)).toBe(false);
+    });
+  });
 });

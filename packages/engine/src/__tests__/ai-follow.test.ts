@@ -190,6 +190,32 @@ describe('AI follow play compliance', () => {
       expect(r.cards.length).toBe(1);
       expect(r.reason).toContain('唯一可出');
     });
+
+    it('single trump lead, hand has a pair of trumps -> 唯一可出', () => {
+      // Lead ♥K. AI-2 has ♥8♥8 — a pair. Either ♥8 is the same card.
+      const lead: Card[] = [c('H', 13, 200)];
+      const hand = [
+        c('H', 8, 0), c('H', 8, 1),  // ♥8♥8 pair (trump)
+        c('S', 14, 0),                 // ♠A (non-trump)
+      ];
+      const r = aiFollowPlay(hand, lead, 'H', cfg5, undefined, 2);
+      checkFollow(r.cards, hand, lead, 'H', cfg5);
+      expect(r.cards.length).toBe(1);
+      expect(r.reason).toContain('唯一可出');
+    });
+
+    it('single off-suit lead, hand has a pair in that suit -> 唯一可出', () => {
+      // Lead ♠Q. AI-2 has ♠K♠K — a pair. Either ♠K is the same.
+      const lead: Card[] = [c('S', 12, 200)];
+      const hand = [
+        c('S', 13, 0), c('S', 13, 1),  // ♠K♠K pair
+        c('H', 8, 0),                    // trump
+      ];
+      const r = aiFollowPlay(hand, lead, 'S', cfg5, undefined, 2);
+      checkFollow(r.cards, hand, lead, 'S', cfg5);
+      expect(r.cards.length).toBe(1);
+      expect(r.reason).toContain('唯一可出');
+    });
   });
 
   describe('trump throw (cfgDiamondA: diamonds, level=14)', () => {

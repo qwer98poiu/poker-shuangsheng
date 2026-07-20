@@ -167,6 +167,11 @@ export function isOnlyLegalPlay(
   // Rule 1: same-suit count equals lead length, all cards forced.
   if (leadSuitCards.length === leadLen) return true;
 
+  // Rule 1.5: single lead, hand has exactly one pair — both cards identical, unique.
+  if (leadLen === 1 && findAllPairs(leadSuitCards).length === 1 && leadSuitCards.length === 2) {
+    return true;
+  }
+
   // Rule 2: lead contains singles, not unique.
   const tractorPairCount = leadCombo.tractors.reduce((s, t) => s + t.pairCount, 0);
   const totalPairCards = (leadCombo.pairCount + tractorPairCount) * 2;
