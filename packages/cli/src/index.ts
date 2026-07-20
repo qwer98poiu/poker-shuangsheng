@@ -849,6 +849,23 @@ function cardStr(card: Card): string {
   return `${colored}${suit}${s}${reset}`;
 }
 
+/** Convert a possible-trump key like "S-2" to display format "♠2", with color. */
+function possibleTrumpLabel(key: string): string {
+  const idx = key.indexOf('-');
+  const suit = key.slice(0, idx);
+  const rank = parseInt(key.slice(idx + 1), 10);
+  const symbol = suitLabel(suit as any) + rankLabel(rank as any);
+  const red = suit === 'H' || suit === 'D' || rank === 16; // BigJoker red, SmallJoker black
+  return red ? RED + symbol + RESET : symbol;
+}
+
+/** Sort priority for possible-trump keys: BigJoker > SmallJoker > S > H > C > D. */
+function possibleTrumpSortKey(key: string): number {
+  if (key.startsWith('J-16')) return 0; // BigJoker
+  if (key.startsWith('J-15')) return 1; // SmallJoker
+  return { S: 2, H: 3, C: 4, D: 5 }[key[0] as string] ?? 9;
+}
+
 function showCards(cards: Card[]): string {
   return cards.map(cardStr).join(' ');
 }
@@ -918,8 +935,11 @@ function showOneTracker(playerIndex: number) {
         byKey.set(key, (byKey.get(key) || 0) + 1);
       }
       const parts = [...byKey.entries()]
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([k, n]) => n > 1 ? `${k}x${n}` : k);
+        .sort(([a], [b]) => possibleTrumpSortKey(a) - possibleTrumpSortKey(b))
+        .map(([k, n]) => {
+          const display = possibleTrumpLabel(k);
+          return n > 1 ? Array(n).fill(display).join(' ') : display;
+        });
       console.log(`  ${label}可能常主 (${arr.length}张): ${parts.join(' ')}`);
     }
   }

@@ -1548,3 +1548,13 @@ AI 策略在 `_aiFollowPlay` 和 `followTrumpLead` 中先调用该判断：若�
 
 - **影响文件**：`packages/engine/src/ai/index.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
+
+## 2026-07-21 00:01
+
+### 优化记牌器可能常主显示：牌面格式替换原始 ID
+
+**问题**：记牌器中 `可能常主` 显示原始 ID 格式（如 `S-2`、`C-14`、`J-16`），不够直观。
+
+**修复**：新增 `possibleTrumpLabel` 函数，将 `S-2` 转换为 `♠2`、`J-16` 转换为 `JOKER`，与手牌显示风格一致（不带序号）。不影响测试。
+
+- **影响文件**：`packages/cli/src/index.ts`
