@@ -1559,6 +1559,74 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
     });
   });
 
+  describe('short-suited add points: non-point fillers ascending (discardSort fix)', () => {
+    // Bug: discardSort(teammateWinning=true) sorted ALL cards descending,
+    // so non-point fillers like ♥A were dumped before ♥8/♥9.
+    // Fix: only point cards sort descending when adding points; non-point ascending.
+    const cfgH: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 2 };
+    function ct(s: string, r: number, i: number): Card {
+      return createCard(s as any, r as any, i);
+    }
+
+    it('third+tmWin+short throw, non-point filler ascending: picks ♣8 not ♣A', () => {
+      // P0 leads D-A-A-K (3-card throw, pair+single, max pattern).
+      // P2=AI(teammate) has 1 diamond < 3 → short 2 fillers.
+      // tmWin + throw → discardSort(true): points first, non-points ascending.
+      // Hearts trump so both ♠ and ♣ are non-trump fillers.
+      const lead: Card[] = [ct('D', 14, 200), ct('D', 14, 201), ct('D', 13, 200)];
+      const best = { cards: lead, playerIdx: 0 };
+      const hand = [
+        ct('D', 11, 0),   // ♦J (only diamond)
+        ct('S', 10, 0),   // ♠10 (10 pts) — filler, should be used (add points)
+        ct('C', 14, 0),   // ♣A — filler, should NOT be used (keep big cards)
+        ct('C', 9, 0),    // ♣9
+        ct('C', 8, 0),    // ♣8 — filler, should be used (smallest non-point)
+      ];
+      const r = aiFollowPlay(hand, lead, 'D', cfgH, best, 2);
+      checkFollow(r.cards, hand, lead, 'D', cfgH);
+      expect(r.cards.length).toBe(3);
+      // Must include the only diamond
+      expect(r.cards.some(c => c.suit === 'D' && c.rank === 11)).toBe(true);
+      // Must include ♠10 (point) to add score
+      expect(r.cards.some(c => c.suit === 'S' && c.rank === 10)).toBe(true);
+      // Must NOT include ♣A (should keep big non-point cards)
+      expect(r.cards.find(c => c.suit === 'C' && c.rank === 14)).toBeUndefined();
+      // Should include ♣8 (smallest non-point)
+      expect(r.cards.some(c => c.suit === 'C' && c.rank === 8)).toBe(true);
+    });
+
+    it('third+tmWin+short throw, points descending: picks K over 5, non-point ♣3 not ♣Q', () => {
+      // 4-card throw lead, only 1 diamond → need 3 fillers.
+      // Points descending: K(10pts) before 5(5pts).
+      // Non-points ascending: 3 before Q(12).
+      const lead: Card[] = [
+        ct('D', 14, 200), ct('D', 14, 201),
+        ct('D', 13, 200), ct('D', 13, 201),
+      ];
+      const best = { cards: lead, playerIdx: 0 };
+      const hand = [
+        ct('D', 11, 0),   // ♦J (only diamond)
+        ct('S', 13, 0),   // ♠K (10 pts) — point, should be used
+        ct('S', 5, 0),    // ♠5 (5 pts) — point, K > 5 so K first
+        ct('C', 12, 0),   // ♣Q — non-point, should NOT be used
+        ct('C', 3, 0),    // ♣3 — non-point, should be used (smallest)
+      ];
+      const r = aiFollowPlay(hand, lead, 'D', cfgH, best, 2);
+      checkFollow(r.cards, hand, lead, 'D', cfgH);
+      expect(r.cards.length).toBe(4);
+      // Must include ♦J
+      expect(r.cards.some(c => c.suit === 'D' && c.rank === 11)).toBe(true);
+      // Must include ♠K (max point card)
+      expect(r.cards.some(c => c.suit === 'S' && c.rank === 13)).toBe(true);
+      // Must include ♠5 (second point card, still before any non-point)
+      expect(r.cards.some(c => c.suit === 'S' && c.rank === 5)).toBe(true);
+      // Must NOT include non-point ♣Q (should be last, not picked)
+      expect(r.cards.find(c => c.suit === 'C' && c.rank === 12)).toBeUndefined();
+      // Should include ♣3 (first non-point after exhausting points)
+      expect(r.cards.some(c => c.suit === 'C' && c.rank === 3)).toBe(true);
+    });
+  });
+
   describe('team-win void avoids unnecessary trump kill', () => {
     const cfgD: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Diamonds, level: 2 };
     function ct(s: string, r: number, i: number): Card {

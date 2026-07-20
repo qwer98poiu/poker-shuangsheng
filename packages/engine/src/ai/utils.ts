@@ -111,8 +111,12 @@ export function discardSort(
       const bLvl = b.rank === config.level ? 100 : 0;
       if (aLvl !== bLvl) return aLvl - bLvl;
     }
-    // Descending when adding points (dump big points first), ascending otherwise
-    return teammateWinning ? b.rank - a.rank : a.rank - b.rank;
+    // When adding points: point cards descending (dump big points first),
+    // non-point cards ascending (keep big cards for future tricks).
+    if (teammateWinning && isPointRank(a.rank) && isPointRank(b.rank)) {
+      return b.rank - a.rank;
+    }
+    return a.rank - b.rank;
   };
 }
 

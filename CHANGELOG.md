@@ -1490,3 +1490,17 @@ AI 策略在 `_aiFollowPlay` 和 `followTrumpLead` 中先调用该判断：若�
 
 - **影响文件**：`packages/engine/src/ai/index.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
+
+## 2026-07-20 22:23
+
+### 修复 discardSort 加分模式下降序排列误垫大牌
+
+**问题**：`discardSort(tmWin=true)` 对所有卡牌统一降序排列。初衷是加分时优先出 K/10（大分）而非 5（小分），但副作用是非分牌也降序，导致 ♥A 被优先垫掉而非保留到后续墩次。
+
+**修复**：降序仅对分牌生效（`isPointRank(a) && isPointRank(b)`），非分牌始终升序（优先出小，保留大牌）。
+
+**新增 2 项测试**（ai-follow.test.ts：95 项），455 项通过。
+
+- **影响文件**：`packages/engine/src/ai/utils.ts`
+- **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
+- **影响文件**：`CLAUDE.md`
