@@ -574,7 +574,7 @@ function followTrumpLead(
     const cards = sorted.slice(0, leadLen);
     const beating = canBeat(cards, ctx.bestSoFar, ctx);
     const baseReason = beating ? '同花色出大' : '同花色出小';
-    const reason = annotateReason(baseReason, cards, [], myTrump,
+    const reason = annotateReason(baseReason, cards, myTrump, myTrump,
       leadCombo, leadLen, ctx, position, tmWin, false, 'none');
     return { cards, reason };
   }

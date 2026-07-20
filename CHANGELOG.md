@@ -1504,3 +1504,16 @@ AI 策略在 `_aiFollowPlay` 和 `followTrumpLead` 中先调用该判断：若�
 - **影响文件**：`packages/engine/src/ai/utils.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
 - **影响文件**：`CLAUDE.md`
+
+## 2026-07-20 22:44
+
+### 修复主牌跟牌 fast path 未标注"唯一可出"
+
+**问题**：`followTrumpLead` fast path 正确调用 `isOnlyLegalPlay` 判断唯一可出，但传给 `annotateReason` 的 `leadSuitCards` 是空数组 `[]`。`annotateReason` 内部重新检查 `isOnlyLegalPlay` 时因空数组直接返回 false，导致主牌唯一可出时缺失标注。
+
+**修复**：fast path 传递 `myTrump` 作为 `leadSuitCards`，使 `annotateReason` 的主牌唯一可出检测正常生效。
+
+**新增 1 项测试**（ai-follow.test.ts：96 项），456 项通过。
+
+- **影响文件**：`packages/engine/src/ai/index.ts`
+- **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`

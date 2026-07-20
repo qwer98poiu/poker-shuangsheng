@@ -175,6 +175,21 @@ describe('AI follow play compliance', () => {
       const play = aiFollow(hand, lead, 'H', cfg5);
       checkFollow(play, hand, lead, leadTrump ? null : 'H', cfg5);
     });
+
+    it('single trump, only one trump in hand -> 唯一可出', () => {
+      // AI-2 has only ♣7 (H-8) as trump, rest are non-trump.
+      // Lead H-12 — AI-2 plays its sole trump, no choice.
+      const lead: Card[] = [c('H', 12, 200)];
+      const hand = [
+        c('H', 8, 0),     // only trump
+        c('S', 14, 0),    // ♠A (non-trump)
+        c('S', 13, 0),    // ♠K (non-trump)
+      ];
+      const r = aiFollowPlay(hand, lead, 'H', cfg5, undefined, 2);
+      checkFollow(r.cards, hand, lead, 'H', cfg5);
+      expect(r.cards.length).toBe(1);
+      expect(r.reason).toContain('唯一可出');
+    });
   });
 
   describe('trump throw (cfgDiamondA: diamonds, level=14)', () => {
