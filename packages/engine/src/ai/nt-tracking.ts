@@ -37,6 +37,16 @@ function suitRankKey(cardIdStr: string): string {
   return cardIdStr.slice(0, idx);
 }
 
+/** Count trump cards by suit-rank key. */
+function countBySuitRank(cards: Card[]): Map<string, number> {
+  const m = new Map<string, number>();
+  for (const c of cards) {
+    const key = suitRankKey(c.id);
+    m.set(key, (m.get(key) || 0) + 1);
+  }
+  return m;
+}
+
 function isJokerId(cardIdStr: string): boolean {
   return cardIdStr.startsWith('J-');
 }
@@ -99,27 +109,76 @@ export function computeNTTrumpState(
   const level = config.level;
   const allTrumpIds = enumerateNTTrumpIds(level);
 
-  // Quick lookup sets
-  const myHandIds = new Set(myHand.filter(c => isTrump(c, config)).map(c => c.id));
   const myTrumpCards = myHand.filter(c => isTrump(c, config));
-  const bottomIds = isDeclarer
-    ? new Set(bottomCards.filter(c => isTrump(c, config)).map(c => c.id))
-    : new Set<string>();
-
   const otherPlayers = [0, 1, 2, 3].filter(p => p !== myIndex);
 
   // ---- Phase 1: Initialize possible locations for UNSEEN trump cards ----
-  // possibleLocations: cardId -> Set of location indices (0-3=players, 4=bottom)
-  const possibleLocations = new Map<string, Set<number>>();
+  // possibleLocations: virtualCopyKey -> Set of location indices (0-3=players, 4=bottom)
+  // Virtual copy keys (J-16-0, S-2-1) are tracking labels, NOT actual card IDs.
+  // Actual card IDs differ (deck uses sequential indices), so we match by suitRank.
+  //
+  // Each suit-rank has 2 copies total. Unseen = 2 - myHandCount - bottomCount.
+  // Two-pass removal: exact ID match first, then any remaining copies by key.
 
+  // Build known count by suit-rank key (from my hand and bottom)
+  const knownByKey = countBySuitRank(myTrumpCards);
+  if (isDeclarer) {
+    for (const c of bottomCards.filter(c => isTrump(c, config))) {
+      const key = suitRankKey(c.id);
+      knownByKey.set(key, (knownByKey.get(key) || 0) + 1);
+    }
+  }
+
+  // Group virtual copy IDs by suit-rank key
+  const virtualCopies = new Map<string, string[]>();
   for (const id of allTrumpIds) {
-    if (myHandIds.has(id)) continue; // known in my hand, not tracked
-    if (isDeclarer && bottomIds.has(id)) continue; // known in bottom, not tracked
+    const key = suitRankKey(id);
+    if (!virtualCopies.has(key)) virtualCopies.set(key, []);
+    virtualCopies.get(key)!.push(id);
+  }
 
-    const locs = new Set<number>();
-    for (const p of otherPlayers) locs.add(p);
-    if (!isDeclarer) locs.add(4); // bottom is possible for non-declarer
-    possibleLocations.set(id, locs);
+  // Remove known copies: prefer exact ID match, then any remaining
+  const removedIds = new Set<string>();
+
+  // Collect all known cards for exact ID matching
+  const allKnown = [...myTrumpCards];
+  if (isDeclarer) allKnown.push(...bottomCards.filter(c => isTrump(c, config)));
+
+  for (const c of allKnown) {
+    const vc = virtualCopies.get(suitRankKey(c.id));
+    if (vc && vc.includes(c.id)) {
+      // Exact ID match between actual card and virtual copy
+      if (!removedIds.has(c.id)) {
+        removedIds.add(c.id);
+        const key = suitRankKey(c.id);
+        knownByKey.set(key, (knownByKey.get(key) || 1) - 1);
+      }
+    }
+  }
+
+  // Remove remaining known copies (any virtual copy for each key)
+  for (const [key, remaining] of knownByKey) {
+    const vc = virtualCopies.get(key);
+    if (!vc) continue;
+    let toRemove = remaining;
+    for (const id of vc) {
+      if (toRemove <= 0) break;
+      if (!removedIds.has(id)) {
+        removedIds.add(id);
+        toRemove--;
+      }
+    }
+  }
+
+  const possibleLocations = new Map<string, Set<number>>();
+  for (const [key, vc] of virtualCopies) {
+    for (const id of vc) {
+      if (removedIds.has(id)) continue;
+      const locs = new Set<number>();
+      for (const p of otherPlayers) locs.add(p);
+      if (!isDeclarer) locs.add(4); // bottom is possible for non-declarer
+      possibleLocations.set(id, locs);
+    }
   }
 
   // ---- Phase 1.5: Process reveals (public info about who revealed what) ----
@@ -207,9 +266,30 @@ export function computeNTTrumpState(
       const leadLen = leadCards.length;
 
       if (playedTrumpIds.length > 0) {
-        // Played trump cards are no longer in any hand — remove from tracking
-        for (const id of playedTrumpIds) {
-          possibleLocations.delete(id);
+        // Played trump cards are no longer in any hand — remove from tracking.
+        // Two-pass removal: exact ID match first, then any copy by suitRank key.
+        const playedTrumps = played.filter(c => isTrump(c, config));
+        const playedByKey = countBySuitRank(playedTrumps);
+
+        // Pass 1: exact ID match
+        for (const c of playedTrumps) {
+          if (possibleLocations.has(c.id)) {
+            possibleLocations.delete(c.id);
+            const key = suitRankKey(c.id);
+            playedByKey.set(key, (playedByKey.get(key) || 1) - 1);
+          }
+        }
+
+        // Pass 2: remove remaining by suitRank key
+        for (const [key, remaining] of playedByKey) {
+          for (let r = 0; r < remaining; r++) {
+            for (const copyKey of possibleLocations.keys()) {
+              if (suitRankKey(copyKey) === key) {
+                possibleLocations.delete(copyKey);
+                break;
+              }
+            }
+          }
         }
 
         // Pair deduction: if trump lead with pairs/tractors and player
@@ -243,7 +323,7 @@ export function computeNTTrumpState(
 
   // ---- Phase 3: Build derived state from possibleLocations ----
   return buildState(possibleLocations, allTrumpIds, myTrumpCards,
-    myHandIds, bottomIds, myIndex, isDeclarer, config);
+    myIndex, isDeclarer, config);
 }
 
 // ---- State builder ----
@@ -252,8 +332,6 @@ function buildState(
   possibleLocations: Map<string, Set<number>>,
   allTrumpIds: string[],
   myTrumpCards: Card[],
-  myHandIds: Set<string>,
-  bottomIds: Set<string>,
   myIndex: number,
   isDeclarer: boolean,
   config: TrumpDeclaration,

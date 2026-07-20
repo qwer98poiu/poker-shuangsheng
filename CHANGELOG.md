@@ -1558,3 +1558,16 @@ AI 策略在 `_aiFollowPlay` 和 `followTrumpLead` 中先调用该判断：若�
 **修复**：新增 `possibleTrumpLabel` 函数，将 `S-2` 转换为 `♠2`、`J-16` 转换为 `JOKER`，与手牌显示风格一致（不带序号）。不影响测试。
 
 - **影响文件**：`packages/cli/src/index.ts`
+
+## 2026-07-21 00:43
+
+### 修复 NT 记牌器所有卡牌追踪信息错误（ID 不匹配）
+
+**问题**：`enumerateNTTrumpIds` 用 `cardId(suit, rank, 0)` 和 `cardId(suit, rank, 1)` 生成追踪 key（如 `J-16-0`、`S-2-1`），但 `createFullDeck()` 用连续递增 idx 创建实牌（小丑 idx=52,106，大丑 idx=53,107）。Phase 1（排除手牌）和 Phase 2（移除已出牌）的 `possibleLocations.has(id)` / `delete(id)` 全部失败，导致记牌器信息全部错误：自己的手牌显示为可能常主、已打出的牌未移除。
+
+**修复**：用 suitRank key 替代全 ID 进行匹配。新增 `countBySuitRank` 辅助函数。Phase 1 和 Phase 2 都采用两步移除：先精确 ID 匹配（兼容测试），再按 suitRank key 移除剩余未知副本。`buildState` 移除不再需要的 `myHandIds`/`bottomIds` 参数。
+
+463 项测试通过。
+
+- **影响文件**：`packages/engine/src/ai/nt-tracking.ts`
+- **影响文件**：`packages/engine/src/__tests__/ai-nt-tracking.test.ts`
