@@ -62,6 +62,10 @@ Co-Authored-By: DeepSeek V4 Pro <noreply@deepseek.com>
 
 每项修改为一个独立的日期时间小节，按时间倒序排列。
 
+## 开发原则
+
+- **用户反馈的 bug 修复后，必须添加对应的测试用例**。测试应尽可能还原用户描述的场景（手牌、领出、位置等），确保回归测试能捕获同类问题。
+
 ## AI 策略文档
 
 参见 [packages/engine/src/ai/STRATEGY.md](packages/engine/src/ai/STRATEGY.md)。
