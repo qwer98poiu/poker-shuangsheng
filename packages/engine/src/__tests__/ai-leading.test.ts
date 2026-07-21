@@ -51,6 +51,22 @@ describe('AI leading play', () => {
       // Should prefer off-suit tractor (trump is Hearts, lead S first)
       expect(result.reason).toContain('♠');
     });
+
+    it('pure tractor throwable via throw detector: labeled as tractor not throw', () => {
+      // Reproduce: NT level=2, AI-2 leads ♠J♠J♠10♠10 (2-pair tractor).
+      // The throw detector finds it throwable, but it's a pure tractor —
+      // should be labeled 出♠拖拉机(2对), not 甩♠副牌(4张).
+      const hand = [
+        c('S', 11, 0), c('S', 11, 1),
+        c('S', 10, 0), c('S', 10, 1),
+        c('H', 3, 0),
+      ];
+      const result = aiLeadPlay(hand, cfgNT);
+      checkLead(result.cards, hand, cfgNT);
+      expect(result.cards.length).toBe(4);
+      expect(result.reason).toContain('拖拉机');
+      expect(result.reason).not.toContain('甩');
+    });
   });
 
   describe('strategy 1: lead big off-suit card', () => {

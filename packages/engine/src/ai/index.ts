@@ -136,6 +136,17 @@ function tryLeadThrowOffSuit(
 ): { cards: Card[]; reason: string } | null {
   const result = findThrowableOffSuitCombos(hand, ctx);
   if (!result) return null;
+  // If the throwable combo is a pure tractor (no extra singles/pairs),
+  // label it as a tractor, not a throw. "甩牌" is for composite patterns.
+  const combo = classifyCombo(result.cards, ctx);
+  if (combo.type === 'tractor' && combo.length === result.cards.length) {
+    const isTrumpT = result.cards.every(c => isTrump(c, ctx));
+    const pairs = result.cards.length / 2;
+    const reason = isTrumpT
+      ? `出主拖拉机(${pairs}对)`
+      : `出${suitLabelCn(result.cards[0].suit)}拖拉机(${pairs}对)`;
+    return { cards: result.cards, reason };
+  }
   return { cards: result.cards, reason: result.reason };
 }
 

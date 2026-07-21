@@ -1634,3 +1634,16 @@ AI 策略在 `_aiFollowPlay` 和 `followTrumpLead` 中先调用该判断：若�
 - **影响文件**：`packages/engine/src/ai/nt-tracking.ts`
 - **影响文件**：`packages/engine/src/ai/context.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-nt-tracking.test.ts`
+
+## 2026-07-22 00:15
+
+### 修复纯拖拉机被甩牌策略抢先标注为"甩牌"
+
+**问题**：`_aiLeadPlay` 中甩牌策略（Strategy 4）排在拖拉机策略（Strategy 3）之前。当手牌是纯拖拉机（如 ♠J♠J♠10♠10）时，甩牌检测器也判定它能甩，直接返回 `甩♠副牌(4张)`，拖拉机策略没机会执行。
+
+**修复**：`tryLeadThrowOffSuit` 返回前检查 `classify`——如果甩牌组合是纯拖拉机（无多余单牌/对子），改用拖拉机标签。
+
+**新增 1 项测试**（ai-leading.test.ts），474 项通过。
+
+- **影响文件**：`packages/engine/src/ai/index.ts`
+- **影响文件**：`packages/engine/src/__tests__/ai-leading.test.ts`
