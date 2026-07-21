@@ -105,6 +105,8 @@ export function computeNTTrumpState(
   config: TrumpDeclaration,
   isDeclarer: boolean,
   bottomCards: readonly Card[],
+  currentTrickPlays?: readonly { cards: Card[] }[],
+  currentLeadPlayerIndex?: number,
 ): NTTrumpState {
   const level = config.level;
   const allTrumpIds = enumerateNTTrumpIds(level);
@@ -245,10 +247,27 @@ export function computeNTTrumpState(
     }
   }
 
-  // ---- Phase 2: Process completed tricks ----
+  // ---- Phase 2: Process all known plays (completed tricks + current) ----
+  // Merge trickHistory and currentTrickPlays into a uniform list.
+  const allPlays: { plays: Card[][]; leadPlayerIndex: number }[] = [];
+
   for (const trick of trickHistory) {
-    const leadCards = trick.plays[0].cards;
+    allPlays.push({
+      plays: trick.plays.map(p => p.cards),
+      leadPlayerIndex: trick.leadPlayerIndex,
+    });
+  }
+  if (currentTrickPlays && currentTrickPlays.length > 0 && currentLeadPlayerIndex !== undefined) {
+    allPlays.push({
+      plays: currentTrickPlays.map(p => p.cards),
+      leadPlayerIndex: currentLeadPlayerIndex,
+    });
+  }
+
+  for (const entry of allPlays) {
+    const leadCards = entry.plays[0];
     const isTrumpLead = leadCards.every(c => isTrump(c, config));
+    const leadLen = leadCards.length;
     let leadHasPairOrTractor = false;
 
     if (isTrumpLead) {
@@ -256,14 +275,12 @@ export function computeNTTrumpState(
       leadHasPairOrTractor = leadCombo.pairCount > 0 || leadCombo.hasTractor;
     }
 
-    for (let pi = 0; pi < 4; pi++) {
-      const actualPlayer = (trick.leadPlayerIndex + pi) % 4;
-      const played = trick.plays[pi].cards;
+    for (let pi = 0; pi < entry.plays.length; pi++) {
+      const actualPlayer = (entry.leadPlayerIndex + pi) % 4;
+      const played = entry.plays[pi];
       const playedTrumpIds = played
         .filter(c => isTrump(c, config))
         .map(c => c.id);
-
-      const leadLen = leadCards.length;
 
       if (playedTrumpIds.length > 0) {
         // Played trump cards are no longer in any hand — remove from tracking.
@@ -295,7 +312,7 @@ export function computeNTTrumpState(
         // Pair deduction: if trump lead with pairs/tractors and player
         // didn't follow with any trump pair (but played trump), they can't form pairs.
         // Does NOT apply to self (we know our own hand).
-        if (leadHasPairOrTractor && actualPlayer !== myIndex) {
+        if (leadHasPairOrTractor && actualPlayer !== myIndex && pi > 0) {
           const playedPairs = findAllPairs(played);
           if (playedPairs.length === 0) {
             applyNoPairDeduction(actualPlayer, possibleLocations);
@@ -306,12 +323,12 @@ export function computeNTTrumpState(
         // lead with fewer trumps than required (M < N), they had exactly M
         // trump cards and are now void.
         if (isTrumpLead && actualPlayer !== myIndex
-          && playedTrumpIds.length < leadLen) {
+          && pi > 0 && playedTrumpIds.length < leadLen) {
           for (const locs of possibleLocations.values()) {
             locs.delete(actualPlayer);
           }
         }
-      } else if (isTrumpLead) {
+      } else if (isTrumpLead && pi > 0) {
         // Player discarded entirely against a trump lead → void in trump.
         // Clear this player from all possible locations.
         for (const locs of possibleLocations.values()) {

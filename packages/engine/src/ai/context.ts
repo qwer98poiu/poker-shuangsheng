@@ -76,6 +76,8 @@ export function buildAIContext(
         config,
         isDeclarer,
         state.bottomCards,
+        state.trickPlays as readonly { cards: Card[] }[],
+        state.leadPlayerIndex,
       )
     : null;
 

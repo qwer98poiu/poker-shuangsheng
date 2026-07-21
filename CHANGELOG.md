@@ -1618,3 +1618,19 @@ AI 策略在 `_aiFollowPlay` 和 `followTrumpLead` 中先调用该判断：若�
 
 - **影响文件**：`packages/cli/src/index.ts`
 - **影响文件**：`packages/engine/src/__tests__/scoring.test.ts`
+
+## 2026-07-21 23:44
+
+### 修复 NT 记牌器未反映当前墩已出牌
+
+**问题**：`computeNTTrumpState` 只处理 `trickHistory`（已完成的墩），不包含当前墩已打出的牌。导致 `buildAIContext` 和 `/tracker` 显示的记牌器信息滞后一整墩。例如 AI-3 打出 ♥2 后，记牌器仍认为 ♥2 可能在 AI-3 或其他玩家手中。
+
+**修复**：
+1. `computeNTTrumpState` 新增可选参数 `currentTrickPlays` 和 `currentLeadPlayerIndex`，在 Phase 2.5 中处理当前墩已出的牌：移除已打出的主牌、对垫牌者应用 void 扣减
+2. `buildAIContext` 传递 `state.trickPlays` 和 `state.leadPlayerIndex`
+
+**新增 4 项测试**（ai-nt-tracking.test.ts），471 项通过。
+
+- **影响文件**：`packages/engine/src/ai/nt-tracking.ts`
+- **影响文件**：`packages/engine/src/ai/context.ts`
+- **影响文件**：`packages/engine/src/__tests__/ai-nt-tracking.test.ts`

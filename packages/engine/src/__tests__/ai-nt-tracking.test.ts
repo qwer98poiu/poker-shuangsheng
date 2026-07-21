@@ -1107,3 +1107,122 @@ describe('NT trump tracking', () => {
     });
   });
 });
+
+describe('current trick plays — in-progress trick deduction', () => {
+  const cfg2 = ntCfg(2);
+  const cfg5 = ntCfg(5);
+
+  it('played trump in current trick removed from all possible lists', () => {
+    // AI-3 leads ♥2 (trump), AI-4 discards ♣8.
+    // Before the play, all players knew ♥2 was somewhere.
+    // After AI-3 plays ♥2, it should be removed from possible locations.
+    const hand: Card[] = []; // P0 (self) has no trumps
+    // Current trick: P3 leads ♥2, P0 (self) hasn't played yet.
+    // Only P3's play is on the table.
+    const currentPlays = [
+      { cards: [c('H', 2, 0)] },  // P3 leads ♥2
+    ];
+    const s = computeNTTrumpState(hand, 0, [], [], cfg2, false, [],
+      currentPlays, 3); // P3 is lead
+    // ♥2-0 should be removed everywhere
+    expect(s.possibleTrumps[3]!).not.toContain('H-2-0');
+    expect(s.possibleTrumps[1]!).not.toContain('H-2-0');
+    expect(s.possibleTrumps[2]!).not.toContain('H-2-0');
+    expect(s.possibleTrumps[4]!).not.toContain('H-2-0');
+  });
+
+  it('discard on trump lead in current trick → void deduction', () => {
+    // P3 leads ♥2, P0 (self) discards ♣8 — self knows self is void.
+    // P1 and P2 see P0 discard → P0 is void.
+    const hand: Card[] = [c('C', 8, 0)]; // P0 hand: only non-trump
+    const currentPlays = [
+      { cards: [c('H', 2, 0)] },   // P3 leads ♥2
+      { cards: [c('C', 8, 0)] },   // P0 discards ♣8
+    ];
+    const s = computeNTTrumpState(hand, 0, [], [], cfg2, false, [],
+      currentPlays, 3);
+    // P0 (self) is void — own hand already has no trump, so this is redundant but OK
+    // P3 played ♥2-0
+    expect(s.playersWithNoTrump.has(0)).toBe(true); // verified by hand
+    expect(s.possibleTrumps[1]!).not.toContain('H-2-0');
+    expect(s.possibleTrumps[2]!).not.toContain('H-2-0');
+  });
+
+  it('AI-2 sees AI-3 play ♥2 → P3 no longer has ♥2', () => {
+    // Reproduce the bug: AI-2 has ♥2, sees AI-3 lead ♥2.
+    // AI-2's tracker should show AI-3 no longer has ♥2 (P3 only has ♠2 possible).
+    const hand = [c('H', 2, 1)]; // AI-2 has ♥2-1
+    const currentPlays = [
+      { cards: [c('H', 2, 0)] },  // AI-3 leads ♥2-0
+      { cards: [c('C', 8, 0)] },  // AI-4 discards ♣8
+    ];
+    const s = computeNTTrumpState(hand, 1, [], [], cfg2, false, [],
+      currentPlays, 3);
+    // P3 (AI-3) should NOT have ♥2 in possible list
+    const p3Possible = s.possibleTrumps[3]!;
+    const hasH2 = p3Possible.some(id => id.startsWith('H-2'));
+    expect(hasH2).toBe(false);
+    // P4 discarded on trump lead → void
+    // lead=3, pi=0→P3(trump), pi=1→P0(discard) → P0 void
+
+    // P3 is lead (index 3), P0 is next → void
+    // Actually: lead=3, pi=0→player 3 (lead ♥2), pi=1→player 0 (discard ♣8)
+    expect(s.playersWithNoTrump.has(0)).toBe(true);
+    // The discarded ♥2-0 should be removed
+    expect(s.remainingBigJokers).toBe(2);
+    expect(s.remainingSmallJokers).toBe(2);
+  });
+
+  it('two players see same current trick — each from own perspective', () => {
+    // AI-2 has ♥2, AI-3 has ♠2, AI-3 leads ♥2.
+    // AI-2's view: sees AI-3 play ♥2, knows AI-3 no longer has ♥2.
+    // AI-3's view: knows they played ♥2, hand now only ♠2.
+    const hand2 = [c('H', 2, 1)]; // AI-2
+    const hand3 = [c('S', 2, 0)]; // AI-3
+    const currentPlays = [
+      { cards: [c('H', 2, 0)] },  // AI-3 leads ♥2-0
+    ];
+
+    const s2 = computeNTTrumpState(hand2, 1, [], [], cfg2, false, [],
+      currentPlays, 3);
+    const s3 = computeNTTrumpState(hand3, 2, [], [], cfg2, false, [],
+      currentPlays, 3);
+
+    // AI-2 sees: P3 has no ♥2 (played it), P3 possible should not include H-2
+    const p3From2 = s2.possibleTrumps[3]!;
+    expect(p3From2.every(id => !id.startsWith('H-2'))).toBe(true);
+
+    // AI-3 knows: their hand has ♠2 only, no ♥2
+    expect(s3.knownTrumpsPerPlayer[2].length).toBe(1);
+    expect(s3.knownTrumpsPerPlayer[2][0].id).toBe('S-2-0');
+  });
+
+  it('pair deduction: lead trump pair, follow single → no pair in current trick', () => {
+    // P3 leads ♥2♥2 pair. P0 follows ♠2 (single trump, no pair).
+    // Other players (P1, P2) can deduce P0 cannot form a ♠2 pair.
+    const hand: Card[] = []; // P1 (self) has no trumps
+    const currentPlays = [
+      { cards: [c('H', 2, 0), c('H', 2, 1)] },  // P3 leads ♥2 pair
+      { cards: [c('S', 2, 0)] },                  // P0 follows ♠2 single
+    ];
+    const s = computeNTTrumpState(hand, 1, [], [], cfg2, false, [],
+      currentPlays, 3);
+    // P0 cannot form any pair — should lose one copy of S-2
+    expect(s.canFormPair[0]).toBe(false);
+  });
+
+  it('pair deduction: lead trump pair, follow matching pair → CAN form pairs', () => {
+    // P3 leads ♥2♥2 pair. P0 follows with ♦2♦2 pair.
+    // P0 followed with a pair → no deduction.
+    const hand: Card[] = []; // P1 (self)
+    const currentPlays = [
+      { cards: [c('H', 2, 0), c('H', 2, 1)] },   // P3 leads ♥2 pair
+      { cards: [c('D', 2, 0), c('D', 2, 1)] },    // P0 follows ♦2 pair
+    ];
+    const s = computeNTTrumpState(hand, 1, [], [], cfg2, false, [],
+      currentPlays, 3);
+    // P0 followed with a pair → can still form other pairs
+    expect(s.canFormPair[0]).toBe(true);
+  });
+});
+
