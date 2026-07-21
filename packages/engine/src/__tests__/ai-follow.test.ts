@@ -1474,6 +1474,53 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
       expect(r.cards.every(c => c.rank === 14)).toBe(true);
       expect(r.reason).toContain('同花色出大');
     });
+
+    it('trump pair lead, no pair in hand: plays smallest trump, avoids JOKER', () => {
+      // Reproduce: level=2, spades trump. P0 leads SJ pair. AI=P1(second)
+      // has JOKER + ♠2 + ♦2 + ♥2 (4 trump, no pair).
+      // Should play 2 smallest trump (♦2♥2 effRank=700) not JOKER(1000).
+      const cfgS2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
+      function c2(s: string, r: number, i: number): Card {
+        return createCard(s as any, r as any, i);
+      }
+      const lead: Card[] = [c2('J', 15, 200), c2('J', 15, 201)]; // SJ pair
+      const hand = [
+        c2('J', 16, 53),   // BJ (effRank 1000)
+        c2('S', 2, 50),    // ♠2 (effRank 800, trump suit + level)
+        c2('D', 2, 30),    // ♦2 (effRank 700)
+        c2('H', 2, 90),    // ♥2 (effRank 700)
+        c2('S', 14, 0),    // ♠A extra
+      ];
+      const best = { cards: lead, playerIdx: 0 };
+      const r = aiFollowPlay(hand, lead, 'S', cfgS2, best, 1);
+      checkFollow(r.cards, hand, lead, 'S', cfgS2);
+      expect(r.cards.length).toBe(2);
+      // Must NOT include JOKER
+      expect(r.cards.some(c => c.rank === 16)).toBe(false);
+      expect(r.reason).toContain('垫同花色');
+    });
+
+    it('trump pair lead, not enough trump: padWithDiscards avoids points', () => {
+      // Reproduce: level=2, spades trump. P0 leads SJ pair. AI=P3(fourth)
+      // has only 1 trump (♠2), opp wins. padWithDiscards should add 不加分.
+      const cfgS2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
+      function c2(s: string, r: number, i: number): Card {
+        return createCard(s as any, r as any, i);
+      }
+      const lead: Card[] = [c2('J', 15, 200), c2('J', 15, 201)]; // SJ pair
+      const best = { cards: lead, playerIdx: 0 };
+      const hand = [
+        c2('S', 2, 50),    // ♠2 (only trump)
+        c2('D', 4, 0),     // ♦4 (non-trump)
+        c2('C', 4, 0),     // ♣4 (non-trump)
+        c2('H', 10, 0),    // ♥10 (non-trump, point)
+      ];
+      const r = aiFollowPlay(hand, lead, 'S', cfgS2, best, 3);
+      checkFollow(r.cards, hand, lead, 'S', cfgS2);
+      expect(r.cards.length).toBe(2);
+      expect(r.reason).toContain('主牌不够');
+      expect(r.reason).toContain('不加分');
+    });
   });
 
   describe('fourth position off-suit single: prefers point card when beating', () => {

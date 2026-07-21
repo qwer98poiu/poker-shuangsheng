@@ -1584,3 +1584,21 @@ AI 策略在 `_aiFollowPlay` 和 `followTrumpLead` 中先调用该判断：若�
 
 - **影响文件**：`packages/engine/src/ai/index.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
+
+## 2026-07-21 22:31
+
+### 修复 matchTrumpPattern 和 padWithDiscards 缺失避分/垫牌逻辑
+
+**问题**：
+1. `matchTrumpPattern` 对子领出的 fallback（无对子匹配时）只用 `getEffectiveRank` 升序取最小主牌，不检查 `shouldAvoid`；且用 `canBeat` 判断理由，两单牌盖不过对子却可能误判为“出大”。后续 fillers 排序用了 `discardSort`，该函数设计给副牌垫牌用——避分时优先非级牌，导致主牌中大王排在级牌前被浪费。
+2. `padWithDiscards` 硬编码返回 `'主牌不够，垫副牌'`，不走 `annotateReason`，导致第四家避分时缺失“不加分”标注。
+
+**修复**：
+1. `matchTrumpPattern` pair 路径：增加 `shouldAvoid`/`addPt` 判断；fillers 用 `getEffectiveRank` 升序始终出最小主牌；检查 `formsPair` 判断是否匹配牌型，不匹配则理由为“垫同花色”。
+2. `padWithDiscards`：增加 `position`、`leadCombo` 参数，用 `annotateReason` 标注意图。
+
+**新增 2 项测试**（ai-follow.test.ts：102 项），466 项通过。
+
+- **影响文件**：`packages/engine/src/ai/index.ts`
+- **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
+

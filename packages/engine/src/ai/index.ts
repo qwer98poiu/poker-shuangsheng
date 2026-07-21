@@ -695,7 +695,7 @@ function followTrumpLead(
   }
 
   // Not enough trump - pad with discards
-  return padWithDiscards(hand, myTrump, leadLen, ctx, tmWin);
+  return padWithDiscards(hand, myTrump, leadLen, ctx, tmWin, position, leadCombo);
 }
 
 function matchTrumpPattern(
@@ -794,19 +794,32 @@ function matchTrumpPattern(
         chosen = pointBeating.slice(0, leadCombo.pairCount).flat();
       }
     }
+    const shouldAvoid = (position === 'fourth' && !tmWin)
+      || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx));
+    const addPt = tmWin && canAddPoints(tmWin, position, leadCombo, ctx);
     if (chosen.length < leadLen) {
       const used = new Set(chosen.map(c => c.id));
       const rest = myTrump.filter(c => !used.has(c.id));
+      // When filling with trump cards that can't match the pattern,
+      // use effectiveRank to pick smallest trump first (keep big ones).
       rest.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
       chosen.push(...rest.slice(0, leadLen - chosen.length));
     }
     const cards = chosen.slice(0, leadLen);
-    const beating = canBeat(cards, ctx.bestSoFar, ctx);
-    const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
-    const isThrow2 = leadCombo.type === 'throw';
-    const baseReason = isThrow2 ? '垫同花色' : (beating ? '同花色出大' : '同花色出小');
-    const intent = addPoints ? 'add' : 'none';
-    const reason = annotateReason(baseReason, cards, [], myTrump,
+    // If the chosen cards form at least one matching pair for a pair lead,
+    // use pattern-aware beating. Otherwise it's 垫同花色.
+    const formsPair = findAllPairs(cards).length >= leadCombo.pairCount;
+    let baseReason: string;
+    if (leadCombo.type === 'throw') {
+      baseReason = '垫同花色';
+    } else if (!formsPair && leadCombo.pairCount > 0) {
+      baseReason = '垫同花色';
+    } else {
+      const beating = canBeat(cards, ctx.bestSoFar, ctx);
+      baseReason = beating ? '同花色出大' : '同花色出小';
+    }
+    const intent = addPt ? 'add' : (shouldAvoid ? 'avoid' : 'none');
+    const reason = annotateReason(baseReason, cards, myTrump, myTrump,
       leadCombo, leadLen, ctx, position, tmWin, false, intent);
     return { cards, reason };
   }
@@ -1335,7 +1348,7 @@ function followTrumpThrow(
     return { cards, reason };
   }
   // Not enough trump — pad with off-suit fillers
-  return padWithDiscards(hand, trump, leadLen, ctx, tmWin);
+  return padWithDiscards(hand, trump, leadLen, ctx, tmWin, position, leadCombo);
 }
 
 // ---- NT trump follow ----
@@ -1428,7 +1441,7 @@ function followNTTrumpLead(
   }
 
   // Pad with discards
-  return padWithDiscards(hand, myTrump, leadLen, ctx, tmWin);
+  return padWithDiscards(hand, myTrump, leadLen, ctx, tmWin, position, leadCombo);
 }
 
 // ---- Discard helpers ----
@@ -1484,13 +1497,18 @@ function padWithDiscards(
   leadLen: number,
   ctx: AIContext,
   tmWin: boolean,
+  position: string,
+  leadCombo: ComboClass,
 ): { cards: Card[]; reason: string } {
   const nonTrump = hand.filter(c => !isTrump(c, ctx));
-  nonTrump.sort(discardSort(!!tmWin, ctx));
-  return {
-    cards: [...myTrump, ...nonTrump].slice(0, leadLen),
-    reason: '主牌不够，垫副牌',
-  };
+  const shouldAvoid = (position === 'fourth' && !tmWin)
+    || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx));
+  nonTrump.sort(discardSort(!shouldAvoid && !!tmWin, ctx));
+  const cards = [...myTrump, ...nonTrump].slice(0, leadLen);
+  const intent = shouldAvoid ? 'avoid' : 'none';
+  const reason = annotateReason('主牌不够，垫副牌', cards, myTrump, myTrump,
+    leadCombo, leadLen, ctx, position, tmWin, false, intent);
+  return { cards, reason };
 }
 
 // ---- Shared helpers ----
