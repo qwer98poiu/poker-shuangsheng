@@ -1602,3 +1602,19 @@ AI 策略在 `_aiFollowPlay` 和 `followTrumpLead` 中先调用该判断：若�
 - **影响文件**：`packages/engine/src/ai/index.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
 
+
+## 2026-07-21 22:57
+
+### 修复抠底时底牌分数未计入升级计算
+
+**问题**：`showRoundResult()` 手动计算并显示底牌分数，但从未在调用 `computeLevelChange` 前将其加到闲家得分中。导致闲家抠底成功却不加分，应该上台却判定为保级。同时底牌倍数硬编码为 `×2`，未使用 `bottomMultiplier` 根据最后一墩领出牌型计算正确倍数。
+
+**修复**：
+1. CLI 导入 `bottomMultiplier`、`countBottomPoints`、`finalizeAttackerPoints`
+2. `showRoundResult()` 中取最后一墩领出牌型计算正确倍数，判断闲家是否赢得最后一墩决定是否抠底加分
+3. 用加分后的终分调用 `computeLevelChange`
+
+**新增 1 项测试**（scoring.test.ts），467 项通过。
+
+- **影响文件**：`packages/cli/src/index.ts`
+- **影响文件**：`packages/engine/src/__tests__/scoring.test.ts`

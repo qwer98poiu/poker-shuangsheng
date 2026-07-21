@@ -40,6 +40,18 @@ describe('Attacker scoring', () => {
   it('defender wins last trick → no bottom', () => {
     expect(finalizeAttackerPoints(50, 10, 2, 0, 0)).toBe(50);
   });
+  it('attacker at 60, wins last trick with single lead, bottom 5 pts → 70+10=80 上台', () => {
+    // Reproduce: attacker had 60 before last trick, won last trick (10 pts → 70).
+    // Bottom has 5 pts, single lead multiplier ×2 → 10. Final: 70 + 10 = 80.
+    const afterLastTrick = 70;
+    const bottomPts = 5;
+    const mult = bottomMultiplier({ type: 'single', cards: [], length: 1, pairCount: 0, tractors: [], hasTractor: false } as any);
+    expect(mult).toBe(2);
+    const final = finalizeAttackerPoints(afterLastTrick, bottomPts, mult, 1, 0);
+    expect(final).toBe(80);
+    // Should trigger 上台 (n >= 2, i.e. 80+ points)
+    expect(computeLevelChange(final)).toEqual({ defenderChange: 0, attackerChange: 0 });
+  });
 });
 
 describe('Bottom multiplier', () => {

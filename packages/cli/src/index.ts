@@ -16,6 +16,7 @@ import {
   serialize, deserialize, resumeFromTrick,
   Suit, Rank, validateFollow, validateLead,
   buildAIContext, computeBestSoFar,
+  bottomMultiplier, countBottomPoints, finalizeAttackerPoints,
 } from '@poker/engine';
 import { classify } from '@poker/engine';
 import { parseCards } from './parse.js';
@@ -1097,19 +1098,42 @@ function showHumanHands() {
 }
 
 function showRoundResult(): { changes: { defenderChange: number; attackerChange: number } } {
-  const pts = Math.max(0, gameState.attackerPoints);
+  // Determine bottom multiplier from the last trick's lead pattern.
+  const lastTrick = gameState.trickHistory[gameState.trickHistory.length - 1];
+  const lastLeadCombo = lastTrick ? classify(lastTrick.plays[0].cards, gameState.trumpDeclaration!) : null;
+  const mult = lastLeadCombo ? bottomMultiplier(lastLeadCombo) : 2;
+
+  // Add bottom points if the attacker won the last trick (抠底).
+  const bp = countBottomPoints(gameState.bottomCards);
+  const finalPts = lastTrick
+    ? finalizeAttackerPoints(gameState.attackerPoints, bp, mult, lastTrick.winnerIndex, gameState.declarerIndex)
+    : gameState.attackerPoints;
+
+  const pts = Math.max(0, finalPts);
   console.log('\n' + BOLD + '=== 本局结束 ===' + RESET);
-  console.log(`闲家得分: ${pts}`);
+  console.log(`闲家得分: ${gameState.attackerPoints}`);
   if (gameState.attackerPoints < 0) console.log(DIM + `  (罚分前: ${gameState.attackerPoints})` + RESET);
 
   console.log('底牌翻出:');
   showBottom();
-  let bp = 0;
-  for (const c of gameState.bottomCards) bp += cardPoints(c.rank);
-  console.log(`底牌分数: ${bp} ×2 = ${bp * 2}`);
+  const multLabel = mult === 2 ? '×2' : `×${mult}`;
+  console.log(`底牌分数: ${bp} ${multLabel} = ${bp * mult}`);
+
+  if (lastTrick) {
+    const attackerWonLast = lastTrick.winnerIndex % 2 !== gameState.declarerIndex % 2;
+    if (attackerWonLast && bp > 0) {
+      console.log(`抠底加分: ${bp * mult} → 终分 ${pts}`);
+    }
+  }
+
+  const attackerSits = pts >= 80;
+
+  if (!attackerSits && gameState.attackerPoints >= 80) {
+    // Attacker had 80+ but fell below after penalties — shouldn't happen in normal play
+    console.log(DIM + `  (罚分后不足80分，未能上台)` + RESET);
+  }
 
   const changes = computeLevelChange(pts);
-  const attackerSits = pts >= 80;
 
   if (attackerSits) {
     const up = changes.attackerChange;
