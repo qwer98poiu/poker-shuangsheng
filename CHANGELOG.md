@@ -1647,3 +1647,13 @@ AI 策略在 `_aiFollowPlay` 和 `followTrumpLead` 中先调用该判断：若�
 
 - **影响文件**：`packages/engine/src/ai/index.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-leading.test.ts`
+
+## 2026-07-22 00:33
+
+### 新增回归测试：确认 NT 主对跟牌 filler 不会误垫 joker
+
+**问题**：用户反馈修复垫大王后仍出现垫小王。经分析，`matchTrumpPattern` 对子 fallback 的 filler 排序在前次修复中已改为 `getEffectiveRank` 升序（joker 900 > level 800），逻辑正确。测试以精确场景（NT 模式，第四家，领出 ♣2♣2 对，手牌 joker+♠2+♦2+♥2 无对子）还原，确认 joker 不会被选中。
+
+**新增 1 项测试**（ai-follow.test.ts：103 项），475 项通过。
+
+- **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`

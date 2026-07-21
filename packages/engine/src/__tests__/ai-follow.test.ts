@@ -1728,6 +1728,32 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
       expect(ranks).not.toContain(5);
       expect(r.reason).toContain('垫同花色');
     });
+
+    it('trump pair lead, no pair in hand, fourth position: avoids SJ filler', () => {
+      // Reproduce: NT level=2. P3 leads ♣2♣2 pair. AI=P2(fourth) has
+      // joker(SJ) + ♠2 + ♦2 + ♥2 (4 trump, no pair). opp wins.
+      // Filler sort should NOT pick joker (effRank 900) over level-2s (800).
+      const cfgNT: TrumpDeclaration = { declarerIndex: 1, trumpSuit: null, level: 2 };
+      function c2(s: string, r: number, i: number): Card {
+        return createCard(s as any, r as any, i);
+      }
+      // Lead: ♣2♣2 pair. P0 (AI-4) follows ♥2 joker. P1 (human) follows ♥10♣5.
+      // AI=P2(fourth). Best so far is lead (pair), not beaten by teammate.
+      const lead: Card[] = [c2('C', 2, 200), c2('C', 2, 201)];
+      const best = { cards: lead, playerIdx: 2 }; // P3 wins (no one beat pair)
+      const hand = [
+        c2('J', 15, 0),    // joker (SJ, effRank 900)
+        c2('S', 2, 50),    // ♠2 (effRank 800)
+        c2('D', 2, 30),    // ♦2 (effRank 800)
+        c2('H', 2, 90),    // ♥2 (effRank 800)
+      ];
+      const r = aiFollowPlay(hand, lead, null as any, cfgNT, best, 3);
+      checkFollow(r.cards, hand, lead, null as any, cfgNT);
+      expect(r.cards.length).toBe(2);
+      // Must NOT include joker (rank 15 = SmallJoker)
+      expect(r.cards.some(c => c.rank === 15)).toBe(false);
+      expect(r.reason).toContain('垫同花色');
+    });
   });
 
   describe('short-suited add points: non-point fillers ascending (discardSort fix)', () => {
