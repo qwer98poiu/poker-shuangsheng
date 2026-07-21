@@ -257,6 +257,22 @@ describe('AI follow play compliance', () => {
       const play = aiFollow(hand, lead, 'S', cfg5);
       checkFollow(play, hand, lead, 'S', cfg5);
     });
+
+    it('pair lead, hand has two singles -> 垫同花色, not 出大', () => {
+      // Lead ♠Q♠Q pair. Hand: ♠K, ♠8 (singles, different ranks).
+      // Even though ♠K > ♠Q, two singles cannot beat a pair → 垫同花色.
+      const lead: Card[] = [c('S', 12, 200), c('S', 12, 201)];
+      const hand = [
+        c('S', 13, 0),    // ♠K
+        c('S', 8, 0),     // ♠8
+        c('H', 14, 0),    // extra
+      ];
+      const r = aiFollowPlay(hand, lead, 'S', cfg5, undefined, 2);
+      checkFollow(r.cards, hand, lead, 'S', cfg5);
+      expect(r.cards.length).toBe(2);
+      expect(r.reason).toContain('垫同花色');
+      expect(r.reason).toContain('唯一可出');
+    });
   });
 
   describe('joker lead', () => {

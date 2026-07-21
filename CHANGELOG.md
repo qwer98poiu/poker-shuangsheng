@@ -1571,3 +1571,16 @@ AI 策略在 `_aiFollowPlay` 和 `followTrumpLead` 中先调用该判断：若�
 
 - **影响文件**：`packages/engine/src/ai/nt-tracking.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-nt-tracking.test.ts`
+
+## 2026-07-21 21:50
+
+### 修复 fast path 用 canBeat 判断理由导致"同花色出大"误报
+
+**问题**：`canBeat` 只比较 max effectiveRank，不检查牌型是否匹配。领出对子、手牌只有两张单牌时，即使单牌 rank 更高也无法盖过对子，但 `canBeat(11 > 5) = true` 误判为"同花色出大"。
+
+**修复**：fast path 改用 `matchPattern` 先检查手牌是否匹配领出牌型。不匹配则理由为"垫同花色"，匹配才用 `compareTwo` 进行牌型感知的 rank 比较。同样修复了主牌跟牌 fast path。
+
+**新增 1 项测试**（ai-follow.test.ts：100 项），464 项通过。
+
+- **影响文件**：`packages/engine/src/ai/index.ts`
+- **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`

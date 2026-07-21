@@ -9,7 +9,7 @@ import { Rank, SpecialSuit, Suit, SUIT_ORDER, isPointRank } from '../types.js';
 import type { TrumpDeclaration } from '../types.js';
 import { isTrump, getEffectiveRank } from '../model.js';
 import { findAllPairs, detectTractors, classify as classifyCombo } from '../pattern/index.js';
-import { compareTwo } from '../comparing/index.js';
+import { compareTwo, matchPattern } from '../comparing/index.js';
 import type { AIContext } from './types.js';
 import {
   getPositionInTrick, isTeammateWinning, canBeat, maxCardT, teammateWins,
@@ -493,8 +493,14 @@ function _aiFollowPlay(
     let baseReason: string;
     if (leadCombo.type === 'throw') {
       baseReason = '垫同花色';
+    } else if (!matchPattern(leadCards, cards, ctx)) {
+      // Cards can't match lead pattern (e.g. two singles vs a pair lead).
+      baseReason = '垫同花色';
     } else {
-      baseReason = canBeat(cards, ctx.bestSoFar, ctx) ? '同花色出大' : '同花色出小';
+      // Pattern matches — compare ranks via compareTwo (pattern-aware).
+      const bestCards = ctx.bestSoFar ? ctx.bestSoFar.cards : leadCards;
+      const beating = compareTwo(bestCards, cards, leadCards, ctx) === 'second';
+      baseReason = beating ? '同花色出大' : '同花色出小';
     }
     const reason = annotateReason(baseReason, cards, leadSuitCards, trumpCards,
       leadCombo, leadLen, ctx, position, tmWin, false, 'none');
@@ -572,8 +578,14 @@ function followTrumpLead(
   if (myTrump.length === leadLen && isOnlyLegalPlay(myTrump, leadLen, leadCombo, ctx)) {
     const sorted = [...myTrump].sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
     const cards = sorted.slice(0, leadLen);
-    const beating = canBeat(cards, ctx.bestSoFar, ctx);
-    const baseReason = beating ? '同花色出大' : '同花色出小';
+    let baseReason: string;
+    if (!matchPattern(leadCards, cards, ctx)) {
+      baseReason = '垫同花色';
+    } else {
+      const bestCards = ctx.bestSoFar ? ctx.bestSoFar.cards : leadCards;
+      const beating = compareTwo(bestCards, cards, leadCards, ctx) === 'second';
+      baseReason = beating ? '同花色出大' : '同花色出小';
+    }
     const reason = annotateReason(baseReason, cards, myTrump, myTrump,
       leadCombo, leadLen, ctx, position, tmWin, false, 'none');
     return { cards, reason };
