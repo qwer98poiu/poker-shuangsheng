@@ -545,7 +545,8 @@ function _aiFollowPlay(
         ? '同花色不够，垫其他花色'
         : '垫同花色';
     const shouldAvoid = (position === 'fourth' && !tmWin)
-      || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx));
+      || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx))
+      || (position === 'third' && !tmWin);
     const intent = shouldAvoid ? 'avoid' : 'none';
     const reason = annotateReason(baseReason, cards, leadSuitCards, trumpCards,
       leadCombo, leadLen, ctx, position, tmWin, false, intent);
@@ -679,7 +680,8 @@ function followTrumpLead(
         return { cards, reason };
       }
       const shouldAvoid = (position === 'fourth' && !tmWin)
-        || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx));
+        || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx))
+        || (position === 'third' && !tmWin);
       const addPoints = !shouldAvoid && canAddPoints(tmWin, position, leadCombo, ctx);
       if (addPoints) {
         myTrump.sort(discardSort(true, ctx));
@@ -725,7 +727,8 @@ function matchTrumpPattern(
       const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
       const shouldAvoidT = !addPoints
         && ((position === 'fourth' && !tmWin)
-          || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx)));
+          || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx))
+          || (position === 'third' && !tmWin));
       const ptsStrat = addPoints ? 'add' : (shouldAvoidT ? 'avoid' : undefined);
 
       myTractors.sort((a, b) => {
@@ -806,7 +809,8 @@ function matchTrumpPattern(
       }
     }
     const shouldAvoid = (position === 'fourth' && !tmWin)
-      || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx));
+      || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx))
+      || (position === 'third' && !tmWin);
     const addPt = tmWin && canAddPoints(tmWin, position, leadCombo, ctx);
     if (chosen.length < leadLen) {
       const used = new Set(chosen.map(c => c.id));
@@ -899,7 +903,8 @@ function followOffSuitSingle(
     leadSuitCards.sort(discardSort(false, ctx));
     const cards = [leadSuitCards[0]];
     const shouldAvoid = (position === 'fourth' && !tmWin)
-      || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx));
+      || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx))
+      || (position === 'third' && !tmWin);
     const intent = shouldAvoid ? 'avoid' : 'none';
     const reason = annotateReason('同花色出小', cards, leadSuitCards, trumpCards,
       leadCombo, 1, ctx, position, tmWin, false, intent);
@@ -956,7 +961,8 @@ function followOffSuitMulti(
       const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
       const shouldAvoidT = !addPoints
         && ((position === 'fourth' && !tmWin)
-          || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx)));
+          || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx))
+          || (position === 'third' && !tmWin));
       const ptsStrat = addPoints ? 'add' : (shouldAvoidT ? 'avoid' : undefined);
 
       myTractors.sort((a, b) => b.length - a.length);
@@ -990,7 +996,8 @@ function followOffSuitMulti(
       const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
       const shouldAvoid = !addPoints
         && ((position === 'fourth' && !tmWin)
-          || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx)));
+          || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx))
+          || (position === 'third' && !tmWin));
       if (addPoints) {
         rest.sort(discardSort(true, ctx));
       } else if (shouldAvoid) {
@@ -1075,9 +1082,10 @@ function followOffSuitMulti(
   leadSuitCards.sort(discardSort(false, ctx));
   const cards = leadSuitCards.slice(0, leadLen);
   // Third+tmWin avoids. Second/fourth+max pattern+!tmWin also avoids.
+  const thirdAvoid = position === 'third' && !tmWin;
   const fourthAvoid = position === 'fourth' && !tmWin;
   const secondAvoid = position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx);
-  const intent = (fourthAvoid || secondAvoid) ? 'avoid' : 'none';
+  const intent = (thirdAvoid || fourthAvoid || secondAvoid) ? 'avoid' : 'none';
   const reason = annotateReason('垫同花色', cards, leadSuitCards, [],
     leadCombo, leadLen, ctx, position, tmWin, false, intent);
   return { cards, reason };
@@ -1309,7 +1317,8 @@ function followOffSuitThrow(
       : '同花色不够，垫其他花色';
     // Second position with max pattern (throw) should avoid points
     const shouldAvoid = (position === 'fourth' && !tmWin)
-      || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx));
+      || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx))
+      || (position === 'third' && !tmWin);
     const intent = shouldAvoid ? 'avoid' : 'none';
     const reason = annotateReason(baseReason, cards, leadSuitCards, trumpCards,
       leadCombo, leadLen, ctx, position, tmWin, false, intent);
@@ -1392,7 +1401,8 @@ function followNTTrumpLead(
         return { cards, reason };
       }
       const shouldAvoid = (position === 'fourth' && !tmWin)
-        || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx));
+        || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx))
+        || (position === 'third' && !tmWin);
       const addPts = !shouldAvoid && tmWin && canAddPoints(tmWin, position, leadCombo, ctx);
       if (addPts) {
         myTrump.sort(discardSort(true, ctx));
@@ -1513,7 +1523,8 @@ function padWithDiscards(
 ): { cards: Card[]; reason: string } {
   const nonTrump = hand.filter(c => !isTrump(c, ctx));
   const shouldAvoid = (position === 'fourth' && !tmWin)
-    || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx));
+    || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx))
+    || (position === 'third' && !tmWin);
   nonTrump.sort(discardSort(!shouldAvoid && !!tmWin, ctx));
   const cards = [...myTrump, ...nonTrump].slice(0, leadLen);
   const intent = shouldAvoid ? 'avoid' : 'none';

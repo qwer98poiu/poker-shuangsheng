@@ -1521,6 +1521,28 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
       expect(r.reason).toContain('主牌不够');
       expect(r.reason).toContain('不加分');
     });
+
+    it('third position, pair lead, no pair: avoids points when opponent overtook', () => {
+      // Reproduce: P1 leads ♦6♦6, P2 beats with ♦9♦9, AI=P3(third) has
+      // ♦4♦8 (no pair), can't beat P2. Should annotate 不加分.
+      const cfgD2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 2 };
+      function c3(s: string, r: number, i: number): Card {
+        return createCard(s as any, r as any, i);
+      }
+      const lead: Card[] = [c3('D', 6, 200), c3('D', 6, 201)]; // ♦6♦6 pair
+      const best = { cards: [c3('D', 9, 0), c3('D', 9, 1)], playerIdx: 1 }; // P2 beats
+      const hand = [
+        c3('D', 4, 0),    // ♦4
+        c3('D', 8, 0),    // ♦8
+        c3('D', 5, 0),    // ♦5 (5pts, should be avoided)
+        c3('H', 3, 0),    // extra
+      ];
+      const r = aiFollowPlay(hand, lead, 'D', cfgD2, best, 2);
+      checkFollow(r.cards, hand, lead, 'D', cfgD2);
+      expect(r.cards.length).toBe(2);
+      expect(r.reason).toContain('垫同花色');
+      expect(r.reason).toContain('不加分');
+    });
   });
 
   describe('fourth position off-suit single: prefers point card when beating', () => {

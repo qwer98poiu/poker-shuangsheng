@@ -1657,3 +1657,16 @@ AI 策略在 `_aiFollowPlay` 和 `followTrumpLead` 中先调用该判断：若�
 **新增 1 项测试**（ai-follow.test.ts：103 项），475 项通过。
 
 - **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
+
+## 2026-07-22 23:30
+
+### 修复第三家对手赢墩时缺少"不加分"标注
+
+**问题**：`shouldAvoid` 逻辑只覆盖了第二家（且领出为最大牌型）和第四家（对手赢墩），遗漏了第三家。第三家盖不过时，如果对手已经赢墩，即使随不出牌型也应避分。
+
+**修复**：所有 `shouldAvoid` 位置增加 `position === 'third' && !tmWin` 条件。涉及 `followOffSuit`（短门）、`followOffSuitMulti`（多张 fallback）、`followTrumpLead`、`followNTTrumpLead`、`matchTrumpPattern`、`padWithDiscards` 等共 11 处。
+
+**新增 1 项测试**（ai-follow.test.ts：104 项），476 项通过。
+
+- **影响文件**：`packages/engine/src/ai/index.ts`
+- **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
