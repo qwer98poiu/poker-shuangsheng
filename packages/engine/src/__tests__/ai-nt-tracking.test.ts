@@ -1463,5 +1463,156 @@ describe('current trick plays — in-progress trick deduction', () => {
       }
     }
   });
+
+  it('trick 2: P0 kills off-suit with D2, P2 follows off-suit (no trump)', () => {
+    // Same hands as after SJ-pair trick (T1). T2: P2 leads ♠A (off-suit),
+    // P3 discards ♠3, P0 kills with D2, P1 discards ♠K. P2 follows ♠A.
+    // Post-T2 hands: P0=S2,C2  P1=0  P2=H2,S2,D2  P3=0.
+    const cfg: TrumpDeclaration = { declarerIndex: 2, trumpSuit: null, level: 2 };
+    const reveals: Reveal[] = [
+      { playerIndex: 3, suit: Suit.Hearts, strength: 1 },
+      { playerIndex: 0, suit: null, strength: 3 },
+    ];
+    const t1 = mockTrickWithPattern(
+      [
+        [c('J', Rank.SmallJoker, 50), c('J', Rank.SmallJoker, 51)],
+        [c('J', Rank.BigJoker, 52), c('D', 3, 0)],
+        [c('J', Rank.BigJoker, 53), c('C', 2, 70)],
+        [c('H', 2, 50), c('H', 4, 0)],
+      ],
+      0, 0, 'pair', 1, false,
+    );
+    // T2: P3 leads ♠A(off-suit), P0 kills with D2, P1 discards, P2 follows ♠.
+    const t2 = mockTrick(
+      [
+        [c('S', 14, 200)],  // P3 leads ♠A
+        [c('D', 2, 50)],    // P0 kills with D2
+        [c('S', 13, 0)],    // P1 discards ♠K
+        [c('S', 3, 0)],     // P2 follows ♠3
+      ],
+      3, 0,
+    );
+
+    function has(b: readonly string[] | null, k: string): boolean {
+      return b ? b.some(id => id.startsWith(k)) : false;
+    }
+    function cnt(b: readonly string[] | null, k: string): number {
+      return b ? b.filter(id => id.startsWith(k)).length : 0;
+    }
+
+    const s0 = computeNTTrumpState([c('S',2,50),c('C',2,50)], 0, [t1,t2], reveals, cfg, false, []);
+    const s1 = computeNTTrumpState([], 1, [t1,t2], reveals, cfg, false, []);
+    const s2 = computeNTTrumpState([c('H',2,70),c('S',2,70),c('D',2,70)], 2, [t1,t2], reveals, cfg, true, [] as Card[]);
+    const s3 = computeNTTrumpState([], 3, [t1,t2], reveals, cfg, false, []);
+
+    // === P0 (hand S2,C2) ===
+    expect(s0.playersWithNoTrump.has(1)).toBe(true);
+    expect(s0.playersWithNoTrump.has(3)).toBe(true);
+    expect(s0.playersWithNoTrump.has(2)).toBe(false);
+    expect(s0.possibleTrumps[1]!.length).toBe(0);
+    expect(s0.possibleTrumps[3]!.length).toBe(0);
+    const p0p2 = s0.possibleTrumps[2]!;
+    expect(p0p2.length).toBe(2);
+    expect(has(p0p2,'S-2')).toBe(true);
+    expect(has(p0p2,'H-2')).toBe(true);
+    expect(has(p0p2,'C-2')).toBe(false);
+    expect(has(p0p2,'D-2')).toBe(false);
+    expect(has(p0p2,'J-15')).toBe(false);
+    expect(has(p0p2,'J-16')).toBe(false);
+    const p0bot = s0.possibleTrumps[4]!;
+    expect(p0bot.length).toBe(3);
+    expect(has(p0bot,'S-2')).toBe(true);
+    expect(has(p0bot,'H-2')).toBe(true);
+    expect(has(p0bot,'D-2')).toBe(true);
+
+    // === P1 (void, post-T2: 0 trump) ===
+    expect(s1.playersWithNoTrump.has(1)).toBe(true);
+    expect(s1.playersWithNoTrump.has(3)).toBe(true);
+    expect(s1.playersWithNoTrump.has(0)).toBe(false);
+    expect(s1.playersWithNoTrump.has(2)).toBe(false);
+    expect(s1.possibleTrumps[3]!.length).toBe(0);
+    const p1p0 = s1.possibleTrumps[0]!;
+    expect(p1p0.length).toBe(5); // S×2, H, C, D (+ no J)
+    expect(has(p1p0,'S-2')).toBe(true);
+    expect(has(p1p0,'H-2')).toBe(true);
+    expect(has(p1p0,'C-2')).toBe(true);
+    expect(has(p1p0,'D-2')).toBe(true);
+    expect(has(p1p0,'J-15')).toBe(false);
+    expect(has(p1p0,'J-16')).toBe(false);
+    const p1p2 = s1.possibleTrumps[2]!;
+    expect(p1p2.length).toBe(2);
+    expect(has(p1p2,'S-2')).toBe(true);
+    expect(has(p1p2,'H-2')).toBe(true);
+    expect(has(p1p2,'C-2')).toBe(false);
+    expect(has(p1p2,'D-2')).toBe(false);
+    expect(has(p1p2,'J-15')).toBe(false);
+    expect(has(p1p2,'J-16')).toBe(false);
+    const p1bot = s1.possibleTrumps[4]!;
+    expect(p1bot.length).toBe(5);
+    expect(has(p1bot,'S-2')).toBe(true);
+    expect(has(p1bot,'H-2')).toBe(true);
+    expect(has(p1bot,'C-2')).toBe(true);
+    expect(has(p1bot,'D-2')).toBe(true);
+    expect(has(p1bot,'J-15')).toBe(false);
+    expect(has(p1bot,'J-16')).toBe(false);
+    // P1→P0 pair: S-2×2→pair. D-2×1→no pair. H×1,C×1→no.
+    expect(cnt(p1p0,'S-2')).toBe(2);
+    expect(cnt(p1p0,'D-2')).toBe(1);
+    expect(cnt(p1p0,'H-2')).toBe(1);
+    expect(cnt(p1p0,'C-2')).toBe(1);
+    // P1→P2: S×1,H×1→no pair.
+    expect(cnt(p1p2,'S-2')).toBe(1);
+    expect(cnt(p1p2,'H-2')).toBe(1);
+
+    // === P2 (declarer, hand H2,S2,D2) ===
+    expect(s2.possibleTrumps[4]).toBeNull();
+    expect(s2.playersWithNoTrump.has(1)).toBe(true);
+    expect(s2.playersWithNoTrump.has(3)).toBe(true);
+    expect(s2.playersWithNoTrump.has(0)).toBe(false);
+    expect(s2.possibleTrumps[1]!.length).toBe(0);
+    expect(s2.possibleTrumps[3]!.length).toBe(0);
+    const p2p0 = s2.possibleTrumps[0]!;
+    expect(p2p0.length).toBe(2);
+    expect(has(p2p0,'S-2')).toBe(true);
+    expect(has(p2p0,'C-2')).toBe(true);
+    expect(has(p2p0,'H-2')).toBe(false);
+    expect(has(p2p0,'D-2')).toBe(false);
+    expect(has(p2p0,'J-15')).toBe(false);
+    expect(has(p2p0,'J-16')).toBe(false);
+
+    // === P3 (void, post-T2: 0 trump) ===
+    expect(s3.playersWithNoTrump.has(1)).toBe(true);
+    expect(s3.playersWithNoTrump.has(3)).toBe(true);
+    expect(s3.playersWithNoTrump.has(0)).toBe(false);
+    expect(s3.playersWithNoTrump.has(2)).toBe(false);
+    expect(s3.possibleTrumps[1]!.length).toBe(0);
+    const p3p0 = s3.possibleTrumps[0]!;
+    expect(p3p0.length).toBe(5);
+    expect(has(p3p0,'S-2')).toBe(true);
+    expect(has(p3p0,'H-2')).toBe(true);
+    expect(has(p3p0,'C-2')).toBe(true);
+    expect(has(p3p0,'D-2')).toBe(true);
+    expect(has(p3p0,'J-15')).toBe(false);
+    expect(has(p3p0,'J-16')).toBe(false);
+    const p3p2 = s3.possibleTrumps[2]!;
+    expect(p3p2.length).toBe(1);
+    expect(has(p3p2,'S-2')).toBe(true);
+    expect(has(p3p2,'H-2')).toBe(false);
+    expect(has(p3p2,'C-2')).toBe(false);
+    expect(has(p3p2,'D-2')).toBe(false);
+    expect(has(p3p2,'J-15')).toBe(false);
+    expect(has(p3p2,'J-16')).toBe(false);
+    const p3bot = s3.possibleTrumps[4]!;
+    expect(p3bot.length).toBe(5);
+    expect(has(p3bot,'S-2')).toBe(true);
+    expect(has(p3bot,'H-2')).toBe(true);
+    expect(has(p3bot,'C-2')).toBe(true);
+    expect(has(p3bot,'D-2')).toBe(true);
+    expect(has(p3bot,'J-15')).toBe(false);
+    expect(has(p3bot,'J-16')).toBe(false);
+    // P3→P0 pair: S-2×2→pair. D-2×1→no.
+    expect(cnt(p3p0,'S-2')).toBe(2);
+    expect(cnt(p3p0,'D-2')).toBe(1);
+  });
 });
 

@@ -1687,3 +1687,15 @@ AI 策略在 `_aiFollowPlay` 和 `followTrumpLead` 中先调用该判断：若�
 
 - **影响文件**：`packages/engine/src/ai/nt-tracking.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-nt-tracking.test.ts`
+
+## 2026-07-24 23:18
+
+### 新增 NT 记牌器第二墩测试：毙副牌后常主分布
+
+**新增测试**：在首墩 SJ 对之后，第二墩 P3 领出 ♠A（副牌），P0 用 ♦2 毙牌，P1 垫副牌，P2 跟副牌。验证毙牌后各视角常主分布。
+
+Trick 2 后关键变化：♦2 总数减 1（P0 打出），P1/P3 视角中 P0 的 ♦2 从 2 张降为 1 张（只能形成 S-2 对，不能形成 D-2 对）。P0 视角 P2 的 S-2+H-2 不变。P2（庄家）视角 P0 只有 S-2+C-2（H-2、D-2 已排除）。
+
+**新增 1 项测试**（ai-nt-tracking.test.ts：50 项），479 项通过。
+
+- **影响文件**：`packages/engine/src/__tests__/ai-nt-tracking.test.ts`
