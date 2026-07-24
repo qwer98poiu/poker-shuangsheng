@@ -1670,3 +1670,20 @@ AI 策略在 `_aiFollowPlay` 和 `followTrumpLead` 中先调用该判断：若�
 
 - **影响文件**：`packages/engine/src/ai/index.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
+
+## 2026-07-24 22:44
+
+### 修复 NT 记牌器两项 bug：当前墩自出牌误删副本 + 对子推断顺序错误
+
+**问题**：
+1. 当前墩自己出常主时，Phase 2 按 suitRank 匹配会找到并删除代表另一玩家手中同名副本的 virtual copy，导致记牌器少算一张。自己手牌已在 Phase 1 排除，virtual copy 代表的是别处的牌。
+2. 对子推断（`applyNoPairDeduction`）在卡牌移除**之后**执行。玩家领出对子、某玩家跟单张时，该玩家每种 rank 应最多持有 1 张，再扣掉打出的一张后归零。但旧顺序先扣牌再推断，导致打出 ♣2 后仍显示可能持有 ♣2。
+
+**修复**：
+1. 当前墩通过 `isCurrentTrick` 判断，skip self 的全部移除（Pass 1 + Pass 2）。已完成的历史墩不受影响。
+2. 对子推断移到卡牌移除之前执行。先限每种 rank 至多 1 张，再减去打出部分，正确推出归零。
+
+**综合场景测试**：4 视角（P0 亮主者、P1 void、P2 庄家、P3 void）× 每视角逐牌验证 6 种 suit-rank × 非void玩家 + 底牌。P1/P3 视角验证 P0 对子推断：S-2×2→有对、D-2×2→有对、H-2×1→无对、C-2×1→无对。P2 无对（pair dedup）。底牌不受对子推断影响（S×2,D×2,H×1,C×1）。44 长度断言 + 22 计数断言。478 项通过。
+
+- **影响文件**：`packages/engine/src/ai/nt-tracking.ts`
+- **影响文件**：`packages/engine/src/__tests__/ai-nt-tracking.test.ts`

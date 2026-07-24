@@ -283,39 +283,44 @@ export function computeNTTrumpState(
         .map(c => c.id);
 
       if (playedTrumpIds.length > 0) {
-        // Played trump cards are no longer in any hand — remove from tracking.
-        // Two-pass removal: exact ID match first, then any copy by suitRank key.
         const playedTrumps = played.filter(c => isTrump(c, config));
-        const playedByKey = countBySuitRank(playedTrumps);
 
-        // Pass 1: exact ID match
-        for (const c of playedTrumps) {
-          if (possibleLocations.has(c.id)) {
-            possibleLocations.delete(c.id);
-            const key = suitRankKey(c.id);
-            playedByKey.set(key, (playedByKey.get(key) || 1) - 1);
-          }
-        }
-
-        // Pass 2: remove remaining by suitRank key
-        for (const [key, remaining] of playedByKey) {
-          for (let r = 0; r < remaining; r++) {
-            for (const copyKey of possibleLocations.keys()) {
-              if (suitRankKey(copyKey) === key) {
-                possibleLocations.delete(copyKey);
-                break;
-              }
-            }
-          }
-        }
-
-        // Pair deduction: if trump lead with pairs/tractors and player
-        // didn't follow with any trump pair (but played trump), they can't form pairs.
-        // Does NOT apply to self (we know our own hand).
+        // Pair deduction applied FIRST (before card removal). If the
+        // player follows with singles against a pair/tractor lead, their
+        // pre-play holdings were capped at 1 copy per suit-rank. Then
+        // card removal subtracts what they actually played.
         if (leadHasPairOrTractor && actualPlayer !== myIndex && pi > 0) {
           const playedPairs = findAllPairs(played);
           if (playedPairs.length === 0) {
             applyNoPairDeduction(actualPlayer, possibleLocations);
+          }
+        }
+
+        // In a completed trick, self's post-trick hand no longer includes the
+        // played cards, so removal is correct. In the CURRENT (in-progress)
+        // trick, self's hand STILL includes unplayed cards, and Phase 1
+        // already excluded them — removing by suitRank would delete virtual
+        // copies representing cards at OTHER players.
+        const isCurrentTrick = entry === allPlays[allPlays.length - 1]
+          && currentTrickPlays && currentTrickPlays.length > 0;
+        if (!isCurrentTrick || actualPlayer !== myIndex) {
+          const playedByKey = countBySuitRank(playedTrumps);
+          for (const c of playedTrumps) {
+            if (possibleLocations.has(c.id)) {
+              possibleLocations.delete(c.id);
+              const key = suitRankKey(c.id);
+              playedByKey.set(key, (playedByKey.get(key) || 1) - 1);
+            }
+          }
+          for (const [key, remaining] of playedByKey) {
+            for (let r = 0; r < remaining; r++) {
+              for (const copyKey of possibleLocations.keys()) {
+                if (suitRankKey(copyKey) === key) {
+                  possibleLocations.delete(copyKey);
+                  break;
+                }
+              }
+            }
           }
         }
 

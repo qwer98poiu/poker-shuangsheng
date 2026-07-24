@@ -1224,5 +1224,244 @@ describe('current trick plays — in-progress trick deduction', () => {
     // P0 followed with a pair → can still form other pairs
     expect(s.canFormPair[0]).toBe(true);
   });
+
+  it('self playing trump in current trick does not remove unseen copies', () => {
+    // Bug: when self plays ♦2 in the current trick, Phase 2 two-pass
+    // removal by suitRank deletes the virtual copy representing the
+    // OTHER copy of ♦2. Self's cards were already excluded at init.
+    //
+    // P2=AI3 leads ♥6. P3(AI4) discards. P0(AI1=self) follows ♦2.
+    // AI1 has ♠2♣2♦2. The other ♦2 is at P1(AI2) or bottom.
+    const hand = [
+      c('D', 2, 50),  // ♦2
+      c('C', 2, 0),   // ♣2
+      c('S', 2, 0),   // ♠2
+    ];
+    // P2 leads ♥6, P3 discards ♦3, P0(self) follows ♦2
+    const currentPlays = [
+      { cards: [c('H', 6, 0)] },   // pi=0: P2 leads ♥6
+      { cards: [c('D', 3, 0)] },   // pi=1: P3 discards ♦3
+      { cards: [c('D', 2, 50)] },  // pi=2: P0(self) follows ♦2
+    ];
+    const s = computeNTTrumpState(hand, 0, [], [], cfg2, false, [],
+      currentPlays, 2); // leadPlayerIndex=2 (P2 leads)
+    // Self played ♦2 — but the OTHER ♦2 should still be possible somewhere
+    const allPossible = [...(s.possibleTrumps[1] || []), ...(s.possibleTrumps[4] || [])];
+    const hasD2 = allPossible.some(id => id.startsWith('D-2'));
+    expect(hasD2).toBe(true);
+  });
+
+
+  function hasCard(bag: readonly string[], suit: string, rank: number): boolean {
+    return bag.some(id => id.startsWith(suit + '-' + rank + '-'));
+  }
+
+  it('full scenario: P0 leads SJ pair, P2 declarer, 12 cards per view', () => {
+    // Level=2 NT. 12 trumps: BJ×2, SJ×2, ♠2×2, ♥2×2, ♣2×2, ♦2×2.
+    // P2(AI-3,idx=2) declarer. P0(玩家1) reveals SJ pair→NT. P3(AI-4) reveals ♥2.
+    // Pre-trick: P0=SJ×2,S2,C2,D2  P1=BJ  P2=BJ,C2,H2,S2,D2  P3=H2.
+    // Trick: P0 leads SJ×2, P1(BJ,1→void), P2(BJ+C2,2=2,no pair), P3(H2,1→void).
+    // Post-trick: P0=S2,C2,D2  P1=0  P2=H2,S2,D2  P3=0.
+    const cfg: TrumpDeclaration = { declarerIndex: 2, trumpSuit: null, level: 2 };
+    const reveals: Reveal[] = [
+      { playerIndex: 3, suit: Suit.Hearts, strength: 1 },
+      { playerIndex: 0, suit: null, strength: 3 },
+    ];
+    const trick = mockTrickWithPattern(
+      [
+        [c('J', Rank.SmallJoker, 50), c('J', Rank.SmallJoker, 51)],
+        [c('J', Rank.BigJoker, 52), c('D', 3, 0)],
+        [c('J', Rank.BigJoker, 53), c('C', 2, 70)],
+        [c('H', 2, 50), c('H', 4, 0)],
+      ],
+      0, 0, 'pair', 1, false,
+    );
+
+    function has(bag: readonly string[] | null, key: string): boolean {
+      return bag ? bag.some(id => id.startsWith(key)) : false;
+    }
+    function cnt(bag: readonly string[] | null, key: string): number {
+      return bag ? bag.filter(id => id.startsWith(key)).length : 0;
+    }
+
+    // All 4 perspectives check: S-2, H-2, C-2, D-2, J-15, J-16
+    // at every non-void, non-self player + bottom (if tracked).
+
+    // ============================================================
+    // P0 (玩家1, revealer, not declarer, hand: S2,C2,D2)
+    // P1 void, P3 void. P2 not void. Bottom tracked (not declarer).
+    // ============================================================
+    const s0 = computeNTTrumpState(
+      [c('S',2,50),c('C',2,50),c('D',2,50)], 0, [trick], reveals, cfg, false, []);
+
+    expect(s0.playersWithNoTrump.has(1)).toBe(true);
+    expect(s0.playersWithNoTrump.has(3)).toBe(true);
+    expect(s0.playersWithNoTrump.has(2)).toBe(false);
+    // P1, P3 void → 0 cards.
+    expect(s0.possibleTrumps[1]!.length).toBe(0);
+    expect(s0.possibleTrumps[3]!.length).toBe(0);
+    // P2: S-2, H-2, D-2 (one copy each). No C-2 (both accounted), no J.
+    const p0p2 = s0.possibleTrumps[2]!;
+    expect(p0p2.length).toBe(3);
+    expect(has(p0p2,'S-2')).toBe(true);
+    expect(has(p0p2,'H-2')).toBe(true);
+    expect(has(p0p2,'C-2')).toBe(false);
+    expect(has(p0p2,'D-2')).toBe(true);
+    expect(has(p0p2,'J-15')).toBe(false);
+    expect(has(p0p2,'J-16')).toBe(false);
+    // Bottom: same 3 cards (non-declarer can't distinguish P2 from bottom).
+    const p0bot = s0.possibleTrumps[4]!;
+    expect(p0bot.length).toBe(3);
+    expect(has(p0bot,'S-2')).toBe(true);
+    expect(has(p0bot,'H-2')).toBe(true);
+    expect(has(p0bot,'D-2')).toBe(true);
+
+    // ============================================================
+    // P1 (AI-2, not declarer, post-trick: 0 trump)
+    // P1 self void, P3 void. P0/P2 not void. Bottom tracked.
+    // ============================================================
+    const s1 = computeNTTrumpState([], 1, [trick], reveals, cfg, false, []);
+
+    expect(s1.playersWithNoTrump.has(1)).toBe(true);
+    expect(s1.playersWithNoTrump.has(3)).toBe(true);
+    expect(s1.playersWithNoTrump.has(0)).toBe(false);
+    expect(s1.playersWithNoTrump.has(2)).toBe(false);
+    expect(s1.possibleTrumps[3]!.length).toBe(0);
+    // P0: all 6 unseen trumps. No Jokers (all 4 played).
+    const p1p0 = s1.possibleTrumps[0]!;
+    expect(p1p0.length).toBe(6);
+    expect(has(p1p0,'S-2')).toBe(true);
+    expect(has(p1p0,'H-2')).toBe(true);
+    expect(has(p1p0,'C-2')).toBe(true);
+    expect(has(p1p0,'D-2')).toBe(true);
+    expect(has(p1p0,'J-15')).toBe(false);
+    expect(has(p1p0,'J-16')).toBe(false);
+    // P2: pair dedup(1/rank)→C-2 played→0. S-2,H-2,D-2 each 1 copy.
+    const p1p2 = s1.possibleTrumps[2]!;
+    expect(p1p2.length).toBe(3);
+    expect(has(p1p2,'S-2')).toBe(true);
+    expect(has(p1p2,'H-2')).toBe(true);
+    expect(has(p1p2,'C-2')).toBe(false);
+    expect(has(p1p2,'D-2')).toBe(true);
+    expect(has(p1p2,'J-15')).toBe(false);
+    expect(has(p1p2,'J-16')).toBe(false);
+    // P1→P2 pair inference: S-2×1, D-2×1, H-2×1 → no pair possible.
+    expect(cnt(p1p2,'S-2')).toBe(1);
+    expect(cnt(p1p2,'D-2')).toBe(1);
+    expect(cnt(p1p2,'H-2')).toBe(1);
+    // Bottom: 6 unseen. Pair deduction does NOT apply to bottom.
+    const p1bot = s1.possibleTrumps[4]!;
+    expect(p1bot.length).toBe(6);
+    expect(has(p1bot,'S-2')).toBe(true);
+    expect(has(p1bot,'H-2')).toBe(true);
+    expect(has(p1bot,'C-2')).toBe(true);
+    expect(has(p1bot,'D-2')).toBe(true);
+    expect(has(p1bot,'J-15')).toBe(false);
+    expect(has(p1bot,'J-16')).toBe(false);
+    // Bottom can form S-2 and D-2 pairs (2 copies each).
+    expect(cnt(p1bot,'S-2')).toBe(2);
+    expect(cnt(p1bot,'D-2')).toBe(2);
+    expect(cnt(p1bot,'H-2')).toBe(1);
+    expect(cnt(p1bot,'C-2')).toBe(1);
+    // P1→P0 pair inference: S-2×2 → pair, D-2×2 → pair.
+    // H-2×1 → no pair, C-2×1 → no pair, J×0 → no pair.
+    expect(cnt(p1p0,'S-2')).toBe(2);
+    expect(cnt(p1p0,'D-2')).toBe(2);
+    expect(cnt(p1p0,'H-2')).toBe(1);
+    expect(cnt(p1p0,'C-2')).toBe(1);
+    expect(cnt(p1p0,'J-15')).toBe(0);
+    expect(cnt(p1p0,'J-16')).toBe(0);
+
+    // ============================================================
+    // P2 (AI-3, declarer, hand: H2,S2,D2, bottom known empty)
+    // P1 void, P3 void. P0 not void. Bottom not tracked (declarer).
+    // ============================================================
+    const s2 = computeNTTrumpState(
+      [c('H',2,70),c('S',2,70),c('D',2,70)], 2, [trick], reveals, cfg, true, []);
+
+    expect(s2.possibleTrumps[4]).toBeNull();
+    expect(s2.playersWithNoTrump.has(1)).toBe(true);
+    expect(s2.playersWithNoTrump.has(3)).toBe(true);
+    expect(s2.playersWithNoTrump.has(0)).toBe(false);
+    expect(s2.possibleTrumps[1]!.length).toBe(0);
+    expect(s2.possibleTrumps[3]!.length).toBe(0);
+    // P0: S-2, C-2, D-2 (one copy each). No H-2 (both accounted), no J.
+    const p2p0 = s2.possibleTrumps[0]!;
+    expect(p2p0.length).toBe(3);
+    expect(has(p2p0,'S-2')).toBe(true);
+    expect(has(p2p0,'H-2')).toBe(false);
+    expect(has(p2p0,'C-2')).toBe(true);
+    expect(has(p2p0,'D-2')).toBe(true);
+    expect(has(p2p0,'J-15')).toBe(false);
+    expect(has(p2p0,'J-16')).toBe(false);
+
+    // ============================================================
+    // P3 (AI-4, not declarer, post-trick: 0 trump)
+    // P1 void, P3 self void. P0/P2 not void. Bottom tracked.
+    // ============================================================
+    const s3 = computeNTTrumpState([], 3, [trick], reveals, cfg, false, []);
+
+    expect(s3.playersWithNoTrump.has(1)).toBe(true);
+    expect(s3.playersWithNoTrump.has(3)).toBe(true);
+    expect(s3.playersWithNoTrump.has(0)).toBe(false);
+    expect(s3.playersWithNoTrump.has(2)).toBe(false);
+    expect(s3.possibleTrumps[1]!.length).toBe(0);
+    // P0: 6 unseen, no Jokers.
+    const p3p0 = s3.possibleTrumps[0]!;
+    expect(p3p0.length).toBe(6);
+    expect(has(p3p0,'S-2')).toBe(true);
+    expect(has(p3p0,'H-2')).toBe(true);
+    expect(has(p3p0,'C-2')).toBe(true);
+    expect(has(p3p0,'D-2')).toBe(true);
+    expect(has(p3p0,'J-15')).toBe(false);
+    expect(has(p3p0,'J-16')).toBe(false);
+    // P2: pair dedup→1/rank, C-2+H-2 played→0. S-2+D-2 each 1 copy.
+    const p3p2 = s3.possibleTrumps[2]!;
+    expect(p3p2.length).toBe(2);
+    expect(has(p3p2,'S-2')).toBe(true);
+    expect(has(p3p2,'H-2')).toBe(false);
+    expect(has(p3p2,'C-2')).toBe(false);
+    expect(has(p3p2,'D-2')).toBe(true);
+    expect(has(p3p2,'J-15')).toBe(false);
+    expect(has(p3p2,'J-16')).toBe(false);
+    // P3→P2 pair inference: S-2×1, D-2×1 → no pair possible.
+    expect(cnt(p3p2,'S-2')).toBe(1);
+    expect(cnt(p3p2,'D-2')).toBe(1);
+    // Bottom: 6 unseen. Pair deduction does NOT apply to bottom.
+    const p3bot = s3.possibleTrumps[4]!;
+    expect(p3bot.length).toBe(6);
+    expect(has(p3bot,'S-2')).toBe(true);
+    expect(has(p3bot,'H-2')).toBe(true);
+    expect(has(p3bot,'C-2')).toBe(true);
+    expect(has(p3bot,'D-2')).toBe(true);
+    expect(has(p3bot,'J-15')).toBe(false);
+    expect(has(p3bot,'J-16')).toBe(false);
+    // P3 bottom pair inference: same as P1 bottom — S-2×2, D-2×2.
+    expect(cnt(p3bot,'S-2')).toBe(2);
+    expect(cnt(p3bot,'D-2')).toBe(2);
+    expect(cnt(p3bot,'H-2')).toBe(1);
+    expect(cnt(p3bot,'C-2')).toBe(1);
+    // P3→P0 pair inference: same as P1→P0 — S-2×2, D-2×2.
+    expect(cnt(p3p0,'S-2')).toBe(2);
+    expect(cnt(p3p0,'D-2')).toBe(2);
+    expect(cnt(p3p0,'H-2')).toBe(1);
+    expect(cnt(p3p0,'C-2')).toBe(1);
+    expect(cnt(p3p0,'J-15')).toBe(0);
+    expect(cnt(p3p0,'J-16')).toBe(0);
+
+    // ============================================================
+    // Cross-perspective: played IDs never in any possibleTrumps.
+    // ============================================================
+    const playedIds = [
+      'J-15-50','J-15-51','J-16-52','J-16-53','C-2-70','H-2-50',
+    ];
+    for (const v of [s0, s1, s2, s3]) {
+      for (let p = 0; p < 5; p++) {
+        const bag = v.possibleTrumps[p];
+        if (!bag) continue;
+        for (const pid of playedIds) expect(bag).not.toContain(pid);
+      }
+    }
+  });
 });
 
