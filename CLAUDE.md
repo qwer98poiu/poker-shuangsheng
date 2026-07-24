@@ -65,6 +65,22 @@ Co-Authored-By: DeepSeek V4 Pro <noreply@deepseek.com>
 ## 开发原则
 
 - **用户反馈的 bug 修复后，必须添加对应的测试用例**。测试应尽可能还原用户描述的场景（手牌、领出、位置等），确保回归测试能捕获同类问题。
+- **修改 Changelog 必须在代码提交之前**。每次提交前先写 Changelog，再 `git add` 一起提交。Changelog 时间与提交时间必须一致（使用 `GIT_COMMITTER_DATE` 对齐）。
+- **测试断言优先用精确值**（`toBe(n)`），避免使用 `toBeGreaterThan`、`toBeGreaterThanOrEqual` 等模糊匹配，除非值本身因外部因素不确定。
+- **基础模块的测试必须逐项穷举**。对于记牌器这类高阶策略依赖的基础模块，测试覆盖所有视角 × 所有目标玩家 × 所有可能的牌（suit-rank）× 精确张数断言，不允许只验证部分卡牌。
+
+## 命名约定
+
+- **内部编号 P0-P3**：代码和测试中统一使用，P0=玩家1、P1=AI-2、P2=AI-3、P3=AI-4。不存在 P4。
+- **外部显示**：CLI 输出使用 `玩家1`（非 AI）或 `AI-2`（AI），由 `playerLabel(idx)` 生成。
+- **测试注释中的玩家标注**：优先使用 P0-P3 内部编号，或用 `P2(AI-3)` 同时标注两者。
+
+## 记牌器相关
+
+- 记牌器测试必须验证每个视角下每张常主（S-2, H-2, C-2, D-2, J-15, J-16）在每个非 void 玩家手中的精确副本数（`cnt` 断言）。
+- 必须验证对子推断：何种对子可能存在（`cnt=2`），何种不可能（`cnt≤1`），包括底牌（不受对子推断影响）。
+- 必须验证 void deduction 结果（`playersWithNoTrump`、possible 列表长度）。
+- 测试场景中的庄家（declarerIndex）、亮主者（reveal playerIndex）必须与真实游戏一致。
 
 ## AI 策略文档
 
