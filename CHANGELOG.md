@@ -1712,3 +1712,13 @@ Trick 2 后关键变化：♦2 总数减 1（P0 打出），P1/P3 视角中 P0 �
 3. 新增 `playerNum()` 将 1-4 转换为 0-3，`/hand` 和 `/tracker` 调用时自动转换
 
 - **影响文件**：`packages/cli/src/index.ts`
+
+## 2026-07-25 00:07
+
+### 修正 ai-nt-tracking.test.ts 中 P4 引用为 P0-P3 内部编号
+
+**问题**：测试用例中存在 `P4` 引用（外部编号），与代码中的 `P0-P3` 内部编号不一致。
+
+**修复**：将含 `P4` 的测试用例统一转换为 P0-P3 内部编号：P1→P0、P2→P1、P3→P2、P4→P3。同时修正两处注释中 P3→P2 编号错误（1161行 `P3(AI-3)` → `P2(AI-3)`、1191行 `P3 has no ♥2` → `P2(AI-3) has no ♥2`），对应变量同步更新。涉及 5 处，479 项测试通过。
+
+- **影响文件**：`packages/engine/src/__tests__/ai-nt-tracking.test.ts`

@@ -480,51 +480,51 @@ describe('NT trump tracking', () => {
       expect(s.allUnseenJokersOnOurSide).toBe(false); // BJs could be at opponents
     });
 
-    it('from P1 perspective: P2 counters with SJ pair, P1 knows P3+P4 cannot have SJ pair', () => {
-      // User's example: P1 reveals H-2 single, P2 counters with SJ pair (NT).
-      // From P1's perspective: P2 (declarer) has SJs (hand or bottom).
-      // P3 and P0 cannot have SJ at all.
+    it('from P0 perspective: P1 counters with SJ pair, P0 knows P2+P3 cannot have SJ pair', () => {
+      // User's example: P0 reveals H-2 single, P1 counters with SJ pair (NT).
+      // From P0's perspective: P1 (declarer) has SJs (hand or bottom).
+      // P2 and P3 cannot have SJ at all.
       const reveals: Reveal[] = [
-        { playerIndex: 1, suit: Suit.Hearts, strength: 1 },
-        { playerIndex: 2, suit: null, strength: 3 },
+        { playerIndex: 0, suit: Suit.Hearts, strength: 1 },
+        { playerIndex: 1, suit: null, strength: 3 },
       ];
-      const cfg = ntCfg(2, 2); // P2 is declarer
-      const hand: Card[] = [c('H', 2, 0)]; // P1 has one H-2 in hand
-      // Act as P1 (myIndex = 1)
-      const s = call(hand, 1, [], reveals, cfg, false, []);
-      // P2 (declarer) has SJs: hand or bottom
-      expect(s.canHaveSmallJoker[2]).toBe(true);
-      // P0 and P3 cannot have SJ (no SJ pair for opponents other than declarer)
-      expect(s.canHaveSmallJoker[0]).toBe(false);
+      const cfg = ntCfg(2, 1); // P1 is declarer
+      const hand: Card[] = [c('H', 2, 0)]; // P0 has one H-2 in hand
+      // Act as P0 (myIndex = 0)
+      const s = call(hand, 0, [], reveals, cfg, false, []);
+      // P1 (declarer) has SJs: hand or bottom
+      expect(s.canHaveSmallJoker[1]).toBe(true);
+      // P3 and P2 cannot have SJ (no SJ pair for opponents other than declarer)
       expect(s.canHaveSmallJoker[3]).toBe(false);
-      // P0 and P3 could still form BJ pair (canFormJokerPair checks any joker rank)
+      expect(s.canHaveSmallJoker[2]).toBe(false);
+      // P3 and P2 could still form BJ pair (canFormJokerPair checks any joker rank)
       // but not SJ pair
-      expect(s.canHaveBigJoker[0]).toBe(true); // BJs still possible
-      expect(s.canHaveBigJoker[3]).toBe(true);
+      expect(s.canHaveBigJoker[3]).toBe(true); // BJs still possible
+      expect(s.canHaveBigJoker[2]).toBe(true);
     });
 
-    it('from P2 perspective: P2 knows P3+P4 have at most 1 H-2 between them', () => {
-      // Continuation: P2 countered with NT. P2 knows P1 had one H-2.
-      // Other H-2 is at most 1 between P3, P0, and bottom.
+    it('from P1 perspective: P1 knows P3+P2 have at most 1 H-2 between them', () => {
+      // Continuation: P1 countered with NT. P1 knows P0 had one H-2.
+      // Other H-2 is at most 1 between P2, P3, and bottom.
       const reveals: Reveal[] = [
-        { playerIndex: 1, suit: Suit.Hearts, strength: 1 },
-        { playerIndex: 2, suit: null, strength: 3 },
+        { playerIndex: 0, suit: Suit.Hearts, strength: 1 },
+        { playerIndex: 1, suit: null, strength: 3 },
       ];
-      const cfg = ntCfg(2, 2);
-      // P2 has both SJs in hand
+      const cfg = ntCfg(2, 1);
+      // P1 has both SJs in hand
       const hand: Card[] = [
         c('J', Rank.SmallJoker, 0),
         c('J', Rank.SmallJoker, 1),
       ];
-      const s = call(hand, 2, [], reveals, cfg, false, []);
-      // P2 knows P1 has one H-2
-      expect(s.knownTrumpsPerPlayer[1].length).toBe(1);
-      expect(s.knownTrumpsPerPlayer[1][0].suit).toBe('H');
-      // P0 and P3 can have at most 1 H-2 total (only 1 copy remaining)
-      // Check: is P0 or P3 known to have H-2? Neither should be definitive.
-      const knownP0 = s.knownTrumpsPerPlayer[0];
+      const s = call(hand, 1, [], reveals, cfg, false, []);
+      // P1 knows P0 has one H-2
+      expect(s.knownTrumpsPerPlayer[0].length).toBe(1);
+      expect(s.knownTrumpsPerPlayer[0][0].suit).toBe('H');
+      // P3 and P2 can have at most 1 H-2 total (only 1 copy remaining)
+      // Check: is P3 or P2 known to have H-2? Neither should be definitive.
       const knownP3 = s.knownTrumpsPerPlayer[3];
-      expect(knownP0.length + knownP3.length).toBeLessThanOrEqual(1);
+      const knownP2 = s.knownTrumpsPerPlayer[2];
+      expect(knownP3.length + knownP2.length).toBeLessThanOrEqual(1);
     });
 
     it('revealer is self: cards in hand already excluded, bottom still cleaned', () => {
@@ -1158,12 +1158,12 @@ describe('current trick plays — in-progress trick deduction', () => {
     ];
     const s = computeNTTrumpState(hand, 1, [], [], cfg2, false, [],
       currentPlays, 3);
-    // P3 (AI-3) should NOT have ♥2 in possible list
+    // P2 (AI-3) should NOT have ♥2 in possible list
     const p3Possible = s.possibleTrumps[3]!;
     const hasH2 = p3Possible.some(id => id.startsWith('H-2'));
     expect(hasH2).toBe(false);
-    // P4 discarded on trump lead → void
-    // lead=3, pi=0→P3(trump), pi=1→P0(discard) → P0 void
+    // P3 discarded on trump lead → void
+    // lead=3, pi=0→P2(trump), pi=1→P3(discard) → P3 void
 
     // P3 is lead (index 3), P0 is next → void
     // Actually: lead=3, pi=0→player 3 (lead ♥2), pi=1→player 0 (discard ♣8)
@@ -1188,9 +1188,9 @@ describe('current trick plays — in-progress trick deduction', () => {
     const s3 = computeNTTrumpState(hand3, 2, [], [], cfg2, false, [],
       currentPlays, 3);
 
-    // AI-2 sees: P3 has no ♥2 (played it), P3 possible should not include H-2
-    const p3From2 = s2.possibleTrumps[3]!;
-    expect(p3From2.every(id => !id.startsWith('H-2'))).toBe(true);
+    // AI-2 sees: P2 (AI-3) has no ♥2 (played it), P2 possible should not include H-2
+    const p2From2 = s2.possibleTrumps[2]!;
+    expect(p2From2.every(id => !id.startsWith('H-2'))).toBe(true);
 
     // AI-3 knows: their hand has ♠2 only, no ♥2
     expect(s3.knownTrumpsPerPlayer[2].length).toBe(1);
