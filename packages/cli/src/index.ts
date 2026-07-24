@@ -761,15 +761,16 @@ async function handleDebugCommand(cmd: string, playerIndex: number) {
   }
 
   if (c === '/hand' || c === '/h') {
-    const target = parseInt(parts[1]);
-    if (isNaN(target) || target < 0 || target > 3) {
+    const target = playerNum(parts[1]);
+    if (target < 0) {
       // No valid index — show all players' hands
       for (let i = 0; i < 4; i++) showHand(i);
     } else {
       showHand(target);
     }
   } else if (c === '/tracker' || c === '/tr') {
-    showNTracker(parts[1]);
+    // /tracker accepts 1-4 (external), converts to 0-3 internally
+    showNTracker(parts[1] ? String(playerNum(parts[1])) : undefined);
   } else if (c === '/history' || c === '/hist') {
     showHistory();
   } else if (c === '/score' || c === '/s') {
@@ -877,6 +878,18 @@ function playerName(idx: number): string {
   return `${icon} ${p.name}`;
 }
 
+/** Display label for a player: "玩家1" or "AI-2". */
+function playerLabel(idx: number): string {
+  return aiPlayers[idx] ? `AI-${idx + 1}` : `玩家${idx + 1}`;
+}
+
+/** Convert external player number (1-4) to internal index (0-3). */
+function playerNum(arg: string): number {
+  const n = parseInt(arg);
+  if (isNaN(n) || n < 1 || n > 4) return -1;
+  return n - 1;
+}
+
 function showTrump(t: TrumpDeclaration): string {
   if (!t.trumpSuit) return `无主 (级牌${rankLabel(t.level)})`;
   return `${suitLabel(t.trumpSuit)}${rankLabel(t.level)} (${suitName(t.trumpSuit)}主)`;
@@ -904,7 +917,7 @@ function showNTracker(targetStr?: string) {
 function showOneTracker(playerIndex: number) {
   const ctx = buildAIContext(gameState, playerIndex);
   if (!ctx || !ctx.ntState) {
-    console.log(`P${playerIndex + 1}: 记牌器数据不可用`);
+    console.log(`${playerLabel(playerIndex)}: 记牌器数据不可用`);
     return;
   }
   const s = ctx.ntState;
@@ -921,7 +934,7 @@ function showOneTracker(playerIndex: number) {
 
   // Possible trumps per player and bottom
   const bottomLabel = ctx.isDeclarer ? '底牌(已知)' : '底牌';
-  for (const [idx, label] of [[0, 'P1'], [1, 'P2'], [2, 'P3'], [3, 'P4'], [4, bottomLabel]] as const) {
+  for (const [idx, label] of [[0, playerLabel(0)], [1, playerLabel(1)], [2, playerLabel(2)], [3, playerLabel(3)], [4, bottomLabel]] as const) {
     if (idx === playerIndex) continue; // skip self
     const arr = s.possibleTrumps[idx];
     if (arr === null) {
@@ -948,7 +961,7 @@ function showOneTracker(playerIndex: number) {
   // Summary line
   const flags: string[] = [];
   for (let p = 0; p < 4; p++) {
-    if (s.playersWithNoTrump.has(p)) flags.push(`P${p + 1}无主`);
+    if (s.playersWithNoTrump.has(p)) flags.push(`${playerLabel(p)}无主`);
   }
   if (s.isFullyDetermined) flags.push('分布已确定');
   if (s.allUnseenJokersOnOurSide) flags.push('剩余王全在我方');
@@ -963,7 +976,7 @@ function showOneTracker(playerIndex: number) {
     if (s.canFormPair[p]) parts.push('有对');
     if (s.canHaveBigJoker[p]) parts.push('可能有大王');
     if (s.canHaveSmallJoker[p]) parts.push('可能有小王');
-    if (parts.length > 0) detailParts.push(`P${p + 1}: ${parts.join(', ')}`);
+    if (parts.length > 0) detailParts.push(`${playerLabel(p)}: ${parts.join(', ')}`);
   }
   if (detailParts.length > 0) console.log(`  ${DIM}${detailParts.join(' | ')}${RESET}`);
 
@@ -971,7 +984,7 @@ function showOneTracker(playerIndex: number) {
   const countParts = [];
   for (let p = 0; p < 4; p++) {
     if (p === playerIndex) continue;
-    countParts.push(`P${p + 1} ${s.minTrumpCounts[p]}-${s.maxTrumpCounts[p]}张`);
+    countParts.push(`${playerLabel(p)} ${s.minTrumpCounts[p]}-${s.maxTrumpCounts[p]}张`);
   }
   console.log(`  ${DIM}对手常主 ≥${s.opponentTrumpCount}张 | 剩余王: 大${s.remainingBigJokers} 小${s.remainingSmallJokers} | ${countParts.join(', ')}${RESET}`);
 }

@@ -1699,3 +1699,16 @@ Trick 2 后关键变化：♦2 总数减 1（P0 打出），P1/P3 视角中 P0 �
 **新增 1 项测试**（ai-nt-tracking.test.ts：50 项），479 项通过。
 
 - **影响文件**：`packages/engine/src/__tests__/ai-nt-tracking.test.ts`
+
+## 2026-07-24 23:28
+
+### 记牌器输出使用玩家名称替代 P1-P4
+
+**问题**：记牌器中所有标签使用内部编号 `P1-P4`，与用户视角的"玩家1-4"不一致。`/hand` 和 `/tracker` 接受 0-3 也与直觉不符。
+
+**修复**：
+1. 新增 `playerLabel()` 函数，非 AI 显示"玩家n"，AI 显示"AI-n"
+2. 记牌器所有 P1-P4 标签替换为 `playerLabel(p)`
+3. 新增 `playerNum()` 将 1-4 转换为 0-3，`/hand` 和 `/tracker` 调用时自动转换
+
+- **影响文件**：`packages/cli/src/index.ts`
