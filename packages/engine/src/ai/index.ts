@@ -21,7 +21,7 @@ import { aiChooseBottomCards as aiChooseBottomImpl } from './bottom-strategy.js'
 import { annotateReason } from './reason.js';
 import {
   discardNonTrump,
-  canAddPoints, isMaxPattern,
+  canAddPoints, isMaxPattern, attackerNearThreshold,
 } from './helpers.js';
 import {
   followTrumpLead,
@@ -189,9 +189,9 @@ function _aiFollowPlay(
       : fill.some(c => c.suit !== leadSuitCards[0].suit)
         ? '同花色不够，垫其他花色'
         : '垫同花色';
-    const shouldAvoid = (position === 'fourth' && !tmWin)
+    const shouldAvoid = ((position === 'fourth' && !tmWin)
       || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx))
-      || (position === 'third' && !tmWin);
+      || (position === 'third' && !tmWin)) && !attackerNearThreshold(ctx);
     const intent = shouldAvoid ? 'avoid' : 'none';
     const reason = annotateReason(baseReason, cards, leadSuitCards, trumpCards,
       leadCombo, leadLen, ctx, position, tmWin, false, intent);

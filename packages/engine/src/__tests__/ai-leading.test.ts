@@ -221,3 +221,46 @@ describe('AI leading play', () => {
     });
   });
 });
+
+
+// ================================================================
+// Item 4: leadLastCards is dead code (优先级7永不执行)
+// ================================================================
+// tryLeadSmall returns non-null for any non-empty hand, so leadLastCards
+// (Strategy 7) is never reached. The "last card" behavior is actually
+// handled by maybeAppendFinal, which overrides the reason correctly.
+// This test verifies that the behavior is currently correct via
+// maybeAppendFinal, and documents that leadLastCards is dead.
+describe('last card detection (via maybeAppendFinal, not leadLastCards)', () => {
+  const cfg5: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 5 };
+
+  it('single trump card: tryLeadSmall returns it, maybeAppendFinal overrides reason', () => {
+    // Hand is a single trump card (H-A). tryLeadSmall returns it with
+    // "出最小牌", but maybeAppendFinal overrides to "最后一张手牌，必出".
+    const hand = [c('H', 14, 0)];
+    const result = aiLeadPlay(hand, cfg5);
+    checkLead(result.cards, hand, cfg5);
+    expect(result.cards.length).toBe(1);
+    expect(result.reason).toBe('最后一张手牌，必出');
+  });
+
+  it('single off-suit card: same override via maybeAppendFinal', () => {
+    // Hand is a single off-suit card (S-A). tryLeadSmall returns
+    // "出♠小牌，长套引诱对手出分", maybeAppendFinal overrides.
+    const hand = [c('S', 14, 0)];
+    const result = aiLeadPlay(hand, cfg5);
+    checkLead(result.cards, hand, cfg5);
+    expect(result.cards.length).toBe(1);
+    expect(result.reason).toBe('最后一张手牌，必出');
+  });
+
+  it('last two cards (pair): reason still correct via maybeAppendFinal', () => {
+    // Hand: S-A,S-A pair. Strategy 1 leads AA pair ("出副牌♠A对").
+    // maybeAppendFinal detects full hand and pair → "出最后一对".
+    const hand = [c('S', 14, 0), c('S', 14, 1)];
+    const result = aiLeadPlay(hand, cfg5);
+    checkLead(result.cards, hand, cfg5);
+    expect(result.cards.length).toBe(2);
+    expect(result.reason).toBe('出最后一对');
+  });
+});

@@ -70,9 +70,9 @@ export function padWithDiscards(
   leadCombo: ComboClass,
 ): { cards: Card[]; reason: string } {
   const nonTrump = hand.filter(c => !isTrump(c, ctx));
-  const shouldAvoid = (position === 'fourth' && !tmWin)
+  const shouldAvoid = ((position === 'fourth' && !tmWin)
     || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx))
-    || (position === 'third' && !tmWin);
+    || (position === 'third' && !tmWin)) && !attackerNearThreshold(ctx);
   nonTrump.sort(discardSort(!shouldAvoid && !!tmWin, ctx));
   const cards = [...myTrump, ...nonTrump].slice(0, leadLen);
   const intent = shouldAvoid ? 'avoid' : 'none';
@@ -86,9 +86,12 @@ export function padWithDiscards(
 /** Whether we should add points when teammate is winning.
  *  Fourth: always.
  *  Third: only if lead is max pattern — big card (A/K single or pair),
- *         has tractor, or is a throw (甩牌 already max). */
+ *         has tractor, or is a throw (甩牌 already max).
+ *  Never adds if defender team and any point card would push attacker to 80+. */
 export function canAddPoints(tmWin: boolean, position: string, leadCombo: ComboClass, ctx: AIContext): boolean {
   if (!tmWin) return false;
+  // Defender side: never add if attacker is close to 80 (even 5 pts could cross).
+  if (!ctx.isAttacker && ctx.attackerPoints >= 75 && ctx.attackerPoints < 80) return false;
   if (position === 'fourth') return true;
   if (position === 'third') {
     if (leadCombo.hasTractor) return true;
@@ -145,6 +148,19 @@ export function sideHasBigJoker(ctx: AIContext): boolean {
   // Reveal objects don't carry individual card data — we can only check
   // played cards in trick history for Big Joker sightings.
   return false;
+}
+
+// ---- Threshold helpers ----
+
+/** Whether the attacker should override shouldAvoid to cross a 40-point
+ *  scoring threshold (40, 80, 120). Returns true when attackerPoints are
+ *  within 10 points of the next threshold and adding any points would
+ *  cross it. */
+export function attackerNearThreshold(ctx: AIContext): boolean {
+  if (!ctx.isAttacker) return false;
+  const pts = ctx.attackerPoints;
+  const next = Math.floor(pts / 40) * 40 + 40;
+  return next - pts <= 10;
 }
 
 // ---- Tractor matching ----

@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-07-25 14:20
+
+### 实现 3 项缺失的 AI 策略
+
+**问题**：策略记忆文档 `strategy-rules.md` 列出 9 项未实现策略，经逐项审查确认 3 项真实缺失。
+
+**修复**：
+
+1. **NT 第二家抢牌权**：`followNTTrumpLead` 单张能盖过分支持新增第二家检测——有拖拉机抢最大、有甩牌抢≥A、否则出小。与花色主 `followTrumpLead` 行为对齐。
+
+2. **攻击方拆对跨 40 分台阶**：新增 `attackerNearThreshold(ctx)` 辅助函数，攻击方当前分差 ≤10 分时覆盖 `shouldAvoid`。所有 shouldAvoid 计算位置（index.ts、follow-trump.ts、follow-offsuit.ts、helpers.ts 共 7 处）统一覆盖，`followOffSuitSingle` 盖不过路径同步覆盖选牌排序。
+
+3. **庄家方避 80 分门槛**：`canAddPoints` 新增守卫——庄家方且 `attackerPoints ∈ [75,80)` 时返回 false，宁垫主也不送对手上台。
+
+**新增 8 项测试**（ai-follow.test.ts：NT 第二家×3 + 跨台阶×1 + 避80×1，ai-leading.test.ts：最后手牌×3），487 项通过。
+
+- **影响文件**：`packages/engine/src/ai/follow-trump.ts`、`follow-offsuit.ts`、`helpers.ts`、`index.ts`、`__tests__/ai-follow.test.ts`、`__tests__/ai-leading.test.ts`
+
 ## 2026-07-25 11:10
 
 ### 修复 86 项 TypeScript 编译错误（0→0）

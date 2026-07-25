@@ -15,6 +15,7 @@ import { annotateReason } from './reason.js';
 import {
   pairKillSort, discardNonTrump, padWithDiscards,
   canAddPoints, isMaxPattern, tryMatchTractorSlots,
+  attackerNearThreshold,
 } from './helpers.js';
 
 // ---- Follow trump lead ----
@@ -123,9 +124,9 @@ export function followTrumpLead(
           leadCombo, 1, ctx, position, tmWin, false, intent);
         return { cards, reason };
       }
-      const shouldAvoid = (position === 'fourth' && !tmWin)
+      const shouldAvoid = ((position === 'fourth' && !tmWin)
         || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx))
-        || (position === 'third' && !tmWin);
+        || (position === 'third' && !tmWin)) && !attackerNearThreshold(ctx);
       const addPoints = !shouldAvoid && canAddPoints(tmWin, position, leadCombo, ctx);
       if (addPoints) {
         myTrump.sort(discardSort(true, ctx));
@@ -252,9 +253,9 @@ export function matchTrumpPattern(
         chosen = pointBeating.slice(0, leadCombo.pairCount).flat();
       }
     }
-    const shouldAvoid = (position === 'fourth' && !tmWin)
+    const shouldAvoid = ((position === 'fourth' && !tmWin)
       || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx))
-      || (position === 'third' && !tmWin);
+      || (position === 'third' && !tmWin)) && !attackerNearThreshold(ctx);
     const addPt = tmWin && canAddPoints(tmWin, position, leadCombo, ctx);
     if (chosen.length < leadLen) {
       const used = new Set(chosen.map(c => c.id));
@@ -513,6 +514,39 @@ export function followNTTrumpLead(
     if (myTrump.length > 0) {
       const canBeatCards = myTrump.filter(c => getEffectiveRank(c, ctx) > currentMax);
       if (canBeatCards.length > 0) {
+        // Second position: seize lead if hand has strong follow-up (tractor/throw).
+        if (position === 'second') {
+          const hasTractor = detectTractors(hand, ctx).length > 0;
+          const throwResult = findThrowableOffSuitCombos(hand, ctx);
+          const hasThrow = (throwResult?.cards.length ?? 0) > 0;
+          if (!hasTractor && !hasThrow) {
+            myTrump.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+            const cards = [myTrump[0]];
+            const reason = annotateReason('同花色出小', cards, myTrump, myTrump,
+              leadCombo, 1, ctx, position, tmWin, false, 'none');
+            return { cards, reason };
+          }
+          if (hasTractor) {
+            canBeatCards.sort((a, b) => getEffectiveRank(b, ctx) - getEffectiveRank(a, ctx));
+          } else {
+            const aceRank = getEffectiveRank(
+              { suit: ctx.trumpSuit ?? Suit.Spades, rank: Rank.Ace, isJoker: false, id: '' } as Card, ctx);
+            const bigBeaters = canBeatCards.filter(c => getEffectiveRank(c, ctx) >= aceRank);
+            if (bigBeaters.length > 0) {
+              bigBeaters.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+              const cards = [bigBeaters[0]];
+              const reason = annotateReason('同花色出大', cards, myTrump, myTrump,
+                leadCombo, 1, ctx, position, tmWin, false, 'none');
+              return { cards, reason };
+            }
+            canBeatCards.sort((a, b) => getEffectiveRank(b, ctx) - getEffectiveRank(a, ctx));
+          }
+          const cards = [canBeatCards[0]];
+          const reason = annotateReason('同花色出大', cards, myTrump, myTrump,
+            leadCombo, 1, ctx, position, tmWin, false, 'none');
+          return { cards, reason };
+        }
+
         canBeatCards.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
         const cards = [canBeatCards[0]];
         const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
@@ -521,9 +555,9 @@ export function followNTTrumpLead(
           leadCombo, 1, ctx, position, tmWin, false, intent);
         return { cards, reason };
       }
-      const shouldAvoid = (position === 'fourth' && !tmWin)
+      const shouldAvoid = ((position === 'fourth' && !tmWin)
         || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx))
-        || (position === 'third' && !tmWin);
+        || (position === 'third' && !tmWin)) && !attackerNearThreshold(ctx);
       const addPts = !shouldAvoid && tmWin && canAddPoints(tmWin, position, leadCombo, ctx);
       if (addPts) {
         myTrump.sort(discardSort(true, ctx));

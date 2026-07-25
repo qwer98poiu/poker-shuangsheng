@@ -11,6 +11,7 @@ import { canBeat, maxCardT, discardSort } from './utils.js';
 import { annotateReason } from './reason.js';
 import {
   pairKillSort, discardNonTrump, canAddPoints, isMaxPattern, tryMatchTractorSlots,
+  attackerNearThreshold,
 } from './helpers.js';
 import { trumpKill } from './follow-trump.js';
 
@@ -61,11 +62,12 @@ function followOffSuitSingle(
 
   // Can't beat opponent - play smallest
   if (!canBeat([leadSuitCards[0]], ctx.bestSoFar, ctx)) {
-    leadSuitCards.sort(discardSort(false, ctx));
+    const crossThreshold = attackerNearThreshold(ctx);
+    leadSuitCards.sort(crossThreshold ? discardSort(true, ctx) : discardSort(false, ctx));
     const cards = [leadSuitCards[0]];
-    const shouldAvoid = (position === 'fourth' && !tmWin)
+    const shouldAvoid = !crossThreshold && ((position === 'fourth' && !tmWin)
       || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx))
-      || (position === 'third' && !tmWin);
+      || (position === 'third' && !tmWin));
     const intent = shouldAvoid ? 'avoid' : 'none';
     const reason = annotateReason('同花色出小', cards, leadSuitCards, trumpCards,
       leadCombo, 1, ctx, position, tmWin, false, intent);
@@ -283,9 +285,9 @@ export function followOffSuitThrow(
     const baseReason = fill.some(c => isTrump(c, ctx))
       ? '同花色不够，垫主牌'
       : '同花色不够，垫其他花色';
-    const shouldAvoid = (position === 'fourth' && !tmWin)
+    const shouldAvoid = ((position === 'fourth' && !tmWin)
       || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx))
-      || (position === 'third' && !tmWin);
+      || (position === 'third' && !tmWin)) && !attackerNearThreshold(ctx);
     const intent = shouldAvoid ? 'avoid' : 'none';
     const reason = annotateReason(baseReason, cards, leadSuitCards, trumpCards,
       leadCombo, leadLen, ctx, position, tmWin, false, intent);

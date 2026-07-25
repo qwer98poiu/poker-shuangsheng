@@ -1904,3 +1904,224 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
     });
   });
 });
+
+
+// ================================================================
+// Item 1: NT single trump follow, second position seizing (抢牌权)
+// ================================================================
+// Bug: followNTTrumpLead lacks second-position seizing logic that
+// followTrumpLead has. In suited mode, second position with a tractor
+// seizes with biggest trump. In NT mode, always picks smallest beater.
+describe('NT second position seizing lead (抢牌权)', () => {
+  function ct(s: string, r: number, i: number): Card {
+    return createCard(s as any, r as any, i);
+  }
+
+  const mockNT: NTTrumpState = {
+    knownTrumpsPerPlayer: [[], [], [], []],
+    playersWithNoTrump: new Set(),
+    totalTrumps: 12,
+    opponentTrumpCount: 4,
+    remainingBigJokers: 1,
+    remainingSmallJokers: 1,
+    allUnseenJokersOnOurSide: false,
+    allUnseenBigJokersOnOurSide: false,
+    possibleTrumps: [null, [], [], [], []],
+    isFullyDetermined: false,
+    canFormPair: [false, false, false, false],
+    canHaveJoker: [false, false, false, false],
+    canHaveBigJoker: [false, false, false, false],
+    canHaveSmallJoker: [false, false, false, false],
+    minTrumpCounts: [0, 0, 0, 0],
+    maxTrumpCounts: [0, 0, 0, 0],
+  };
+
+  function ntCtx(myIndex: number, playCount: number,
+    best: { cards: Card[]; playerIdx: number }): AIContext {
+    return {
+      declarerIndex: 0, trumpSuit: null, level: 2, myIndex,
+      isDeclarer: myIndex === 0,
+      isDeclarerPartner: myIndex === 2,
+      isAttacker: myIndex % 2 !== 0,
+      attackerPoints: 0,
+      handCounts: [25, 25, 25, 25] as const,
+      trickHistory: [], reveals: [],
+      playCount, leadPlayerIndex: 0,
+      bestSoFar: best ? { cards: best.cards, playerIndex: best.playerIdx } : null,
+      ntState: mockNT, bottomCards: [], debug: false,
+    };
+  }
+
+  // NT level=2, P0吊S-2(effRank=800), P1(second) has BJ(1000)+SJ(900)
+  // + S tractor. Both BJ and SJ can beat S-2. Smallest beater = SJ(900).
+  // But with tractor, should seize BJ(1000) to prepare for tractor lead.
+  // Expected: BJ (biggest). Actual: SJ (smallest beater, no seizing logic).
+  it('second with tractor: seizes with BJ not SJ', () => {
+    const lead: Card[] = [ct('S', 2, 200)];
+    const best = { cards: lead, playerIdx: 0 };
+    const ctx = ntCtx(1, 1, best);
+    const hand = [
+      ct('J', 16, 0),                      // BJ (effRank=1000, biggest)
+      ct('J', 15, 0),                      // SJ (effRank=900, smallest beater)
+      ct('S', 3, 0), ct('S', 3, 1),       // S-33 pair
+      ct('S', 4, 0), ct('S', 4, 1),       // S-44 pair (tractor with S-33)
+    ];
+    const r = aiFollowPlay(hand, lead, null as any, ctx);
+    checkFollow(r.cards, hand, lead, null as any, ctx);
+    expect(r.cards.length).toBe(1);
+    expect(r.cards[0].rank).toBe(16); // BJ seizes
+  });
+
+  // Same but with throwable combo. P1 has BJ+SJ+S throw combo.
+  // Lead D-2(800). Beaters: BJ(1000), SJ(900). Both beat.
+  // With throw, should seize with smallest >=A (SJ), not biggest (BJ).
+  // Current: picks SJ (smallest beater, correct by coincidence for throw).
+  // The key check: reason should be 同花色出大 (active), not 同花色出小 (passive).
+  it('second with throw: seizes actively, not passive 同花色出小', () => {
+    const lead: Card[] = [ct('D', 2, 200)];
+    const best = { cards: lead, playerIdx: 0 };
+    const ctx = ntCtx(1, 1, best);
+    const hand = [
+      ct('J', 16, 0),                      // BJ (1000)
+      ct('J', 15, 0),                      // SJ (900)
+      ct('S', 14, 0), ct('S', 14, 1),     // S-AA (throw combo)
+      ct('S', 13, 0),                       // S-K
+    ];
+    const r = aiFollowPlay(hand, lead, null as any, ctx);
+    checkFollow(r.cards, hand, lead, null as any, ctx);
+    expect(r.cards.length).toBe(1);
+    // With throw combo, should actively seize (同花色出大), not passively follow
+    expect(r.reason).toContain('同花色出大');
+  });
+
+  // NT second, no tractor/throw: play small passively.
+  // P1 has BJ(1000)+SJ(900)+singles only. Lead D-2(800).
+  // No tractor/throw → should play smallest beater (SJ).
+  it('second without tractor/throw: plays small', () => {
+    const lead: Card[] = [ct('D', 2, 200)];
+    const best = { cards: lead, playerIdx: 0 };
+    const ctx = ntCtx(1, 1, best);
+    const hand = [
+      ct('J', 16, 0), ct('J', 15, 0),
+      ct('S', 3, 0), ct('S', 5, 0), ct('C', 8, 0),
+    ];
+    const r = aiFollowPlay(hand, lead, null as any, ctx);
+    checkFollow(r.cards, hand, lead, null as any, ctx);
+    expect(r.cards.length).toBe(1);
+    // Passive: no tractor/throw, just play smallest beater (SJ=15)
+    expect(r.cards[0].rank).toBe(15); // SJ
+  });
+});
+
+
+// ================================================================
+// Item 5: attacker breaks pair to cross 40-point threshold (拆对跨分台阶)
+// ================================================================
+// P0 leads S-A (max off-suit single). P1 plays S-3 (no beat).
+// P2 (attacker, myIndex=3, fourth, !tmWin since P0 is defender winning).
+// attacker at 35pts. Hand: S-10,S-10 (pair) + S-4 (non-point, rank≠level so not trump).
+// No single S-10 or S-K available. shouldAvoid → S-4 (non-point).
+// But breaking the pair to play S-10: 35+10=45≥40, crosses threshold.
+// Should override shouldAvoid when threshold crossing is possible.
+describe('attacker crosses 40-point threshold', () => {
+  it('third+!tmWin+35pts: breaks 10-pair to cross 40', () => {
+    const cfg: TrumpDeclaration = { declarerIndex: 1, trumpSuit: Suit.Hearts, level: 5 };
+    function cc(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+    // declarerIndex=1 → P0 is attacker. P0 leads S-A.
+    // P1 (defender) plays S-3. P2 (attacker myIndex=2, third).
+    // P0 wins with S-A, but P2's teammate IS P0 → tmWin=true for P2!
+    // Need declarerIndex=0 so P2(aligned with P0) is defender...
+
+    // Actually: declarerIndex=0 → P0,P2 defenders. P1,P3 attackers.
+    // But P2 needs to be an ATTACKER. So declarerIndex=1:
+    // P1,P3 defenders. P0,P2 attackers. P0 leads S-A (attacker).
+    // P1 (defender) plays S-3. P2 (attacker, third, tmWin since P0 wins)...
+    // tmWin=true → canAddPoints, not shouldAvoid...
+
+    // Need shouldAvoid. So P0 NOT teammate. declarerIndex=0:
+    // P0,P2 defenders(庄家方). P1,P3 attackers(闲家).
+    // myIndex=3 (fourth attacker). P0 leads S-A, P1 defender S-3.
+    // P2 defender plays. Now P3 (attacker, fourth).
+    // playCount=3, fourth, tmWin=(best.playerIndex===myIndex+2) → P0(index0) vs P3(index3): 0≠1 → tmWin=false.
+    // shouldAvoid: fourth+!tmWin → true.
+    // Hand: S-10,S-10(pair) + S-4(small). shouldAvoid picks S-4.
+    // But 35+S-10(10)=45≥40 → cross threshold, should play S-10 breaking pair.
+
+    const lead: Card[] = [cc('S', 14, 200)]; // P0 leads S-A
+    const best = { cards: lead, playerIdx: 0 }; // P0 winning (defender wins)
+    const hand = [
+      cc('S', 10, 0), cc('S', 10, 1),  // S-10 pair (10分对子, rank≠level)
+      cc('S', 4, 0),                     // S-4 (非分, 不会被过滤)
+    ];
+    const ctx: AIContext = {
+      declarerIndex: 0, trumpSuit: Suit.Hearts, level: 5, myIndex: 3, // fourth
+      isDeclarer: false, isDeclarerPartner: false, isAttacker: true,
+      attackerPoints: 35, handCounts: [25, 25, 25, 3] as const,
+      trickHistory: [], reveals: [], playCount: 3, leadPlayerIndex: 0,
+      bestSoFar: { cards: best.cards, playerIndex: best.playerIdx },
+      ntState: null, bottomCards: [], debug: false,
+    };
+    const r = aiFollowPlay(hand, lead, Suit.Spades, ctx);
+    checkFollow(r.cards, hand, lead, 'S', cfg);
+    expect(r.cards.length).toBe(1);
+    // Break 10 pair → play S-10 to cross threshold (35+10=45≥40)
+    expect(r.cards[0].rank).toBe(10);
+  });
+});
+
+// ================================================================
+// Item 7: declarer avoids pushing attacker to 80 (送对手上台)
+// ================================================================
+//
+// Scenario: declarerIndex=0, P0(defender) leads S-3(small), P1(attacker)
+// beats with S-A (opponent wins). P2(defender, third, !tmWin) is void in
+// S. Hand: D-10(10pts off-suit) + H-3(non-point trump).
+// attacker at 75pts. Void branch: trumpCards=[H-3](1), leadLen=1,
+// trumpCards.length >= leadLen, falls to trumpKill path.
+// BUT: key check — adding D-10 gives attacker 75+10=85≥80→上台!
+// shouldAvoid would normally not apply here (void branch uses trumpKill),
+// but the declarer should override: discard non-point trump H-3 instead
+// of adding D-10. Actually, the void branch already checks tmWin and
+// canAddPoints before trumpKill. Without canAddPoints, it goes to trumpKill.
+//
+// The issue: after canAddPoints check, the void branch either dumps points
+// (tmWin+canAddPoints) or goes to trumpKill. The trumpKill path doesn't
+// consider the 80-point danger. Since H-3(leadLen=1) would kill, it uses
+// H-3 (non-point trump). The D-10 is not selected. So this scenario is
+// actually handled correctly!
+//
+// Better scenario: declarer tmWin=true, canAddPoints=true, but adding
+// points pushes attacker to 80 → override canAddPoints.
+//
+// P0(defender) leads S-A(max). P1(attacker) follows S-3.
+// P2(defender, third, tmWin=true). Void in S (no spades).
+// Hand: D-10(10pts off-suit) + H-3(non-point trump).
+// attacker at 75pts.
+// canAddPoints: third+tmWin+A(max)→true → dump points → D-10.
+// 75+10=85≥80 → attacker scores! Should discard H-3 instead.
+describe('declarer avoids pushing attacker to 80', () => {
+  it('void third+tmWin+75pts: discards non-point trump instead of adding 10', () => {
+    const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 5 };
+    function cc(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+    const lead: Card[] = [cc('S', 14, 200)]; // S-A (max off-suit)
+    const best = { cards: lead, playerIdx: 0 }; // P0 defender winning
+
+    const hand = [
+      cc('D', 10, 0),  // D-10 (10分, would push attacker to 85)
+      cc('H', 3, 0),   // H-3 (non-point trump)
+    ];
+    const ctx: AIContext = {
+      declarerIndex: 0, trumpSuit: Suit.Hearts, level: 5, myIndex: 2,
+      isDeclarer: false, isDeclarerPartner: true, isAttacker: false,
+      attackerPoints: 75, handCounts: [25, 25, 2, 25] as const,
+      trickHistory: [], reveals: [], playCount: 2, leadPlayerIndex: 0,
+      bestSoFar: { cards: best.cards, playerIndex: best.playerIdx },
+      ntState: null, bottomCards: [], debug: false,
+    };
+    const r = aiFollowPlay(hand, lead, Suit.Spades, ctx);
+    checkFollow(r.cards, hand, lead, 'S', cfg);
+    expect(r.cards.length).toBe(1);
+    // Should NOT add D-10 (pushes attacker to 85≥80); discard H-3 instead
+    expect(r.cards[0].suit).toBe('H');
+  });
+});
