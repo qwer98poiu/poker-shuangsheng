@@ -2125,3 +2125,101 @@ describe('declarer avoids pushing attacker to 80', () => {
     expect(r.cards[0].suit).toBe('H');
   });
 });
+
+// ================================================================
+// Short-suited + canAddPoints: reason should say 加分
+// ================================================================
+// Bug: short-suited branch in _aiFollowPlay used only avoid/none intent,
+// never checked canAddPoints. Third+tmWin+max pattern should annotate 加分
+// even when short-suited.
+describe('short-suited point adding annotation', () => {
+  // Reproduce: P0 leads C-A,C-A,C-K,C-K (AAKK throw, max off-suit).
+  // AI-3 (third, declarer partner, tmWin=true) has only 3 clubs:
+  // C-9,C-6,C-3 + D-10 (10分) + D-5 (5分) + D-8 (非分). Short-suited:
+  // play all 3 clubs + fill D-10. tmWin+third+max throw→canAddPoints
+  // → should annotate 加分. Among point cards, should pick D-10 (bigger
+  // point) over D-5.
+  it('third+tmWin+max throw short: picks D-10 over D-5, annotates 加分', () => {
+    const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 7 };
+    function cc(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+    const lead: Card[] = [cc('C', 14, 200), cc('C', 14, 201), cc('C', 13, 200), cc('C', 13, 201)];
+    const best = { cards: lead, playerIdx: 0 };
+    const hand = [
+      cc('C', 9, 0), cc('C', 6, 0), cc('C', 3, 0),  // 3 clubs (short by 1)
+      cc('D', 10, 0),  // D-10 (10分)
+      cc('D', 5, 0),   // D-5 (5分)
+      cc('D', 8, 0),   // D-8 (非分)
+    ];
+    const r = aiFollowPlay(hand, lead, Suit.Clubs, cfg, best, 2);
+    checkFollow(r.cards, hand, lead, 'C', cfg);
+    expect(r.cards.length).toBe(4);
+    // D-10 should be picked over D-5 (bigger point card first)
+    expect(r.cards.some(c => c.suit === 'D' && c.rank === 10)).toBe(true);
+    expect(r.cards.some(c => c.suit === 'D' && c.rank === 5)).toBe(false);
+    expect(r.reason).toContain('加分');
+  });
+});
+
+// ================================================================
+// padWithDiscards: add-points annotation when tmWin and canAddPoints
+// ================================================================
+// Bug: padWithDiscards used only avoid/none intent, never 'add'.
+// When tmWin and canAddPoints, filler sort already picks point cards;
+// the reason should annotate 加分.
+describe('padWithDiscards add-points annotation', () => {
+  // P0 leads BJ,BJ (big joker pair, max trump pattern). P2 (third, tmWin)
+  // has H-5 (only 1 trump, short by 1) + D-K,K (20分副牌对子) + D-8.
+  // leadLen=2, myTrump=[H-5] (1 card), padWithDiscards fills 1 card.
+  // BJ pair is max → canAddPoints → should annotate 加分, and
+  // D-K should be the filler (10分优先 via discardSort(true)).
+  it('third+tmWin max trump pair short: annotates 加分 on filler', () => {
+    const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 7 };
+    function cc(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+    const lead: Card[] = [cc('J', 16, 200), cc('J', 16, 201)];
+    const best = { cards: lead, playerIdx: 0 };
+    const hand = [
+      cc('H', 5, 0),                    // only 1 trump (short by 1)
+      cc('D', 13, 0), cc('D', 13, 1),  // D-K-K pair (10分对子)
+      cc('D', 8, 0),                    // D-8 (non-point)
+    ];
+    const r = aiFollowPlay(hand, lead, Suit.Hearts, cfg, best, 2);
+    checkFollow(r.cards, hand, lead, 'H', cfg);
+    expect(r.cards.length).toBe(2);
+    // D-K should be the filler (point card)
+    expect(r.cards.some(c => c.suit === 'D' && c.rank === 13)).toBe(true);
+    expect(r.reason).toContain('加分');
+  });
+});
+
+// ================================================================
+// followOffSuitThrow partial fill: add-points annotation
+// ================================================================
+// Bug: followOffSuitThrow partial fill used only avoid/none intent.
+// When tmWin and canAddPoints, should annotate 加分.
+describe('followOffSuitThrow partial fill add-points annotation', () => {
+  // P0 leads S-A,S-A,S-K,S-Q (AAKQ throw, 4 cards, 2A+1K+1Q).
+  // P2 (third, tmWin) has only S-9 (1 spade, short by 3).
+  // Fillers: D-K,K pair + D-8. tmWin+third+max throw→canAddPoints.
+  it('third+tmWin partial throw: annotates 加分 on fillers', () => {
+    const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 7 };
+    function cc(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+    const lead: Card[] = [
+      cc('S', 14, 200), cc('S', 14, 201),
+      cc('S', 13, 200), cc('S', 12, 200),
+    ];
+    const best = { cards: lead, playerIdx: 0 };
+    // 1 spade + D-K,K pair (20分) + D-8 + extra to avoid 最后N张手牌
+    const hand = [
+      cc('S', 9, 0),                     // only 1 spade (short by 3)
+      cc('D', 13, 0), cc('D', 13, 1),   // D-K-K pair (10分对子)
+      cc('D', 8, 0),                     // D-8 (non-point)
+      cc('D', 6, 0),                     // extra non-point
+    ];
+    const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 2);
+    checkFollow(r.cards, hand, lead, 'S', cfg);
+    expect(r.cards.length).toBe(4);
+    // D-K should be in the fill (point card added by discardSort)
+    expect(r.cards.some(c => c.suit === 'D' && c.rank === 13)).toBe(true);
+    expect(r.reason).toContain('加分');
+  });
+});

@@ -75,7 +75,8 @@ export function padWithDiscards(
     || (position === 'third' && !tmWin)) && !attackerNearThreshold(ctx);
   nonTrump.sort(discardSort(!shouldAvoid && !!tmWin, ctx));
   const cards = [...myTrump, ...nonTrump].slice(0, leadLen);
-  const intent = shouldAvoid ? 'avoid' : 'none';
+  const addPts = !shouldAvoid && canAddPoints(tmWin, position, leadCombo, ctx);
+  const intent = shouldAvoid ? 'avoid' : (addPts ? 'add' : 'none');
   const reason = annotateReason('主牌不够，垫副牌', cards, myTrump, myTrump,
     leadCombo, leadLen, ctx, position, tmWin, false, intent);
   return { cards, reason };

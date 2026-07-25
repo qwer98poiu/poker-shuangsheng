@@ -132,6 +132,10 @@ export function fillerSort(
     const aPts = isPointRank(a.rank) ? (teammateWinning ? 0 : 100) : (teammateWinning ? 100 : 0);
     const bPts = isPointRank(b.rank) ? (teammateWinning ? 0 : 100) : (teammateWinning ? 100 : 0);
     if (aPts !== bPts) return aPts - bPts;
+    // When adding points: point cards descending (dump big points first).
+    if (teammateWinning && isPointRank(a.rank) && isPointRank(b.rank)) {
+      return b.rank - a.rank;
+    }
     // Prefer non-trump over trump as fillers
     const aTr = isTrump(a, config) ? 100 : 0;
     const bTr = isTrump(b, config) ? 100 : 0;

@@ -288,7 +288,8 @@ export function followOffSuitThrow(
     const shouldAvoid = ((position === 'fourth' && !tmWin)
       || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx))
       || (position === 'third' && !tmWin)) && !attackerNearThreshold(ctx);
-    const intent = shouldAvoid ? 'avoid' : 'none';
+    const addPts = !shouldAvoid && tmWin && canAddPoints(tmWin, position, leadCombo, ctx);
+    const intent = shouldAvoid ? 'avoid' : (addPts ? 'add' : 'none');
     const reason = annotateReason(baseReason, cards, leadSuitCards, trumpCards,
       leadCombo, leadLen, ctx, position, tmWin, false, intent);
     return { cards, reason };

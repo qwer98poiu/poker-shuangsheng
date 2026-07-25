@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-07-25 15:40
+
+### 修复 4 处 canAddPoints 加分标注缺失
+
+**问题**：全面审计 `canAddPoints` 调用点，发现 4 处 intent 只在 avoid/none 之间选择，不调用 `canAddPoints`：
+
+1. `_aiFollowPlay` 短牌分支（同花色不够）
+2. `padWithDiscards`（主牌不够垫副牌）
+3. `followOffSuitThrow` 部分短牌路径
+4. `fillerSort` 加分模式下分牌之间未降序排列（选 D-5 而非 D-10）
+
+**修复**：
+- 前三处 `intent = shouldAvoid ? 'avoid' : 'none'` 改为 `intent = shouldAvoid ? 'avoid' : (addPoints ? 'add' : 'none')`
+- `fillerSort` 加分模式下同分牌降序排列（大分优先），与 `discardSort` 对齐
+
+**新增 3 项测试**（ai-follow.test.ts：AAKK 短牌加分标注 + 大王对主牌不够 + AAKQ 甩牌部分短牌），490 项通过。
+
+- **影响文件**：`packages/engine/src/ai/index.ts`、`helpers.ts`、`follow-offsuit.ts`、`utils.ts`、`__tests__/ai-follow.test.ts`
+
 ## 2026-07-25 14:20
 
 ### 实现 3 项缺失的 AI 策略

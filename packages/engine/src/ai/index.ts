@@ -192,7 +192,8 @@ function _aiFollowPlay(
     const shouldAvoid = ((position === 'fourth' && !tmWin)
       || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx))
       || (position === 'third' && !tmWin)) && !attackerNearThreshold(ctx);
-    const intent = shouldAvoid ? 'avoid' : 'none';
+    const addPoints = !shouldAvoid && tmWin && canAddPoints(tmWin, position, leadCombo, ctx);
+    const intent = addPoints ? 'add' : (shouldAvoid ? 'avoid' : 'none');
     const reason = annotateReason(baseReason, cards, leadSuitCards, trumpCards,
       leadCombo, leadLen, ctx, position, tmWin, false, intent);
     return { cards, reason };
