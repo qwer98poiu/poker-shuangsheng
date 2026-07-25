@@ -1616,3 +1616,32 @@ describe('current trick plays — in-progress trick deduction', () => {
   });
 });
 
+
+// ================================================================
+// Full save-file scenario: 5 tricks, AI-3 view, AI-2 has BJ
+// ================================================================
+// Save: shengji-2026-07-25T11-17-04-042Z.json
+// Bug: pairDeduction (cids[len-1]) and card removal (first match)
+// target different virtual copies, causing player coverage loss.
+// Fix B: card removal now targets last match, same as pairDeduction.
+describe('save scenario: after 5 tricks, P1 has BJ', () => {
+  const cfg2 = ntCfg(2, 0);
+  function cc(s: string, r: number, idx: number): Card { return createCard(s as any, r as any, idx); }
+
+  it('from P2 view after 5 tricks: P1 has BJ in possible list', () => {
+    const reveals: Reveal[] = [{ playerIndex: 0, suit: null, strength: 3 }];
+    const prior: Trick[] = [
+      mockTrick([[cc('H',14,79)],[cc('H',7,72)],[cc('H',3,14)],[cc('H',6,71)]],0,0),
+      mockTrick([[cc('D',14,105)],[cc('D',6,43)],[cc('D',13,50)],[cc('D',3,40)]],0,0),
+      mockTrick([[cc('C',14,38),cc('C',14,92),cc('C',13,37),cc('C',13,91)],[cc('C',12,90),cc('C',12,36),cc('C',4,82),cc('C',6,30)],[cc('C',9,87),cc('C',6,84),cc('C',3,81),cc('D',5,42)],[cc('C',4,28),cc('C',8,86),cc('C',9,33),cc('C',11,35)]],0,0),
+      mockTrick([[cc('C',11,89),cc('C',10,34),cc('C',10,88)],[cc('C',5,29),cc('C',7,31),cc('C',8,32)],[cc('D',10,101),cc('S',10,8),cc('D',3,94)],[cc('C',5,83),cc('S',4,2),cc('D',4,95)]],0,0),
+    ];
+    const trick5 = mockTrickWithPattern([
+      [cc('J',15,106),cc('J',15,52)],[cc('S',2,0),cc('C',2,80)],[cc('H',2,13),cc('H',2,67)],[cc('J',16,107),cc('D',6,97)],
+    ],0,0,'pair',1,false);
+    const myHand = [cc('D',2,93),cc('H',5,70),cc('S',9,5),cc('S',12,10),cc('S',7,4),cc('S',6,3),cc('H',12,22),cc('H',8,19),cc('S',13,11),cc('D',8,46),cc('H',11,21),cc('H',10,20),cc('D',7,45),cc('H',4,15),cc('H',9,69),cc('S',4,2),cc('S',9,56),cc('D',12,48),cc('S',8,6)];
+    const s = computeNTTrumpState(myHand,2,[...prior,trick5],reveals,cfg2,false,[]);
+    expect(s.playersWithNoTrump.has(3)).toBe(true);
+    expect(s.possibleTrumps[1]!.some(id => id.includes('J-16'))).toBe(true);
+  });
+});

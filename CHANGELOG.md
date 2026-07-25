@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-07-26 01:00
+
+### NT 记牌器：新增对局复现测试，确认 pairDeduction 与 card removal 副本不一致 bug
+
+**问题**：`applyNoPairDeduction` 从 `cids[length-1]`（最后副本）删除玩家，但 Phase 2 card removal 的 Pass 2 遍历 `possibleLocations.keys()` 删除第一个匹配。两处操作不同的 virtual copy，导致 player coverage 丢失——玩家从全部同 suit-rank 副本中被抹去。
+
+复现场景（保存文件 `shengji-2026-07-25T11-17-04-042Z.json`）：5 墩 NT 对局，AI-3 和 AI-4 视角下 AI-2 丢失大王。
+
+**新增 1 项测试**（ai-nt-tracking.test.ts：保存文件完整场景），待修复。
+
+- **影响文件**：`packages/engine/src/__tests__/ai-nt-tracking.test.ts`
+
 ## 2026-07-25 16:50
 
 ### 加分拆对策略：攻击方跨台阶才拆对，庄家永不拆对
