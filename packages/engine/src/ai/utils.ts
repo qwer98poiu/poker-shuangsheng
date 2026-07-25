@@ -82,6 +82,16 @@ export function isPointCard(r: number): boolean {
 
 // ---- Sort helpers ----
 
+/** When adding points, compare two point cards for dump order: 10 > K > 5.
+ *  10 (10pts, rank 10) — dump first, low playing value.
+ *  K  (10pts, rank 13) — dump second, can win future tricks.
+ *  5  (5pts,  rank 5)  — dump last, only half the points. */
+function pointDumpPriority(r: number): number {
+  if (r === 10) return 0;
+  if (r === 13) return 1;
+  return 2; // rank 5
+}
+
 /** Sort pairs: non-point first, then smallest effective rank. */
 export function pairSortAsc(config: TrumpDeclaration): (a: Card[], b: Card[]) => number {
   return (a, b) => {
@@ -111,10 +121,9 @@ export function discardSort(
       const bLvl = b.rank === config.level ? 100 : 0;
       if (aLvl !== bLvl) return aLvl - bLvl;
     }
-    // When adding points: point cards descending (dump big points first),
-    // non-point cards ascending (keep big cards for future tricks).
+    // When adding points: 10 > K > 5 (dump low-rank 10 first, keep K).
     if (teammateWinning && isPointRank(a.rank) && isPointRank(b.rank)) {
-      return b.rank - a.rank;
+      return pointDumpPriority(a.rank) - pointDumpPriority(b.rank);
     }
     return a.rank - b.rank;
   };
@@ -132,9 +141,9 @@ export function fillerSort(
     const aPts = isPointRank(a.rank) ? (teammateWinning ? 0 : 100) : (teammateWinning ? 100 : 0);
     const bPts = isPointRank(b.rank) ? (teammateWinning ? 0 : 100) : (teammateWinning ? 100 : 0);
     if (aPts !== bPts) return aPts - bPts;
-    // When adding points: point cards descending (dump big points first).
+    // When adding points: 10 > K > 5 (dump low-rank 10 first, keep K).
     if (teammateWinning && isPointRank(a.rank) && isPointRank(b.rank)) {
-      return b.rank - a.rank;
+      return pointDumpPriority(a.rank) - pointDumpPriority(b.rank);
     }
     // Prefer non-trump over trump as fillers
     const aTr = isTrump(a, config) ? 100 : 0;

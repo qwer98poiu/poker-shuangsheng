@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-07-25 16:20
+
+### 修复加分时分牌排序优先级：10 > K > 5
+
+**问题**：`discardSort` 和 `fillerSort` 在加分模式下，分牌之间用 rank 降序排列（K > 10 > 5）。但正确优先级应为 10 > K > 5：
+- 10（10分，rank=10）：分大牌小，优先垫出
+- K（10分，rank=13）：分大牌大，保留后续墩用
+- 5（5分）：分少，最后垫出
+
+**修复**：新增 `pointDumpPriority` 函数（10→0, K→1, 5→2），`discardSort` 和 `fillerSort` 均使用该函数替代简单 rank 降序。
+
+**新增 3 项测试**（ai-follow.test.ts：AAKQQ 甩牌填写 fill-1/fill-2/fill-3），493 项通过。
+
+- **影响文件**：`packages/engine/src/ai/utils.ts`、`packages/engine/src/__tests__/ai-follow.test.ts`
+
 ## 2026-07-25 15:40
 
 ### 修复 4 处 canAddPoints 加分标注缺失

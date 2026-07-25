@@ -276,7 +276,7 @@ export function followOffSuitThrow(
     // Partial suit follow
     const remaining = hand.filter(c => !leadSuitCards.includes(c));
     const nonTrump = remaining.filter(c => !isTrump(c, ctx));
-    nonTrump.sort(discardSort(!!tmWin, ctx));
+    nonTrump.sort(discardSort(!!tmWin, ctx))
     const trumps = remaining.filter(c => isTrump(c, ctx));
     trumps.sort(discardSort(!!tmWin, ctx));
     const fill = [...nonTrump, ...trumps].slice(0, leadLen - leadSuitCards.length);

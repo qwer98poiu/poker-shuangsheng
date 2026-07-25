@@ -2223,3 +2223,68 @@ describe('followOffSuitThrow partial fill add-points annotation', () => {
     expect(r.reason).toContain('加分');
   });
 });
+
+// ================================================================
+// Point card fill priority: 10 > K > 5 when adding points
+// ================================================================
+// When teammate wins and canAddPoints, the filler should pick point
+// cards in order: 10 (10pts + low rank, dump first), K (10pts + high
+// rank, keep for winning), 5 (5pts, dump last).
+describe('point card priority: 10 > K > 5 when adding', () => {
+  // P0 (declarer) leads C-A,A,K,Q,Q (AAKQQ throw, 5 cards, max off-suit).
+  // AI-3 (third, declarer partner, tmWin) has D-10, D-K, D-5 + fillers.
+  // Vary the club count to test fill-1, fill-2, fill-3.
+
+  function cc(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+  const lead: Card[] = [
+    cc('C', 14, 200), cc('C', 14, 201),
+    cc('C', 13, 200),
+    cc('C', 12, 200), cc('C', 12, 201),
+  ];
+  const cfg7: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 7 };
+
+  it('fill 1: picks D-10 first (10 > K > 5)', () => {
+    const best = { cards: lead, playerIdx: 0 };
+    const hand = [
+      cc('C', 9, 0), cc('C', 8, 0), cc('C', 4, 0), cc('C', 6, 0), // 4 clubs (rank 4,6,8,9 — none=level 7)
+      cc('D', 10, 0), cc('D', 13, 0), cc('D', 5, 0),               // 10 K 5
+      cc('D', 3, 0),                                                 // extra non-point
+    ];
+    const r = aiFollowPlay(hand, lead, Suit.Clubs, cfg7, best, 2);
+    checkFollow(r.cards, hand, lead, 'C', cfg7);
+    expect(r.cards.length).toBe(5);
+    expect(r.cards.some(c => c.suit === 'D' && c.rank === 10)).toBe(true);
+    expect(r.cards.some(c => c.suit === 'D' && c.rank === 13)).toBe(false);
+    expect(r.cards.some(c => c.suit === 'D' && c.rank === 5)).toBe(false);
+  });
+
+  it('fill 2: picks D-10 then D-K (10 > K)', () => {
+    const best = { cards: lead, playerIdx: 0 };
+    const hand = [
+      cc('C', 9, 0), cc('C', 8, 0), cc('C', 4, 0), // 3 clubs (short by 2, none=level 7)
+      cc('D', 10, 0), cc('D', 13, 0), cc('D', 5, 0), // 10 K 5
+      cc('D', 3, 0), // extra non-point
+    ];
+    const r = aiFollowPlay(hand, lead, Suit.Clubs, cfg7, best, 2);
+    checkFollow(r.cards, hand, lead, 'C', cfg7);
+    expect(r.cards.length).toBe(5);
+    expect(r.cards.some(c => c.suit === 'D' && c.rank === 10)).toBe(true);
+    expect(r.cards.some(c => c.suit === 'D' && c.rank === 13)).toBe(true);
+    expect(r.cards.some(c => c.suit === 'D' && c.rank === 5)).toBe(false);
+  });
+
+  it('fill 3: picks D-10, D-K, D-5 (10 > K > 5)', () => {
+    const best = { cards: lead, playerIdx: 0 };
+    const hand = [
+      cc('C', 9, 0), cc('C', 8, 0), // 2 clubs (short by 3)
+      cc('D', 10, 0), cc('D', 13, 0), cc('D', 5, 0), // 10 K 5
+      cc('D', 3, 0), // extra non-point
+    ];
+    const r = aiFollowPlay(hand, lead, Suit.Clubs, cfg7, best, 2);
+    checkFollow(r.cards, hand, lead, 'C', cfg7);
+    expect(r.cards.length).toBe(5);
+    expect(r.cards.some(c => c.suit === 'D' && c.rank === 10)).toBe(true);
+    expect(r.cards.some(c => c.suit === 'D' && c.rank === 13)).toBe(true);
+    expect(r.cards.some(c => c.suit === 'D' && c.rank === 5)).toBe(true);
+  });
+});
