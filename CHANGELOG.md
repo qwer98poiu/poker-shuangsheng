@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-07-25 11:10
+
+### 修复 86 项 TypeScript 编译错误（0→0）
+
+**问题**：`tsc --noEmit` 有 92 项错误（4 源文件 + 88 测试文件），长期未修复。
+
+**修复**：
+- `follow-trump.ts`：`hasPoints` 类型 `boolean | null` → `|| false` 收敛
+- `helpers.ts`：`rev.cards` 在 `Reveal` 类型上不存在 → 移除死代码段
+- `game/index.ts`：`nextState` 不在 `PlayResult` 中 → `state: nextState`
+- `model/serialize.ts`：缺少 `throwPenalties` 字段 → 补 `[0, 0]`
+- `ai/index.ts`：`aiFollowPlay`/`_aiFollowPlay` 的 `leadSuit` 类型 `CardSuit` → `CardSuit | null`（与调用点一致）
+- 测试文件：77 处字符串字面量 `'S'/'H'` → `Suit.Spades` 枚举，重复 import 移除，`as const` 类型转换修复
+
+`tsc --noEmit` 零错误，479 项测试通过。
+
+- **影响文件**：`packages/engine/src/ai/index.ts`、`follow-trump.ts`、`helpers.ts`、`game/index.ts`、`model/serialize.ts`、`ai-follow.test.ts`、`ai-nt-tracking.test.ts`、`throw-penalty.test.ts`
+
 ## 2026-07-25 10:48
 
 ### 重构 AI 模块：拆分 index.ts 为 5 个子模块

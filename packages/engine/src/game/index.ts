@@ -111,7 +111,7 @@ function playLead(
       // Force-play the smallest blocked sub-pattern
       const resolved = resolveThrowFailure(cards, otherHands, config);
       const rv = validateLead(resolved.forcedPlay, hand, config);
-      if (!rv.valid) return { error: rv.error, nextState };
+      if (!rv.valid) return { error: rv.error, state: nextState };
       const rp = classify(resolved.forcedPlay, config);
       const leadSuit: CardSuit | null =
         resolved.forcedPlay.every(c => isTrump(c, config)) ? null : (resolved.forcedPlay[0].suit as CardSuit);

@@ -5,8 +5,6 @@ import { playCards } from '../game/index.js';
 import { computeLevelChange } from '../scoring/index.js';
 import type { TrumpDeclaration, Card, PlayerState, GameState } from '../types.js';
 
-import type { TrumpDeclaration, Card, PlayerState } from '../types.js';
-
 function c(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
 
 function mkPlayer(name: string, idx: number, hand: Card[], isHuman = false): PlayerState {

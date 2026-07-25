@@ -368,7 +368,7 @@ export function trumpKill(
   const nonTrump = hand.filter(c => !isTrump(c, ctx));
 
   const hasPoints = leadCards.some(c => isPointRank(c.rank))
-    || (ctx.bestSoFar && ctx.bestSoFar.cards.some(c => isPointRank(c.rank)));
+    || (ctx.bestSoFar && ctx.bestSoFar.cards.some(c => isPointRank(c.rank))) || false;
 
   if (leadLen === 1) {
     return trumpKillSingle(trumpCards, nonTrump, ctx, position, tmWin, hasPoints);

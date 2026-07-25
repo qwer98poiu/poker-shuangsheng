@@ -107,7 +107,7 @@ export function aiLeadPlay(
 export function aiFollowPlay(
   hand: Card[],
   leadCards: Card[],
-  leadSuit: CardSuit,
+  leadSuit: CardSuit | null,
   config: AIContext | TrumpDeclaration,
   bestSoFar?: { cards: Card[]; playerIdx: number } | null,
   myIdx?: number,
@@ -120,7 +120,7 @@ export function aiFollowPlay(
 function _aiFollowPlay(
   hand: Card[],
   leadCards: Card[],
-  leadSuit: CardSuit,
+  leadSuit: CardSuit | null,
   ctx: AIContext,
 ): { cards: Card[]; reason: string } {
   const leadLen = leadCards.length;

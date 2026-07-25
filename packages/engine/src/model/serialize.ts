@@ -172,6 +172,7 @@ export function deserialize(json: string): { state: GameState; aiPlayers: boolea
     tricksPlayed: save.tricksPlayed,
     reveals: save.reveals.map(r => ({ playerIndex: r.playerIndex, suit: r.suit as Suit | null, strength: r.strength })),
     currentReveal: null,
+    throwPenalties: [0, 0],
     dealingComplete: true,
     dealtCards: save.deal.hands.map(h => h.map(cardFromJSON)) as [Card[], Card[], Card[], Card[]],
     debug: save.debug,

@@ -142,11 +142,8 @@ export function sideHasBigJoker(ctx: AIContext): boolean {
       }
     }
   }
-  for (const rev of ctx.reveals) {
-    for (const c of rev.cards) {
-      if (c.rank === Rank.BigJoker && ourTeam.has(rev.playerIndex)) return true;
-    }
-  }
+  // Reveal objects don't carry individual card data — we can only check
+  // played cards in trick history for Big Joker sightings.
   return false;
 }
 

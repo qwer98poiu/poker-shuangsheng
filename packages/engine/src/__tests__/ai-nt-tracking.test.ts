@@ -27,7 +27,7 @@ function mockTrick(
       cards,
       pattern: { type: 'single', cards, length: cards.length, pairCount: 0, tractors: [], hasTractor: false },
       leadSuit: null,
-    })) as Trick['plays'],
+    })) as unknown as Trick['plays'],
     leadPlayerIndex,
     winnerIndex,
     points: 0,
@@ -50,7 +50,7 @@ function mockTrickWithPattern(
         ? { type: leadType, cards, length: cards.length, pairCount: leadPairCount, tractors: leadHasTractor ? [{ pairCount: leadPairCount }] : [], hasTractor: leadHasTractor }
         : { type: 'single', cards, length: cards.length, pairCount: 0, tractors: [], hasTractor: false },
       leadSuit: null,
-    })) as Trick['plays'],
+    })) as unknown as Trick['plays'],
     leadPlayerIndex,
     winnerIndex,
     points: 0,
@@ -836,7 +836,7 @@ describe('NT trump tracking', () => {
         [2, p2Hand, false, []],
         [3, p3Hand, false, []],
       ] as const) {
-        const s = call(hand, idx, [], reveals, cfg, isDecl, bot);
+        const s = call(hand, idx, [], reveals, cfg, isDecl, bot as unknown as Card[]);
         // Only P1 and bottom can have SJ
         expect(has(s.possibleTrumps[1], 'J', 15, 0)).toBe(true);
         expect(has(s.possibleTrumps[1], 'J', 15, 1)).toBe(true);

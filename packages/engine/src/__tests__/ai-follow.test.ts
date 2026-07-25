@@ -186,7 +186,7 @@ describe('AI follow play compliance', () => {
         c('S', 14, 0),    // ♠A (non-trump)
         c('S', 13, 0),    // ♠K (non-trump)
       ];
-      const r = aiFollowPlay(hand, lead, 'H', cfg5, undefined, 2);
+      const r = aiFollowPlay(hand, lead, Suit.Hearts, cfg5, undefined, 2);
       checkFollow(r.cards, hand, lead, 'H', cfg5);
       expect(r.cards.length).toBe(1);
       expect(r.reason).toContain('唯一可出');
@@ -199,7 +199,7 @@ describe('AI follow play compliance', () => {
         c('H', 8, 0), c('H', 8, 1),  // ♥8♥8 pair (trump)
         c('S', 14, 0),                 // ♠A (non-trump)
       ];
-      const r = aiFollowPlay(hand, lead, 'H', cfg5, undefined, 2);
+      const r = aiFollowPlay(hand, lead, Suit.Hearts, cfg5, undefined, 2);
       checkFollow(r.cards, hand, lead, 'H', cfg5);
       expect(r.cards.length).toBe(1);
       expect(r.reason).toContain('唯一可出');
@@ -212,7 +212,7 @@ describe('AI follow play compliance', () => {
         c('S', 13, 0), c('S', 13, 1),  // ♠K♠K pair
         c('H', 8, 0),                    // trump
       ];
-      const r = aiFollowPlay(hand, lead, 'S', cfg5, undefined, 2);
+      const r = aiFollowPlay(hand, lead, Suit.Spades, cfg5, undefined, 2);
       checkFollow(r.cards, hand, lead, 'S', cfg5);
       expect(r.cards.length).toBe(1);
       expect(r.reason).toContain('唯一可出');
@@ -267,7 +267,7 @@ describe('AI follow play compliance', () => {
         c('S', 8, 0),     // ♠8
         c('H', 14, 0),    // extra
       ];
-      const r = aiFollowPlay(hand, lead, 'S', cfg5, undefined, 2);
+      const r = aiFollowPlay(hand, lead, Suit.Spades, cfg5, undefined, 2);
       checkFollow(r.cards, hand, lead, 'S', cfg5);
       expect(r.cards.length).toBe(2);
       expect(r.reason).toContain('垫同花色');
@@ -343,7 +343,7 @@ describe('AI follow compliance - diamonds trump, level 2 (crash scenarios)', () 
       c('S', 9, 4),
     ];
     const lead: Card[] = [c('S', 14, 200), c('S', 12, 200), c('S', 12, 201)];
-    const play = aiFollowPlay(hand, lead, 'S' as any, cfgD2).cards;
+    const play = aiFollowPlay(hand, lead, Suit.Spades as any, cfgD2).cards;
     checkFollow(play, hand, lead, 'S', cfgD2);
     expect(play.length).toBe(3);
   });
@@ -362,7 +362,7 @@ describe('AI follow compliance - diamonds trump, level 2 (crash scenarios)', () 
       c('C', 10, 4),
     ];
     const lead: Card[] = [c('C', 14, 200), c('C', 13, 200), c('C', 13, 201)];
-    const play = aiFollowPlay(hand, lead, 'C' as any, cfgD2).cards;
+    const play = aiFollowPlay(hand, lead, Suit.Clubs as any, cfgD2).cards;
     checkFollow(play, hand, lead, 'C', cfgD2);
     expect(play.length).toBe(3);
   });
@@ -393,7 +393,7 @@ describe('position-aware point adding (diamonds trump, level=2)', () => {
         cc('C', 3, 0),                     // 3
         cc('H', 8, 0), cc('H', 7, 0),     // other suits
       ];
-      const r = aiFollowPlay(hand, leadAAK, 'C', cfg, bestP0, 2);
+      const r = aiFollowPlay(hand, leadAAK, Suit.Clubs, cfg, bestP0, 2);
       checkFollow(r.cards, hand, leadAAK, 'C', cfg);
       expect(r.cards.length).toBe(3);
       // Third + throw -> canAddPoints. Should prefer 10-10 pair + K single (30 pts)
@@ -412,7 +412,7 @@ describe('position-aware point adding (diamonds trump, level=2)', () => {
         cc('C', 5, 0),                     // 5 (5 pts)
         cc('H', 8, 0),
       ];
-      const r = aiFollowPlay(hand, leadAA, 'C', cfg, bestAA, 2);
+      const r = aiFollowPlay(hand, leadAA, Suit.Clubs, cfg, bestAA, 2);
       checkFollow(r.cards, hand, leadAA, 'C', cfg);
       expect(r.cards.length).toBe(2);
       expect(r.reason).toContain('唯一可出');
@@ -433,7 +433,7 @@ describe('position-aware point adding (diamonds trump, level=2)', () => {
         cc('C', 3, 0),   // 3 (non-point)
         cc('H', 8, 0),
       ];
-      const r = aiFollowPlay(hand, leadA, 'C', cfg, bestA, 2);
+      const r = aiFollowPlay(hand, leadA, Suit.Clubs, cfg, bestA, 2);
       checkFollow(r.cards, hand, leadA, 'C', cfg);
       expect(r.cards.length).toBe(1);
       // Lead is single A -> big off-suit card -> canAddPoints. Should play K.
@@ -453,7 +453,7 @@ describe('position-aware point adding (diamonds trump, level=2)', () => {
         cc('C', 3, 0),   // 3
         cc('H', 6, 0),
       ];
-      const r = aiFollowPlay(hand, lead9, 'C', cfg, bestP0b, 2);
+      const r = aiFollowPlay(hand, lead9, Suit.Clubs, cfg, bestP0b, 2);
       checkFollow(r.cards, hand, lead9, 'C', cfg);
       expect(r.cards.length).toBe(1);
       // Lead is small (9 not max), so third+tmWin = NO annotation
@@ -545,7 +545,7 @@ describe('short-suited fill reason (diamonds trump, level=2)', () => {
       cc('H', 6, 0),   // H-6
     ];
     const lead: Card[] = [cc('C', 9, 200), cc('C', 9, 201)];
-    const r = aiFollowPlay(hand, lead, 'C', cfg);
+    const r = aiFollowPlay(hand, lead, Suit.Clubs, cfg);
     checkFollow(r.cards, hand, lead, 'C', cfg);
     expect(r.cards.length).toBe(2);
     expect(r.reason).toBe('同花色不够，垫其他花色');
@@ -562,7 +562,7 @@ describe('short-suited fill reason (diamonds trump, level=2)', () => {
       cc('D', 10, 0),  // D-10 (trump)
     ];
     const lead: Card[] = [cc('C', 9, 200), cc('C', 9, 201)];
-    const r = aiFollowPlay(hand, lead, 'C', cfg);
+    const r = aiFollowPlay(hand, lead, Suit.Clubs, cfg);
     checkFollow(r.cards, hand, lead, 'C', cfg);
     expect(r.cards.length).toBe(2);
     expect(r.reason).toBe('同花色不够，垫主牌');
@@ -577,7 +577,7 @@ describe('short-suited fill reason (diamonds trump, level=2)', () => {
       cc('H', 3, 0), cc('H', 6, 0),
     ];
     const leadAAK: Card[] = [cc('C', 14, 200), cc('C', 14, 201), cc('C', 13, 200)];
-    const r = aiFollowPlay(hand, leadAAK, 'C', cfg);
+    const r = aiFollowPlay(hand, leadAAK, Suit.Clubs, cfg);
     checkFollow(r.cards, hand, leadAAK, 'C', cfg);
     expect(r.cards.length).toBe(3);
     // All played cards are clubs (lead suit), can't match pattern (no pair)
@@ -599,7 +599,7 @@ describe('trump kill validity (hearts trump, level=5)', () => {
       const best = { cards: lead, playerIdx: 0 };
       // void in spades: only trump + other suits
       const hand = [c2('H', 3, 0), c2('C', 9, 0), c2('C', 8, 0)];
-      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 1);
+      const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 1);
       checkFollow(r.cards, hand, lead, 'S', cfg);
       expect(r.cards.length).toBe(1);
       expect(r.cards[0].id).toBe(c2('H', 3, 0).id);
@@ -610,7 +610,7 @@ describe('trump kill validity (hearts trump, level=5)', () => {
       const lead: Card[] = [c2('S', 13, 200)];
       const best = { cards: lead, playerIdx: 0 };
       const hand = [c2('H', 4, 0), c2('C', 9, 0), c2('D', 8, 0)];
-      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 1);
+      const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 1);
       checkFollow(r.cards, hand, lead, 'S', cfg);
       expect(r.cards.length).toBe(1);
       expect(r.reason).toBe('用主牌毙');
@@ -623,7 +623,7 @@ describe('trump kill validity (hearts trump, level=5)', () => {
       const lead: Card[] = [c2('S', 14, 200)];
       const best = { cards: [c2('H', 14, 0)], playerIdx: 1 };
       const hand = [c2('H', 3, 0), c2('C', 9, 0), c2('C', 8, 0), c2('D', 6, 0)];
-      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 2);
+      const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 2);
       checkFollow(r.cards, hand, lead, 'S', cfg);
       expect(r.cards.length).toBe(1);
       expect(r.reason).not.toContain('毙');
@@ -644,7 +644,7 @@ describe('trump kill validity (hearts trump, level=5)', () => {
         c2('C', 10, 0), c2('C', 10, 1),  // 10-10 pair (point, 20pts, can beat)
         c2('H', 8, 0), c2('D', 7, 0),
       ];
-      const r = aiFollowPlay(hand, lead88, 'C', cfg4, best88, 3);
+      const r = aiFollowPlay(hand, lead88, Suit.Clubs, cfg4, best88, 3);
       checkFollow(r.cards, hand, lead88, 'C', cfg4);
       expect(r.cards.length).toBe(2);
       // Should pick 10-10 (only beating pair)
@@ -657,7 +657,7 @@ describe('trump kill validity (hearts trump, level=5)', () => {
         c2('C', 12, 0), c2('C', 12, 1),  // Q-Q pair (non-point, beats 8-8)
         c2('H', 8, 0), c2('D', 7, 0),
       ];
-      const r = aiFollowPlay(hand, lead88, 'C', cfg4, best88, 3);
+      const r = aiFollowPlay(hand, lead88, Suit.Clubs, cfg4, best88, 3);
       checkFollow(r.cards, hand, lead88, 'C', cfg4);
       expect(r.cards.length).toBe(2);
       // Should pick smallest beating non-point pair (9-9)
@@ -672,7 +672,7 @@ describe('trump kill validity (hearts trump, level=5)', () => {
         c2('C', 5, 0),                    // single
         c2('H', 8, 0), c2('D', 7, 0),
       ];
-      const r = aiFollowPlay(hand, lead88, 'C', cfg4, best88, 3);
+      const r = aiFollowPlay(hand, lead88, Suit.Clubs, cfg4, best88, 3);
       checkFollow(r.cards, hand, lead88, 'C', cfg4);
       expect(r.cards.length).toBe(2);
       // Should pick 9-9 (beats) over 3-3 (cannot)
@@ -688,7 +688,7 @@ describe('trump kill validity (hearts trump, level=5)', () => {
         c2('C', 10, 0), c2('C', 10, 1), // 10-10 pair (point)
         c2('H', 8, 0), c2('D', 7, 0),
       ];
-      const r = aiFollowPlay(hand, lead88, 'C', cfg4, best88, 3);
+      const r = aiFollowPlay(hand, lead88, Suit.Clubs, cfg4, best88, 3);
       checkFollow(r.cards, hand, lead88, 'C', cfg4);
       expect(r.cards.length).toBe(2);
       // Should pick 10-10 (point, beating) over 9-9 (non-point, beating)
@@ -703,7 +703,7 @@ describe('trump kill validity (hearts trump, level=5)', () => {
       const best = { cards: lead, playerIdx: 0 };
       // void in spades: trump pair + other suits
       const hand = [c2('H', 3, 0), c2('H', 3, 1), c2('C', 8, 0), c2('D', 7, 0)];
-      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 1);
+      const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 1);
       checkFollow(r.cards, hand, lead, 'S', cfg);
       expect(r.cards.length).toBe(2);
       expect(r.reason).toBe('用主牌毙');
@@ -716,7 +716,7 @@ describe('trump kill validity (hearts trump, level=5)', () => {
       const lead: Card[] = [c2('S', 9, 200), c2('S', 9, 201)];
       const best = { cards: [c2('H', 14, 0), c2('H', 14, 1)], playerIdx: 1 };
       const hand = [c2('H', 3, 0), c2('H', 3, 1), c2('C', 8, 0), c2('D', 7, 0), c2('D', 6, 0)];
-      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 2);
+      const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 2);
       checkFollow(r.cards, hand, lead, 'S', cfg);
       expect(r.cards.length).toBe(2);
       expect(r.reason).not.toContain('毙');
@@ -727,7 +727,7 @@ describe('trump kill validity (hearts trump, level=5)', () => {
       const lead: Card[] = [c2('S', 9, 200), c2('S', 9, 201)];
       const best = { cards: lead, playerIdx: 0 };
       const hand = [c2('H', 3, 0), c2('H', 4, 0), c2('H', 6, 0), c2('C', 8, 0), c2('D', 7, 0)];
-      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 1);
+      const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 1);
       checkFollow(r.cards, hand, lead, 'S', cfg);
       expect(r.cards.length).toBe(2);
       expect(r.reason).not.toContain('毙');
@@ -745,7 +745,7 @@ describe('trump kill validity (hearts trump, level=5)', () => {
         c2('H', 14, 0), c2('H', 14, 1), c2('H', 13, 0), c2('H', 13, 1),
         c2('C', 8, 0),
       ];
-      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 1);
+      const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 1);
       checkFollow(r.cards, hand, lead, 'S', cfg);
       expect(r.cards.length).toBe(4);
       expect(r.reason).toBe('用主牌毙');
@@ -766,7 +766,7 @@ describe('trump kill validity (hearts trump, level=5)', () => {
         c2('H', 3, 0), c2('H', 3, 1), c2('H', 4, 0), c2('H', 4, 1),
         c2('C', 8, 0), c2('C', 7, 0), c2('C', 6, 0), c2('D', 5, 0),
       ];
-      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 2);
+      const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 2);
       checkFollow(r.cards, hand, lead, 'S', cfg);
       expect(r.cards.length).toBe(4);
       expect(r.reason).not.toContain('毙');
@@ -781,7 +781,7 @@ describe('trump kill validity (hearts trump, level=5)', () => {
       const hand = [
         c2('H', 3, 0), c2('H', 3, 1), c2('H', 4, 0), c2('C', 8, 0), c2('D', 7, 0),
       ];
-      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 1);
+      const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 1);
       checkFollow(r.cards, hand, lead, 'S', cfg);
       expect(r.cards.length).toBe(3);
       expect(r.reason).toBe('用主牌毙');
@@ -794,7 +794,7 @@ describe('trump kill validity (hearts trump, level=5)', () => {
       const hand = [
         c2('H', 6, 0), c2('H', 6, 1), c2('H', 7, 0), c2('C', 8, 0), c2('D', 9, 0),
       ];
-      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 1);
+      const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 1);
       checkFollow(r.cards, hand, lead, 'S', cfg);
       expect(r.cards.length).toBe(3);
       expect(r.reason).toBe('用主牌毙');
@@ -813,7 +813,7 @@ describe('trump kill validity (hearts trump, level=5)', () => {
         c2('H', 3, 0), c2('H', 3, 1), c2('H', 4, 0),
         c2('C', 8, 0), c2('C', 9, 0), c2('D', 10, 0),
       ];
-      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 2);
+      const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 2);
       checkFollow(r.cards, hand, lead, 'S', cfg);
       expect(r.cards.length).toBe(3);
       expect(r.reason).not.toContain('毙');
@@ -827,7 +827,7 @@ describe('trump kill validity (hearts trump, level=5)', () => {
       const lead: Card[] = [c2('S', 14, 200)];
       const best = { cards: [c2('H', 10, 0)], playerIdx: 1 }; // P1 trumped
       const hand = [c2('H', 14, 0), c2('C', 9, 0), c2('D', 8, 0)];
-      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 2);
+      const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 2);
       checkFollow(r.cards, hand, lead, 'S', cfg);
       expect(r.cards.length).toBe(1);
       expect(r.reason).toBe('盖毙');
@@ -839,7 +839,7 @@ describe('trump kill validity (hearts trump, level=5)', () => {
       const lead: Card[] = [c2('S', 9, 200), c2('S', 9, 201)];
       const best = { cards: [c2('H', 10, 0), c2('H', 10, 1)], playerIdx: 1 };
       const hand = [c2('H', 14, 0), c2('H', 14, 1), c2('C', 8, 0), c2('D', 7, 0)];
-      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 2);
+      const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 2);
       checkFollow(r.cards, hand, lead, 'S', cfg);
       expect(r.cards.length).toBe(2);
       expect(r.reason).toBe('盖毙');
@@ -859,7 +859,7 @@ describe('trump kill validity (hearts trump, level=5)', () => {
         c2('H', 14, 0), c2('H', 14, 1), c2('H', 13, 0), c2('H', 13, 1),
         c2('C', 8, 0),
       ];
-      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 2);
+      const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 2);
       checkFollow(r.cards, hand, lead, 'S', cfg);
       expect(r.cards.length).toBe(4);
       expect(r.reason).toBe('盖毙');
@@ -877,7 +877,7 @@ describe('trump kill validity (hearts trump, level=5)', () => {
         c2('H', 14, 0), c2('H', 14, 1), c2('H', 13, 0),
         c2('C', 8, 0), c2('D', 7, 0),
       ];
-      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 2);
+      const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 2);
       checkFollow(r.cards, hand, lead, 'S', cfg);
       expect(r.cards.length).toBe(3);
       expect(r.reason).toContain('盖毙');
@@ -902,7 +902,7 @@ describe('trump kill validity (hearts trump, level=5)', () => {
         cc('S', 6, 0),                  // trump single
         cc('S', 7, 0), cc('H', 8, 0),  // extra to avoid maybeAppendFinal
       ];
-      const r = aiFollowPlay(hand, lead, 'D', cfgS2, best, 2);
+      const r = aiFollowPlay(hand, lead, Suit.Diamonds, cfgS2, best, 2);
       checkFollow(r.cards, hand, lead, 'D', cfgS2);
       expect(r.cards.length).toBe(4);
       expect(r.reason).not.toContain('毙');
@@ -941,7 +941,7 @@ describe('trump kill validity (hearts trump, level=5)', () => {
         cc('D', 11, 0),  // D-J
         cc('C', 6, 0), cc('C', 4, 0),
       ];
-      const r = aiFollowPlay(hand, lead, 'S', cfgD2, best, 0);
+      const r = aiFollowPlay(hand, lead, Suit.Spades, cfgD2, best, 0);
       checkFollow(r.cards, hand, lead, 'S', cfgD2);
       expect(r.cards.length).toBe(2);
       expect(r.reason).toContain('毙');
@@ -963,7 +963,7 @@ describe('trump kill validity (hearts trump, level=5)', () => {
         cc('D', 9, 0), cc('D', 7, 0),
         cc('C', 8, 0), cc('C', 6, 0),
       ];
-      const r = aiFollowPlay(hand, lead, 'S', cfgD2, best, 0);
+      const r = aiFollowPlay(hand, lead, Suit.Spades, cfgD2, best, 0);
       checkFollow(r.cards, hand, lead, 'S', cfgD2);
       expect(r.cards.length).toBe(2);
       // Must pick the smallest tractor pair
@@ -983,7 +983,7 @@ describe('reason annotation format', () => {
     const lead: Card[] = [cc('S', 14, 200)]; // S-A (max single)
     const best = { cards: lead, playerIdx: 0 };
     const hand = [cc('S', 13, 0), cc('S', 12, 0), cc('S', 8, 0)];
-    const r = aiFollowPlay(hand, lead, 'S', cfg, best, 2);
+    const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 2);
     checkFollow(r.cards, hand, lead, 'S', cfg);
     expect(r.reason).toBe('同花色出小（队友已大，加分）');
   });
@@ -998,7 +998,7 @@ describe('reason annotation format', () => {
       cc('S', 10, 0), cc('S', 10, 1), cc('S', 9, 0), cc('S', 9, 1),
       cc('S', 7, 0),
     ];
-    const r = aiFollowPlay(hand, lead, 'S', cfg, best, 2);
+    const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 2);
     checkFollow(r.cards, hand, lead, 'S', cfg);
     // Only one tractor matches -> "唯一可出" takes priority
     expect(r.reason).toContain('唯一可出');
@@ -1009,7 +1009,7 @@ describe('reason annotation format', () => {
     const lead: Card[] = [cc('S', 9, 200)];
     const best = { cards: lead, playerIdx: 0 };
     const hand = [cc('S', 13, 0), cc('S', 5, 0), cc('S', 3, 0)];
-    const r = aiFollowPlay(hand, lead, 'S', cfg, best, 2);
+    const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 2);
     checkFollow(r.cards, hand, lead, 'S', cfg);
     // Lead is not max (9 is not A/K), third+tmWin → no annotation
     expect(r.reason).not.toContain('加分');
@@ -1021,7 +1021,7 @@ describe('reason annotation format', () => {
     const lead: Card[] = [cc('S', 14, 200)];
     const best = { cards: lead, playerIdx: 0 };
     const hand = [cc('S', 13, 0), cc('S', 12, 0), cc('S', 8, 0)];
-    const r = aiFollowPlay(hand, lead, 'S', cfg, best, 1);
+    const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 1);
     checkFollow(r.cards, hand, lead, 'S', cfg);
     expect(r.reason).toContain('不加分');
   });
@@ -1044,7 +1044,7 @@ describe('reason annotation format', () => {
       cc('S', 7, 0),                     // 7 (non-point)
       cc('S', 3, 0),                     // 3 (non-point)
     ];
-    const r = aiFollowPlay(hand, lead, 'S', cfgH2, best, 2);
+    const r = aiFollowPlay(hand, lead, Suit.Spades, cfgH2, best, 2);
     checkFollow(r.cards, hand, lead, 'S', cfgH2);
     expect(r.cards.length).toBe(4);
     expect(r.cards.some(c => c.rank === 5)).toBe(true);
@@ -1074,7 +1074,7 @@ describe('short-suited / fourth avoid points on max pattern (spades trump, level
       cc('H', 3, 0),    // H-3 (non-point) — filler, should USE
       cc('H', 6, 0),    // extra
     ];
-    const r = aiFollowPlay(hand, lead, 'D', cfgS2, best, 1);
+    const r = aiFollowPlay(hand, lead, Suit.Diamonds, cfgS2, best, 1);
     checkFollow(r.cards, hand, lead, 'D', cfgS2);
     expect(r.cards.length).toBe(3);
     // Should NOT include C-K (13)
@@ -1094,7 +1094,7 @@ describe('short-suited / fourth avoid points on max pattern (spades trump, level
       cc('D', 5, 0),    // D-5 (5 pts) — should AVOID
       cc('H', 3, 0),    // extra
     ];
-    const r = aiFollowPlay(hand, lead, 'D', cfgS2, best, 3);
+    const r = aiFollowPlay(hand, lead, Suit.Diamonds, cfgS2, best, 3);
     checkFollow(r.cards, hand, lead, 'D', cfgS2);
     expect(r.cards.length).toBe(3);
     // Should NOT include D-5
@@ -1125,7 +1125,7 @@ describe('tractor lead fill-with-pairs annotations (level=2, spades trump)', () 
       cc('H', 8, 0),                    // 8 (non-point)
       cc('S', 7, 0),                    // extra trump
     ];
-    const r = aiFollowPlay(hand, lead, 'H', cfg, best, 1);
+    const r = aiFollowPlay(hand, lead, Suit.Hearts, cfg, best, 1);
     checkFollow(r.cards, hand, lead, 'H', cfg);
     expect(r.cards.length).toBe(4);
     // Should NOT include H-5
@@ -1148,7 +1148,7 @@ describe('tractor lead fill-with-pairs annotations (level=2, spades trump)', () 
       cc('H', 9, 0),                    // 9 (not a point card)
       cc('S', 8, 0),
     ];
-    const r = aiFollowPlay(hand, lead, 'H', cfg, best, 2);
+    const r = aiFollowPlay(hand, lead, Suit.Hearts, cfg, best, 2);
     checkFollow(r.cards, hand, lead, 'H', cfg);
     expect(r.cards.length).toBe(4);
     // All cards are non-pointers
@@ -1206,7 +1206,7 @@ describe('filler avoids level trump when all remaining are trump', () => {
     const hand = [
       cc('D', 12, 0), cc('S', 2, 0), cc('S', 3, 0), cc('S', 10, 0),
     ];
-    const r = aiFollowPlay(hand, lead, 'D', cfg, best, 3);
+    const r = aiFollowPlay(hand, lead, Suit.Diamonds, cfg, best, 3);
     checkFollow(r.cards, hand, lead, 'D', cfg);
     expect(r.cards.length).toBe(2);
     expect(r.cards.some(c => c.suit === 'S' && c.rank === 3)).toBe(true);
@@ -1233,7 +1233,7 @@ describe('trump draw canBeat uses bestSoFar (spades trump, level=2)', () => {
       cc('S', 8, 0), cc('S', 10, 0),
       cc('H', 3, 0),  // extra
     ];
-    const r = aiFollowPlay(hand, lead, 'S', cfg, best, 2);
+    const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 2);
     checkFollow(r.cards, hand, lead, 'S', cfg);
     expect(r.cards.length).toBe(1);
     // Must play S-10(610), not S-8(608). S-8 < S-9(609).
@@ -1248,7 +1248,7 @@ describe('trump draw canBeat uses bestSoFar (spades trump, level=2)', () => {
     const lead: Card[] = [cc('S', 12, 200)];
     const best = { cards: [cc('S', 14, 0)], playerIdx: 1 };
     const hand = [cc('S', 8, 0), cc('S', 6, 0), cc('H', 3, 0)];
-    const r = aiFollowPlay(hand, lead, 'S', cfg, best, 2);
+    const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 2);
     checkFollow(r.cards, hand, lead, 'S', cfg);
     expect(r.cards.length).toBe(1);
     expect(r.cards[0].rank).toBe(6);
@@ -1268,7 +1268,7 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
       const lead: Card[] = [cc('S', 14, 200)];
       const best = { cards: lead, playerIdx: 0 };
       const hand = [cc('H', 14, 0), cc('H', 3, 0), cc('C', 8, 0)];
-      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 1);
+      const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 1);
       checkFollow(r.cards, hand, lead, 'S', cfg);
       expect(r.cards[0].id).toBe(cc('H', 3, 0).id);
       expect(r.reason).toBe('用主牌毙');
@@ -1278,7 +1278,7 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
       const lead: Card[] = [cc('S', 9, 200), cc('S', 9, 201)];
       const best = { cards: lead, playerIdx: 0 };
       const hand = [cc('H', 14, 0), cc('H', 14, 1), cc('H', 3, 0), cc('H', 3, 1), cc('C', 8, 0)];
-      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 1);
+      const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 1);
       checkFollow(r.cards, hand, lead, 'S', cfg);
       expect(r.cards.some(c => c.rank === 3)).toBe(true);
       expect(r.reason).toBe('用主牌毙');
@@ -1290,7 +1290,7 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
       const lead: Card[] = [cc('S', 13, 200)];
       const best = { cards: lead, playerIdx: 0 };
       const hand = [cc('H', 14, 0), cc('H', 3, 0), cc('C', 8, 0)];
-      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 1);
+      const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 1);
       checkFollow(r.cards, hand, lead, 'S', cfg);
       expect(r.cards[0].id).toBe(cc('H', 14, 0).id); // >= A
       expect(r.reason).toBe('用主牌毙');
@@ -1300,7 +1300,7 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
       const lead: Card[] = [cc('S', 13, 200)];
       const best = { cards: lead, playerIdx: 0 };
       const hand = [cc('H', 10, 0), cc('H', 3, 0), cc('C', 8, 0)]; // H-10 is biggest
-      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 1);
+      const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 1);
       checkFollow(r.cards, hand, lead, 'S', cfg);
       expect(r.cards[0].id).toBe(cc('H', 10, 0).id); // biggest
       expect(r.reason).toBe('用主牌毙');
@@ -1311,7 +1311,7 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
       const lead: Card[] = [cc('S', 10, 200), cc('S', 10, 201)];
       const best = { cards: lead, playerIdx: 0 };
       const hand = [cc('H', 14, 0), cc('H', 14, 1), cc('H', 3, 0), cc('H', 3, 1), cc('C', 8, 0)];
-      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 1);
+      const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 1);
       checkFollow(r.cards, hand, lead, 'S', cfg);
       // should use H-AA (biggest), not H-3-3
       expect(r.cards.some(c => c.rank === 14)).toBe(true);
@@ -1327,7 +1327,7 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
       const lead: Card[] = [cc('S', 13, 200)];
       const best = { cards: [cc('H', 12, 0)], playerIdx: 1 };
       const hand = [cc('H', 14, 0), cc('H', 13, 0), cc('H', 10, 0), cc('C', 8, 0)];
-      const r = aiFollowPlay(hand, lead, 'S', cfg, best, 2);
+      const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 2);
       checkFollow(r.cards, hand, lead, 'S', cfg);
       // H-10 beats H-Q? H-10 effRank=610, H-Q effRank=612 → 610<612, can't beat.
       // H-13 beats H-Q? 613>612 → yes, smallest beating is H-13.
@@ -1348,7 +1348,7 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
       const best = { cards: lead, playerIdx: 0 };
       const hand = [ct('H', 14, 0), ct('H', 13, 0), ct('H', 10, 0),
         ct('H', 8, 0), ct('S', 8, 0)];
-      const r = aiFollowPlay(hand, lead, 'H', cfgT, best, 1);
+      const r = aiFollowPlay(hand, lead, Suit.Hearts, cfgT, best, 1);
       checkFollow(r.cards, hand, lead, 'H', cfgT);
       expect(r.cards.length).toBe(1);
       // plays small: H-8 (effRank 608), not H-A or H-K
@@ -1365,7 +1365,7 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
         ct('H', 10, 0), ct('H', 10, 1), ct('H', 9, 0), ct('H', 9, 1),
         ct('H', 14, 0), ct('H', 13, 0),
       ];
-      const r = aiFollowPlay(hand, lead, 'H', cfgT, best, 1);
+      const r = aiFollowPlay(hand, lead, Suit.Hearts, cfgT, best, 1);
       checkFollow(r.cards, hand, lead, 'H', cfgT);
       expect(r.cards.length).toBe(1);
       // has tractor → seize with biggest: H-A(14) since can beat H-3
@@ -1384,7 +1384,7 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
         ct('S', 13, 0),                    // K
         ct('S', 12, 0), ct('S', 12, 1),   // QQ
       ];
-      const r = aiFollowPlay(hand, lead, 'H', cfgT, best, 1);
+      const r = aiFollowPlay(hand, lead, Suit.Hearts, cfgT, best, 1);
       checkFollow(r.cards, hand, lead, 'H', cfgT);
       expect(r.cards.length).toBe(1);
       // If has throw → seize with >=A: H-A effRank=614
@@ -1401,7 +1401,7 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
       // H-6 effRank = 606. >=A = H-A = 614.
       const hand = [ct('H', 14, 0), ct('H', 13, 0), ct('H', 10, 0),
         ct('H', 7, 0)];
-      const r = aiFollowPlay(hand, lead, 'H', cfgT, best, 2);
+      const r = aiFollowPlay(hand, lead, Suit.Hearts, cfgT, best, 2);
       checkFollow(r.cards, hand, lead, 'H', cfgT);
       expect(r.cards.length).toBe(1);
       // >=A: needs effRank >= 614. Only H-A(14) qualifies.
@@ -1415,7 +1415,7 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
       const best = { cards: [ct('H', 8, 0)], playerIdx: 1 };
       const hand = [ct('H', 13, 0), ct('H', 12, 0), ct('H', 10, 0)];
       // effRanks: H-K=613, H-Q=612, H-10=610. Best=608. >=A needs 614 → none.
-      const r = aiFollowPlay(hand, lead, 'H', cfgT, best, 2);
+      const r = aiFollowPlay(hand, lead, Suit.Hearts, cfgT, best, 2);
       checkFollow(r.cards, hand, lead, 'H', cfgT);
       expect(r.cards.length).toBe(1);
       // no >=A → biggest: H-K(13)
@@ -1429,7 +1429,7 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
       const best = { cards: [ct('H', 13, 200)], playerIdx: 0 };
       const hand = [ct('H', 14, 0), ct('H', 12, 0), ct('H', 11, 0),
         ct('H', 8, 0), ct('S', 8, 0)];
-      const r = aiFollowPlay(hand, lead, 'H', cfgT, best, 2);
+      const r = aiFollowPlay(hand, lead, Suit.Hearts, cfgT, best, 2);
       checkFollow(r.cards, hand, lead, 'H', cfgT);
       expect(r.cards.length).toBe(1);
       // hasPoints → biggest: H-A(14) > H-Q(12)
@@ -1442,7 +1442,7 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
       const lead: Card[] = [ct('H', 4, 200)];
       const best = { cards: [ct('J', 16, 0)], playerIdx: 2 };
       const hand = [ct('H', 12, 0), ct('H', 10, 0), ct('H', 5, 0)];
-      const r = aiFollowPlay(hand, lead, 'H', cfgT, best, 3);
+      const r = aiFollowPlay(hand, lead, Suit.Hearts, cfgT, best, 3);
       checkFollow(r.cards, hand, lead, null, cfgT);
       expect(r.cards.length).toBe(1);
       expect(r.reason).toContain('同花色出小');
@@ -1467,7 +1467,7 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
         ct('H', 12, 0),
         ct('S', 8, 0),
       ];
-      const r = aiFollowPlay(hand, lead, 'H', cfgT, best, 2);
+      const r = aiFollowPlay(hand, lead, Suit.Hearts, cfgT, best, 2);
       checkFollow(r.cards, hand, lead, 'H', cfgT);
       expect(r.cards.length).toBe(2);
       // hasPoints → biggest beating pair by effRank: AA(614) > KK(613)
@@ -1492,7 +1492,7 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
         c2('S', 14, 0),    // ♠A extra
       ];
       const best = { cards: lead, playerIdx: 0 };
-      const r = aiFollowPlay(hand, lead, 'S', cfgS2, best, 1);
+      const r = aiFollowPlay(hand, lead, Suit.Spades, cfgS2, best, 1);
       checkFollow(r.cards, hand, lead, 'S', cfgS2);
       expect(r.cards.length).toBe(2);
       // Must NOT include JOKER
@@ -1515,7 +1515,7 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
         c2('C', 4, 0),     // ♣4 (non-trump)
         c2('H', 10, 0),    // ♥10 (non-trump, point)
       ];
-      const r = aiFollowPlay(hand, lead, 'S', cfgS2, best, 3);
+      const r = aiFollowPlay(hand, lead, Suit.Spades, cfgS2, best, 3);
       checkFollow(r.cards, hand, lead, 'S', cfgS2);
       expect(r.cards.length).toBe(2);
       expect(r.reason).toContain('主牌不够');
@@ -1537,7 +1537,7 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
         c3('D', 5, 0),    // ♦5 (5pts, should be avoided)
         c3('H', 3, 0),    // extra
       ];
-      const r = aiFollowPlay(hand, lead, 'D', cfgD2, best, 2);
+      const r = aiFollowPlay(hand, lead, Suit.Diamonds, cfgD2, best, 2);
       checkFollow(r.cards, hand, lead, 'D', cfgD2);
       expect(r.cards.length).toBe(2);
       expect(r.reason).toContain('垫同花色');
@@ -1561,7 +1561,7 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
         ct('D', 8, 0),
         ct('D', 7, 0),
       ];
-      const r = aiFollowPlay(hand, lead, 'C', cfgD, best, 3);
+      const r = aiFollowPlay(hand, lead, Suit.Clubs, cfgD, best, 3);
       checkFollow(r.cards, hand, lead, 'C', cfgD);
       expect(r.cards.length).toBe(1);
       // Fourth beating prefers point: K over Q
@@ -1576,7 +1576,7 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
         ct('C', 11, 0),   // J (non-point, can beat)
         ct('D', 8, 0),
       ];
-      const r = aiFollowPlay(hand, lead, 'C', cfgD, best, 3);
+      const r = aiFollowPlay(hand, lead, Suit.Clubs, cfgD, best, 3);
       checkFollow(r.cards, hand, lead, 'C', cfgD);
       expect(r.cards.length).toBe(1);
       // No point card that beats → smallest beating: J(11)
@@ -1608,7 +1608,7 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
         ct('S', 12, 0), ct('S', 12, 1), ct('S', 11, 0), ct('S', 11, 1), // Q-Q-J-J
         ct('D', 7, 0),
       ];
-      const r = aiFollowPlay(hand, lead, 'S', cfgD, best, 2);
+      const r = aiFollowPlay(hand, lead, Suit.Spades, cfgD, best, 2);
       checkFollow(r.cards, hand, lead, 'S', cfgD);
       expect(r.cards.length).toBe(4);
       // Should pick Q-Q-J-J (max=Q=12, can beat P1's max=J=11)
@@ -1638,7 +1638,7 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
         ct('D', 8, 0), ct('D', 6, 0), ct('D', 5, 0),
         ct('S', 8, 0), ct('H', 3, 0),
       ];
-      const r = aiFollowPlay(hand, lead, 'D', cfg, best, 1);
+      const r = aiFollowPlay(hand, lead, Suit.Diamonds, cfg, best, 1);
       checkFollow(r.cards, hand, lead, 'D', cfg);
       expect(r.cards.length).toBe(3);
       // Must play ♦7♦7 pair + a filler single — many singleton choices → NOT 唯一可出
@@ -1677,7 +1677,7 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
         ct('C', 2, 0), ct('C', 2, 1),   // 22
         ct('S', 8, 0), ct('S', 9, 0),
       ];
-      const r = aiFollowPlay(hand, lead, 'C', cfg6, best, 1);
+      const r = aiFollowPlay(hand, lead, Suit.Clubs, cfg6, best, 1);
       checkFollow(r.cards, hand, lead, 'C', cfg6);
       expect(r.cards.length).toBe(8);
       // Must not merge into a single 4-pair tractor.
@@ -1696,7 +1696,7 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
         ct('C', 4, 0), ct('C', 4, 1),   // 44
         ct('S', 8, 0), ct('S', 9, 0),
       ];
-      const r = aiFollowPlay(hand, lead, 'C', cfg6, best, 1);
+      const r = aiFollowPlay(hand, lead, Suit.Clubs, cfg6, best, 1);
       checkFollow(r.cards, hand, lead, 'C', cfg6);
       expect(r.cards.length).toBe(4);
       expect(r.reason).toContain('唯一可出');
@@ -1731,7 +1731,7 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
     ];
 
     it('third position (P2, teammate wins) adds points, includes 55', () => {
-      const r = aiFollowPlay(hand, lead, 'C', cfg6, best, 2);
+      const r = aiFollowPlay(hand, lead, Suit.Clubs, cfg6, best, 2);
       checkFollow(r.cards, hand, lead, 'C', cfg6);
       expect(r.cards.length).toBe(8);
       // Should include the point pair 55.
@@ -1742,7 +1742,7 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
     });
 
     it('fourth position (P3, opponent wins) avoids points, excludes 55', () => {
-      const r = aiFollowPlay(hand, lead, 'C', cfg6, best, 3);
+      const r = aiFollowPlay(hand, lead, Suit.Clubs, cfg6, best, 3);
       checkFollow(r.cards, hand, lead, 'C', cfg6);
       expect(r.cards.length).toBe(8);
       // Should NOT include the point pair 55.
@@ -1801,7 +1801,7 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
         ct('C', 9, 0),    // ♣9
         ct('C', 8, 0),    // ♣8 — filler, should be used (smallest non-point)
       ];
-      const r = aiFollowPlay(hand, lead, 'D', cfgH, best, 2);
+      const r = aiFollowPlay(hand, lead, Suit.Diamonds, cfgH, best, 2);
       checkFollow(r.cards, hand, lead, 'D', cfgH);
       expect(r.cards.length).toBe(3);
       // Must include the only diamond
@@ -1830,7 +1830,7 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
         ct('C', 12, 0),   // ♣Q — non-point, should NOT be used
         ct('C', 3, 0),    // ♣3 — non-point, should be used (smallest)
       ];
-      const r = aiFollowPlay(hand, lead, 'D', cfgH, best, 2);
+      const r = aiFollowPlay(hand, lead, Suit.Diamonds, cfgH, best, 2);
       checkFollow(r.cards, hand, lead, 'D', cfgH);
       expect(r.cards.length).toBe(4);
       // Must include ♦J
@@ -1870,7 +1870,7 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
         ct2('D', 4, 0),                         // non-point
         ct2('H', 3, 0),                         // non-point
       ];
-      const r = aiFollowPlay(hand, lead, 'C', cfgS, best, 2);
+      const r = aiFollowPlay(hand, lead, Suit.Clubs, cfgS, best, 2);
       checkFollow(r.cards, hand, lead, 'C', cfgS);
       expect(r.cards.length).toBe(3);
       expect(r.reason).toContain('垫牌');
@@ -1893,7 +1893,7 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
         ct('S', 13, 0),   // S-K (10 pts)
         ct('S', 5, 0),    // S-5 (5 pts)
       ];
-      const r = aiFollowPlay(hand, lead, 'C', cfgD, best, 2);
+      const r = aiFollowPlay(hand, lead, Suit.Clubs, cfgD, best, 2);
       checkFollow(r.cards, hand, lead, 'C', cfgD);
       expect(r.cards.length).toBe(1);
       // tmWin + canAddPoints(third + max pattern) → dump points
