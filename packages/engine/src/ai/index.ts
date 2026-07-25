@@ -181,7 +181,7 @@ function _aiFollowPlay(
   // Short-suited - must play all lead-suit cards
   if (leadSuitCards.length > 0) {
     const other = hand.filter(c => !leadSuitCards.includes(c));
-    other.sort(fillerSort(!!tmWin, ctx));
+    other.sort(fillerSort(!!tmWin, ctx, other, ctx));
     const fill = other.slice(0, leadLen - leadSuitCards.length);
     const cards = [...leadSuitCards, ...fill];
     const baseReason = fill.some(c => isTrump(c, ctx))
@@ -205,7 +205,7 @@ function _aiFollowPlay(
     if (tmWin && canAddPoints(tmWin, position, leadCombo, ctx)) {
       const nonTrump = hand.filter(c => !isTrump(c, ctx));
       if (nonTrump.length >= leadLen) {
-        nonTrump.sort(discardSort(true, ctx));
+        nonTrump.sort(discardSort(true, ctx, nonTrump, ctx));
         const cards = nonTrump.slice(0, leadLen);
         const reason = annotateReason('垫牌', cards, [], trumpCards,
           leadCombo, leadLen, ctx, position, tmWin, false, 'add');

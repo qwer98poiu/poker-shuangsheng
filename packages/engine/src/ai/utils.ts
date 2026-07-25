@@ -80,6 +80,35 @@ export function isPointCard(r: number): boolean {
   return isPointRank(r as Rank);
 }
 
+// ---- Pair-breaking helpers ----
+
+/** Sum points visible in the current trick (from bestSoFar cards). */
+function visibleTrickPoints(ctx: AIContext): number {
+  if (!ctx.bestSoFar || !ctx.bestSoFar.cards.length) return 0;
+  return ctx.bestSoFar.cards.reduce((s, c) => s + (isPointRank(c.rank) ? 5 : 0) + (c.rank === 10 || c.rank === 13 ? 5 : 0), 0);
+}
+
+/**
+ * Check whether playing this card would break a pair in hand, and if so,
+ * whether we should avoid it. Defenders never break pairs. Attackers avoid
+ * unless the extra points cross a 40-point scoring threshold.
+ */
+function shouldAvoidBreakingPair(card: Card, hand: Card[], ctx: AIContext): boolean {
+  if (!isPointRank(card.rank)) return false;
+  const sameInHand = hand.filter(c =>
+    c.suit === card.suit && c.rank === card.rank && c.id !== card.id
+  );
+  if (sameInHand.length === 0) return false;
+  // Defenders never break pairs to add points.
+  if (!ctx.isAttacker) return true;
+  // Attackers: break only if crossing a 40-point threshold.
+  const cardPts = card.rank === 5 ? 5 : 10;
+  const projected = ctx.attackerPoints + visibleTrickPoints(ctx) + cardPts;
+  const currTier = Math.floor(ctx.attackerPoints / 40);
+  const projTier = Math.floor(projected / 40);
+  return projTier === currTier;
+}
+
 // ---- Sort helpers ----
 
 /** When adding points, compare two point cards for dump order: 10 > K > 5.
@@ -110,11 +139,22 @@ export function pairSortAsc(config: TrumpDeclaration): (a: Card[], b: Card[]) =>
 export function discardSort(
   teammateWinning: boolean,
   config?: TrumpDeclaration,
+  hand?: Card[],
+  ctx?: AIContext,
+  needed?: number,
 ): (a: Card, b: Card) => number {
   return (a, b) => {
     const aPts = isPointRank(a.rank) ? (teammateWinning ? 0 : 100) : (teammateWinning ? 100 : 0);
     const bPts = isPointRank(b.rank) ? (teammateWinning ? 0 : 100) : (teammateWinning ? 100 : 0);
     if (aPts !== bPts) return aPts - bPts;
+    // When adding points & need exactly 1 card: avoid breaking a pair to fill.
+    // (If need >=2, the pair can play together — no breaking.)
+    if (teammateWinning && hand && ctx && needed !== undefined && needed < 2
+        && isPointRank(a.rank) && isPointRank(b.rank)) {
+      const aBreak = shouldAvoidBreakingPair(a, hand, ctx) ? 100 : 0;
+      const bBreak = shouldAvoidBreakingPair(b, hand, ctx) ? 100 : 0;
+      if (aBreak !== bBreak) return aBreak - bBreak;
+    }
     // Non-level trump before level trump (avoid wasting constant trump)
     if (config) {
       const aLvl = a.rank === config.level ? 100 : 0;
@@ -136,11 +176,21 @@ export function discardSort(
 export function fillerSort(
   teammateWinning: boolean,
   config: TrumpDeclaration,
+  hand?: Card[],
+  ctx?: AIContext,
+  needed?: number,
 ): (a: Card, b: Card) => number {
   return (a, b) => {
     const aPts = isPointRank(a.rank) ? (teammateWinning ? 0 : 100) : (teammateWinning ? 100 : 0);
     const bPts = isPointRank(b.rank) ? (teammateWinning ? 0 : 100) : (teammateWinning ? 100 : 0);
     if (aPts !== bPts) return aPts - bPts;
+    // When adding points & need exactly 1: avoid breaking a pair to fill.
+    if (teammateWinning && hand && ctx && needed !== undefined && needed < 2
+        && isPointRank(a.rank) && isPointRank(b.rank)) {
+      const aBreak = shouldAvoidBreakingPair(a, hand, ctx) ? 100 : 0;
+      const bBreak = shouldAvoidBreakingPair(b, hand, ctx) ? 100 : 0;
+      if (aBreak !== bBreak) return aBreak - bBreak;
+    }
     // When adding points: 10 > K > 5 (dump low-rank 10 first, keep K).
     if (teammateWinning && isPointRank(a.rank) && isPointRank(b.rank)) {
       return pointDumpPriority(a.rank) - pointDumpPriority(b.rank);

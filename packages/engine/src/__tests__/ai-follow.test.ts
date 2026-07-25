@@ -2288,3 +2288,91 @@ describe('point card priority: 10 > K > 5 when adding', () => {
     expect(r.cards.some(c => c.suit === 'D' && c.rank === 5)).toBe(true);
   });
 });
+
+// ================================================================
+// Break pair to add points: only when score warrants it
+// ================================================================
+// Attacker (闲家) should break a pair to play 10 points only when
+// adding those 10 points can meaningfully help reach the next threshold.
+// Otherwise, play a single 5 and keep the pair intact.
+//
+// Scenario: declarerIndex=1, P0(attacker) leads AAKQQ (5 cards).
+// P1(defender) follows small clubs. P2(attacker, third, tmWin=true)
+// has some clubs + D-10,D-10 pair + D-5 single + D-4 filler.
+describe('break pair: score-aware pair breaking', () => {
+  function cc(s: string, r: number, i: number): Card {
+    return createCard(s as any, r as any, i);
+  }
+  const lead: Card[] = [
+    cc('C', 14, 200), cc('C', 14, 201),
+    cc('C', 13, 200),
+    cc('C', 12, 200), cc('C', 12, 201),
+  ];
+  const cfg7: TrumpDeclaration = { declarerIndex: 1, trumpSuit: Suit.Hearts, level: 7 };
+
+  function atkCtx(myIndex: number, score: number): AIContext {
+    return {
+      declarerIndex: 1, trumpSuit: Suit.Hearts, level: 7, myIndex,
+      isDeclarer: false, isDeclarerPartner: false, isAttacker: true,
+      attackerPoints: score,
+      handCounts: [25, 25, 25, 25] as const,
+      trickHistory: [], reveals: [],
+      playCount: 2, leadPlayerIndex: 0,
+      bestSoFar: { cards: lead, playerIndex: 0 },
+      ntState: null, bottomCards: [], debug: false,
+    };
+  }
+
+  // fill-1, score=55: D-10 would give 65, still far from 80.
+  // Better to play D-5 (5pts) and keep D-10 pair for later.
+  it('fill-1, score=55: does NOT break 10-pair, plays 5 instead', () => {
+    const ctx = atkCtx(2, 55);
+    const hand = [
+      cc('C', 9, 0), cc('C', 8, 0), cc('C', 6, 0), cc('C', 4, 0),
+      cc('D', 10, 0), cc('D', 10, 1),  // D-10 pair
+      cc('D', 5, 0),                     // D-5 single
+      cc('D', 3, 0),                     // D-3 non-point
+    ];
+    const r = aiFollowPlay(hand, lead, Suit.Clubs, ctx);
+    checkFollow(r.cards, hand, lead, 'C', cfg7);
+    expect(r.cards.length).toBe(5);
+    // Plays D-5, not D-10
+    expect(r.cards.some(c => c.suit === 'D' && c.rank === 5)).toBe(true);
+    // Only one D-10 at most (the pair stays intact)
+    const tens = r.cards.filter(c => c.suit === 'D' && c.rank === 10);
+    expect(tens.length).toBe(0);
+  });
+
+  // fill-1, score=60: D-10 gives 70, within striking distance of 80.
+  // Worth breaking the pair.
+  it('fill-1, score=60: breaks 10-pair, plays 10', () => {
+    const ctx = atkCtx(2, 60);
+    const hand = [
+      cc('C', 9, 0), cc('C', 8, 0), cc('C', 6, 0), cc('C', 4, 0),
+      cc('D', 10, 0), cc('D', 10, 1),  // D-10 pair
+      cc('D', 5, 0),                     // D-5 single
+      cc('D', 3, 0),
+    ];
+    const r = aiFollowPlay(hand, lead, Suit.Clubs, ctx);
+    checkFollow(r.cards, hand, lead, 'C', cfg7);
+    expect(r.cards.length).toBe(5);
+    // Breaks pair → plays D-10
+    expect(r.cards.some(c => c.suit === 'D' && c.rank === 10)).toBe(true);
+  });
+
+  // fill-2, score=any: D-10 pair can both play, no breaking needed.
+  it('fill-2, score=55: plays D-10,D-10 pair (no breaking needed)', () => {
+    const ctx = atkCtx(2, 55);
+    const hand = [
+      cc('C', 9, 0), cc('C', 8, 0), cc('C', 6, 0), // 3 clubs (short by 2)
+      cc('D', 10, 0), cc('D', 10, 1),  // D-10 pair
+      cc('D', 5, 0),
+      cc('D', 3, 0),
+    ];
+    const r = aiFollowPlay(hand, lead, Suit.Clubs, ctx);
+    checkFollow(r.cards, hand, lead, 'C', cfg7);
+    expect(r.cards.length).toBe(5);
+    const tens = r.cards.filter(c => c.suit === 'D' && c.rank === 10);
+    expect(tens.length).toBe(2); // both D-10 played
+  });
+});

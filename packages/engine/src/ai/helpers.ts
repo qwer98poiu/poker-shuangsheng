@@ -40,7 +40,7 @@ export function discardNonTrump(
   leadCombo?: ComboClass,
 ): { cards: Card[]; reason: string } {
   const nonTrump = hand.filter(c => !isTrump(c, ctx));
-  nonTrump.sort(discardSort(!!tmWin, ctx));
+  nonTrump.sort(discardSort(!!tmWin, ctx, nonTrump, ctx, leadLen));
   const combo = leadCombo || { type: 'single' as const, cards: [], length: leadLen, pairCount: 0, tractors: [], hasTractor: false };
   if (nonTrump.length >= leadLen) {
     const cards = nonTrump.slice(0, leadLen);
@@ -51,7 +51,7 @@ export function discardNonTrump(
     return { cards, reason };
   }
   const trump = hand.filter(c => isTrump(c, ctx));
-  trump.sort(discardSort(!!tmWin, ctx));
+  trump.sort(discardSort(!!tmWin, ctx, trump, ctx, leadLen));
   const cards = [...nonTrump, ...trump].slice(0, leadLen);
   const addPt2 = tmWin && canAddPoints(tmWin, position, combo, ctx);
   const intent = addPt2 ? 'add' : 'none';

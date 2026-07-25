@@ -129,7 +129,7 @@ export function followTrumpLead(
         || (position === 'third' && !tmWin)) && !attackerNearThreshold(ctx);
       const addPoints = !shouldAvoid && canAddPoints(tmWin, position, leadCombo, ctx);
       if (addPoints) {
-        myTrump.sort(discardSort(true, ctx));
+        myTrump.sort(discardSort(true, ctx, myTrump, ctx));
       } else if (shouldAvoid) {
         myTrump.sort(discardSort(false, ctx));
       } else {
@@ -143,7 +143,7 @@ export function followTrumpLead(
     }
     // No trump - discard
     const nonTrump = hand.filter(c => !isTrump(c, ctx));
-    nonTrump.sort(discardSort(!!tmWin, ctx));
+    nonTrump.sort(discardSort(!!tmWin, ctx, nonTrump, ctx));
     return { cards: [nonTrump[0] || hand[0]], reason: '垫牌' };
   }
 
@@ -283,7 +283,7 @@ export function matchTrumpPattern(
   // Pure singles: play smallest trump
   const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
   if (addPoints) {
-    myTrump.sort(discardSort(true, ctx));
+    myTrump.sort(discardSort(true, ctx, myTrump, ctx));
   } else {
     myTrump.sort(discardSort(false, ctx));
   }
@@ -329,7 +329,7 @@ function trumpKillSingle(
         return { cards: [canBeatCards[0]], reason: '盖毙' };
       }
       if (nonTrump.length > 0) {
-        nonTrump.sort(discardSort(!!tmWin, ctx));
+        nonTrump.sort(discardSort(!!tmWin, ctx, nonTrump, ctx));
         return { cards: [nonTrump[0]], reason: '盖不过，垫副牌' };
       }
       return { cards: [trumpCards[0]], reason: '盖不过，垫主牌' };
@@ -560,7 +560,7 @@ export function followNTTrumpLead(
         || (position === 'third' && !tmWin)) && !attackerNearThreshold(ctx);
       const addPts = !shouldAvoid && tmWin && canAddPoints(tmWin, position, leadCombo, ctx);
       if (addPts) {
-        myTrump.sort(discardSort(true, ctx));
+        myTrump.sort(discardSort(true, ctx, myTrump, ctx));
       } else if (shouldAvoid) {
         myTrump.sort(discardSort(false, ctx));
       } else {
@@ -573,7 +573,7 @@ export function followNTTrumpLead(
       return { cards, reason };
     }
     const nonTrump = hand.filter(c => !isTrump(c, ctx));
-    nonTrump.sort(discardSort(!!tmWin, ctx));
+    nonTrump.sort(discardSort(!!tmWin, ctx, nonTrump, ctx));
     return { cards: [nonTrump[0] || hand[0]], reason: '垫牌' };
   }
 
@@ -602,7 +602,7 @@ export function followNTTrumpLead(
     const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
     const sorted = [...myTrump];
     if (addPoints) {
-      sorted.sort(discardSort(true, ctx));
+      sorted.sort(discardSort(true, ctx, sorted, ctx));
     } else {
       sorted.sort(discardSort(false, ctx));
     }

@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-07-25 16:50
+
+### 加分拆对策略：攻击方跨台阶才拆对，庄家永不拆对
+
+**问题**：加分时无差别选分牌，不会考虑拆对代价。例如闲家 D-10 对子 + D-5 单张，只需垫 1 张时，若当前分差不足以跨过 40 分台阶，不应拆对出 D-10。
+
+**修复**：
+- 新增 `shouldAvoidBreakingPair(card, hand, ctx)`：检查拆对条件——庄家永不拆对、闲家仅当拆对后能跨 40 分台阶才拆
+- 新增 `visibleTrickPoints(ctx)`：从 bestSoFar 统计已可见的墩分
+- `discardSort` 和 `fillerSort` 新增 `hand`、`ctx`、`needed` 可选参数：仅当 `needed < 2`（必须拆对才够填）时触发拆对惩罚
+
+**新增 3 项测试**（ai-follow.test.ts：fill-1 闲家 55 分不拆对 + 闲家 60 分拆对 + fill-2 不拆对直接出对），496 项通过。
+
+- **影响文件**：`packages/engine/src/ai/utils.ts`、`follow-trump.ts`、`follow-offsuit.ts`、`helpers.ts`、`index.ts`、`__tests__/ai-follow.test.ts`
+
 ## 2026-07-25 16:20
 
 ### 修复加分时分牌排序优先级：10 > K > 5

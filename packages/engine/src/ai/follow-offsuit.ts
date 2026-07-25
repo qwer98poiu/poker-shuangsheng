@@ -44,7 +44,7 @@ function followOffSuitSingle(
   leadSuitCards.sort((a, b) => getEffectiveRank(b, ctx) - getEffectiveRank(a, ctx));
 
   if (canAddPoints(tmWin, position, leadCombo, ctx)) {
-    leadSuitCards.sort(discardSort(true, ctx));
+    leadSuitCards.sort(discardSort(true, ctx, leadSuitCards, ctx));
     const cards = [leadSuitCards[0]];
     const reason = annotateReason('同花色出小', cards, leadSuitCards, trumpCards,
       leadCombo, 1, ctx, position, tmWin, false, 'add');
@@ -63,7 +63,7 @@ function followOffSuitSingle(
   // Can't beat opponent - play smallest
   if (!canBeat([leadSuitCards[0]], ctx.bestSoFar, ctx)) {
     const crossThreshold = attackerNearThreshold(ctx);
-    leadSuitCards.sort(crossThreshold ? discardSort(true, ctx) : discardSort(false, ctx));
+    leadSuitCards.sort(crossThreshold ? discardSort(true, ctx, leadSuitCards, ctx) : discardSort(false, ctx));
     const cards = [leadSuitCards[0]];
     const shouldAvoid = !crossThreshold && ((position === 'fourth' && !tmWin)
       || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx))
@@ -162,7 +162,7 @@ function followOffSuitMulti(
           || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx))
           || (position === 'third' && !tmWin));
       if (addPoints) {
-        rest.sort(discardSort(true, ctx));
+        rest.sort(discardSort(true, ctx, rest, ctx));
       } else if (shouldAvoid) {
         rest.sort(discardSort(false, ctx));
       } else {
@@ -215,7 +215,7 @@ function followOffSuitMulti(
       const used = new Set(chosen.map(c => c.id));
       const rest = leadSuitCards.filter(c => !used.has(c.id));
       if (addPoints) {
-        rest.sort(discardSort(true, ctx));
+        rest.sort(discardSort(true, ctx, rest, ctx));
       } else if (shouldAvoid) {
         rest.sort(discardSort(false, ctx));
       } else {
@@ -235,7 +235,7 @@ function followOffSuitMulti(
 
   // Can't match pattern - play smallest
   if (canAddPoints(tmWin, position, leadCombo, ctx)) {
-    leadSuitCards.sort(discardSort(true, ctx));
+    leadSuitCards.sort(discardSort(true, ctx, leadSuitCards, ctx));
     const cards = leadSuitCards.slice(0, leadLen);
     const reason = annotateReason('垫同花色', cards, leadSuitCards, [],
       leadCombo, leadLen, ctx, position, tmWin, false, 'add');
@@ -275,11 +275,12 @@ export function followOffSuitThrow(
   if (leadSuitCards.length > 0) {
     // Partial suit follow
     const remaining = hand.filter(c => !leadSuitCards.includes(c));
+    const needed = leadLen - leadSuitCards.length;
     const nonTrump = remaining.filter(c => !isTrump(c, ctx));
-    nonTrump.sort(discardSort(!!tmWin, ctx))
+    nonTrump.sort(discardSort(!!tmWin, ctx, nonTrump, ctx, needed));
     const trumps = remaining.filter(c => isTrump(c, ctx));
-    trumps.sort(discardSort(!!tmWin, ctx));
-    const fill = [...nonTrump, ...trumps].slice(0, leadLen - leadSuitCards.length);
+    trumps.sort(discardSort(!!tmWin, ctx, trumps, ctx, needed));
+    const fill = [...nonTrump, ...trumps].slice(0, needed);
     const cards = [...leadSuitCards, ...fill];
     const leadCombo = classifyCombo(leadCards, ctx);
     const baseReason = fill.some(c => isTrump(c, ctx))
@@ -303,7 +304,7 @@ export function followOffSuitThrow(
     if (tmWin && canAddPoints(tmWin, position, throwCombo, ctx)) {
       const nonTrump = hand.filter(c => !isTrump(c, ctx));
       if (nonTrump.length >= leadLen) {
-        nonTrump.sort(discardSort(true, ctx));
+        nonTrump.sort(discardSort(true, ctx, nonTrump, ctx, leadLen));
         const cards = nonTrump.slice(0, leadLen);
         const reason = annotateReason('垫牌', cards, [], trumpCards,
           throwCombo, leadLen, ctx, position, tmWin, false, 'add');
