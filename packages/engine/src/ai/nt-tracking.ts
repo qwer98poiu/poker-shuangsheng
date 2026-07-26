@@ -130,12 +130,18 @@ function applyReveals(
     const pid = reveal.playerIndex;
 
     if (pid === myIndex) {
+      // Record self-revealed cards as definitively mine, but avoid
+      // double-counting with my actual hand cards (production).
+      const alreadyKnown = knownTrumpsPerPlayer[pid]
+        .filter(c => suitRankKey(c.id) === key).length;
+      const needed = Math.max(0, n - alreadyKnown);
+      for (let i = 0; i < needed; i++) {
+        knownTrumpsPerPlayer[pid].push(reconstructFromKey(key));
+      }
       if (!isDeclarer) {
         const arr = counts.get(key);
         if (arr) arr[4] = Math.max(0, arr[4] - n);
       }
-      // My revealed cards are already known (in my hand).
-      // Reduce totalUnseen since these copies are definitively in my hand.
       totalUnseen.set(key, Math.max(0, (totalUnseen.get(key) ?? 0) - n));
       continue;
     }
@@ -265,7 +271,14 @@ export function computeNTTrumpState(
             if (arr) {
               arr[actualPlayer] = Math.max(0, arr[actualPlayer] - playedCount);
             }
-            totalUnseen.set(key, Math.max(0, (totalUnseen.get(key) ?? 0) - playedCount));
+            // Decrement totalUnseen. Cards definitively known to be at
+            // this player (from hand and reveals) absorb the play first.
+            const definitiveCount = knownTrumpsPerPlayer[actualPlayer]
+              .filter(c => suitRankKey(c.id) === key).length;
+            const reduced = Math.max(0, playedCount - definitiveCount);
+            if (reduced > 0) {
+              totalUnseen.set(key, Math.max(0, (totalUnseen.get(key) ?? 0) - reduced));
+            }
           }
         }
 
@@ -322,7 +335,8 @@ function buildState(
       }
       // Add definitive known copies (revealed), but only if suitRank
       // still has copies possibly belonging to this player.
-      if (p >= 0 && p <= 3) {
+      // Only add definitives for non-void players with unseen copies.
+      if (p >= 0 && p <= 3 && totalPossible(counts, p) > 0) {
         for (const c of knownTrumpsPerPlayer[p]) {
           const key = suitRankKey(c.id);
           if ((totalUnseen.get(key) ?? 0) > 0) {

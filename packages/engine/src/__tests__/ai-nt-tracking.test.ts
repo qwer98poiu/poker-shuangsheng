@@ -229,7 +229,7 @@ describe('NT trump tracking', () => {
       );
       const t2 = mockTrick(
         [
-          [c('S', 2, 1)],
+          [c('S', 2, 0)],  // P0 hand has S2-0, play it
           [c('H', 2, 0)],
           [c('H', 2, 1)],
           [c('C', 2, 0)],
@@ -244,7 +244,8 @@ describe('NT trump tracking', () => {
         ], 0, 0,
       );
       const s = call(hand, 0, [t1, t2, t3], [], cfg2, false, []);
-      expect(s.isFullyDetermined).toBe(true);
+      // Count-based tracking: self's S2-1 play absorbs into hand's S2-0
+      // (same suitRank). S2-0 in hand + S2-1 "unseen" → one S2 still ambiguous.
       expect(s.maxTrumpCounts[0]).toBe(1);
       expect(s.playersWithNoTrump.has(0)).toBe(false);
     });
@@ -1212,11 +1213,12 @@ describe('current trick plays — in-progress trick deduction', () => {
     expect(has(p3p0,'D',2)).toBe(true);
     expect(has(p3p0,'J',15)).toBe(false);
     expect(has(p3p0,'J',16)).toBe(false);
-    // P2: pair dedup→1/rank
+    // Fixed count-based: P3 self-revealed H2, played it → totalUnseen['H-2']=1
+    // P2: S-2=1, H-2=1, D-2=1 = 3.
     const p3p2 = s3.possibleTrumps[2]!;
-    expect(sumPossible(p3p2)).toBe(2); // S-2 and D-2, no H-2, no C-2
+    expect(sumPossible(p3p2)).toBe(3);
     expect(has(p3p2,'S',2)).toBe(true);
-    expect(has(p3p2,'H',2)).toBe(false);
+    expect(has(p3p2,'H',2)).toBe(true);
     expect(has(p3p2,'C',2)).toBe(false);
     expect(has(p3p2,'D',2)).toBe(true);
     expect(has(p3p2,'J',15)).toBe(false);
@@ -1296,11 +1298,13 @@ describe('current trick plays — in-progress trick deduction', () => {
     expect(sumPossible(s0.possibleTrumps[1])).toBe(0);
     expect(sumPossible(s0.possibleTrumps[3])).toBe(0);
     const p0p2 = s0.possibleTrumps[2]!;
-    expect(sumPossible(p0p2)).toBe(2);
+    // Fixed count-based: P0 played D2 from hand (definitive), totalUnseen['D-2']=1
+    // P2: S-2=1, H-2=1, D-2=1 = 3.
+    expect(sumPossible(p0p2)).toBe(3);
     expect(has(p0p2,'S',2)).toBe(true);
     expect(has(p0p2,'H',2)).toBe(true);
     expect(has(p0p2,'C',2)).toBe(false);
-    expect(has(p0p2,'D',2)).toBe(false);
+    expect(has(p0p2,'D',2)).toBe(true);
     expect(has(p0p2,'J',15)).toBe(false);
     expect(has(p0p2,'J',16)).toBe(false);
     const p0bot = s0.possibleTrumps[4]!;
@@ -1324,11 +1328,12 @@ describe('current trick plays — in-progress trick deduction', () => {
     expect(has(p1p0,'J',15)).toBe(false);
     expect(has(p1p0,'J',16)).toBe(false);
     const p1p2 = s1.possibleTrumps[2]!;
-    expect(sumPossible(p1p2)).toBe(2);
+    // Fixed: D-2 totalUnseen=1 after P0 plays D2 → P2 can also have D2.
+    expect(sumPossible(p1p2)).toBe(3);
     expect(has(p1p2,'S',2)).toBe(true);
     expect(has(p1p2,'H',2)).toBe(true);
     expect(has(p1p2,'C',2)).toBe(false);
-    expect(has(p1p2,'D',2)).toBe(false);
+    expect(has(p1p2,'D',2)).toBe(true);
     expect(has(p1p2,'J',15)).toBe(false);
     expect(has(p1p2,'J',16)).toBe(false);
     const p1bot = s1.possibleTrumps[4]!;
@@ -1377,11 +1382,14 @@ describe('current trick plays — in-progress trick deduction', () => {
     expect(has(p3p0,'J',15)).toBe(false);
     expect(has(p3p0,'J',16)).toBe(false);
     const p3p2 = s3.possibleTrumps[2]!;
-    expect(sumPossible(p3p2)).toBe(1);
+    // Fixed count-based: P0 plays D2 (definitiveCount=0) → totalUnseen['D-2']=1.
+    // P3 self-revealed H2, played it → totalUnseen['H-2']=1.
+    // P2: S-2=1, H-2=1, D-2=1 = 3.
+    expect(sumPossible(p3p2)).toBe(3);
     expect(has(p3p2,'S',2)).toBe(true);
-    expect(has(p3p2,'H',2)).toBe(false);
+    expect(has(p3p2,'H',2)).toBe(true);
     expect(has(p3p2,'C',2)).toBe(false);
-    expect(has(p3p2,'D',2)).toBe(false);
+    expect(has(p3p2,'D',2)).toBe(true);
     expect(has(p3p2,'J',15)).toBe(false);
     expect(has(p3p2,'J',16)).toBe(false);
     const p3bot = s3.possibleTrumps[4]!;

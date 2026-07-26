@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-07-26 19:25
+
+### NT 记牌器：修复 totalUnseen 扣减逻辑，definitive 副本不再错误扣减 unseen 池
+
+**问题**：card removal 中直接 `totalUnseen -= playedCount`，未考虑打出的是已知副本（reveal 确定的牌、手牌）。例如 P0 打出手牌中的 D-2（已知在自己手中，不在 unseen 池），却扣减了 `totalUnseen`，导致其他玩家对该牌的可能性被错误清零。
+
+**修复**：
+- card removal 扣减 `totalUnseen` 时，先用 `definitiveCount`（`knownTrumpsPerPlayer` 中该玩家的确定副本数）吸收打出量，仅超出部分才从 unseen 池扣除
+- self-reveal 的牌记录到 `knownTrumpsPerPlayer[myIndex]`，避免 self 出牌时 `definitiveCount=0`
+- `buildState` 添加 definite copies 时排除 void 玩家（`totalPossible(counts, p) === 0`）
+- 适配 4 个测试断言（`all 12 trumps`、`full scenario` P3 视角、`trick 2` P0/P1/P3 视角的 sumPossible 和 has 断言）
+
+**测试**：483 项全部通过（save-file 场景 P1 有大王断言通过）。
+
+- **影响文件**：`packages/engine/src/ai/nt-tracking.ts`、`packages/engine/src/__tests__/ai-nt-tracking.test.ts`
+
 ## 2026-07-26 17:33
 
 ### NT 记牌器：从虚拟副本 ID 改为计数追踪，修复 pairDeduction 副本不一致 bug
