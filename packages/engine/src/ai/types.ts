@@ -26,11 +26,14 @@ export interface NTTrumpState {
   readonly allUnseenBigJokersOnOurSide: boolean;
 
   /**
-   * Unplayed trump card IDs that could be in each location.
+   * Possible constant-trump counts per suit-rank for each location.
    * Index 0-3 = other players' hands, 4 = bottom cards.
    * Null for self (known own hand) and for bottom when declarer (known bottom).
+   * Each non-null entry is a Record mapping suitRank key (e.g. "J-16", "S-2")
+   * to the maximum number of copies the location could hold.
+   * Missing keys imply count 0.
    */
-  readonly possibleTrumps: readonly (readonly string[] | null)[]; // length 5
+  readonly possibleTrumps: readonly (Readonly<Record<string, number>> | null)[]; // length 5
   /** Whether the distribution is fully determined. */
   readonly isFullyDetermined: boolean;
   /** Whether each player (0-3) can still form at least one pair from possible trumps. */

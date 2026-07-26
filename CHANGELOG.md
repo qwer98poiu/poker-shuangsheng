@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-07-26 17:33
+
+### NT 记牌器：从虚拟副本 ID 改为计数追踪，修复 pairDeduction 副本不一致 bug
+
+**问题**：旧实现用 virtual copy ID（如 `J-16-0`、`J-16-1`）追踪每张常主可能的位置。`applyNoPairDeduction` 从 `cids[length-1]`（最后副本）删除玩家，但 card removal Pass 2 遍历 `possibleLocations.keys()` 删除第一个匹配。两处操作不同的 virtual copy，导致 player coverage 丢失——玩家从全部同 suit-rank 副本中被抹去。
+
+**修复**：将 `possibleTrumps` 从 `(readonly string[] | null)[]` 改为 `(Readonly<Record<string, number>> | null)[]`，每个 (suitRank, location) 记录最大可能张数而非具体副本。无对推断规则：count=2 → 1；count=1 且已出该花色 → 0。底牌不受无对规则影响。
+
+**影响文件**：
+- `packages/engine/src/ai/types.ts`：`possibleTrumps` 类型变更
+- `packages/engine/src/ai/nt-tracking.ts`：核心重写（~350 行增量）
+- `packages/engine/src/__tests__/ai-nt-tracking.test.ts`：全部断言适配新格式
+- `packages/engine/src/__tests__/ai-follow.test.ts`：mock 适配
+- `packages/cli/src/index.ts`：显示逻辑适配
+
+**测试**：483 项通过，2 项待修正（`full scenario` 和 `trick 2` 断言需适配新规则）。
+
 ## 2026-07-26 01:00
 
 ### NT 记牌器：新增对局复现测试，确认 pairDeduction 与 card removal 副本不一致 bug

@@ -936,25 +936,23 @@ function showOneTracker(playerIndex: number) {
   const bottomLabel = ctx.isDeclarer ? '底牌(已知)' : '底牌';
   for (const [idx, label] of [[0, playerLabel(0)], [1, playerLabel(1)], [2, playerLabel(2)], [3, playerLabel(3)], [4, bottomLabel]] as const) {
     if (idx === playerIndex) continue; // skip self
-    const arr = s.possibleTrumps[idx];
-    if (arr === null) {
+    const rec = s.possibleTrumps[idx];
+    if (rec === null) {
       console.log(`  ${label}可能常主: (已知,不追踪)`);
-    } else if (arr.length === 0) {
-      console.log(`  ${label}可能常主: 无`);
     } else {
-      // Group by suit+rank for compact display
-      const byKey = new Map<string, number>();
-      for (const id of arr) {
-        const key = id.slice(0, id.lastIndexOf('-')); // "S-2" from "S-2-0"
-        byKey.set(key, (byKey.get(key) || 0) + 1);
+      const total = Object.values(rec).reduce((a, b) => a + b, 0);
+      if (total === 0) {
+        console.log(`  ${label}可能常主: 无`);
+      } else {
+        const parts = Object.entries(rec)
+          .filter(([, n]) => n > 0)
+          .sort(([a], [b]) => possibleTrumpSortKey(a) - possibleTrumpSortKey(b))
+          .map(([k, n]) => {
+            const display = possibleTrumpLabel(k);
+            return n > 1 ? Array(n).fill(display).join(' ') : display;
+          });
+        console.log(`  ${label}可能常主 (${total}张): ${parts.join(' ')}`);
       }
-      const parts = [...byKey.entries()]
-        .sort(([a], [b]) => possibleTrumpSortKey(a) - possibleTrumpSortKey(b))
-        .map(([k, n]) => {
-          const display = possibleTrumpLabel(k);
-          return n > 1 ? Array(n).fill(display).join(' ') : display;
-        });
-      console.log(`  ${label}可能常主 (${arr.length}张): ${parts.join(' ')}`);
     }
   }
 
