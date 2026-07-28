@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-07-28 23:48
+
+### 修复第四家出牌理由「同花色出大」却标注「盖不过」的矛盾
+
+**问题**：第四家跟主牌对子时，`shouldAvoid` 无条件为真（`position === 'fourth' && !tmWin`），即使玩家的对子能盖过当前赢家。导致出牌理由是「同花色出大（盖不过，不加分）」——逻辑矛盾。同样问题存在于副牌对子跟牌。
+
+**修复**：将 `shouldAvoid` 计算移到 `beating` 确定之后，第四家条件增加 `&& !beating`——能盖过就不应是 avoid 模式。
+
+**新增 3 项测试**（ai-follow.test.ts：3 项），总数 486 项通过。
+
+- **影响文件**：`packages/engine/src/ai/follow-trump.ts`、`packages/engine/src/ai/follow-offsuit.ts`、`packages/engine/src/__tests__/ai-follow.test.ts`
+
 ## 2026-07-26 19:25
 
 ### NT 记牌器：修复 totalUnseen 扣减逻辑，definitive 副本不再错误扣减 unseen 池

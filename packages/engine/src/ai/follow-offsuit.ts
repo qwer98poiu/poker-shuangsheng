@@ -208,15 +208,16 @@ function followOffSuitMulti(
       }
     }
     const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
-    const shouldAvoid = !addPoints
-      && ((position === 'fourth' && !tmWin)
-        || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx)));
     if (chosen.length < leadLen) {
       const used = new Set(chosen.map(c => c.id));
       const rest = leadSuitCards.filter(c => !used.has(c.id));
+      // defer shouldAvoid until after beating is known
+      const preShouldAvoid = !addPoints
+        && ((position === 'fourth' && !tmWin)
+          || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx)));
       if (addPoints) {
         rest.sort(discardSort(true, ctx, rest, ctx));
-      } else if (shouldAvoid) {
+      } else if (preShouldAvoid) {
         rest.sort(discardSort(false, ctx));
       } else {
         rest.sort((a, b) => a.rank - b.rank);
@@ -227,6 +228,10 @@ function followOffSuitMulti(
     const beating = canBeat(cards, ctx.bestSoFar, ctx);
     const isThrow4 = leadCombo.type === 'throw';
     const baseReason = isThrow4 ? '垫同花色' : (beating ? '同花色出大' : '同花色出小');
+    // 4th position should only avoid if we CANNOT beat (otherwise we're winning)
+    const shouldAvoid = !addPoints
+      && ((position === 'fourth' && !tmWin && !beating)
+        || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx)));
     const intent = addPoints ? 'add' : shouldAvoid ? 'avoid' : 'none';
     const reason = annotateReason(baseReason, cards, leadSuitCards, [],
       leadCombo, leadLen, ctx, position, tmWin, false, intent);

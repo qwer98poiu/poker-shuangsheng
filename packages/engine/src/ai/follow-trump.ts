@@ -253,9 +253,6 @@ export function matchTrumpPattern(
         chosen = pointBeating.slice(0, leadCombo.pairCount).flat();
       }
     }
-    const shouldAvoid = ((position === 'fourth' && !tmWin)
-      || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx))
-      || (position === 'third' && !tmWin)) && !attackerNearThreshold(ctx);
     const addPt = tmWin && canAddPoints(tmWin, position, leadCombo, ctx);
     if (chosen.length < leadLen) {
       const used = new Set(chosen.map(c => c.id));
@@ -265,13 +262,17 @@ export function matchTrumpPattern(
     }
     const cards = chosen.slice(0, leadLen);
     const formsPair = findAllPairs(cards).length >= leadCombo.pairCount;
+    const beating = canBeat(cards, ctx.bestSoFar, ctx);
+    // 4th position should only avoid if we CANNOT beat (otherwise we're winning)
+    const shouldAvoid = ((position === 'fourth' && !tmWin && !beating)
+      || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx))
+      || (position === 'third' && !tmWin)) && !attackerNearThreshold(ctx);
     let baseReason: string;
     if (leadCombo.type === 'throw') {
       baseReason = '垫同花色';
     } else if (!formsPair && leadCombo.pairCount > 0) {
       baseReason = '垫同花色';
     } else {
-      const beating = canBeat(cards, ctx.bestSoFar, ctx);
       baseReason = beating ? '同花色出大' : '同花色出小';
     }
     const intent = addPt ? 'add' : (shouldAvoid ? 'avoid' : 'none');

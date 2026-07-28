@@ -1545,6 +1545,80 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
     });
   });
 
+  describe('fourth position pair follow: correct reason when beating', () => {
+    // When 4th position CAN beat with a pair, reason should say 同花色出大
+    // NOT 盖不过 (which contradicts beating). Regression test for bug where
+    // shouldAvoid was set unconditionally for 4th+!tmWin regardless of beating.
+    const cfgS2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
+    function c2(s: string, r: number, i: number): Card {
+      return createCard(s as any, r as any, i);
+    }
+
+    it('fourth beats with trump pair: "同花色出大" (no 盖不过)', () => {
+      // P0 leads ♠J♠J pair. P2 plays ♠Q♠Q (currently winning).
+      // AI=P3 (fourth, opponent is P2) has ♠A♠A (beats ♠Q♠Q) and
+      // ♠10♠10 (cannot beat ♠Q♠Q, 10 < Q). Should pick ♠A♠A.
+      // Reason should say 同花色出大, not 盖不过.
+      const lead: Card[] = [c2('S', 11, 200), c2('S', 11, 201)]; // ♠J♠J
+      const best = { cards: [c2('S', 12, 0), c2('S', 12, 1)], playerIdx: 2 }; // P2's ♠Q♠Q
+      const hand = [
+        c2('S', 14, 0), c2('S', 14, 1),  // ♠A♠A — beats Q pair
+        c2('S', 10, 0), c2('S', 10, 1),  // ♠10♠10 — cannot beat Q pair
+        c2('S', 3, 0),                     // ♠3 filler
+        c2('H', 8, 0),                     // extra
+      ];
+      const r = aiFollowPlay(hand, lead, Suit.Spades, cfgS2, best, 3);
+      checkFollow(r.cards, hand, lead, 'S', cfgS2);
+      expect(r.cards.length).toBe(2);
+      expect(r.cards.every(c => c.rank === 14 && c.suit === 'S')).toBe(true);
+      expect(r.reason).toContain('同花色出大');
+      expect(r.reason).not.toContain('盖不过');
+    });
+
+    it('fourth cannot beat with trump pair: "同花色出小（盖不过，不加分）"', () => {
+      // P0 leads ♠K♠K pair. P2 plays ♠A♠A (currently winning).
+      // AI=P3 has ♠Q♠Q and ♠10♠10 — both CANNOT beat ♠A♠A.
+      // Reason should say 盖不过 — this is correct avoidance.
+      const lead: Card[] = [c2('S', 13, 200), c2('S', 13, 201)]; // ♠K♠K
+      const best = { cards: [c2('S', 14, 0), c2('S', 14, 1)], playerIdx: 2 }; // P2's ♠A♠A
+      const hand = [
+        c2('S', 12, 0), c2('S', 12, 1),  // ♠Q♠Q — cannot beat A pair
+        c2('S', 10, 0), c2('S', 10, 1),  // ♠10♠10 — also cannot beat
+        c2('S', 3, 0),                     // ♠3 filler
+        c2('H', 8, 0),                     // extra
+      ];
+      const r = aiFollowPlay(hand, lead, Suit.Spades, cfgS2, best, 3);
+      checkFollow(r.cards, hand, lead, 'S', cfgS2);
+      expect(r.cards.length).toBe(2);
+      // pairKillSort puts non-point ♠Q before point ♠10 → picks ♠Q♠Q
+      expect(r.cards.every(c => c.rank === 12 && c.suit === 'S')).toBe(true);
+      expect(r.reason).toContain('同花色出小');
+      expect(r.reason).toContain('盖不过');
+      expect(r.reason).toContain('不加分');
+    });
+
+    it('off-suit fourth beats with pair: "同花色出大" (no 盖不过)', () => {
+      // Off-suit pair follow: same bug existed in follow-offsuit.ts.
+      // P0 leads ♣8♣8. P2 plays ♣9♣9 (currently winning).
+      // AI=P3 has ♣10♣10 and ♣Q♣Q — both beat ♣9♣9.
+      // Fourth prefers point cards → picks ♣10♣10.
+      const lead: Card[] = [c2('C', 8, 200), c2('C', 8, 201)]; // ♣8♣8
+      const best = { cards: [c2('C', 9, 0), c2('C', 9, 1)], playerIdx: 2 }; // P2's ♣9♣9
+      const hand = [
+        c2('C', 10, 0), c2('C', 10, 1),  // ♣10♣10 — beats 9 pair (point, preferred)
+        c2('C', 12, 0), c2('C', 12, 1),  // ♣Q♣Q — beats 9 pair (non-point)
+        c2('C', 3, 0),                     // ♣3 filler
+        c2('S', 8, 0),                     // extra
+      ];
+      const r = aiFollowPlay(hand, lead, Suit.Clubs, cfgS2, best, 3);
+      checkFollow(r.cards, hand, lead, 'C', cfgS2);
+      expect(r.cards.length).toBe(2);
+      expect(r.cards.every(c => c.rank === 10 && c.suit === 'C')).toBe(true);
+      expect(r.reason).toContain('同花色出大');
+      expect(r.reason).not.toContain('盖不过');
+    });
+  });
+
   describe('fourth position off-suit single: prefers point card when beating', () => {
     const cfgD: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Diamonds, level: 2 };
     function ct(s: string, r: number, i: number): Card {
