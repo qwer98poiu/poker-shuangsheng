@@ -1476,6 +1476,60 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
       expect(r.cards.length).toBe(2);
       expect(r.reason).toBe('用主牌毙（用分牌盖）');
     });
+
+    // ---- Fourth position, teammate wins: 垫主牌 (don't waste trump) ----
+
+    it('fourth tmWin, has point but cannot beat → 垫主牌', () => {
+      // P1 (teammate) killed with ♠Q(612). P3 has ♠5(point,605<612) → can't beat.
+      // Point card can't overkill → discard ♠5, don't waste ♠2.
+      const lead: Card[] = [crd('H', 11, 200)];
+      const best = { cards: [crd('S', 12, 0)], playerIdx: 1 }; // P1 killed with ♠Q
+      const hand = [crd('S', 5, 0), crd('S', 7, 0), crd('S', 9, 0), crd('S', 2, 50)];
+      const r = aiFollowPlay(hand, lead, Suit.Hearts, cfgS, best, 3);
+      checkFollow(r.cards, hand, lead, 'H', cfgS);
+      expect(r.cards.length).toBe(1);
+      expect(r.cards[0].rank).toBe(5); // ♠5 discarded (smallest, point can't beat)
+      expect(r.reason).toContain('垫主牌');
+      expect(r.reason).toContain('加分');
+    });
+
+    it('fourth tmWin, has points → kills even if bigger trump needed', () => {
+      // P1 (teammate) killed with ♠Q(612). P3 has ♠K(point,613) — kill to add points.
+      // ♠9(609) can't beat ♠Q → must use ♠K. Adding points takes priority.
+      const lead: Card[] = [crd('H', 11, 200)];
+      const best = { cards: [crd('S', 12, 0)], playerIdx: 1 }; // P1 killed with ♠Q
+      const hand = [crd('S', 4, 0), crd('S', 9, 0), crd('S', 13, 0), crd('S', 2, 50)];
+      const r = aiFollowPlay(hand, lead, Suit.Hearts, cfgS, best, 3);
+      checkFollow(r.cards, hand, lead, 'H', cfgS);
+      expect(r.cards.length).toBe(1);
+      expect(r.cards[0].rank).toBe(13); // ♠K used to overkill and add points
+      expect(r.reason).toBe('盖毙（用分牌盖）');
+    });
+
+    it('fourth tmWin, no points, smallest can overkill → 盖毙', () => {
+      // P1 killed with ♠3(603). P3 all non-point, smallest ♠4(604)>603 → free overkill.
+      const lead: Card[] = [crd('H', 11, 200)];
+      const best = { cards: [crd('S', 3, 0)], playerIdx: 1 };
+      const hand = [crd('S', 4, 0), crd('S', 7, 0), crd('S', 9, 0), crd('S', 2, 50)];
+      const r = aiFollowPlay(hand, lead, Suit.Hearts, cfgS, best, 3);
+      checkFollow(r.cards, hand, lead, 'H', cfgS);
+      expect(r.cards.length).toBe(1);
+      expect(r.cards[0].rank).toBe(4); // smallest beating trump
+      expect(r.reason).toBe('盖毙（用最小牌盖）');
+    });
+
+    it('fourth tmWin, no points, smallest cannot overkill → 垫主牌', () => {
+      // P1 killed with ♠9(609). P3 all non-point, smallest ♠3(603)<609.
+      // No points + smallest can't overkill → discard, don't waste trump.
+      const lead: Card[] = [crd('H', 11, 200)];
+      const best = { cards: [crd('S', 9, 0)], playerIdx: 1 };
+      const hand = [crd('S', 3, 0), crd('S', 4, 0), crd('S', 7, 0), crd('S', 2, 50)];
+      const r = aiFollowPlay(hand, lead, Suit.Hearts, cfgS, best, 3);
+      checkFollow(r.cards, hand, lead, 'H', cfgS);
+      expect(r.cards.length).toBe(1);
+      expect(r.cards[0].rank).toBe(3); // smallest trump discarded
+      expect(r.reason).toBe('垫主牌');
+    });
   });
 
   describe('trump follow single beating rules (hearts trump, level=5)', () => {

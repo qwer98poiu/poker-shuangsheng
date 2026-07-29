@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-07-29 21:48
+
+### 第四家队友大时不毙牌，全主时垫主牌；盖毙统一用 beat_points 标注
+
+**问题**：第四家缺门时，即使队友已大（`tmWin=true`），仍走 `trumpKill` 毙牌，浪费主牌。
+
+**修复**：
+- `index.ts` 缺门路径：第四家 + 队友大时，仅当分牌能盖过（加分优先）或最小主牌能盖过（免费超毙）才毙牌，否则 `垫主牌`。垫主牌时若手牌有分，标注 `（队友已大，加分）`
+- `killReason`：盖毙统一用 `beat_points` 意图（`用分牌盖`/`用最小牌盖`），`用主牌毙` 才按 tmWin 区分
+
+**新增 4 项测试**（ai-follow.test.ts：4 项），总数 499 项通过。
+
+- **影响文件**：`packages/engine/src/ai/index.ts`、`packages/engine/src/ai/follow-trump.ts`、`packages/engine/src/__tests__/ai-follow.test.ts`
+
 ## 2026-07-29 21:22
 
 ### 毙牌路径接入 annotateReason，毙牌含分标注「用分牌盖」，无分标注「用最小牌盖」

@@ -329,7 +329,8 @@ function trumpKillSingle(
   const overkill = isOverkill(ctx);
 
   function killReason(cards: Card[], base: string): string {
-    const intent = tmWin ? 'add' : 'beat_points';
+    // 盖毙 always uses beat_points; 用主牌毙 uses tmWin to decide.
+    const intent = base === '盖毙' ? 'beat_points' : (tmWin ? 'add' : 'beat_points');
     return annotateReason(base, cards, [], trumpCards,
       leadCombo, 1, ctx, position, tmWin, true, intent);
   }

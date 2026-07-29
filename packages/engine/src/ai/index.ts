@@ -212,6 +212,32 @@ function _aiFollowPlay(
         return { cards, reason };
       }
     }
+    // 4th position + teammate wins: don't waste trump killing unnecessarily.
+    // Kill only if a point card can overkill (加分优先) or smallest can overkill.
+    if (tmWin && position === 'fourth') {
+      const overkill = !!(ctx.bestSoFar && ctx.bestSoFar.cards.length > 0
+        && ctx.bestSoFar.cards.some(c => isTrump(c, ctx)));
+      if (overkill) {
+        const bestRank = Math.max(...ctx.bestSoFar!.cards.map(c => getEffectiveRank(c, ctx)));
+        // Kill if any point card can beat — adding points outweighs saving trump.
+        if (trumpCards.some(c => isPointRank(c.rank) && getEffectiveRank(c, ctx) > bestRank)) {
+          return trumpKill(trumpCards, hand, leadCards, leadCombo, leadLen, ctx, position, tmWin);
+        }
+        // No point card can beat — only overkill if the absolute smallest can beat.
+        const sorted = [...trumpCards].sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+        if (getEffectiveRank(sorted[0], ctx) > bestRank) {
+          return trumpKill(trumpCards, hand, leadCards, leadCombo, leadLen, ctx, position, tmWin);
+        }
+      }
+      // Discard smallest trump. Use 'add' intent if hand has points (teammate wins
+      // but we can't overkill — tried to add, discarded a point card).
+      const sorted = [...trumpCards].sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+      const cards = sorted.slice(0, leadLen);
+      const intent = trumpCards.some(c => isPointRank(c.rank)) ? 'add' : 'none';
+      const reason = annotateReason('垫主牌', cards, [], trumpCards,
+        leadCombo, leadLen, ctx, position, tmWin, false, intent);
+      return { cards, reason };
+    }
     return trumpKill(trumpCards, hand, leadCards, leadCombo, leadLen, ctx, position, tmWin);
   }
 
