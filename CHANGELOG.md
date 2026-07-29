@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-07-29 21:22
+
+### 毙牌路径接入 annotateReason，毙牌含分标注「用分牌盖」，无分标注「用最小牌盖」
+
+**问题**：毙牌（`trumpKill`/`trumpKillSingle`）所有返回路径直接使用裸字符串（`'用主牌毙'`、`'盖毙'`），不经过 `annotateReason`。毙牌缺乏牌张选择策略的标注。此外，`followTrumpLead` 第二家留牌、无主垫牌等 3 处路径同样绕过 `annotateReason`。
+
+**修复**：
+- `trumpKillSingle`：新增 `leadCombo` 参数，毙牌/盖毙经 `killReason` 走 `annotateReason`——`tmWin` 时 `intent='add'`（队友已大），否则 `intent='beat_points'`（自己盖过）
+- `trumpKill`：多牌毙牌同样经 `killReason` 走 `annotateReason`
+- `followTrumpLead` 第二家留牌、无主垫牌 → `annotateReason(intent='none')`
+- `followNTTrumpLead` 无主垫牌 → `annotateReason(intent='none')`
+
+**新增 9 项测试**（ai-follow.test.ts：9 项），**更新 16 项已有测试期望**。总数 495 项通过。
+
+- **影响文件**：`packages/engine/src/ai/follow-trump.ts`、`packages/engine/src/__tests__/ai-follow.test.ts`
+
 ## 2026-07-28 23:48
 
 ### 修复第四家出牌理由「同花色出大」却标注「盖不过」的矛盾

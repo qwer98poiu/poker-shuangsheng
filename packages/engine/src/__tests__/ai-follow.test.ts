@@ -603,7 +603,7 @@ describe('trump kill validity (hearts trump, level=5)', () => {
       checkFollow(r.cards, hand, lead, 'S', cfg);
       expect(r.cards.length).toBe(1);
       expect(r.cards[0].id).toBe(c2('H', 3, 0).id);
-      expect(r.reason).toBe('用主牌毙');
+      expect(r.reason).toBe('用主牌毙（用最小牌盖）');
     });
 
     it('kills single K - no overkill, "用主牌毙"', () => {
@@ -613,7 +613,7 @@ describe('trump kill validity (hearts trump, level=5)', () => {
       const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 1);
       checkFollow(r.cards, hand, lead, 'S', cfg);
       expect(r.cards.length).toBe(1);
-      expect(r.reason).toBe('用主牌毙');
+      expect(r.reason).toBe('用主牌毙（用最小牌盖）');
     });
   });
 
@@ -706,7 +706,7 @@ describe('trump kill validity (hearts trump, level=5)', () => {
       const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 1);
       checkFollow(r.cards, hand, lead, 'S', cfg);
       expect(r.cards.length).toBe(2);
-      expect(r.reason).toBe('用主牌毙');
+      expect(r.reason).toBe('用主牌毙（用最小牌盖）');
     });
   });
 
@@ -735,8 +735,9 @@ describe('trump kill validity (hearts trump, level=5)', () => {
   });
 
   describe('tractor lead, void, can beat', () => {
-    it('kills off-suit tractor with trump tractor - "用主牌毙"', () => {
+    it('kills off-suit tractor with trump tractor - "用主牌毙（用分牌盖）"', () => {
       // S-QQ+JJ (Q=12,J=11 consecutive). H-AA+KK (A=14,K=13 consecutive).
+      // K is a point rank → annotated 加分.
       const lead: Card[] = [
         c2('S', 12, 200), c2('S', 12, 201), c2('S', 11, 200), c2('S', 11, 201),
       ];
@@ -748,7 +749,7 @@ describe('trump kill validity (hearts trump, level=5)', () => {
       const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 1);
       checkFollow(r.cards, hand, lead, 'S', cfg);
       expect(r.cards.length).toBe(4);
-      expect(r.reason).toBe('用主牌毙');
+      expect(r.reason).toBe('用主牌毙（用分牌盖）');
     });
   });
 
@@ -784,7 +785,7 @@ describe('trump kill validity (hearts trump, level=5)', () => {
       const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 1);
       checkFollow(r.cards, hand, lead, 'S', cfg);
       expect(r.cards.length).toBe(3);
-      expect(r.reason).toBe('用主牌毙');
+      expect(r.reason).toBe('用主牌毙（用最小牌盖）');
     });
 
     it('kills throw without points - "用主牌毙"', () => {
@@ -797,7 +798,7 @@ describe('trump kill validity (hearts trump, level=5)', () => {
       const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 1);
       checkFollow(r.cards, hand, lead, 'S', cfg);
       expect(r.cards.length).toBe(3);
-      expect(r.reason).toBe('用主牌毙');
+      expect(r.reason).toBe('用主牌毙（用最小牌盖）');
     });
   });
 
@@ -830,7 +831,7 @@ describe('trump kill validity (hearts trump, level=5)', () => {
       const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 2);
       checkFollow(r.cards, hand, lead, 'S', cfg);
       expect(r.cards.length).toBe(1);
-      expect(r.reason).toBe('盖毙');
+      expect(r.reason).toBe('盖毙（用最小牌盖）');
     });
 
     it('overkills pair with bigger trump pair - "盖毙"', () => {
@@ -842,12 +843,13 @@ describe('trump kill validity (hearts trump, level=5)', () => {
       const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 2);
       checkFollow(r.cards, hand, lead, 'S', cfg);
       expect(r.cards.length).toBe(2);
-      expect(r.reason).toBe('盖毙');
+      expect(r.reason).toBe('盖毙（用最小牌盖）');
     });
 
-    it('overkills tractor with bigger trump tractor - "盖毙"', () => {
+    it('overkills tractor with bigger trump tractor - "盖毙（用分牌盖）"', () => {
       // S-QQ+JJ tractor. P1 killed with H-10-10+9-9 (tractor, effRank 610/609).
       // AI=P2 has H-AA+KK (effRank 614/613) → overkill.
+      // K is a point rank → annotated 加分.
       const lead: Card[] = [
         c2('S', 12, 200), c2('S', 12, 201), c2('S', 11, 200), c2('S', 11, 201),
       ];
@@ -862,7 +864,7 @@ describe('trump kill validity (hearts trump, level=5)', () => {
       const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 2);
       checkFollow(r.cards, hand, lead, 'S', cfg);
       expect(r.cards.length).toBe(4);
-      expect(r.reason).toBe('盖毙');
+      expect(r.reason).toBe('盖毙（用分牌盖）');
     });
 
     it('overkills throw with bigger trump - "盖毙"', () => {
@@ -1271,7 +1273,7 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
       const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 1);
       checkFollow(r.cards, hand, lead, 'S', cfg);
       expect(r.cards[0].id).toBe(cc('H', 3, 0).id);
-      expect(r.reason).toBe('用主牌毙');
+      expect(r.reason).toBe('用主牌毙（用最小牌盖）');
     });
 
     it('kills S-9-9 pair with smallest trump pair H-3-3', () => {
@@ -1281,7 +1283,7 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
       const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 1);
       checkFollow(r.cards, hand, lead, 'S', cfg);
       expect(r.cards.some(c => c.rank === 3)).toBe(true);
-      expect(r.reason).toBe('用主牌毙');
+      expect(r.reason).toBe('用主牌毙（用最小牌盖）');
     });
   });
 
@@ -1293,17 +1295,17 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
       const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 1);
       checkFollow(r.cards, hand, lead, 'S', cfg);
       expect(r.cards[0].id).toBe(cc('H', 14, 0).id); // >= A
-      expect(r.reason).toBe('用主牌毙');
+      expect(r.reason).toBe('用主牌毙（用最小牌盖）');
     });
 
     it('kills S-K(10pts) with biggest when no >=A trump available', () => {
       const lead: Card[] = [cc('S', 13, 200)];
       const best = { cards: lead, playerIdx: 0 };
-      const hand = [cc('H', 10, 0), cc('H', 3, 0), cc('C', 8, 0)]; // H-10 is biggest
+      const hand = [cc('H', 10, 0), cc('H', 3, 0), cc('C', 8, 0)]; // H-10 is biggest (point)
       const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 1);
       checkFollow(r.cards, hand, lead, 'S', cfg);
       expect(r.cards[0].id).toBe(cc('H', 10, 0).id); // biggest
-      expect(r.reason).toBe('用主牌毙');
+      expect(r.reason).toBe('用主牌毙（用分牌盖）');
     });
 
     it('kills pairs with points using biggest trump pair', () => {
@@ -1316,14 +1318,15 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
       // should use H-AA (biggest), not H-3-3
       expect(r.cards.some(c => c.rank === 14)).toBe(true);
       expect(r.cards.some(c => c.rank === 3)).toBe(false);
-      expect(r.reason).toBe('用主牌毙');
+      expect(r.reason).toBe('用主牌毙（用最小牌盖）');
     });
   });
 
   describe('overkill → always smallest beating', () => {
     it('overkills existing trump with smallest beating (ignoring points)', () => {
-      // P0 leads S-K(10pts). P1 killed with H-Q. AI=P2 has H-A, H-10.
+      // P0 leads S-K(10pts). P1 killed with H-Q. AI=P2 has H-A, H-10, H-K.
       // Points exist, but overkill → smallest beating, not >=A.
+      // Smallest beating H-K(13) IS a point card → annotated 加分.
       const lead: Card[] = [cc('S', 13, 200)];
       const best = { cards: [cc('H', 12, 0)], playerIdx: 1 };
       const hand = [cc('H', 14, 0), cc('H', 13, 0), cc('H', 10, 0), cc('C', 8, 0)];
@@ -1332,7 +1335,146 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
       // H-10 beats H-Q? H-10 effRank=610, H-Q effRank=612 → 610<612, can't beat.
       // H-13 beats H-Q? 613>612 → yes, smallest beating is H-13.
       expect(r.cards[0].id).toBe(cc('H', 13, 0).id);
-      expect(r.reason).toBe('盖毙');
+      expect(r.reason).toBe('盖毙（用分牌盖）');
+    });
+  });
+
+  describe('trump kill reason annotations (用分牌盖 / 用最小牌盖)', () => {
+    const cfgS: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
+    function crd(s: string, r: number, i: number): Card {
+      return createCard(s as any, r as any, i);
+    }
+    // All tests use ♥J♥9 throw lead (2 cards, off-suit), matching user scenario.
+    // effRank: ♠3=603, ♠4=604, ♠5=605, ♠7=607, ♠9=609, ♠K=613, ♠A=614, ♣2=700
+
+    // ---- Kill (用主牌毙) ----
+
+    it('kill, filler prefers point card over smaller non-point', () => {
+      // Hand has ♠K(point) + ♠3 + ♠4. killKeyIdx=♠3, filler prefers ♠K(point) over ♠4.
+      const lead: Card[] = [crd('H', 11, 200), crd('H', 9, 201)];
+      const best = { cards: lead, playerIdx: 0 };
+      const hand = [crd('S', 13, 0), crd('S', 3, 0), crd('S', 4, 0), crd('C', 8, 0)];
+      const r = aiFollowPlay(hand, lead, Suit.Hearts, cfgS, best, 1);
+      checkFollow(r.cards, hand, lead, 'H', cfgS);
+      expect(r.cards.length).toBe(2);
+      expect(r.cards.map(c => c.rank).sort((a, b) => a - b)).toEqual([3, 13]);
+      expect(r.reason).toBe('用主牌毙（用分牌盖）');
+    });
+
+    it('kill, all trumps non-point: picks smallest two', () => {
+      // Hand has ♠9,♠7,♠4 all non-point → kill uses ♠4+♠7.
+      const lead: Card[] = [crd('H', 11, 200), crd('H', 9, 201)];
+      const best = { cards: lead, playerIdx: 0 };
+      const hand = [crd('S', 9, 0), crd('S', 7, 0), crd('S', 4, 0), crd('C', 8, 0)];
+      const r = aiFollowPlay(hand, lead, Suit.Hearts, cfgS, best, 1);
+      checkFollow(r.cards, hand, lead, 'H', cfgS);
+      expect(r.cards.length).toBe(2);
+      expect(r.cards.map(c => c.rank).sort((a, b) => a - b)).toEqual([4, 7]);
+      expect(r.reason).toBe('用主牌毙（用最小牌盖）');
+    });
+
+    // ---- Overkill (盖毙) with points → 用分牌盖 ----
+
+    it('overkill with point card: ♠K beats ♠Q, filler ♠3', () => {
+      // P1 kills with ♠Q♠8. AI=P2 overkills: ♠K(613)>♠Q(612), filler ♠3.
+      const lead: Card[] = [crd('H', 11, 200), crd('H', 9, 201)];
+      const best = { cards: [crd('S', 12, 0), crd('S', 8, 0)], playerIdx: 1 };
+      const hand = [crd('S', 13, 0), crd('S', 3, 0), crd('S', 4, 0), crd('C', 8, 0)];
+      const r = aiFollowPlay(hand, lead, Suit.Hearts, cfgS, best, 2);
+      checkFollow(r.cards, hand, lead, 'H', cfgS);
+      expect(r.cards.length).toBe(2);
+      expect(r.cards.map(c => c.rank).sort((a, b) => a - b)).toEqual([3, 13]);
+      expect(r.reason).toBe('盖毙（用分牌盖）');
+    });
+
+    it('overkill, only two trumps, filler is point card', () => {
+      // P1 kills with ♠8♠3. AI=P2 has only ♠9+♠5 → kill [♠9,♠5], ♠5 is point.
+      const lead: Card[] = [crd('H', 11, 200), crd('H', 9, 201)];
+      const best = { cards: [crd('S', 8, 0), crd('S', 3, 0)], playerIdx: 1 };
+      const hand = [crd('S', 9, 0), crd('S', 5, 0), crd('C', 8, 0), crd('D', 7, 0)];
+      const r = aiFollowPlay(hand, lead, Suit.Hearts, cfgS, best, 2);
+      checkFollow(r.cards, hand, lead, 'H', cfgS);
+      expect(r.cards.length).toBe(2);
+      expect(r.cards.map(c => c.rank).sort((a, b) => a - b)).toEqual([5, 9]);
+      expect(r.reason).toBe('盖毙（用分牌盖）');
+    });
+
+    // ---- Overkill (盖毙) without points → 用最小牌盖 (two cases) ----
+
+    it('overkill, all trumps non-point: 用最小牌盖', () => {
+      // P1 kills with ♠6♠5. AI=P2 has ♠9,♠4,♠3 all non-point → ♠9 overkills.
+      const lead: Card[] = [crd('H', 11, 200), crd('H', 9, 201)];
+      const best = { cards: [crd('S', 6, 0), crd('S', 5, 0)], playerIdx: 1 };
+      const hand = [crd('S', 9, 0), crd('S', 4, 0), crd('S', 3, 0), crd('C', 8, 0)];
+      const r = aiFollowPlay(hand, lead, Suit.Hearts, cfgS, best, 2);
+      checkFollow(r.cards, hand, lead, 'H', cfgS);
+      expect(r.cards.length).toBe(2);
+      expect(r.cards.map(c => c.rank).sort((a, b) => a - b)).toEqual([3, 9]);
+      expect(r.reason).toBe('盖毙（用最小牌盖）');
+    });
+
+    it('overkill, point can\'t beat but still used as filler', () => {
+      // P1 kills with ♠7♠6. AI=P2 has ♠5(point,605<607), ♠9(609>607), ♠4(604).
+      // ♠5 can't overkill → ♠9 overkills. Filler prefers point → picks ♠5.
+      const lead: Card[] = [crd('H', 11, 200), crd('H', 9, 201)];
+      const best = { cards: [crd('S', 7, 0), crd('S', 6, 0)], playerIdx: 1 };
+      const hand = [crd('S', 5, 0), crd('S', 9, 0), crd('S', 4, 0), crd('C', 8, 0)];
+      const r = aiFollowPlay(hand, lead, Suit.Hearts, cfgS, best, 2);
+      checkFollow(r.cards, hand, lead, 'H', cfgS);
+      expect(r.cards.length).toBe(2);
+      expect(r.cards.map(c => c.rank).sort((a, b) => a - b)).toEqual([5, 9]);
+      expect(r.reason).toBe('盖毙（用分牌盖）');
+    });
+
+    // ---- Fourth position overkill: ♠K + ♣2, depends on opponent ----
+
+    it('fourth overkill: opponent kills with ♠A → ♣2 overkills, no points', () => {
+      // P0 leads ♥J single. P2 kills with ♠A(614).
+      // P3 has ♣2(700),♠K(613),♠7(607). ♠K<♠A → ♣2 overkills.
+      const lead: Card[] = [crd('H', 11, 200)];
+      const best = { cards: [crd('S', 14, 0)], playerIdx: 2 };
+      const hand = [crd('C', 2, 30), crd('S', 13, 0), crd('S', 7, 0), crd('D', 8, 0)];
+      const r = aiFollowPlay(hand, lead, Suit.Hearts, cfgS, best, 3);
+      checkFollow(r.cards, hand, lead, 'H', cfgS);
+      expect(r.cards.length).toBe(1);
+      expect(r.cards[0].suit).toBe('C');
+      expect(r.cards[0].rank).toBe(2);
+      expect(r.reason).toBe('盖毙（用最小牌盖）');
+    });
+
+    it('fourth overkill: opponent kills with ♠Q → ♠K overkills, adds points', () => {
+      // P0 leads ♥J single. P2 kills with ♠Q(612).
+      // P3 has ♣2,♠K,♠7. ♠K(613)>♠Q(612) → overkills with point.
+      const lead: Card[] = [crd('H', 11, 200)];
+      const best = { cards: [crd('S', 12, 0)], playerIdx: 2 };
+      const hand = [crd('C', 2, 30), crd('S', 13, 0), crd('S', 7, 0), crd('D', 8, 0)];
+      const r = aiFollowPlay(hand, lead, Suit.Hearts, cfgS, best, 3);
+      checkFollow(r.cards, hand, lead, 'H', cfgS);
+      expect(r.cards.length).toBe(1);
+      expect(r.cards[0].suit).toBe('S');
+      expect(r.cards[0].rank).toBe(13);
+      expect(r.reason).toBe('盖毙（用分牌盖）');
+    });
+
+    // ---- Fourth position kill: user scenario ----
+
+    it('fourth position kill: ♥J♥9 throw, ♠K point in kill', () => {
+      // Exact user scenario: P0 leads ♥J♥9.
+      // AI=P3 (fourth, opponent winning) has BJ, ♠2, ♣2, ♠K, ♠7.
+      // Kills with ♠7+♠K → ♠K is point → 用分牌盖.
+      const lead: Card[] = [crd('H', 11, 200), crd('H', 9, 201)];
+      const best = { cards: lead, playerIdx: 0 };
+      const hand = [
+        crd('J', 16, 53),  // BJ
+        crd('S', 2, 50),   // ♠2
+        crd('C', 2, 30),   // ♣2
+        crd('S', 13, 0),   // ♠K (10pts)
+        crd('S', 7, 0),    // ♠7
+      ];
+      const r = aiFollowPlay(hand, lead, Suit.Hearts, cfgS, best, 3);
+      checkFollow(r.cards, hand, lead, 'H', cfgS);
+      expect(r.cards.length).toBe(2);
+      expect(r.reason).toBe('用主牌毙（用分牌盖）');
     });
   });
 
