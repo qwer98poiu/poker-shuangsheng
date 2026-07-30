@@ -117,6 +117,121 @@ export function aiFollowPlay(
   return { cards: result.cards, reason: maybeAppendFinal(result.cards, hand, result.reason, ctx) };
 }
 
+/** Sort trump cards for discarding: below-A singles first (don't break pairs),
+ *  then A+ singles, then pair cards sorted ascending. */
+function sortTrumpsForDiscard(trumpCards: Card[], ctx: AIContext): Card[] {
+  const pairs = findAllPairs(trumpCards);
+  const pairIds = new Set(pairs.flat().map(c => c.id));
+  const aceRank = getEffectiveRank(
+    { suit: ctx.trumpSuit ?? Suit.Spades, rank: Rank.Ace, isJoker: false, id: '' } as Card, ctx);
+
+  const belowA: Card[] = [];
+  const aboveA: Card[] = [];
+  const inPairs: Card[] = [];
+
+  for (const c of trumpCards) {
+    if (pairIds.has(c.id)) {
+      inPairs.push(c);
+    } else if (getEffectiveRank(c, ctx) < aceRank) {
+      belowA.push(c);
+    } else {
+      aboveA.push(c);
+    }
+  }
+
+  belowA.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+  aboveA.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+  inPairs.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+
+  // Below-A singles first (safest), then A+ singles, then pair cards
+  return [...belowA, ...aboveA, ...inPairs];
+}
+
+/** Build sorted card list for 4th position + teammate win.
+ *  Priority: 副10 > 副K > 副5 > 主10 > 主K > 主5 > 副非分(小→大) > 主非分(垫主牌规则)
+ *  Attacker exception: 主10/K jumps ahead of 副5 if it crosses 40-pt threshold. */
+function selectCardsForTeammateWin(
+  hand: Card[], leadLen: number, ctx: AIContext,
+): Card[] {
+  const nonTrump = hand.filter(c => !isTrump(c, ctx));
+  const trumpCards = hand.filter(c => isTrump(c, ctx));
+
+  const pointOrder: Record<number, number> = { [Rank.Ten]: 0, [Rank.King]: 1, [Rank.Five]: 2 };
+
+  // Non-trump points: 10 > K > 5
+  const nonTrumpPts = nonTrump.filter(c => isPointRank(c.rank))
+    .sort((a, b) => (pointOrder[a.rank] ?? 99) - (pointOrder[b.rank] ?? 99));
+  // Non-trump non-points: smallest rank first
+  const nonTrumpRest = nonTrump.filter(c => !isPointRank(c.rank))
+    .sort((a, b) => a.rank - b.rank);
+
+  // Trump points: 10 > K > 5
+  const trumpPts = trumpCards.filter(c => isPointRank(c.rank))
+    .sort((a, b) => (pointOrder[a.rank] ?? 99) - (pointOrder[b.rank] ?? 99));
+  // Non-point trumps: discard-priority sort
+  const nonPointTrumps = trumpCards.filter(c => !isPointRank(c.rank));
+  const trumpRest = sortTrumpsForDiscard(nonPointTrumps, ctx);
+
+  const combined = [...nonTrumpPts, ...trumpPts, ...nonTrumpRest, ...trumpRest];
+
+  // Cross-threshold adjustment (attacker only):
+  // If 主牌10/K is behind 副牌5, check if using the trump point crosses a 40-pt tier.
+  if (ctx.isAttacker && nonTrumpPts.length > 0 && trumpPts.length > 0) {
+    const visiblePts = ctx.bestSoFar?.cards?.reduce(
+      (s, c) => s + (isPointRank(c.rank) ? (c.rank === Rank.Five ? 5 : 10) : 0), 0) ?? 0;
+    const hasTrump10K = trumpPts.some(c => c.rank === Rank.Ten || c.rank === Rank.King);
+    const hasNonTrump5 = nonTrumpPts.some(c => c.rank === Rank.Five);
+    if (hasTrump10K && hasNonTrump5) {
+      const score5 = ctx.attackerPoints + visiblePts + 5;
+      const score10 = ctx.attackerPoints + visiblePts + 10;
+      const tier5 = Math.floor(score5 / 40);
+      const tier10 = Math.floor(score10 / 40);
+      if (tier10 > tier5) {
+        // 主牌10/K crosses threshold → move before 副牌5
+        const trump10K = trumpPts.filter(c => c.rank === Rank.Ten || c.rank === Rank.King);
+        const otherTrumpPts = trumpPts.filter(c => c.rank === Rank.Five);
+        const nonTrump5 = nonTrumpPts.filter(c => c.rank === Rank.Five);
+        const otherNonTrumpPts = nonTrumpPts.filter(c => c.rank !== Rank.Five);
+        // Rebuild: 副10/副K + 主10/主K + 副5 + 主5 + rest
+        return [
+          ...otherNonTrumpPts, ...trump10K, ...nonTrump5,
+          ...otherTrumpPts, ...nonTrumpRest, ...trumpRest,
+        ].slice(0, leadLen);
+      }
+    }
+  }
+
+  return combined.slice(0, leadLen);
+}
+
+/** Determine reason for a 4th+tmWin card selection. */
+function finishTeammateWin(
+  cards: Card[], leadCards: Card[], leadCombo: ComboClass, leadLen: number,
+  ctx: AIContext, position: string, tmWin: boolean, trumpCards: Card[],
+): { cards: Card[]; reason: string } {
+  const allTrump = cards.every(c => isTrump(c, ctx));
+  const overkill = !!(ctx.bestSoFar && ctx.bestSoFar.cards.length > 0
+    && ctx.bestSoFar.cards.some(c => isTrump(c, ctx)));
+  // 盖毙: all trump + pattern matches + beats current winner
+  const isKill = allTrump && overkill
+    && matchPattern(leadCards, cards, ctx)
+    && compareTwo(ctx.bestSoFar!.cards, cards, leadCards, ctx) === 'second';
+  if (isKill) {
+    const baseReason = overkill ? '盖毙' : '用主牌毙';
+    const reason = annotateReason(baseReason, cards, [], trumpCards,
+      leadCombo, leadLen, ctx, position, tmWin, true, 'beat_points');
+    return { cards, reason };
+  }
+  // Not a kill → 垫牌 or 垫主牌
+  const hasNonTrump = cards.some(c => !isTrump(c, ctx));
+  const baseReason = hasNonTrump ? '垫牌' : '垫主牌';
+  const hasPoints = cards.some(c => isPointRank(c.rank));
+  const intent = hasPoints ? 'add' : 'none';
+  const reason = annotateReason(baseReason, cards, [], trumpCards,
+    leadCombo, leadLen, ctx, position, tmWin, false, intent);
+  return { cards, reason };
+}
+
 function _aiFollowPlay(
   hand: Card[],
   leadCards: Card[],
@@ -201,10 +316,33 @@ function _aiFollowPlay(
 
   // Void in lead suit
   if (trumpCards.length >= leadLen) {
-    // Teammate already wins + safe to add points → dump points instead of wasting trump
+    // Teammate already wins + safe to add points → dump non-trump first.
+    // But if adding trump points crosses a 40-pt threshold (attacker only),
+    // prefer the mixed selection that includes trump points.
     if (tmWin && canAddPoints(tmWin, position, leadCombo, ctx)) {
       const nonTrump = hand.filter(c => !isTrump(c, ctx));
       if (nonTrump.length >= leadLen) {
+        // Check if trump points would cross a threshold that non-trump alone won't.
+        if (ctx.isAttacker && trumpCards.some(c => isPointRank(c.rank))) {
+          const mixed = selectCardsForTeammateWin(hand, leadLen, ctx);
+          const mixedHasTrump = mixed.some(c => isTrump(c, ctx));
+          if (mixedHasTrump) {
+            const visiblePts = ctx.bestSoFar?.cards?.reduce(
+              (s, c) => s + (isPointRank(c.rank) ? (c.rank === Rank.Five ? 5 : 10) : 0), 0) ?? 0;
+            const ptsDump = nonTrump.slice(0, leadLen).reduce(
+              (s, c) => s + (isPointRank(c.rank) ? (c.rank === Rank.Five ? 5 : 10) : 0), 0);
+            const ptsMixed = mixed.reduce(
+              (s, c) => s + (isPointRank(c.rank) ? (c.rank === Rank.Five ? 5 : 10) : 0), 0);
+            if (ptsMixed > ptsDump) {
+              const tierDump = Math.floor((ctx.attackerPoints + visiblePts + ptsDump) / 40);
+              const tierMixed = Math.floor((ctx.attackerPoints + visiblePts + ptsMixed) / 40);
+              if (tierMixed > tierDump) {
+                // Trump points cross threshold → use mixed selection
+                return finishTeammateWin(mixed, leadCards, leadCombo, leadLen, ctx, position, tmWin, trumpCards);
+              }
+            }
+          }
+        }
         nonTrump.sort(discardSort(true, ctx, nonTrump, ctx));
         const cards = nonTrump.slice(0, leadLen);
         const reason = annotateReason('垫牌', cards, [], trumpCards,
@@ -212,31 +350,10 @@ function _aiFollowPlay(
         return { cards, reason };
       }
     }
-    // 4th position + teammate wins: don't waste trump killing unnecessarily.
-    // Kill only if a point card can overkill (加分优先) or smallest can overkill.
+    // 4th position + teammate wins: select cards by point priority.
     if (tmWin && position === 'fourth') {
-      const overkill = !!(ctx.bestSoFar && ctx.bestSoFar.cards.length > 0
-        && ctx.bestSoFar.cards.some(c => isTrump(c, ctx)));
-      if (overkill) {
-        const bestRank = Math.max(...ctx.bestSoFar!.cards.map(c => getEffectiveRank(c, ctx)));
-        // Kill if any point card can beat — adding points outweighs saving trump.
-        if (trumpCards.some(c => isPointRank(c.rank) && getEffectiveRank(c, ctx) > bestRank)) {
-          return trumpKill(trumpCards, hand, leadCards, leadCombo, leadLen, ctx, position, tmWin);
-        }
-        // No point card can beat — only overkill if the absolute smallest can beat.
-        const sorted = [...trumpCards].sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
-        if (getEffectiveRank(sorted[0], ctx) > bestRank) {
-          return trumpKill(trumpCards, hand, leadCards, leadCombo, leadLen, ctx, position, tmWin);
-        }
-      }
-      // Discard smallest trump. Use 'add' intent if hand has points (teammate wins
-      // but we can't overkill — tried to add, discarded a point card).
-      const sorted = [...trumpCards].sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
-      const cards = sorted.slice(0, leadLen);
-      const intent = trumpCards.some(c => isPointRank(c.rank)) ? 'add' : 'none';
-      const reason = annotateReason('垫主牌', cards, [], trumpCards,
-        leadCombo, leadLen, ctx, position, tmWin, false, intent);
-      return { cards, reason };
+      const cards = selectCardsForTeammateWin(hand, leadLen, ctx);
+      return finishTeammateWin(cards, leadCards, leadCombo, leadLen, ctx, position, tmWin, trumpCards);
     }
     return trumpKill(trumpCards, hand, leadCards, leadCombo, leadLen, ctx, position, tmWin);
   }

@@ -1530,6 +1530,165 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
       expect(r.cards[0].rank).toBe(3); // smallest trump discarded
       expect(r.reason).toBe('垫主牌');
     });
+
+    // ---- Mixed non-trump + trump discard ----
+
+    it('fourth tmWin, mixed: prefers non-trump points over trump points', () => {
+      // P1 (teammate) killed with ♠3(603). P3 has ♦10(副分) and ♠K(主分).
+      // Should pick ♦10 over ♠K (副分优先).
+      const lead: Card[] = [crd('H', 11, 200)];
+      const best = { cards: [crd('S', 3, 0)], playerIdx: 1 };
+      const hand = [crd('D', 10, 0), crd('S', 13, 0), crd('S', 4, 0), crd('S', 2, 50)];
+      const r = aiFollowPlay(hand, lead, Suit.Hearts, cfgS, best, 3);
+      checkFollow(r.cards, hand, lead, 'H', cfgS);
+      expect(r.cards.length).toBe(1);
+      expect(r.cards[0].suit).toBe('D'); // ♦10 picked (副分优先)
+      expect(r.reason).toContain('垫牌');
+      expect(r.reason).toContain('加分');
+    });
+
+    // ---- sortTrumpsForDiscard: A-threshold + pair protection ----
+
+    it('fourth tmWin, all trump: prefers below-A singles over pair cards', () => {
+      // P1 killed with ♠9(609). P3 has ♠3,♠4(below-A), ♠7♠7(pair), ♠A(614).
+      // Sort should put ♠3,♠4 before ♠7♠7 pair cards and ♠A.
+      const lead: Card[] = [crd('H', 11, 200)];
+      const best = { cards: [crd('S', 9, 0)], playerIdx: 1 };
+      const hand = [
+        crd('S', 3, 0), crd('S', 4, 0),   // below-A singles
+        crd('S', 7, 0), crd('S', 7, 1),    // pair
+        crd('S', 14, 0),                    // A
+        crd('S', 2, 50),
+      ];
+      const r = aiFollowPlay(hand, lead, Suit.Hearts, cfgS, best, 3);
+      checkFollow(r.cards, hand, lead, 'H', cfgS);
+      expect(r.cards.length).toBe(1);
+      expect(r.cards[0].rank).toBe(3); // ♠3 (below-A single, safest)
+      expect(r.reason).toBe('垫主牌');
+    });
+  });
+
+  describe('fourth+tmWin tractor lead: mixed discard with pair protection', () => {
+    // Hearts trump, level 2. DeclarerIndex=0 → P1+P3 are attackers.
+    // Helper to build minimal AIContext with attackerPoints.
+    function mkCtx(attackerPoints: number, bestSoFar: { cards: Card[]; playerIndex: number }): AIContext {
+      return {
+        declarerIndex: 0, trumpSuit: Suit.Hearts, level: 2,
+        myIndex: 3, isDeclarer: false, isDeclarerPartner: false, isAttacker: true,
+        attackerPoints,
+        handCounts: [20, 20, 20, 20] as const,
+        trickHistory: [], reveals: [],
+        playCount: 3, leadPlayerIndex: 0,
+        bestSoFar,
+        ntState: null, bottomCards: [], debug: false,
+      };
+    }
+    function crd(s: string, r: number, i: number): Card {
+      return createCard(s as any, r as any, i);
+    }
+    // P0 leads ♣4♣4♣3♣3 tractor. P1 (teammate) follows ♣9♣9♣8♣8 → wins.
+    const lead = [crd('C', 4, 200), crd('C', 4, 201), crd('C', 3, 200), crd('C', 3, 201)];
+    const best = {
+      cards: [crd('C', 9, 0), crd('C', 9, 1), crd('C', 8, 0), crd('C', 8, 1)],
+      playerIndex: 1,
+    };
+
+    it('scenario 1: ♣6 + ♠1010 + ♥55, score=50', () => {
+      const hand = [
+        crd('C', 6, 0),                          // 1 club (follow suit)
+        crd('S', 10, 0), crd('S', 10, 1),        // ♠1010 (副10, point pair, 20pts)
+        crd('H', 5, 0), crd('H', 5, 1),          // ♥55 (主5, point pair, 10pts)
+        crd('S', 4, 0), crd('S', 7, 0),           // non-point spades
+        crd('H', 4, 0), crd('H', 6, 0),           // non-point hearts
+      ];
+      const ctx = mkCtx(50, best);
+      const r = aiFollowPlay(hand, lead, Suit.Clubs, ctx);
+      checkFollow(r.cards, hand, lead, 'C', ctx);
+      expect(r.cards.length).toBe(4);
+      // Short-suited: ♣6 + 3 fillers. P1(teammate) wins with tractor.
+      // Filler picks points first: ♠10♠10 (副10, 20pts), then ♥5 (主5, 5pts).
+      expect(r.cards.some(c => c.rank === 6 && c.suit === 'C')).toBe(true);  // ♣6
+      expect(r.cards.filter(c => c.rank === 10 && c.suit === 'S').length).toBe(2); // ♠10♠10
+      expect(r.cards.filter(c => c.rank === 5 && c.suit === 'H').length).toBe(1);  // one ♥5
+    });
+
+    it('scenario 1: ♣6 + ♠1010 + ♥55, score=55 → break ♥5 for 80', () => {
+      const hand = [
+        crd('C', 6, 0),
+        crd('S', 10, 0), crd('S', 10, 1),
+        crd('H', 5, 0), crd('H', 5, 1),
+        crd('S', 4, 0), crd('S', 7, 0),
+        crd('H', 4, 0), crd('H', 6, 0),
+      ];
+      const ctx = mkCtx(55, best);
+      const r = aiFollowPlay(hand, lead, Suit.Clubs, ctx);
+      checkFollow(r.cards, hand, lead, 'C', ctx);
+      expect(r.cards.length).toBe(4);
+      // Score 55 + 0(visible) + 25 = 80, crosses 80 threshold.
+      expect(r.cards.some(c => c.rank === 6 && c.suit === 'C')).toBe(true);  // ♣6
+      expect(r.cards.filter(c => c.rank === 10 && c.suit === 'S').length).toBe(2); // ♠10♠10
+      expect(r.cards.filter(c => c.rank === 5 && c.suit === 'H').length).toBe(1);  // one ♥5
+    });
+
+    it('scenario 2: void clubs, ♦nonpts+♦5+♠K+♥5544 → mixed discard', () => {
+      const hand = [
+        crd('D', 5, 0),                           // ♦5 (副5, 5pts)
+        crd('S', 13, 0),                           // ♠K (副K, 10pts)
+        crd('D', 4, 0), crd('D', 7, 0), crd('D', 8, 0), crd('D', 9, 0), // non-point diamonds
+        crd('H', 5, 0), crd('H', 5, 1),           // ♥55 (主5, 10pts)
+        crd('H', 4, 0), crd('H', 4, 1),           // ♥44 (non-point, tractor with ♥55)
+      ];
+      const ctx = mkCtx(0, best);
+      const r = aiFollowPlay(hand, lead, Suit.Clubs, ctx);
+      checkFollow(r.cards, hand, lead, 'C', ctx);
+      expect(r.cards.length).toBe(4);
+      // Void but 6 non-trump + score=0 → no threshold crossing.
+      // canAddPoints dumps non-trump first: ♠K(副K) + ♦5(副5) + 2 smallest ♦.
+      // ♥55 and ♥44 stay in hand (副牌优先，不跨台阶不碰主牌).
+      expect(r.cards.some(c => c.rank === 13 && c.suit === 'S')).toBe(true); // ♠K
+      expect(r.cards.some(c => c.rank === 5 && c.suit === 'D')).toBe(true);  // ♦5
+      expect(r.cards.filter(c => c.rank === 5 && c.suit === 'H').length).toBe(0); // ♥55 not played
+      expect(r.cards.filter(c => c.rank === 4 && c.suit === 'H').length).toBe(0); // ♥44 not played
+      // Not all trump → 垫牌 not 盖毙
+      expect(r.reason).toContain('垫牌');
+      expect(r.reason).toContain('加分');
+    });
+
+    it('scenario 2, score=15: add ♥55 to cross 40', () => {
+      // Score 15 + 0(visible) = 15. Non-trump only: +15 → 30 (tier 0).
+      // With ♥55: +25 → 40 → crosses 40! Should prefer trump.
+      const hand = [
+        crd('D', 5, 0), crd('S', 13, 0),
+        crd('D', 4, 0), crd('D', 7, 0), crd('D', 8, 0), crd('D', 9, 0),
+        crd('H', 5, 0), crd('H', 5, 1),
+        crd('H', 4, 0), crd('H', 4, 1),
+      ];
+      const ctx = mkCtx(15, best);
+      const r = aiFollowPlay(hand, lead, Suit.Clubs, ctx);
+      checkFollow(r.cards, hand, lead, 'C', ctx);
+      expect(r.cards.length).toBe(4);
+      expect(r.cards.filter(c => c.rank === 5 && c.suit === 'H').length).toBe(2); // ♥55 played
+      expect(r.cards.some(c => c.rank === 13 && c.suit === 'S')).toBe(true); // ♠K
+      expect(r.reason).toContain('加分');
+    });
+
+    it('scenario 2, score=95: add ♥55 to cross 120', () => {
+      // Score 95 + 0 = 95. Non-trump only: +15 → 110 (tier 2).
+      // With ♥55: +25 → 120 → crosses 120! Should prefer trump.
+      const hand = [
+        crd('D', 5, 0), crd('S', 13, 0),
+        crd('D', 4, 0), crd('D', 7, 0), crd('D', 8, 0), crd('D', 9, 0),
+        crd('H', 5, 0), crd('H', 5, 1),
+        crd('H', 4, 0), crd('H', 4, 1),
+      ];
+      const ctx = mkCtx(95, best);
+      const r = aiFollowPlay(hand, lead, Suit.Clubs, ctx);
+      checkFollow(r.cards, hand, lead, 'C', ctx);
+      expect(r.cards.length).toBe(4);
+      expect(r.cards.filter(c => c.rank === 5 && c.suit === 'H').length).toBe(2); // ♥55 played
+      expect(r.cards.some(c => c.rank === 13 && c.suit === 'S')).toBe(true); // ♠K
+      expect(r.reason).toContain('加分');
+    });
   });
 
   describe('trump follow single beating rules (hearts trump, level=5)', () => {

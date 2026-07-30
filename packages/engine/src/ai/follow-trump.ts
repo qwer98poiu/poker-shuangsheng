@@ -494,14 +494,41 @@ export function trumpKill(
   }
   const kill: Card[] = [trumpCards[killKeyIdx]];
   // Prefer point cards as fillers — don't waste the chance to add points.
+  // But avoid breaking pairs unless necessary (attacker crossing threshold).
+  const trumpPairs = findAllPairs(trumpCards);
   const remaining = trumpCards.filter((_, i) => i !== killKeyIdx);
   const pointFillers = remaining.filter(c => isPointRank(c.rank))
     .sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
   const nonPointFillers = remaining.filter(c => !isPointRank(c.rank))
     .sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
-  for (const c of [...pointFillers, ...nonPointFillers]) {
+
+  function wouldBreakPair(c: Card, selected: Card[]): boolean {
+    const pair = trumpPairs.find(p => p.some(x => x.id === c.id));
+    if (!pair) return false;
+    // Not breaking if both cards of the pair are selected (整对垫出)
+    return !pair.every(x => selected.includes(x) || x.id === c.id);
+  }
+
+  // Point fillers: break pair only if attacker crosses 40-pt threshold
+  for (const c of pointFillers) {
     if (kill.length >= leadLen) break;
+    if (wouldBreakPair(c, kill) && !attackerNearThreshold(ctx)) continue;
     kill.push(c);
+  }
+  // Non-point fillers: never break pairs
+  for (const c of nonPointFillers) {
+    if (kill.length >= leadLen) break;
+    if (wouldBreakPair(c, kill)) continue;
+    kill.push(c);
+  }
+  // If still need fillers, allow breaking (fallback)
+  if (kill.length < leadLen) {
+    const used = new Set(kill.map(c => c.id));
+    for (const c of remaining) {
+      if (kill.length >= leadLen) break;
+      if (used.has(c.id)) continue;
+      kill.push(c);
+    }
   }
   if (canTrumpKillBeat(kill, leadCards, ctx)) {
     const reason = killReason(kill, overkill ? '盖毙' : '用主牌毙');

@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-07-30 19:50
+
+### 第四家队友大：统一牌张选择，垫主牌加对子保护和 A 阈值
+
+**问题**：垫主牌仅按 effRank 从小到大选，没有对子保护（可能拆对）、没有 A 阈值（可能垫大主牌）、没有副牌+主牌混合出牌逻辑。
+
+**修复**：
+- 新增 `sortTrumpsForDiscard`：A 以下单牌优先 → A 以上单牌 → 对子牌（不拆对）。只有必须垫 A 以上时才允许拆对
+- 新增 `selectCardsForTeammateWin`：按「副10>副K>副5>主10>主K>主5>副非分>主非分」统一排序出牌，支持副牌+主牌混合。闲家跨 40 分台阶时主10/K 可越过副5
+- 毙牌 filler 加对子保护：分牌 filler 仅闲家跨台阶时拆对，非分 filler 永不拆对（有 fallback）
+- 理由判断：全主+牌型匹配+盖过队友才是盖毙，否则垫牌/垫主牌
+
+**新增 7 项测试**（ai-follow.test.ts：7 项），总数 506 项通过。
+
+- **影响文件**：`packages/engine/src/ai/index.ts`、`packages/engine/src/ai/follow-trump.ts`、`packages/engine/src/__tests__/ai-follow.test.ts`
+
 ## 2026-07-29 21:48
 
 ### 第四家队友大时不毙牌，全主时垫主牌；盖毙统一用 beat_points 标注
