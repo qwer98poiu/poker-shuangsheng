@@ -20,6 +20,7 @@ import {
 } from '@poker/engine';
 import { classify } from '@poker/engine';
 import { parseCards } from './parse.js';
+import { parseLevelSuit } from './parse-level.js';
 import type {
   GameState, PlayerState, TrumpDeclaration, Card, AIReason,
 } from '@poker/engine';
@@ -113,38 +114,10 @@ async function main() {
     let autoReveal = false; // only auto-reveal when user explicitly specified suit
     if (DEBUG) {
       const input = await q('首局等级和花色? (如 2C、KNT, 默认2): ');
-      const trimmed = input.trim().toUpperCase();
-      if (trimmed) {
-        // Parse level: numeric or J/Q/K/A
-        const levelMatch = trimmed.match(/(\d+|[JQKA]+)/i);
-        if (levelMatch) {
-          const lv = levelMatch[0].toUpperCase();
-          if (lv === 'J') targetLevel = 11;
-          else if (lv === 'Q') targetLevel = 12;
-          else if (lv === 'K') targetLevel = 13;
-          else if (lv === 'A') targetLevel = 14;
-          else targetLevel = parseInt(lv);
-          if (targetLevel > 14) {
-            console.log('等级不能超过A(14)，使用默认等级2');
-            targetLevel = 2;
-          }
-        } else {
-          targetLevel = 2;
-        }
-        // Parse suit
-        const suitMatch = trimmed.match(/[SHDC]|NT/i);
-        if (suitMatch) {
-          const s = suitMatch[0].toUpperCase();
-          if (s === 'NT') targetSuit = null;
-          else if (s === 'S') targetSuit = Suit.Spades;
-          else if (s === 'H') targetSuit = Suit.Hearts;
-          else if (s === 'C') targetSuit = Suit.Clubs;
-          else if (s === 'D') targetSuit = Suit.Diamonds;
-          autoReveal = true; // user explicitly chose suit, auto-reveal
-        }
-      } else {
-        targetLevel = 2;
-      }
+      const parsed = parseLevelSuit(input);
+      targetLevel = parsed.level;
+      targetSuit = parsed.suit;
+      if (parsed.hasSuit) autoReveal = true;
 
       const decl = await q('指定庄家? (p0-p3, n=不指定, 回车=自己): ');
       const dp = decl.trim().toUpperCase();
@@ -227,8 +200,8 @@ async function gameLoop(
   // In subsequent rounds: the declarer is determined by the previous round's
   // result — attacker sits → declarer+1 (other side), defender keeps → declarer+2 (partner).
   let nextDeclarer = firstDeclarer;
-  let levelAC = currentLevel;
-  let levelBD = currentLevel;
+  let levelAC = targetLevel ?? currentLevel;
+  let levelBD = targetLevel ?? currentLevel;
   let gameOver = false;
   let firstRound = true;
   const matchLogs: string[] = [];

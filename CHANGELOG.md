@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-07-30 22:14
+
+### CLI：修复首局等级指定不生效
+
+**问题**：CLI 调试模式下输入「5NT」等首局等级，`targetLevel` 解析正确但 `gameLoop` 中 `levelAC`/`levelBD` 始终初始化为固定值 2，未使用解析结果。
+
+**修复**：`levelAC`/`levelBD` 初始化改为 `targetLevel ?? currentLevel`。提取 `parseLevelSuit` 为独立函数。
+
+**新增 12 项测试**（parse-level.test.ts：12 项），CLI 26 项 + 引擎 506 项 = 532 项通过。
+
+> **注意**：自 2026-07-26 17:33（NT 记牌器重构）起提交信息中的「N项通过」实际只统计了引擎测试，漏计了 CLI 的 14 项。本提交恢复包含 CLI 的完整统计。之前 2026-07-30 19:50 的 506 项实际应为 506 + 14 = 520。
+
+- **影响文件**：`packages/cli/src/index.ts`、`packages/cli/src/parse-level.ts`（新增）、`packages/cli/src/__tests__/parse-level.test.ts`（新增）
+
 ## 2026-07-30 19:50
 
 ### 第四家队友大：统一牌张选择，垫主牌加对子保护和 A 阈值
