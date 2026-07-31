@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-01 00:22
+
+### 记牌器：已打出的亮主牌不再残留为幽灵常主
+
+**问题**：庄家亮主后，`applyReveals` 的 self 分支每次都会把亮主牌补回 `knownTrumpsPerPlayer`（用当前手牌算 `alreadyKnown`）。亮主牌一旦打出，手牌中已没有它，`needed > 0` 触发补牌，已打出的牌被重新加回「手牌常主」。例如玩家1 用对大王亮无主，第 1 墩打出对大王后，第 3 墩自己的记牌器仍显示「手牌常主: ♥2 ♥2 JOKER JOKER」。
+
+**修复**：牌张打出时从 `knownTrumpsPerPlayer` 中移除（removal 阶段）。对自己只移除超出当前手牌持有数量的部分——手牌常主每次调用由 `myTrumpCards` 重建，自然消失，无需移除；被补回的已打出亮主牌（幽灵）才是移除对象。`definitiveCount` 吸收逻辑不变，`totalUnseen` 不因幽灵移除而重复扣除。
+
+**新增 2 项测试**（ai-nt-tracking.test.ts：2 项），CLI 26 项 + 引擎 508 项 = 534 项通过。
+
+- **影响文件**：`packages/engine/src/ai/nt-tracking.ts`、`packages/engine/src/__tests__/ai-nt-tracking.test.ts`
+
 ## 2026-07-30 22:14
 
 ### CLI：修复首局等级指定不生效

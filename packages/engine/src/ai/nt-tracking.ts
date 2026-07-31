@@ -266,6 +266,7 @@ export function computeNTTrumpState(
         const isCurrentTrick = entry === allPlays[allPlays.length - 1]
           && currentTrickPlays && currentTrickPlays.length > 0;
         if (!isCurrentTrick || actualPlayer !== myIndex) {
+          const knownList = knownTrumpsPerPlayer[actualPlayer];
           for (const [key, playedCount] of playedByKey) {
             const arr = counts.get(key);
             if (arr) {
@@ -273,11 +274,27 @@ export function computeNTTrumpState(
             }
             // Decrement totalUnseen. Cards definitively known to be at
             // this player (from hand and reveals) absorb the play first.
-            const definitiveCount = knownTrumpsPerPlayer[actualPlayer]
+            const definitiveCount = knownList
               .filter(c => suitRankKey(c.id) === key).length;
             const reduced = Math.max(0, playedCount - definitiveCount);
             if (reduced > 0) {
               totalUnseen.set(key, Math.max(0, (totalUnseen.get(key) ?? 0) - reduced));
+            }
+            // Played cards leave the known set — otherwise played reveal
+            // cards (re-added by applyReveals) would linger as ghosts in
+            // knownTrumpsPerPlayer. For self, hand cards refresh naturally
+            // on every call (myTrumpCards), so only the ghost re-additions
+            // beyond the copies still held in hand are removed.
+            const keptCount = actualPlayer === myIndex
+              ? Math.min(definitiveCount,
+                myTrumpCards.filter(c => suitRankKey(c.id) === key).length)
+              : 0;
+            let toRemove = Math.max(0, playedCount - keptCount);
+            for (let i = knownList.length - 1; i >= 0 && toRemove > 0; i--) {
+              if (suitRankKey(knownList[i].id) === key) {
+                knownList.splice(i, 1);
+                toRemove--;
+              }
             }
           }
         }

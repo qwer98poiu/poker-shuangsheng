@@ -506,6 +506,49 @@ describe('NT trump tracking', () => {
       expect(s.canHaveBigJoker[3]).toBe(false);
       expect(s.allUnseenBigJokersOnOurSide).toBe(false);
     });
+
+    it('self-revealed BJ pair played: not re-added to own known trumps', () => {
+      // P0 reveals NT with a BJ pair, then plays the pair in trick 1.
+      const reveals: Reveal[] = [
+        { playerIndex: 0, suit: null, strength: 4 },
+      ];
+      const trick = mockTrick(
+        [
+          [c('J', Rank.BigJoker, 0), c('J', Rank.BigJoker, 1)],
+          [c('C', 2, 0)],
+          [c('S', 2, 0)],
+          [c('D', 2, 0)],
+        ],
+        0, 0,
+      );
+      // Current hand no longer holds the BJs.
+      const hand = [c('H', 2, 0), c('H', 2, 1)];
+      const s = call(hand, 0, [trick], reveals, cfg2, true, []);
+      expect(s.knownTrumpsPerPlayer[0].length).toBe(2);
+      expect(s.knownTrumpsPerPlayer[0].every(c => c.rank !== Rank.BigJoker)).toBe(true);
+      expect(s.remainingBigJokers).toBe(0);
+    });
+
+    it('opponent view: played BJ pair stays removed from every possible list', () => {
+      const reveals: Reveal[] = [
+        { playerIndex: 0, suit: null, strength: 4 },
+      ];
+      const trick = mockTrick(
+        [
+          [c('J', Rank.BigJoker, 0), c('J', Rank.BigJoker, 1)],
+          [c('C', 2, 0)],
+          [c('S', 2, 0)],
+          [c('D', 2, 0)],
+        ],
+        0, 0,
+      );
+      const hand: Card[] = [c('C', 2, 1)];
+      const s = call(hand, 1, [trick], reveals, cfg2, false, []);
+      expect(s.remainingBigJokers).toBe(0);
+      expect(has(s.possibleTrumps[0], 'J', 16)).toBe(false);
+      expect(has(s.possibleTrumps[2], 'J', 16)).toBe(false);
+      expect(has(s.possibleTrumps[3], 'J', 16)).toBe(false);
+    });
   });
 
   describe('level card identity', () => {
