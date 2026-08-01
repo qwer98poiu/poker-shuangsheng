@@ -9,16 +9,17 @@ import * as path from 'path';
 import {
   createFullDeck, shuffle,
   createInitialState, GamePhase,
-  tryReveal, finalizeReveal, playCards, computeLevelChange,
+  tryReveal, finalizeReveal, playCards,
   sortHand, cardPointsFromRank as cardPoints, isPointRank as isPointCard,
   rankLabel, suitLabel, suitName, isRed, isTrump, getEffectiveRank,
   aiTryReveal, aiChooseBottomCards, aiLeadPlay, aiFollowPlay,
   serialize, deserialize, resumeFromTrick,
   Suit, Rank, validateFollow, validateLead,
   buildAIContext, computeBestSoFar,
-  bottomMultiplier, countBottomPoints, finalizeAttackerPoints,
+  classify,
 } from '@poker/engine';
-import { classify } from '@poker/engine';
+import { computeRoundOutcome } from './round-result.js';
+import type { RoundOutcome } from './round-result.js';
 import { parseCards } from './parse.js';
 import { parseLevelSuit } from './parse-level.js';
 import type {
@@ -215,7 +216,7 @@ async function gameLoop(
 
     const result = showRoundResult();
     const changes = result.changes;
-    const attackerSits = gameState.attackerPoints >= 80;
+    const attackerSits = result.attackerSits; // 含抠底的闲家最终分 ≥ 80（与等级变更同口径）
     const declarerIdx = gameState.trumpDeclaration!.declarerIndex;
     const defenderTeam = declarerIdx % 2;
     if (attackerSits) {
@@ -1081,19 +1082,16 @@ function showHumanHands() {
   }
 }
 
-function showRoundResult(): { changes: { defenderChange: number; attackerChange: number } } {
-  // Determine bottom multiplier from the last trick's lead pattern.
-  const lastTrick = gameState.trickHistory[gameState.trickHistory.length - 1];
-  const lastLeadCombo = lastTrick ? classify(lastTrick.plays[0].cards, gameState.trumpDeclaration!) : null;
-  const mult = lastLeadCombo ? bottomMultiplier(lastLeadCombo) : 2;
-
-  // Add bottom points if the attacker won the last trick (抠底).
-  const bp = countBottomPoints(gameState.bottomCards);
-  const finalPts = lastTrick
-    ? finalizeAttackerPoints(gameState.attackerPoints, bp, mult, lastTrick.winnerIndex, gameState.declarerIndex)
-    : gameState.attackerPoints;
-
-  const pts = Math.max(0, finalPts);
+function showRoundResult(): RoundOutcome {
+  // 统一口径（含抠底的闲家最终分）：computeRoundOutcome 是上台判定/等级变更的唯一来源
+  const outcome = computeRoundOutcome(
+    gameState.attackerPoints,
+    gameState.bottomCards,
+    gameState.trickHistory[gameState.trickHistory.length - 1] ?? null,
+    gameState.trumpDeclaration,
+    gameState.trumpDeclaration!.declarerIndex, // 实际庄家（首局亮主者可能顶替预定庄家）
+  );
+  const { multiplier: mult, bottomPoints: bp, finalPts: pts, attackerWonLast, attackerSits, changes } = outcome;
   console.log('\n' + BOLD + '=== 本局结束 ===' + RESET);
   console.log(`闲家得分: ${gameState.attackerPoints}`);
   if (gameState.attackerPoints < 0) console.log(DIM + `  (罚分前: ${gameState.attackerPoints})` + RESET);
@@ -1103,21 +1101,14 @@ function showRoundResult(): { changes: { defenderChange: number; attackerChange:
   const multLabel = mult === 2 ? '×2' : `×${mult}`;
   console.log(`底牌分数: ${bp} ${multLabel} = ${bp * mult}`);
 
-  if (lastTrick) {
-    const attackerWonLast = lastTrick.winnerIndex % 2 !== gameState.declarerIndex % 2;
-    if (attackerWonLast && bp > 0) {
-      console.log(`抠底加分: ${bp * mult} → 终分 ${pts}`);
-    }
+  if (attackerWonLast && bp > 0) {
+    console.log(`抠底加分: ${bp * mult} → 终分 ${pts}`);
   }
-
-  const attackerSits = pts >= 80;
 
   if (!attackerSits && gameState.attackerPoints >= 80) {
     // Attacker had 80+ but fell below after penalties — shouldn't happen in normal play
     console.log(DIM + `  (罚分后不足80分，未能上台)` + RESET);
   }
-
-  const changes = computeLevelChange(pts);
 
   if (attackerSits) {
     const up = changes.attackerChange;
@@ -1128,7 +1119,7 @@ function showRoundResult(): { changes: { defenderChange: number; attackerChange:
     console.log(`庄家${label}（升${up}级）`);
   }
 
-  return { changes };
+  return outcome;
 }
 
 // ---- helpers ----

@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-02 00:09
+
+### CLI：上台判定与庄家轮换统一用含抠底的闲家最终分
+
+**问题**：`showRoundResult` 用含抠底的最终分算等级变更，但 `gameLoop` 的上台判定与庄家轮换用未含抠底的原始分（`attackerPoints >= 80`），口径不一致——闲家靠抠底把分数推过 80 时（如原始 75 + 抠底 20），展示显示"闲家上台"，实际却按庄家保级轮换。另外 `showRoundResult` 用预定的 `declarerIndex` 而非实际庄家（首局亮主者顶替时抠底归属算错）。
+
+**修复**：提取纯函数 `computeRoundOutcome`（`packages/cli/src/round-result.ts`）作为唯一口径——上台判定 = 闲家最终分（含抠底底分×倍数）≥ 80；等级变更、庄家轮换、抠底归属全部使用它，且抠底归属改用实际庄家（`trumpDeclaration.declarerIndex`）。
+
+**新增 8 项测试**（round-result.test.ts：8 项），CLI 34 项 + 引擎 523 项 + arena 41 项 = 598 项通过。
+
+- **影响文件**：`packages/cli/src/index.ts`、`packages/cli/src/round-result.ts`、`packages/cli/src/__tests__/round-result.test.ts`
+
 ## 2026-08-01 23:46
 
 ### 策略竞技场：镜像对决、必打 K/A、统计显著性判定
