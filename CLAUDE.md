@@ -24,8 +24,9 @@ Co-Authored-By: DeepSeek V4 Pro <noreply@deepseek.com>
 
 | 前缀 | 用途 |
 |---|---|
-| `fix:` | 修复 bug |
-| `feat:` | 新功能/新策略 |
+| `fix:` | 修复 bug（含策略 bug） |
+| `feat:` | 新功能（非策略） |
+| `strategy:` | 修改 AI 策略 |
 | `refactor:` | 重构（无行为变更） |
 | `test:` | 新增或修改测试 |
 | `docs:` | 文档 |
@@ -64,7 +65,7 @@ Co-Authored-By: DeepSeek V4 Pro <noreply@deepseek.com>
 
 ## 开发原则
 
-- **用户反馈的 bug 修复后，必须添加对应的测试用例**。测试应尽可能还原用户描述的场景（手牌、领出、位置等），确保回归测试能捕获同类问题。
+- **用户反馈的 bug，先根据其输入的牌局构造测试用例，确认复现 bug 后再修复**。测试应尽可能还原用户描述的场景（手牌、领出、位置等），确保回归测试能捕获同类问题。
 - **修改 Changelog 必须在代码提交之前**。每次提交前先写 Changelog，再 `git add` 一起提交。Changelog 时间与提交时间必须一致（使用 `GIT_COMMITTER_DATE` 对齐）。
 - **测试断言优先用精确值**（`toBe(n)`），避免使用 `toBeGreaterThan`、`toBeGreaterThanOrEqual` 等模糊匹配，除非值本身因外部因素不确定。
 - **基础模块的测试必须逐项穷举**。对于记牌器这类高阶策略依赖的基础模块，测试覆盖所有视角 × 所有目标玩家 × 所有可能的牌（suit-rank）× 精确张数断言，不允许只验证部分卡牌。
