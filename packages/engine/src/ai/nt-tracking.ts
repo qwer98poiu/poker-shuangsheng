@@ -138,11 +138,14 @@ function applyReveals(
       for (let i = 0; i < needed; i++) {
         knownTrumpsPerPlayer[pid].push(reconstructFromKey(key));
       }
+      // Self-revealed copies are already excluded from totalUnseen and the
+      // bottom count via myCount in initTracking — only subtract the part
+      // NOT already known, or the other copy vanishes from every location.
       if (!isDeclarer) {
         const arr = counts.get(key);
-        if (arr) arr[4] = Math.max(0, arr[4] - n);
+        if (arr) arr[4] = Math.max(0, arr[4] - needed);
       }
-      totalUnseen.set(key, Math.max(0, (totalUnseen.get(key) ?? 0) - n));
+      totalUnseen.set(key, Math.max(0, (totalUnseen.get(key) ?? 0) - needed));
       continue;
     }
 
@@ -350,15 +353,14 @@ function buildState(
       for (const [key, arr] of counts) {
         if (arr[p] > 0) rec[key] = arr[p];
       }
-      // Add definitive known copies (revealed), but only if suitRank
-      // still has copies possibly belonging to this player.
-      // Only add definitives for non-void players with unseen copies.
+      // Add definitive known copies (revealed). The cap in
+      // computeNTTrumpState clamps counts to totalUnseen, so definitives
+      // must be re-added even when totalUnseen is 0 (all copies placed —
+      // e.g. viewer holds the other copy), or the revealer's card vanishes.
       if (p >= 0 && p <= 3 && totalPossible(counts, p) > 0) {
         for (const c of knownTrumpsPerPlayer[p]) {
           const key = suitRankKey(c.id);
-          if ((totalUnseen.get(key) ?? 0) > 0) {
-            rec[key] = (rec[key] || 0) + 1;
-          }
+          rec[key] = (rec[key] || 0) + 1;
         }
       }
       possibleTrumps[p] = rec;

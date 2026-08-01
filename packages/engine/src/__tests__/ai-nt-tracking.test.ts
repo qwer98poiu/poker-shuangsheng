@@ -551,6 +551,125 @@ describe('NT trump tracking', () => {
     });
   });
 
+  describe('self-reveal keeps unseen copies (user bug: missing D-5)', () => {
+    // 无主 (level 5), declarer = P2. Distribution:
+    //   P0: J-16×2, S-5×1, H-5×1
+    //   P1: S-5×1, D-5×1 (self-revealed D-5 single)
+    //   P2 (declarer): J-15×2, D-5×1, C-5×1; bottom has no trump
+    //   P3: H-5×1, C-5×1
+    const cfg5d2: TrumpDeclaration = { declarerIndex: 2, trumpSuit: null, level: 5 };
+    const reveals5: Reveal[] = [
+      { playerIndex: 1, suit: Suit.Diamonds, strength: 1 },
+      { playerIndex: 0, suit: null, strength: 4 },
+    ];
+    const p0Hand5 = [
+      c('J', Rank.BigJoker, 0), c('J', Rank.BigJoker, 1),
+      c('S', 5, 0), c('H', 5, 0),
+    ];
+    const p1Hand5 = [c('S', 5, 1), c('D', 5, 0)];
+    const p2Hand5 = [
+      c('J', Rank.SmallJoker, 0), c('J', Rank.SmallJoker, 1),
+      c('D', 5, 1), c('C', 5, 0),
+    ];
+    const p3Hand5 = [c('H', 5, 1), c('C', 5, 1)];
+    const keys5 = ['J-16', 'J-15', 'S-5', 'H-5', 'C-5', 'D-5'];
+
+    function checkAll5(
+      s: ReturnType<typeof computeNTTrumpState>,
+      myIndex: number, isDecl: boolean,
+      expected: (p: number, key: string) => number,
+    ) {
+      for (let p = 0; p < 5; p++) {
+        if (p === myIndex || (p === 4 && isDecl)) {
+          expect(s.possibleTrumps[p]).toBeNull();
+          continue;
+        }
+        const rec = s.possibleTrumps[p]!;
+        for (const key of keys5) {
+          expect(cnt(rec, key)).toBe(expected(p, key));
+        }
+      }
+    }
+
+    it('P1 view (self-revealed D-5): the other D-5 still possible at every location', () => {
+      const s = call(p1Hand5, 1, [], reveals5, cfg5d2, false, []);
+      for (const p of [0, 2, 3, 4]) {
+        expect(cnt(s.possibleTrumps[p], 'D-5')).toBe(1);
+      }
+      // S-5: one in hand, the other unseen
+      for (const p of [0, 2, 3, 4]) {
+        expect(cnt(s.possibleTrumps[p], 'S-5')).toBe(1);
+      }
+    });
+
+    it('P2 declarer view (holds the other D-5): P1 revealed D-5 still shown', () => {
+      const s = call(p2Hand5, 2, [], reveals5, cfg5d2, true, []);
+      expect(cnt(s.possibleTrumps[1], 'D-5')).toBe(1);
+      // Both D-5 placed (P1 revealed + P2 holds) → others have none
+      expect(cnt(s.possibleTrumps[0], 'D-5')).toBe(0);
+      expect(cnt(s.possibleTrumps[3], 'D-5')).toBe(0);
+      // P0 revealed NT with 大王对 → J-16 definitively at P0
+      expect(cnt(s.possibleTrumps[0], 'J-16')).toBe(2);
+      expect(cnt(s.possibleTrumps[1], 'J-16')).toBe(0);
+      expect(cnt(s.possibleTrumps[3], 'J-16')).toBe(0);
+    });
+
+    it('all 4 perspectives: exhaustive per-key per-location counts', () => {
+      const views: { hand: Card[]; myIndex: number; isDecl: boolean }[] = [
+        { hand: p0Hand5, myIndex: 0, isDecl: false },
+        { hand: p1Hand5, myIndex: 1, isDecl: false },
+        { hand: p2Hand5, myIndex: 2, isDecl: true },
+        { hand: p3Hand5, myIndex: 3, isDecl: false },
+      ];
+      const expected: Record<number, (p: number, k: string) => number> = {
+        // P0 view: J-16×2, S-5×1, H-5×1 own
+        0: (p, k) => {
+          if (k === 'J-16') return 0;
+          if (k === 'S-5') return p === 0 ? 0 : 1;
+          if (k === 'H-5') return p === 0 ? 0 : 1;
+          if (k === 'D-5') return p === 1 ? 2 : 1; // P1: revealed + other unseen
+          if (k === 'J-15') return 2;
+          if (k === 'C-5') return 2;
+          return 0;
+        },
+        // P1 view: S-5×1, D-5×1 own (self-revealed)
+        1: (p, k) => {
+          if (k === 'S-5') return p === 1 ? 0 : 1;
+          if (k === 'D-5') return p === 1 ? 0 : 1; // other D-5 unseen
+          if (k === 'J-16') return p === 0 ? 2 : 0; // P0 revealed 大王对
+          if (k === 'J-15') return 2;
+          if (k === 'H-5') return 2;
+          if (k === 'C-5') return 2;
+          return 0;
+        },
+        // P2 declarer view: J-15×2, D-5×1, C-5×1 own; bottom known
+        2: (p, k) => {
+          if (k === 'J-15') return 0;
+          if (k === 'D-5') return p === 1 ? 1 : 0; // P1 revealed, P2 holds the other
+          if (k === 'C-5') return p === 2 ? 0 : 1;
+          if (k === 'J-16') return p === 0 ? 2 : 0; // P0 revealed 大王对
+          if (k === 'S-5') return 2;
+          if (k === 'H-5') return 2;
+          return 0;
+        },
+        // P3 view: H-5×1, C-5×1 own
+        3: (p, k) => {
+          if (k === 'H-5') return p === 3 ? 0 : 1;
+          if (k === 'C-5') return p === 3 ? 0 : 1;
+          if (k === 'D-5') return p === 1 ? 2 : 1; // P1: revealed + other unseen
+          if (k === 'J-16') return p === 0 ? 2 : 0; // P0 revealed 大王对
+          if (k === 'J-15') return 2;
+          if (k === 'S-5') return 2;
+          return 0;
+        },
+      };
+      for (const v of views) {
+        const s = call(v.hand, v.myIndex, [], reveals5, cfg5d2, v.isDecl, []);
+        checkAll5(s, v.myIndex, v.isDecl, expected[v.myIndex]);
+      }
+    });
+  });
+
   describe('level card identity', () => {
     it('tracks level=5 trumps correctly', () => {
       const hand = [c('S', 5, 0), c('H', 5, 0)];
