@@ -6,6 +6,7 @@
 packages/engine/     - 核心引擎（牌型、比较、验牌、AI）
 packages/client/     - React 前端
 packages/cli/        - CLI 终端版本
+packages/arena/      - 策略竞技场（镜像对决、显著性判定）
 ```
 
 ## 提交规范
@@ -66,9 +67,15 @@ Co-Authored-By: DeepSeek V4 Pro <noreply@deepseek.com>
 ## 开发原则
 
 - **用户反馈的 bug，先根据其输入的牌局构造测试用例，确认复现 bug 后再修复**。测试应尽可能还原用户描述的场景（手牌、领出、位置等），确保回归测试能捕获同类问题。
-- **修改 Changelog 必须在代码提交之前**。每次提交前先写 Changelog，再 `git add` 一起提交。Changelog 时间与提交时间必须一致（使用 `GIT_COMMITTER_DATE` 对齐）。
+- **修改 Changelog 必须在代码提交之前**。每次提交前先写 Changelog，再 `git add` 一起提交。Changelog 时间与提交时间允许相差几分钟，无需强制对齐。
 - **测试断言优先用精确值**（`toBe(n)`），避免使用 `toBeGreaterThan`、`toBeGreaterThanOrEqual` 等模糊匹配，除非值本身因外部因素不确定。
 - **基础模块的测试必须逐项穷举**。对于记牌器这类高阶策略依赖的基础模块，测试覆盖所有视角 × 所有目标玩家 × 所有可能的牌（suit-rank）× 精确张数断言，不允许只验证部分卡牌。
+
+## 测试命令
+
+- **单包测试**：`npm run test -w packages/engine` / `-w packages/cli` / `-w packages/arena`（等价于该包目录下的 `vitest run`，读取各自的 vitest.config.ts）
+- **根目录 `npm run test` 只跑引擎**（根 package.json 的 test 脚本指向 engine）
+- 也可用 `npx vitest run <包路径>` 从仓库根限定范围（如 `npx vitest run packages/arena`），效果等同该包的单包测试
 
 ## 命名约定
 
