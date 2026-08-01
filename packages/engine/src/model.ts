@@ -46,6 +46,36 @@ export function shuffle<T>(arr: T[]): T[] {
   return arr;
 }
 
+// ---- Seeded RNG (deterministic shuffle) ----
+
+/**
+ * mulberry32 — tiny deterministic 32-bit PRNG. Seed is truncated to uint32.
+ * Returns a function producing floats in [0, 1).
+ */
+export function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * Deterministic Fisher-Yates shuffle. Returns a new array (input untouched);
+ * the same (seed, arr) always yields the same order.
+ */
+export function seededShuffle<T>(arr: readonly T[], seed: number): T[] {
+  const out = [...arr];
+  const rand = mulberry32(seed);
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
 // ---- Rank ordering under trump ----
 
 export function getEffectiveRank(card: Card, config: TrumpDeclaration): number {

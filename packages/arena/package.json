@@ -1,0 +1,17 @@
+{
+  "name": "@poker/arena",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "arena": "npx tsx src/run.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@poker/engine": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "vitest": "^2.0.0"
+  }
+}

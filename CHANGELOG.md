@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-08-01 23:46
+
+### 策略竞技场：镜像对决、必打 K/A、统计显著性判定
+
+**新增**：
+- 新包 `@poker/arena`（`npm run arena -w packages/arena`）：两套策略在完整对局（2→A）中镜像对决——每对决两场对局（A 坐 0/2 号位一场 + 反转一场），两场第 i 小局共享同一副牌（`seededShuffle(deck, hashMix(seed, pair, handIndex))`，P0 两场拿到相同的 25 张）
+- 必打 K/A 升级规则：庄家打赢升级量 N——原级<13 → min(原级+N, 13)；原级=13 → 升到 14；原级=14 → 该方胜出；闲家上台（等级 N≤K、升级量 M）→ min(N+M, K)，K 必须台上打赢才能到 A；竞技场自身的对局循环统一用含抠底的闲家最终分做上台判定与升级（CLI 的对应修复见 2026-08-02 条目）
+- 显著性判定：p̂ = (胜 + 0.5×平)/n（平局 = 单场 200 小局上限），99% Wilson 区间下界 > 0.5 即显著；默认至少 10000 场，之后每 +1000 场检查，上限 100000 场
+- 17+ 项技术指标（每项带分子/分母）：台上/台下胜率与各等级胜率、有主胜率、NT 频率、平均失分、扣底平均分数（底牌分数）、扣绝一门频率、每墩胜率、领出统计等
+- 引擎新增 `mulberry32`/`seededShuffle`（确定性洗牌）；`ai/` 复制为 `ai-v2/`（策略 B 载体，差异测试保证逐字节一致）；并行用子进程（tsx loader 在 Node 17.5 的 worker_threads 下不可靠）
+
+**新增 53 项测试**（seeded-shuffle.test.ts：6 项；ai-v2-differential.test.ts：6 项；arena 六文件：41 项），引擎 523 项 + arena 41 项 + CLI 26 项 = 590 项通过。
+
+- **影响文件**：`packages/arena/`（package.json、tsconfig.json、vitest.config.ts、src/*、src/__tests__/*）、`packages/engine/src/model.ts`、`packages/engine/src/index.ts`、`packages/engine/src/ai-v2/*`、`packages/engine/src/__tests__/seeded-shuffle.test.ts`、`packages/engine/src/__tests__/ai-v2-differential.test.ts`、根 `package.json`、`.gitignore`
+
 ## 2026-08-01 14:30
 
 ### 文档：新增 strategy 提交前缀，更新开发原则

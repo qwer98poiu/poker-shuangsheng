@@ -22,5 +22,8 @@ export * from './game/index.js';
 // AI (reusing old ai/index.ts for now — will be ported later)
 export * from './ai/index.js';
 
+// Strategy arena variant (copy of ai/, kept in sync via differential tests)
+export * as aiV2 from './ai-v2/index.js';
+
 // Serialization (reusing old model/serialize.ts)
 export * from './model/serialize.js';

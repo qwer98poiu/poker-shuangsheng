@@ -4,11 +4,13 @@
   "workspaces": [
     "packages/engine",
     "packages/client",
-    "packages/cli"
+    "packages/cli",
+    "packages/arena"
   ],
   "scripts": {
     "dev": "npm run dev -w packages/client",
     "build": "npm run build -w packages/engine && npm run build -w packages/client",
-    "test": "npm run test -w packages/engine"
+    "test": "npm run test -w packages/engine",
+    "arena": "npm run arena -w packages/arena"
   }
 }
