@@ -68,6 +68,8 @@ function tryVoidSuit(
   const candidates: { suit: string; cards: Card[]; points: number }[] = [];
   for (const g of suitGroups) {
     if (g.length === 0) continue;
+    // 超过 8 张无法整门扣入底牌（否则 8 - length 为负，slice 负数会返回大量多余牌）
+    if (g.length > 8) continue;
     const pts = g.reduce((s, c) => s + (isPointRank(c.rank) ? (c.rank === 5 ? 5 : 10) : 0), 0);
     // Allow 5 points discard; allow 10 points if trump >= 10
     const maxPoints = trumpCount >= 10 ? 10 : 5;

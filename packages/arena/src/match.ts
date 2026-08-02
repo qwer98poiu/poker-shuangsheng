@@ -19,7 +19,7 @@ import {
   buildAIContext,
 } from '@poker/engine';
 import type { Card, CardSuit, GameState, PlayerState, Suit, TrumpDeclaration } from '@poker/engine';
-import { Suit as SuitEnum } from '@poker/engine';
+import { Suit as SuitEnum, isPointRank } from '@poker/engine';
 import { deckForHand } from './rng.js';
 import { advanceLevel } from './advance-level.js';
 import type { HandEvent, MatchResult, Strategy } from './types.js';
@@ -106,7 +106,16 @@ export function playHand(opts: PlayHandOptions): HandEvent {
   const teamBanker = (declarer % 2) as 0 | 1;
 
   // --- bottom exchange (position-blind bare declaration, like the CLI) ---
-  const { discard } = strategies[declarer % 2].chooseBottom(state.players[declarer].hand, t);
+  let errors = 0;
+  let { discard } = strategies[declarer % 2].chooseBottom(state.players[declarer].hand, t);
+  if (discard.length !== 8) {
+    // 防御：策略返回了非法扣底（历史 bug：负数切片产生 >8 张），回退为
+    // 均匀扣底（低分低张优先）并计入 errors，供合法性检测暴露
+    errors += 1;
+    discard = [...state.players[declarer].hand]
+      .sort((a, b) => (isPointRank(a.rank) ? 100 : 0) + a.rank - ((isPointRank(b.rank) ? 100 : 0) + b.rank))
+      .slice(0, 8);
+  }
   const preHand = state.players[declarer].hand;
   const newHand = preHand.filter(c => !discard.some(d => d.id === c.id));
   state = {
@@ -122,7 +131,6 @@ export function playHand(opts: PlayHandOptions): HandEvent {
 
   // --- play phase ---
   let aborted = false;
-  let errors = 0;
   while (state.tricksPlayed < 25) {
     if (state.players.every(p => p.hand.length === 0)) break; // 全部出完提前结束
     const cp = state.currentPlayerIndex;
@@ -256,9 +264,13 @@ export function playMatch(cfg: MatchConfig): MatchResult {
     }
     events.push(ev);
 
-    const adv = advanceLevel(level, ev.finalPts);
-    sideLevels[team] = adv.newLevel;
+    // 升级应用于实际获胜方：庄家赢 → 庄家队（等级=level）；闲家上台 → 闲家队（等级=attackerLevel）
+    // （修复：此前固定用庄家等级并写回庄家桶，闲家上台时升级记错队伍）
+    const advancingTeam = ev.bankerWon ? team : (team === 0 ? 1 : 0);
+    const adv = advanceLevel(ev.bankerWon ? level : attackerLevel, ev.finalPts);
+    sideLevels[advancingTeam] = adv.newLevel;
     if (adv.matchOver) {
+      // matchOver 只可能发生在庄家在 A(14) 打赢 → 胜方即庄家队
       return { winnerTeam: team, handsPlayed: handIndex - abortedHands, abortedHands, capped: false, events };
     }
     // 轮转基于实际庄家（首局亮主者可能顶替预定庄家），与 cli gameLoop:255 一致

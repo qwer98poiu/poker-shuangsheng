@@ -4,6 +4,7 @@ import { runPair, runPairs } from '../run-pairs.js';
 import { playMatch } from '../match.js';
 import { createStats, addHandStats, addMatchOutcome, mergeStats, toJSON, fromJSON } from '../stats.js';
 import { checkSignificance } from '../significance.js';
+import { upgradeLinesForMatch } from '../upgrade-log.js';
 
 describe('arena e2e', () => {
   it('1 对决（seed 42）：两场完整对局、胜方统计一致、无中止', () => {
@@ -83,5 +84,21 @@ describe('arena e2e', () => {
     expect(s.handsPlayed).toBe(m.handsPlayed);
     expect(s.abortedHands).toBe(m.abortedHands);
     expect(s.banker.hands + s.attacker.hands).toBe(m.handsPlayed);
+  });
+
+  it('等级账本一致性：上一手的升级方成为下一手庄家，双方等级严格衔接（回归：闲家上台升级记错队伍）', () => {
+    for (const pair of [0, 1, 2, 3]) {
+      const m = playMatch({ seed: 42, pairIndex: pair, strategies: [engineStrategy, engineStrategy], captureEvents: true });
+      const lines = upgradeLinesForMatch(m.events, 0);
+      for (let i = 1; i < lines.length; i++) {
+        const prev = lines[i - 1];
+        const cur = lines[i];
+        // 上一手升级方成为下一手庄家（庄家保级 → 对家同队；闲家上台 → 闲家队）
+        expect(cur.banker).toBe(prev.upgradeSide);
+        // 升级方的等级 = 上一手的升级结果；另一方保持不变
+        expect(cur.levelA).toBe(prev.upgradeSide === 'A' ? prev.upgradeTo : prev.levelA);
+        expect(cur.levelB).toBe(prev.upgradeSide === 'B' ? prev.upgradeTo : prev.levelB);
+      }
+    }
   });
 });

@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-08-02 14:37
+
+### 竞技场：修复升级账本与扣底负数切片两个 bug
+
+**问题**：用户通过升级记录发现——第 8 手闲家 B 上台 2->3 后，第 9 手 B 的等级仍是 2。
+
+**修复**：
+- **升级账本记错队伍**：playMatch 用庄家等级调用 `advanceLevel` 并写回庄家的等级桶；闲家上台时升级应作用于闲家队（用闲家自己的等级）。修复后同一对局手 8→9：B 2->3、第 9 手庄家 B 等级 3
+- **扣底负数切片**：`tryVoidSuit` 扣绝的门超过 8 张时，`remaining.slice(0, 8 - length)` 的负数 end 会返回大量多余牌，discard 膨胀到 18 张、庄家扣后仅剩 15 张牌导致对局崩溃（升级账本修复改变了等级序列，暴露了这一潜在 bug）。修复：超过 8 张的门不作为扣绝候选；竞技场 playHand 增加防御——扣底非 8 张时回退均匀扣底并计入 errors
+
+**影响**：此前所有竞技场结果（升级节奏、技术指标与胜负）均受等级账本 bug 污染，需重新运行 PK。
+
+**新增 3 项测试**（ai-bottom-strategy.test.ts：2 项；arena-e2e.test.ts：1 项等级账本一致性不变式），引擎 519 项 + arena 63 项 + CLI 34 项 = 616 项通过。
+
+- **影响文件**：`packages/arena/src/match.ts`、`packages/engine/src/ai/bottom-strategy.ts`、`packages/arena/src/__tests__/arena-e2e.test.ts`、`packages/engine/src/__tests__/ai-bottom-strategy.test.ts`
+
 ## 2026-08-02 14:12
 
 ### 竞技场：新增升级记录查看（--detail-pair）

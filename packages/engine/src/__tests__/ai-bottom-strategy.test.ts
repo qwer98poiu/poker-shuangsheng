@@ -148,5 +148,35 @@ describe('aiChooseBottomCards', () => {
       expect(r.discard.length).toBe(8);
       expect(r.keep.length).toBe(25);
     });
+
+    const cfgSuited: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 5 };
+
+    it('回归：非主花色整门超过 8 张时不得扣绝（否则负数切片产生 >8 张扣底）', () => {
+      // S 9 张无分（可扣绝的门，但超过 8 张无法整门入底）
+      const hand: Card[] = [];
+      let idx = 0;
+      for (const r of [2, 3, 4, 6, 7, 8, 9, 11, 12]) hand.push(c('S', r, idx++));
+      for (let r = 2; r <= 9; r++) hand.push(c('H', r, 100 + (r - 2))); // 主牌 8 张
+      for (const r of [13, 10, 5, 9]) hand.push(c('C', r, 200 + r));   // 带分不可扣绝
+      for (const r of [13, 10, 5, 9]) hand.push(c('D', r, 300 + r));
+      expect(hand.length).toBe(25);
+      const r = aiChooseBottomCards(hand, cfgSuited);
+      expect(r.discard.length).toBe(8);
+      expect(r.keep.length).toBe(17);
+    });
+
+    it('整门恰好 8 张无分时正常扣绝', () => {
+      const hand: Card[] = [];
+      let idx = 0;
+      for (const r of [2, 3, 4, 6, 7, 8, 9, 11]) hand.push(c('S', r, idx++)); // S 8 张无分
+      for (let r = 2; r <= 10; r++) hand.push(c('H', r, 100 + (r - 2)));      // 主牌 9 张
+      for (const r of [13, 10]) hand.push(c('C', r, 200 + r));                // C 带分
+      for (const r of [13, 10]) hand.push(c('D', r, 300 + r));                // D 带分
+      for (const r of [2, 3, 4, 6]) hand.push(c('C', r, 400 + r));            // C 无分 4 张
+      expect(hand.length).toBe(25);
+      const r = aiChooseBottomCards(hand, cfgSuited);
+      expect(r.discard.length).toBe(8);
+      expect(r.reason).toContain('扣绝');
+    });
   });
 });
