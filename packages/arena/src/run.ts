@@ -18,7 +18,7 @@ import { runPairs } from './run-pairs.js';
 import { strategyByName } from './strategies.js';
 import { createStats, mergeStats, fromJSON, toJSON } from './stats.js';
 import type { StrategyStats } from './stats.js';
-import { checkSignificance, Z } from './significance.js';
+import { checkSignificance, requiredMatchesForSignificance, Z } from './significance.js';
 import type { SignificanceResult } from './significance.js';
 import { formatDuration, estimateRemaining, buildCheckpointDoc } from './progress.js';
 
@@ -311,13 +311,15 @@ async function main(): Promise<void> {
   const t0 = Date.now();
   const startedAt = new Date().toISOString();
   const maxPairs = Math.floor(args.maxMatches / 2);
-  const totalMatches = maxPairs * 2;
   // 三档粒度（用户约定）：
   // - 进度条每 100 场更新一次（含预估剩余时间）
   // - 每 stepMatches 场（默认 1000）输出显著性结果（leader/p̂/99% CI）并写入检查点
   // - 停止判定：达到最小样本（2×pairs，默认 10000 场）且显著时才停止
+  // - 进度基准 targetMatches：2×pairs 前固定为最小样本；之后未显著时按当前
+  //   胜率推算显著所需总场数（动态调整，变化时说明原因）
   const PROGRESS_MATCHES = 100;
   const CHECKPOINT_MATCHES = args.stepMatches;
+  let targetMatches = 2 * args.pairs;
   let accA = createStats();
   let accB = createStats();
   let pairsDone = 0;
@@ -424,13 +426,13 @@ async function main(): Promise<void> {
     pairsDone += batch;
     const matches = pairsDone * 2;
     const elapsedMs = Date.now() - t0;
-    const eta = formatDuration(estimateRemaining(elapsedMs, matches, totalMatches));
+    const eta = formatDuration(estimateRemaining(elapsedMs, matches, targetMatches));
 
     if (matches % CHECKPOINT_MATCHES !== 0 && pairsDone < maxPairs) {
-      // 普通进度行（每 100 场）
+      // 普通进度行（每 100 场）：进度/ETA 以动态基准 targetMatches 计算
       console.log(
-        `已完赛 ${matches} 场（${pairsDone} 对决）| 进度 ${((matches / totalMatches) * 100).toFixed(1)}% ` +
-        `| 已用 ${formatDuration(elapsedMs)} | 预计剩余 ${eta}`,
+        `已完赛 ${matches} 场（${pairsDone} 对决）| 进度 ${((matches / targetMatches) * 100).toFixed(1)}% ` +
+        `| 已用 ${formatDuration(elapsedMs)} | 预计剩余 ${eta} | 目标 ${targetMatches} 场`,
       );
       continue;
     }
@@ -442,10 +444,32 @@ async function main(): Promise<void> {
     const status = outcome.significant
       ? (reachedMin ? '★ 显著' : '★ 显著（未达最小样本，继续）')
       : '未显著，继续';
+
+    // 动态进度基准：达到最小样本且未显著时，按当前胜率推算显著所需总场数
+    let targetNote = '';
+    if (reachedMin && !outcome.significant) {
+      const required = requiredMatchesForSignificance(
+        accA.matches.won, accB.matches.won, accA.matches.drawn, matches,
+        CHECKPOINT_MATCHES, args.maxMatches,
+      );
+      const newTarget = Math.min(required, args.maxMatches);
+      if (newTarget !== targetMatches) {
+        const p = outcome.pHat;
+        const why = !Number.isFinite(required)
+          ? `当前 p̂=${p.toFixed(4)} 未过半，显著性不可达，按上限计`
+          : required > args.maxMatches
+            ? `按当前 p̂=${p.toFixed(4)} 推算需 ${required} 场，超过上限，按上限计`
+            : `按当前 p̂=${p.toFixed(4)} 推算显著所需（向上取整到 ${CHECKPOINT_MATCHES} 的倍数）`;
+        targetNote = `目标调整: ${targetMatches} → ${newTarget} 场（${why}）`;
+        targetMatches = newTarget;
+      }
+    }
+
     console.log(
-      `已完赛 ${matches} 场（${pairsDone} 对决）| 进度 ${((matches / totalMatches) * 100).toFixed(1)}% ` +
-      `| 已用 ${formatDuration(elapsedMs)} | 预计剩余 ${eta} ` +
-      `| leader=${leader} p̂=${outcome.pHat.toFixed(4)} | 99% CI 下界=${outcome.ciLower.toFixed(4)} | ${status}`,
+      `已完赛 ${matches} 场（${pairsDone} 对决）| 进度 ${((matches / targetMatches) * 100).toFixed(1)}% ` +
+      `| 已用 ${formatDuration(elapsedMs)} | 预计剩余 ${eta} | 目标 ${targetMatches} 场 ` +
+      `| leader=${leader} p̂=${outcome.pHat.toFixed(4)} | 99% CI 下界=${outcome.ciLower.toFixed(4)} | ${status}` +
+      (targetNote ? ` | ${targetNote}` : ''),
     );
     writeCheckpoint();
 

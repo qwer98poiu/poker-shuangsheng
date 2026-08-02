@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { checkSignificance, Z } from '../significance.js';
+import { checkSignificance, requiredMatchesForSignificance, Z } from '../significance.js';
 
 describe('checkSignificance (99% Wilson 下界)', () => {
   it('p̂=0.52, n=10000 → 显著，leader=A', () => {
@@ -56,5 +56,36 @@ describe('checkSignificance (99% Wilson 下界)', () => {
 
   it('Z 常量为 2.576（99%）', () => {
     expect(Z).toBe(2.576);
+  });
+});
+
+describe('requiredMatchesForSignificance（动态进度基准）', () => {
+  it('p̂=0.51（5100/10000）→ 推算显著所需 17000 场（1000 的整数倍）', () => {
+    const required = requiredMatchesForSignificance(5100, 4900, 0, 10000, 1000, 100000);
+    expect(required).toBe(17000);
+    expect(required % 1000).toBe(0);
+  });
+
+  it('p̂=0.5032（5032/10000）→ 推算需约 16 万场，超过上限时返回第一个越过上限的倍数', () => {
+    const required = requiredMatchesForSignificance(5032, 4968, 0, 10000, 1000, 100000);
+    expect(required).toBe(101000);
+  });
+
+  it('p̂=0.5 → Infinity（显著性不可达）', () => {
+    expect(requiredMatchesForSignificance(5000, 5000, 0, 10000, 1000, 100000)).toBe(Infinity);
+  });
+
+  it('当前已显著 → 返回当前场数', () => {
+    // p̂=0.52, n=10000 已显著（ciLower≈0.5071 > 0.5）
+    expect(requiredMatchesForSignificance(5200, 4800, 0, 10000, 1000, 100000)).toBe(10000);
+  });
+
+  it('平局按 0.5 胜计入：p̂ 相同的结果一致', () => {
+    // 100 胜 + 10 平 → scoreA = 105 / 200 场 = p̂ 0.525
+    const a = requiredMatchesForSignificance(100, 90, 10, 200, 100, 100000);
+    // 1000 胜 + 100 平 → scoreA = 1050 / 2000 场 = p̂ 同样 0.525
+    const b = requiredMatchesForSignificance(1000, 900, 100, 2000, 100, 100000);
+    expect(a).toBe(b);
+    expect(a).toBe(2700);
   });
 });
