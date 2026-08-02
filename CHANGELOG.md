@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-08-02 14:12
+
+### 竞技场：新增升级记录查看（--detail-pair）
+
+**新增**：`--detail-pair N` 输出第 N 个对决的镜像两场升级记录后退出——同一小局序数的两场使用同一副牌，可直接对比相同牌局在两套策略下的走向。每行输出：小局序数、庄家（A/B）、策略A等级、策略B等级（均为小局开始时）、闲家得分、升级结果（只显示胜利一方；闲家上台不升级输出 x->x；庄家在 A(14) 打赢输出 x->胜出）。
+
+**新增 5 项测试**（upgrade-log.test.ts：5 项），引擎 517 项 + arena 62 项 + CLI 34 项 = 613 项通过。
+
+- **影响文件**：`packages/arena/src/run.ts`、`packages/arena/src/upgrade-log.ts`（新增）、`packages/arena/src/__tests__/upgrade-log.test.ts`（新增）
+
 ## 2026-08-02 13:19
 
 ### 竞技场：进度基准动态化——按当前胜率推算显著所需场数

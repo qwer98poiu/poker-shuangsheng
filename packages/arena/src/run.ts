@@ -21,6 +21,10 @@ import type { StrategyStats } from './stats.js';
 import { checkSignificance, requiredMatchesForSignificance, Z } from './significance.js';
 import type { SignificanceResult } from './significance.js';
 import { formatDuration, estimateRemaining, buildCheckpointDoc } from './progress.js';
+import { upgradeLinesForMatch, formatUpgrade } from './upgrade-log.js';
+import type { UpgradeLine } from './upgrade-log.js';
+import { playMatch } from './match.js';
+import type { MatchResult } from './types.js';
 
 const ARENA_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT_DIR = path.join(ARENA_ROOT, 'results');
@@ -32,6 +36,7 @@ interface Args {
   seed: number;
   workers: number;
   benchmark: number;    // 0 = 关闭
+  detailPair: number | null; // 非空时只输出该对决的升级记录后退出
   strategyA: string;
   strategyB: string;
   out: string | null;   // null = 默认路径; '' = 不导出
@@ -45,6 +50,7 @@ function printUsage(): void {
   --seed N           随机种子（确定性），默认随机
   --workers W        worker 线程数，默认 4（1 = 进程内）
   --benchmark N      跑 N 场对局测速后退出
+  --detail-pair N    输出第 N 个对决的镜像两场升级记录后退出
   --strategy-a NAME  策略 A，默认 ai
   --strategy-b NAME  策略 B，默认 ai-0726
   --out PATH         JSON 导出路径，默认 results/arena-<时间>.json
@@ -64,6 +70,7 @@ function parseArgs(argv: string[]): Args {
     seed: (Math.random() * 2 ** 31) >>> 0,
     workers: Math.min(8, os.cpus().length),
     benchmark: 0,
+    detailPair: null,
     strategyA: 'ai',
     strategyB: 'ai-0726',
     out: null,
@@ -83,6 +90,7 @@ function parseArgs(argv: string[]): Args {
       case '--seed': args.seed = parseInt(val(), 10) >>> 0; break;
       case '--workers': args.workers = parseInt(val(), 10); break;
       case '--benchmark': args.benchmark = parseInt(val(), 10); break;
+      case '--detail-pair': args.detailPair = parseInt(val(), 10); break;
       case '--strategy-a': args.strategyA = val(); break;
       case '--strategy-b': args.strategyB = val(); break;
       case '--out': args.out = val(); break;
@@ -225,6 +233,24 @@ function ratio(p: { n: number; d: number }): string {
   return `${(p.n / p.d).toFixed(4)} (${p.n}/${p.d})`;
 }
 
+function printUpgradeTable(
+  m1: MatchResult, m2: MatchResult,
+  nameA: string, nameB: string, seed: number, pairIndex: number,
+): void {
+  const l1 = upgradeLinesForMatch(m1.events, 0); // 对局1: A 坐 0/2 号位
+  const l2 = upgradeLinesForMatch(m2.events, 1); // 对局2: A 坐 1/3 号位
+  const maxHands = Math.max(l1.length, l2.length);
+  const fmt = (l: UpgradeLine | undefined): string => l
+    ? `${l.banker}   ${String(l.levelA).padStart(2)}  ${String(l.levelB).padStart(2)}  ${String(l.finalPts).padStart(3)}  ${formatUpgrade(l)}`
+    : '—';
+  console.log(`\n对决 ${pairIndex}（seed=${seed}）| A=${nameA}  B=${nameB}（同一副牌的两场镜像）`);
+  console.log('手 | 对局1: 庄家 A级 B级 得分 升级            | 对局2: 庄家 A级 B级 得分 升级');
+  for (let i = 0; i < maxHands; i++) {
+    console.log(`${String(i).padStart(2)} | ${fmt(l1[i])} | ${fmt(l2[i])}`);
+  }
+  console.log(`中止小局: 对局1=${m1.abortedHands}  对局2=${m2.abortedHands}`);
+}
+
 function perLevelTable(title: string, m: Map<number, { n: number; d: number }>): string {
   const lines: string[] = [];
   for (let lv = 2; lv <= 14; lv++) {
@@ -305,6 +331,13 @@ async function main(): Promise<void> {
 
   if (args.benchmark > 0) {
     await runBenchmark(args, stratA, stratB);
+    return;
+  }
+
+  if (args.detailPair !== null) {
+    const m1 = playMatch({ seed: args.seed, pairIndex: args.detailPair, strategies: [stratA, stratB], captureEvents: true });
+    const m2 = playMatch({ seed: args.seed, pairIndex: args.detailPair, strategies: [stratB, stratA], captureEvents: true });
+    printUpgradeTable(m1, m2, args.strategyA, args.strategyB, args.seed, args.detailPair);
     return;
   }
 
