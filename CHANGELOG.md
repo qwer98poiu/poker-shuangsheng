@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-08-02 23:05
+
+### 提取历史基线策略 ai-0712 与 ai-0719
+
+**新增**：从 git 历史提取早期策略——`68a134`（2026-07-12）→ `ai-0712`、`98221b`（2026-07-19）→ `ai-0719`（完整目录复制，早期"index + 辅助文件"结构），注册进竞技场（`--strategy-a/--strategy-b ai-0712/ai-0719`），合法性测试覆盖，README 策略列表同步更新。
+
+**修复**（提取时发现的历史 bug，最小改动保持策略意图）：
+- `ai-0712`：跟对子领出时对子不足（`myPairs.length >= pairCount`）跳过带对分支 → 0 对子非法跟牌（与 ai/ 448d36d 同类）；NT 下跟常主对/拖拉机无对子匹配（`followNTTrumpLead` 多张分支只按大小垫最小常主）。
+- `ai-0719`：`followOffSuitMulti` 对子分支同款 bug；98221b 上游编译错误（`shouldAvoid` 未定义、`hasPoints` 类型、`Reveal.cards` 已随 Reveal 类型移除）；NT 记牌器 `possibleTrumps` 由旧 `string[]` 结构适配为当前引擎的 `Record<key, count>` 结构（3 个读取端重写）。
+
+**新增 2 项测试**（historical-strategies.test.ts：2 项），引擎 580 项 + arena 66 项 + CLI 34 项 = 680 项通过。
+
+- **影响文件**：`packages/engine/src/ai-0712/`、`packages/engine/src/ai-0719/`、`packages/engine/src/index.ts`、`packages/arena/src/strategies.ts`、`packages/arena/src/__tests__/historical-strategies.test.ts`、`README.md`
+
 ## 2026-08-02 21:32
 
 ### 文档：README 增加策略 Elo 评分
