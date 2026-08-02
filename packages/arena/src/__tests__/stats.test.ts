@@ -9,7 +9,7 @@ const evBankerWin: HandEvent = {
   trumpSuit: Suit.Hearts, bottomPoints: 15, killSuitCount: 1,
   attackerWonLastTrick: false, kouDiAdd: 0, finalPts: 40, bankerWon: true,
   tricksPlayed: 13, tricksWonByTeam0: 9, leadsByTeam0: 7,
-  leadCardsByTeam0: 9, leadCardsTotal: 17, aborted: false,
+  leadCardsByTeam0: 9, leadCardsTotal: 17, errors: 0, aborted: false,
 };
 
 /** 闲家(team1)在闲家等级 A(14) 上台赢：NT、抠底 +40。 */
@@ -18,7 +18,7 @@ const evAttackerWin: HandEvent = {
   trumpSuit: null, bottomPoints: 20, killSuitCount: 0,
   attackerWonLastTrick: true, kouDiAdd: 40, finalPts: 120, bankerWon: false,
   tricksPlayed: 11, tricksWonByTeam0: 3, leadsByTeam0: 5,
-  leadCardsByTeam0: 6, leadCardsTotal: 14, aborted: false,
+  leadCardsByTeam0: 6, leadCardsTotal: 14, errors: 0, aborted: false,
 };
 
 const evAborted: HandEvent = {
@@ -148,7 +148,7 @@ describe('抠底频率与抠底成功频率', () => {
       trumpSuit: Suit.Hearts, bottomPoints: 0, killSuitCount: 0,
       attackerWonLastTrick: true, kouDiAdd: 0, finalPts: 85, bankerWon: false,
       tricksPlayed: 10, tricksWonByTeam0: 4, leadsByTeam0: 5,
-      leadCardsByTeam0: 6, leadCardsTotal: 13, aborted: false,
+      leadCardsByTeam0: 6, leadCardsTotal: 13, errors: 0, aborted: false,
     };
     const s = createStats();
     addHandStats(s, evNoPoints, 0); // team0 是闲家：赢了最后一墩但底牌无分

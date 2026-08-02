@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-08-02 12:19
+
+### 竞技场：提取 07-08 基线 ai-0707，移除 ai-v2
+
+**新增**：
+- 基线策略 **ai-0707**（ae2b76，2026-07-08）：单文件版 ai，与当前引擎直接兼容；100 场验证 0 中止、0 验牌回退，合法性测试通过（2 项）
+- HandEvent 新增 `errors` 计数（引擎验牌回退次数），用于策略合法性检测
+
+**移除**：
+- **ai-v2**（ai/ 的复制副本）及其差异测试——竞技场工作流已转向提取历史基线，副本不再需要（引擎测试 523 → 517）
+
+**新增 2 项测试**（historical-strategies.test.ts：2 项），引擎 517 项 + arena 52 项 + CLI 34 项 = 603 项通过。
+
+- **影响文件**：`packages/engine/src/ai-0707/`、`packages/engine/src/index.ts`、`packages/arena/src/strategies.ts`、`packages/arena/src/types.ts`、`packages/arena/src/match.ts`、`packages/arena/src/__tests__/historical-strategies.test.ts`（新增）、`packages/arena/src/__tests__/arena-e2e.test.ts`、`packages/arena/src/__tests__/stats.test.ts`
+
 ## 2026-08-02 11:53
 
 ### 竞技场：进度条、检查点与 SIGINT 优雅退出

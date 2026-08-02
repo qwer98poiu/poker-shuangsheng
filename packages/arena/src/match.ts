@@ -122,6 +122,7 @@ export function playHand(opts: PlayHandOptions): HandEvent {
 
   // --- play phase ---
   let aborted = false;
+  let errors = 0;
   while (state.tricksPlayed < 25) {
     if (state.players.every(p => p.hand.length === 0)) break; // 全部出完提前结束
     const cp = state.currentPlayerIndex;
@@ -161,9 +162,11 @@ export function playHand(opts: PlayHandOptions): HandEvent {
     if (res.forcedPlay) {
       state = res.state; // throw auto-forced with penalty
     } else if (res.error) {
+      errors += 1; // 策略出了非法牌，引擎验牌回退
       const want = isLeading ? 1 : (state.trickPlays[0]?.cards.length ?? 1);
       const fb = playCards(state, cp, player.hand.slice(0, want));
       if (fb.error) {
+        errors += 1;
         const fb2 = playCards(state, cp, [player.hand[0]]);
         if (fb2.error) { aborted = true; break; }
         state = fb2.state;
@@ -219,6 +222,7 @@ export function playHand(opts: PlayHandOptions): HandEvent {
     leadsByTeam0,
     leadCardsByTeam0,
     leadCardsTotal,
+    errors,
     aborted,
   };
 }

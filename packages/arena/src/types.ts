@@ -55,6 +55,7 @@ export interface HandEvent {
   leadsByTeam0: number;
   leadCardsByTeam0: number; // sum of lead plays' card counts when a team-0 seat led
   leadCardsTotal: number;   // sum of all lead plays' card counts (both teams)
+  errors: number;           // 引擎验牌失败回退次数（策略合法性检测用）
   aborted: boolean;         // engine error/abort — excluded from all denominators
 }
 

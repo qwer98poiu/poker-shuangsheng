@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { engineStrategy, aiV2Strategy } from '../strategies.js';
+import { engineStrategy } from '../strategies.js';
 import { runPair, runPairs } from '../run-pairs.js';
 import { playMatch } from '../match.js';
 import { createStats, addHandStats, addMatchOutcome, mergeStats, toJSON, fromJSON } from '../stats.js';
@@ -7,7 +7,7 @@ import { checkSignificance } from '../significance.js';
 
 describe('arena e2e', () => {
   it('1 对决（seed 42）：两场完整对局、胜方统计一致、无中止', () => {
-    const { statsA, statsB } = runPair(42, 0, engineStrategy, aiV2Strategy);
+    const { statsA, statsB } = runPair(42, 0, engineStrategy, engineStrategy);
     expect(statsA.matches.played).toBe(2);
     expect(statsB.matches.played).toBe(2);
     // 每场对局恰好记给一方（或平局双方 0.5）
@@ -22,7 +22,7 @@ describe('arena e2e', () => {
   });
 
   it('对局完整跑通：事件等级有界、庄家轮转合法、墩数一致', () => {
-    const m = playMatch({ seed: 42, pairIndex: 1, strategies: [engineStrategy, aiV2Strategy], captureEvents: true });
+    const m = playMatch({ seed: 42, pairIndex: 1, strategies: [engineStrategy, engineStrategy], captureEvents: true });
     expect(m.handsPlayed).toBeGreaterThanOrEqual(1);
     expect(m.abortedHands).toBe(0);
     for (const ev of m.events) {
@@ -43,7 +43,7 @@ describe('arena e2e', () => {
   });
 
   it('maxHands=1 强制平局：winnerTeam=null、capped=true、各记 0.5 胜', () => {
-    const m = playMatch({ seed: 42, pairIndex: 2, strategies: [engineStrategy, aiV2Strategy], maxHands: 1 });
+    const m = playMatch({ seed: 42, pairIndex: 2, strategies: [engineStrategy, engineStrategy], maxHands: 1 });
     expect(m.winnerTeam).toBeNull();
     expect(m.capped).toBe(true);
     expect(m.handsPlayed).toBe(1);
@@ -64,20 +64,20 @@ describe('arena e2e', () => {
   });
 
   it('toJSON → fromJSON 往返保持统计不变', () => {
-    const { statsA } = runPair(42, 0, engineStrategy, aiV2Strategy);
+    const { statsA } = runPair(42, 0, engineStrategy, engineStrategy);
     expect(fromJSON(toJSON(statsA))).toEqual(statsA);
   });
 
   it('mergeStats 逐对合并 == runPairs 批量合并', () => {
-    const p0 = runPair(42, 0, engineStrategy, aiV2Strategy);
-    const p1 = runPair(42, 1, engineStrategy, aiV2Strategy);
-    const batched = runPairs(42, 0, 2, engineStrategy, aiV2Strategy);
+    const p0 = runPair(42, 0, engineStrategy, engineStrategy);
+    const p1 = runPair(42, 1, engineStrategy, engineStrategy);
+    const batched = runPairs(42, 0, 2, engineStrategy, engineStrategy);
     expect(mergeStats(p0.statsA, p1.statsA)).toEqual(batched.statsA);
     expect(mergeStats(p0.statsB, p1.statsB)).toEqual(batched.statsB);
   });
 
   it('addHandStats 聚合 = 事件逐条累加', () => {
-    const m = playMatch({ seed: 42, pairIndex: 1, strategies: [engineStrategy, aiV2Strategy], captureEvents: true });
+    const m = playMatch({ seed: 42, pairIndex: 1, strategies: [engineStrategy, engineStrategy], captureEvents: true });
     const s = createStats();
     for (const ev of m.events) addHandStats(s, ev, 0);
     expect(s.handsPlayed).toBe(m.handsPlayed);

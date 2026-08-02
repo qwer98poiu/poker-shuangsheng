@@ -22,11 +22,9 @@ export * from './game/index.js';
 // AI (reusing old ai/index.ts for now — will be ported later)
 export * from './ai/index.js';
 
-// Strategy arena variant (copy of ai/, kept in sync via differential tests)
-export * as aiV2 from './ai-v2/index.js';
-
-// Strategy arena baseline: ai/ as of commit 7382d1a (2026-07-26)
-export * as ai0726 from './ai-0726/index.js';
+// Strategy arena baselines: ai/ as of historical commits
+export * as ai0726 from './ai-0726/index.js'; // 7382d1a (2026-07-26)
+export * as ai0707 from './ai-0707/index.js'; // ae2b76 (2026-07-08)
 
 // Serialization (reusing old model/serialize.ts)
 export * from './model/serialize.js';
