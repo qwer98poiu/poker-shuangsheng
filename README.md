@@ -62,10 +62,23 @@ Cards are played in patterns that must be **matched** by subsequent players:
 - **Engine** ([`packages/engine`](packages/engine/)) — Core game logic: card types, pattern classification, trick comparison, validation, AI strategies, and NT trump tracking (count-based deduction).
 - **CLI** ([`packages/cli`](packages/cli/)) — Terminal-based interactive play with full-color card display.
 - **Client** ([`packages/client`](packages/client/)) — React + Vite web frontend with Zustand state management (work in progress, not yet playable).
+- **Arena** ([`packages/arena`](packages/arena/)) — Headless strategy tournament: mirrored full matches (2→A, with 必打 K/A) between two AI strategies, 99%-CI win-rate significance testing, and 17+ technical metrics.
 
 ### NT Trump Tracker
 
 In NT (no-trump) mode, 12 constant trump cards (Big Joker × 2, Small Joker × 2, level cards × 8) are tracked via a count-based deduction system that infers possible holdings from played cards, reveals, and pair-failure deductions — without peeking at other players' hands.
+
+## Strategy Arena
+
+`packages/arena` pits two AI strategies against each other over full matches (2→A) to decide, at 99% confidence, whether one wins significantly more than the other.
+
+- **Mirror pairs (对决)** — One 对决 = two matches: strategy A sits seats 0&2 in one, strategy B sits 0&2 in the other. Both matches share the same decks (hand i of both matches uses the same deal), so P0 holds identical 25 cards in both — different strategies still produce different trumps, upgrade pacing, and outcomes.
+- **必打 K/A** — Levels K and A must be *won while banker* to pass: a 闲家 taking over at K stays at K; the banker winning at A ends the match. Takeover/advancement both use the attacker's final points including the bottom (抠底).
+- **Significance** — p̂ = (wins + 0.5×draws)/n; the 99% Wilson lower bound must exceed 0.5. Checks begin at the minimum sample (2×pairs) and repeat every `stepMatches` matches; the run stops immediately once significant. A draw (match capped at 200 hands) counts as 0.5 wins each.
+- **Dynamic progress target** — Before the minimum sample the progress denominator is fixed at 2×pairs; afterwards, if not yet significant, it projects the total matches needed under the current p̂ (rounded up to a `stepMatches` multiple), with the reason printed when it changes.
+- **Progress & checkpoints** — A progress line every 100 matches (with ETA); every `stepMatches` matches the significance result is printed and `results/checkpoint.json` is written; Ctrl+C saves partial results and exits gracefully. No resume — every run starts from 0.
+- **Upgrade log** — `--detail-pair N` prints the per-hand upgrade records of both mirrored matches side by side (same deck), showing banker side, both levels at hand start, attacker points, and the upgrade result.
+- **Historical baselines** — `ai-0726` (2026-07-26) and `ai-0707` (2026-07-08) were extracted from git history to PK against the current `ai`.
 
 ## Quick Start
 
@@ -78,13 +91,38 @@ In NT (no-trump) mode, 12 constant trump cards (Big Joker × 2, Small Joker × 2
 
 ```bash
 npm install
-npx tsx packages/cli/src/index.ts
+npx tsx packages/cli/src/index.ts    # or: npm start -w packages/cli
 ```
+
+The CLI is interactive: it prompts for the number of human players, debug mode, etc.
+
+### Strategy Arena
+
+```bash
+npm run arena -w packages/arena -- --pairs 5000 --seed 42 --strategy-b ai-0707
+# or from the repo root: npm run arena -- --pairs 5000 ...
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `--pairs N` | 5000 | Initial 对决 count (= 2N matches; the minimum sample) |
+| `--max-matches N` | 100000 | Match cap (must be ≥ 2×pairs) |
+| `--step-matches N` | 1000 | Interval (in matches) for significance checks and checkpoints |
+| `--seed N` | random | Random seed — same seed + flags reproduce identical results |
+| `--workers W` | logical cores | Parallel child processes (1 = in-process) |
+| `--strategy-a NAME` | `ai` | Strategy A (`ai` / `ai-0726` / `ai-0707`) |
+| `--strategy-b NAME` | `ai-0726` | Strategy B |
+| `--benchmark N` | — | Run N matches for speed measurement, then exit |
+| `--detail-pair N` | — | Print the mirrored upgrade log of 对决 N, then exit |
+| `--out PATH` | `results/arena-<ts>.json` | JSON report path |
+| `--no-json` | — | Skip JSON export |
 
 Run tests:
 
 ```bash
-npx vitest run packages/engine/
+npm run test -w packages/engine    # engine
+npm run test -w packages/arena     # arena
+npm run test -w packages/cli       # CLI
 ```
 
 ## Tech Stack
@@ -96,7 +134,7 @@ npx vitest run packages/engine/
 | Engine | Pure logic, zero dependencies |
 | CLI | tsx (TypeScript execute) |
 | Client | React 18 + Vite + Zustand |
-| Testing | Vitest 2.x (483 tests) |
+| Testing | Vitest 2.x (616 tests) |
 
 ## AI Strategy
 
@@ -132,6 +170,7 @@ MIT — see [LICENSE](LICENSE).
 - **[`packages/engine`](packages/engine/)** — 核心引擎：牌型分类、比较、验牌、AI 出牌策略、NT 记牌器（基于计数的常主追踪）。
 - **[`packages/cli`](packages/cli/)** — 终端交互版，支持全色彩牌面显示。
 - **[`packages/client`](packages/client/)** — React 网页前端（开发中，暂不可用）。
+- **[`packages/arena`](packages/arena/)** — 策略竞技场：两套 AI 策略在完整对局（2→A，含必打 K/A）中镜像对决，99% 置信度显著性判定，输出 17+ 项技术指标。
 
 ### 游戏规则
 
@@ -185,6 +224,18 @@ MIT — see [LICENSE](LICENSE).
 
 无主模式下，12 张常主（大王 × 2、小王 × 2、级牌 × 8）通过基于计数的推理系统追踪可能分布。系统利用出牌记录、亮主信息和无对推断，在不查看其他玩家手牌的前提下推断常主归属。
 
+### 策略竞技场
+
+`packages/arena` 让两套 AI 策略在完整对局（2→A）中镜像对决，以 99% 置信度判定一方胜率是否显著优于另一方。
+
+- **镜像对决（对决）**：每对决 = 两场对局——策略 A 坐 0/2 号位一场、策略 B 坐 0/2 号位一场；两场共享同一发牌序列（第 i 小局同副牌），P0 两场拿到相同的 25 张——不同策略仍会产生不同的主花色、升级节奏与结果。
+- **必打 K/A**：K 和 A 必须**当庄打赢**才能越过——闲家在 K 上台只能停在 K；庄家在 A 打赢即胜出。上台判定与升级统一用含抠底的闲家最终分。
+- **显著性判定**：p̂ = (胜 + 0.5×平)/n，99% Wilson 区间下界 > 0.5 即显著。最小样本（2×pairs）后每 `stepMatches` 场检查一次，显著立即停止；单场 200 小局封顶判平局（各记 0.5 胜）。
+- **动态进度基准**：最小样本前进度分母固定为 2×pairs；之后未显著时按当前胜率推算显著所需总场数（向上取整到 stepMatches 的倍数），基准变化时说明原因。
+- **进度与检查点**：每 100 场一行进度（含 ETA）；每 `stepMatches` 场输出显著性并写 `results/checkpoint.json`；Ctrl+C 保存部分结果后优雅退出。不支持恢复，每次从 0 开始。
+- **升级记录**：`--detail-pair N` 并排输出该对决镜像两场的逐手升级记录（同一副牌），含庄家方、双方等级、闲家得分与升级结果。
+- **历史基线策略**：`ai-0726`（2026-07-26）与 `ai-0707`（2026-07-08）从 git 历史提取，用于与当前策略 `ai` 对比。
+
 ### 快速开始
 
 #### 环境要求
@@ -192,17 +243,42 @@ MIT — see [LICENSE](LICENSE).
 - **Node.js** ≥ 18
 - **npm** ≥ 9
 
-#### 命令行
+#### 命令行（CLI）
 
 ```bash
 npm install
-npx tsx packages/cli/src/index.ts
+npx tsx packages/cli/src/index.ts    # 或 npm start -w packages/cli
 ```
+
+CLI 为交互式：启动后按提示输入玩家数、调试模式等。
+
+#### 策略竞技场
+
+```bash
+npm run arena -w packages/arena -- --pairs 5000 --seed 42 --strategy-b ai-0707
+# 仓库根目录也可直接：npm run arena -- --pairs 5000 ...
+```
+
+| 参数 | 默认 | 说明 |
+|---|---|---|
+| `--pairs N` | 5000 | 初始对决数（=2N 场对局，最小样本） |
+| `--max-matches N` | 100000 | 对局上限（须 ≥ 2×pairs） |
+| `--step-matches N` | 1000 | 显著性检查与检查点的间隔场数 |
+| `--seed N` | 随机 | 随机种子——同 seed 同参数结果可完全复现 |
+| `--workers W` | 逻辑核数 | 并行子进程数（1 = 进程内） |
+| `--strategy-a NAME` | `ai` | 策略 A（`ai` / `ai-0726` / `ai-0707`） |
+| `--strategy-b NAME` | `ai-0726` | 策略 B |
+| `--benchmark N` | — | 跑 N 场测速后退出 |
+| `--detail-pair N` | — | 输出第 N 个对决的镜像升级记录后退出 |
+| `--out PATH` | `results/arena-<时间>.json` | JSON 报告导出路径 |
+| `--no-json` | — | 不导出 JSON |
 
 测试：
 
 ```bash
-npx vitest run packages/engine/
+npm run test -w packages/engine    # 引擎
+npm run test -w packages/arena     # 竞技场
+npm run test -w packages/cli       # CLI
 ```
 
 ### AI 策略

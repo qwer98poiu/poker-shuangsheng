@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-08-02 15:05
+
+### 文档：README 补充策略竞技场介绍与启动命令
+
+**修改**：README.md 中英文两部分同步更新——项目结构补充 `packages/arena`；新增"策略竞技场"章节（镜像对决、必打 K/A、显著性判定、动态进度基准、检查点与升级记录、历史基线策略）；快速开始补充 CLI 与竞技场的启动命令及完整参数表（--pairs/--max-matches/--step-matches/--seed/--workers/--strategy-a/--strategy-b/--benchmark/--detail-pair/--out/--no-json）；测试数更新为 616。
+
+无新增测试，总数 616 项通过。
+
+- **影响文件**：`README.md`
+
 ## 2026-08-02 14:37
 
 ### 竞技场：修复升级账本与扣底负数切片两个 bug
