@@ -110,7 +110,7 @@ npm run arena -w packages/arena -- --pairs 5000 --seed 42 --strategy-b ai-0707
 | `--step-matches N` | 1000 | Interval (in matches) for significance checks and checkpoints |
 | `--seed N` | random | Random seed — same seed + flags reproduce identical results |
 | `--workers W` | logical cores | Parallel child processes (1 = in-process) |
-| `--strategy-a NAME` | `ai` | Strategy A (`ai` / `ai-0726` / `ai-0707`) |
+| `--strategy-a NAME` | `ai` | Strategy A (`ai` / `ai-0801` / `ai-0726` / `ai-0707`) |
 | `--strategy-b NAME` | `ai-0726` | Strategy B |
 | `--benchmark N` | — | Run N matches for speed measurement, then exit |
 | `--detail-pair N` | — | Print the mirrored upgrade log of 对决 N, then exit |
@@ -266,7 +266,7 @@ npm run arena -w packages/arena -- --pairs 5000 --seed 42 --strategy-b ai-0707
 | `--step-matches N` | 1000 | 显著性检查与检查点的间隔场数 |
 | `--seed N` | 随机 | 随机种子——同 seed 同参数结果可完全复现 |
 | `--workers W` | 逻辑核数 | 并行子进程数（1 = 进程内） |
-| `--strategy-a NAME` | `ai` | 策略 A（`ai` / `ai-0726` / `ai-0707`） |
+| `--strategy-a NAME` | `ai` | 策略 A（`ai` / `ai-0801` / `ai-0726` / `ai-0707`） |
 | `--strategy-b NAME` | `ai-0726` | 策略 B |
 | `--benchmark N` | — | 跑 N 场测速后退出 |
 | `--detail-pair N` | — | 输出第 N 个对决的镜像升级记录后退出 |

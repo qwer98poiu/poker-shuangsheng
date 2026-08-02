@@ -3,7 +3,7 @@
  * One-line delegations; identical input → identical output (guarded by the
  * engine-side differential tests).
  */
-import { aiTryReveal, aiChooseBottomCards, aiLeadPlay, aiFollowPlay, ai0726, ai0707 } from '@poker/engine';
+import { aiTryReveal, aiChooseBottomCards, aiLeadPlay, aiFollowPlay, ai0726, ai0707, ai0801 } from '@poker/engine';
 import type { CardSuit } from '@poker/engine';
 import type { Strategy } from './types.js';
 
@@ -33,10 +33,20 @@ export const ai0707Strategy: Strategy = {
   follow: (hand, lead, suit, config) => ai0707.aiFollowPlay(hand, lead, suit as CardSuit, config),
 };
 
-/** Resolve a strategy by name ('ai' | 'ai-0726' | 'ai-0707'). */
+/** 快照基线：当前 ai/ 的副本（2026-08-01），用于未来策略更新后的对比。 */
+export const ai0801Strategy: Strategy = {
+  name: 'ai-0801',
+  tryReveal: (hand, dealt, pi, level, cur) => ai0801.aiTryReveal(hand, dealt, pi, level, cur),
+  chooseBottom: (hand, config) => ai0801.aiChooseBottomCards(hand, config),
+  lead: (hand, config) => ai0801.aiLeadPlay(hand, config),
+  follow: (hand, lead, suit, config) => ai0801.aiFollowPlay(hand, lead, suit, config),
+};
+
+/** Resolve a strategy by name ('ai' | 'ai-0726' | 'ai-0707' | 'ai-0801'). */
 export function strategyByName(name: string): Strategy {
   if (name === 'ai') return engineStrategy;
   if (name === 'ai-0726') return ai0726Strategy;
   if (name === 'ai-0707') return ai0707Strategy;
-  throw new Error(`未知策略: ${name}（可选: ai, ai-0726, ai-0707）`);
+  if (name === 'ai-0801') return ai0801Strategy;
+  throw new Error(`未知策略: ${name}（可选: ai, ai-0726, ai-0707, ai-0801）`);
 }

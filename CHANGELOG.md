@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-08-02 16:08
+
+### 竞技场：复制当前策略快照 ai-0801
+
+**新增**：当前 `ai/` 的副本（2026-08-01 快照，含当日修复）作为 `ai-0801`，经 `export * as ai0801` 暴露并注册进竞技场（`--strategy-a/--strategy-b ai-0801`），用于未来策略更新后的对比基线；合法性测试覆盖，README 策略列表同步更新。
+
+**新增 1 项测试**（historical-strategies.test.ts：1 项），引擎 520 项 + arena 64 项 + CLI 34 项 = 618 项通过。
+
+- **影响文件**：`packages/engine/src/ai-0801/`、`packages/engine/src/index.ts`、`packages/arena/src/strategies.ts`、`packages/arena/src/__tests__/historical-strategies.test.ts`、`README.md`
+
 ## 2026-08-02 16:06
 
 ### 修复：甩牌带对子跟牌时对子不足导致 0 对子非法跟牌
