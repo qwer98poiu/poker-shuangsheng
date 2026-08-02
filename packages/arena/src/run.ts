@@ -20,6 +20,7 @@ import { createStats, mergeStats, fromJSON, toJSON } from './stats.js';
 import type { StrategyStats } from './stats.js';
 import { checkSignificance, Z } from './significance.js';
 import type { SignificanceResult } from './significance.js';
+import { formatDuration, estimateRemaining, buildCheckpointDoc } from './progress.js';
 
 const ARENA_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT_DIR = path.join(ARENA_ROOT, 'results');
@@ -28,7 +29,6 @@ interface Args {
   pairs: number;        // 初始对决数（最小样本）
   maxMatches: number;   // 对局上限
   stepMatches: number;  // 每次追加的对局数
-  batchPairs: number;   // 每批对决数
   seed: number;
   workers: number;
   benchmark: number;    // 0 = 关闭
@@ -42,7 +42,6 @@ function printUsage(): void {
   --pairs N          初始对决数（=2N 场对局），默认 5000
   --max-matches N    对局上限，默认 100000（须 ≥ 2×pairs）
   --step-matches N   每次追加的对局数，默认 1000
-  --batch-pairs N    每批对决数（并行切片单位），默认 500
   --seed N           随机种子（确定性），默认随机
   --workers W        worker 线程数，默认 4（1 = 进程内）
   --benchmark N      跑 N 场对局测速后退出
@@ -50,7 +49,10 @@ function printUsage(): void {
   --strategy-b NAME  策略 B，默认 ai-v2
   --out PATH         JSON 导出路径，默认 results/arena-<时间>.json
   --no-json          不导出 JSON
-  -h, --help         显示帮助`);
+  -h, --help         显示帮助
+
+进度: 每 100 场更新一行（含预估剩余时间）；每 1000 场写入检查点
+      results/checkpoint.json；Ctrl+C 保存部分结果后优雅退出。`);
 }
 
 function parseArgs(argv: string[]): Args {
@@ -58,7 +60,6 @@ function parseArgs(argv: string[]): Args {
     pairs: 5000,
     maxMatches: 100000,
     stepMatches: 1000,
-    batchPairs: 500,
     seed: (Math.random() * 2 ** 31) >>> 0,
     workers: Math.min(8, os.cpus().length),
     benchmark: 0,
@@ -78,7 +79,6 @@ function parseArgs(argv: string[]): Args {
       case '--pairs': args.pairs = parseInt(val(), 10); break;
       case '--max-matches': args.maxMatches = parseInt(val(), 10); break;
       case '--step-matches': args.stepMatches = parseInt(val(), 10); break;
-      case '--batch-pairs': args.batchPairs = parseInt(val(), 10); break;
       case '--seed': args.seed = parseInt(val(), 10) >>> 0; break;
       case '--workers': args.workers = parseInt(val(), 10); break;
       case '--benchmark': args.benchmark = parseInt(val(), 10); break;
@@ -111,11 +111,17 @@ interface WorkerResult { id: number; statsA: Record<string, any>; statsB: Record
 interface Task { id: number; pairStart: number; pairCount: number }
 
 class ChildPool {
+  /** 全局子进程注册表：SIGINT 时即使池尚未完成创建也能全部终止。 */
+  private static all: ChildProcess[] = [];
   private idle: ChildProcess[] = [];
   private queue: { task: Task; resolve: (m: WorkerResult) => void }[] = [];
   /** 在途任务（已派发、等待响应）：id → resolve。 */
   private pending = new Map<number, (m: WorkerResult) => void>();
   private nextId = 1;
+
+  static killAll(): void {
+    for (const c of ChildPool.all) c.kill();
+  }
 
   static async create(count: number, seed: number, strategyA: string, strategyB: string): Promise<ChildPool> {
     const pool = new ChildPool();
@@ -131,6 +137,7 @@ class ChildPool {
       cwd: ARENA_ROOT,
       stdio: ['pipe', 'pipe', 'inherit'],
     });
+    ChildPool.all.push(child);
     let buffer = '';
     child.stdout!.on('data', (chunk: Buffer) => {
       buffer += chunk.toString();
@@ -206,7 +213,7 @@ class ChildPool {
 
   close(): void {
     this.closed = true;
-    for (const c of this.idle) c.kill();
+    ChildPool.killAll();
   }
 }
 
@@ -251,7 +258,7 @@ function printReport(
     const name = label === 'A' ? nameA : nameB;
     const winRate = { n: s.matches.won + 0.5 * s.matches.drawn, d: s.matches.played };
     console.log(`\n策略 ${label} (${name}):`);
-    console.log(`  胜率: ${(winRate.n / winRate.d).toFixed(4)} (${winRate.n}/${winRate.d})`);
+    console.log(`  胜率: ${winRate.d === 0 ? '—' : `${(winRate.n / winRate.d).toFixed(4)} (${winRate.n}/${winRate.d})`}`);
     console.log(`  当庄频率: ${ratio({ n: s.banker.hands, d: globalHands })}`);
     console.log(`  台上胜率: ${ratio({ n: s.banker.wins, d: s.banker.hands })}`);
     console.log(perLevelTable('  台上各等级胜率', s.banker.perLevel));
@@ -301,21 +308,100 @@ async function main(): Promise<void> {
   }
 
   const t0 = Date.now();
+  const startedAt = new Date().toISOString();
   const maxPairs = Math.floor(args.maxMatches / 2);
-  const stepPairs = Math.max(1, Math.floor(args.stepMatches / 2));
+  const totalMatches = maxPairs * 2;
+  // 三档粒度（用户约定）：
+  // - 进度条每 100 场更新一次（含预估剩余时间）
+  // - 检查点每 1000 场（500 对决）写入 results/checkpoint.json
+  // - 显著性检查：≥10000 场（minMatches）后每 +1000 场（stepMatches）检查一次
+  const PROGRESS_MATCHES = 100;
+  const CHECKPOINT_MATCHES = 1000;
   let accA = createStats();
   let accB = createStats();
   let pairsDone = 0;
   let nextMilestoneMatches = 2 * args.pairs;
   let outcome: SignificanceResult | null = null;
   let verdict = '无法判定（达到上限仍未显著）';
+  let interrupted = false;
 
-  const pool = args.workers > 1
+  let pool: ChildPool | null = null;
+
+  const writeCheckpoint = (): void => {
+    const doc = buildCheckpointDoc(
+      {
+        seed: args.seed,
+        strategyA: args.strategyA,
+        strategyB: args.strategyB,
+        minMatches: 2 * args.pairs,
+        maxMatches: args.maxMatches,
+        stepMatches: args.stepMatches,
+        startedAt,
+      },
+      pairsDone,
+      toJSON(accA) as Record<string, unknown>,
+      toJSON(accB) as Record<string, unknown>,
+      new Date().toISOString(),
+    );
+    fs.mkdirSync(OUT_DIR, { recursive: true });
+    fs.writeFileSync(path.join(OUT_DIR, 'checkpoint.json'), JSON.stringify(doc, null, 2), 'utf-8');
+  };
+
+  const writeJsonReport = (partial: boolean): void => {
+    if (args.out === '') return;
+    const outPath = args.out ?? path.join(OUT_DIR, `arena-${new Date().toISOString().replace(/[:.]/g, '-')}.json`);
+    fs.mkdirSync(path.dirname(outPath), { recursive: true });
+    const doc = {
+      meta: {
+        seed: args.seed,
+        strategyA: args.strategyA,
+        strategyB: args.strategyB,
+        minMatches: 2 * args.pairs,
+        maxMatches: args.maxMatches,
+        stepMatches: args.stepMatches,
+        createdAt: startedAt,
+        partial,
+      },
+      outcome: outcome
+        ? { verdict, significant: outcome.significant, leader: outcome.leader, n: outcome.n, pHat: outcome.pHat, ciLower: outcome.ciLower, z: Z, pairsEvaluated: pairsDone }
+        : null,
+      global: {
+        handsPerMatch: { n: accA.handsPlayed, d: pairsDone * 2 },
+        tricksPerHand: { n: accA.tricks.won.d, d: accA.handsPlayed },
+        draws: accA.matches.drawn,
+        cappedMatches: accA.matches.drawn,
+        abortedHands: accA.abortedHands,
+      },
+      strategies: {
+        A: { name: args.strategyA, ...toJSON(accA) },
+        B: { name: args.strategyB, ...toJSON(accB) },
+      },
+    };
+    fs.writeFileSync(outPath, JSON.stringify(doc, null, 2), 'utf-8');
+    console.log(`\n📄 JSON 已导出: ${outPath}`);
+  };
+
+  // SIGINT 优雅退出：先写检查点 + 部分报告，再退出，不丢数据
+  const onInterrupt = (): void => {
+    if (interrupted) return;
+    interrupted = true;
+    console.log('\n⏹ 收到中断信号，保存部分结果…');
+    outcome = checkSignificance(accA.matches.won, accB.matches.won, accA.matches.drawn, accA.matches.played);
+    verdict = '已中止（SIGINT，部分结果）';
+    writeCheckpoint();
+    writeJsonReport(true);
+    printReport(args.strategyA, args.strategyB, args.seed, pairsDone * 2, pairsDone, Date.now() - t0, outcome, verdict, accA, accB);
+    ChildPool.killAll();
+    process.exit(130);
+  };
+  process.on('SIGINT', onInterrupt);
+
+  pool = args.workers > 1
     ? await ChildPool.create(args.workers, args.seed, args.strategyA, args.strategyB)
     : null;
 
-  while (pairsDone < maxPairs) {
-    const batch = Math.min(args.batchPairs, maxPairs - pairsDone);
+  while (pairsDone < maxPairs && !interrupted) {
+    const batch = Math.min(PROGRESS_MATCHES / 2, maxPairs - pairsDone);
     const W = args.workers;
     const chunkLen = Math.ceil(batch / W);
     const tasks: Promise<WorkerResult>[] = [];
@@ -337,13 +423,16 @@ async function main(): Promise<void> {
     }
     pairsDone += batch;
     const matches = pairsDone * 2;
+    const elapsedMs = Date.now() - t0;
+    const eta = formatDuration(estimateRemaining(elapsedMs, matches, totalMatches));
 
     if (matches >= nextMilestoneMatches) {
       outcome = checkSignificance(accA.matches.won, accB.matches.won, accA.matches.drawn, accA.matches.played);
       const leader = outcome.leader ?? '—';
       console.log(
         `已完赛 ${matches} 场（${pairsDone} 对决）| leader=${leader} p̂=${outcome.pHat.toFixed(4)} ` +
-        `| 99% CI 下界=${outcome.ciLower.toFixed(4)} | ${outcome.significant ? '★ 显著' : '未显著，继续'}`,
+        `| 99% CI 下界=${outcome.ciLower.toFixed(4)} | ${outcome.significant ? '★ 显著' : '未显著，继续'} ` +
+        `| 进度 ${((matches / totalMatches) * 100).toFixed(1)}% | 已用 ${formatDuration(elapsedMs)} | 预计剩余 ${eta}`,
       );
       if (outcome.significant) {
         verdict = `${outcome.leader}（${outcome.leader === 'A' ? args.strategyA : args.strategyB}）显著优于对方`;
@@ -351,44 +440,22 @@ async function main(): Promise<void> {
       }
       nextMilestoneMatches += args.stepMatches;
     } else {
-      console.log(`已完赛 ${matches} 场（${pairsDone} 对决）…`);
+      console.log(
+        `已完赛 ${matches} 场（${pairsDone} 对决）| 进度 ${((matches / totalMatches) * 100).toFixed(1)}% ` +
+        `| 已用 ${formatDuration(elapsedMs)} | 预计剩余 ${eta}`,
+      );
+    }
+
+    if (matches % CHECKPOINT_MATCHES === 0 || pairsDone >= maxPairs) {
+      writeCheckpoint();
     }
   }
   pool?.close();
 
   const elapsedMs = Date.now() - t0;
-  printReport(args.strategyA, args.strategyB, args.seed, pairsDone * 2, pairsDone, elapsedMs, outcome, verdict, accA, accB);
-
-  if (args.out !== '') {
-    const outPath = args.out ?? path.join(OUT_DIR, `arena-${new Date().toISOString().replace(/[:.]/g, '-')}.json`);
-    fs.mkdirSync(path.dirname(outPath), { recursive: true });
-    const doc = {
-      meta: {
-        seed: args.seed,
-        strategyA: args.strategyA,
-        strategyB: args.strategyB,
-        minMatches: 2 * args.pairs,
-        maxMatches: args.maxMatches,
-        stepMatches: args.stepMatches,
-        createdAt: new Date().toISOString(),
-      },
-      outcome: outcome
-        ? { verdict, significant: outcome.significant, leader: outcome.leader, n: outcome.n, pHat: outcome.pHat, ciLower: outcome.ciLower, z: Z, pairsEvaluated: pairsDone }
-        : null,
-      global: {
-        handsPerMatch: { n: accA.handsPlayed, d: pairsDone * 2 },
-        tricksPerHand: { n: accA.tricks.won.d, d: accA.handsPlayed },
-        draws: accA.matches.drawn,
-        cappedMatches: accA.matches.drawn,
-        abortedHands: accA.abortedHands,
-      },
-      strategies: {
-        A: { name: args.strategyA, ...toJSON(accA) },
-        B: { name: args.strategyB, ...toJSON(accB) },
-      },
-    };
-    fs.writeFileSync(outPath, JSON.stringify(doc, null, 2), 'utf-8');
-    console.log(`\n📄 JSON 已导出: ${outPath}`);
+  if (!interrupted) {
+    printReport(args.strategyA, args.strategyB, args.seed, pairsDone * 2, pairsDone, elapsedMs, outcome, verdict, accA, accB);
+    writeJsonReport(false);
   }
 }
 
