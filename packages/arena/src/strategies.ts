@@ -33,7 +33,7 @@ export const ai0707Strategy: Strategy = {
   follow: (hand, lead, suit, config) => ai0707.aiFollowPlay(hand, lead, suit as CardSuit, config),
 };
 
-/** 快照基线：当前 ai/ 的副本（2026-08-01），用于未来策略更新后的对比。 */
+/** 快照基线：ai/ 在分位置跟牌重构（2026-08-02, 9ea9ad8）之前的版本（2026-08-01），用于与重构后策略对比。 */
 export const ai0801Strategy: Strategy = {
   name: 'ai-0801',
   tryReveal: (hand, dealt, pi, level, cur) => ai0801.aiTryReveal(hand, dealt, pi, level, cur),

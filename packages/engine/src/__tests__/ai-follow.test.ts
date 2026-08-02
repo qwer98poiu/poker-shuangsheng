@@ -1018,14 +1018,17 @@ describe('reason annotation format', () => {
     expect(r.reason).not.toContain('不加分');
   });
 
-  it('second + max pattern + cannot beat: "同花色出小（盖不过，不加分）"', () => {
+  it('second + cannot beat: plays smallest (3 cards <= 15, no avoid annotation)', () => {
     // P0 leads S-A (max). P1=second, has S-K,Q,8. Cannot beat A.
+    // 避分改为手牌数规则：3 张 <= 15 → 不避分，出最小 S-8，无标注。
     const lead: Card[] = [cc('S', 14, 200)];
     const best = { cards: lead, playerIdx: 0 };
     const hand = [cc('S', 13, 0), cc('S', 12, 0), cc('S', 8, 0)];
     const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 1);
     checkFollow(r.cards, hand, lead, 'S', cfg);
-    expect(r.reason).toContain('不加分');
+    expect(r.cards[0].rank).toBe(8);
+    expect(r.reason).toContain('同花色出小');
+    expect(r.reason).not.toContain('加分');
   });
 
   it('third + tmWin + tractor, only one pair + point filler: "垫同花色（队友出拖拉机，加分）"', () => {
@@ -1065,23 +1068,23 @@ describe('short-suited / fourth avoid points on max pattern (spades trump, level
 
   // P0 leads D-A-K-K (AAK throw, max pattern). P1=second, has D-9 + D-A + C-K(10pts).
   // Short-suited: only D-9 + D-A = 2 diamonds < 3. Filler needed.
-  // Has C-K (point) and H-3 (non-point) as fillers. Should avoid C-K.
-  it('second+short+max throw avoids point filler: "同花色不够，垫其他花色（盖不过，不加分）"', () => {
+  // 5 张手牌 <= 15 → 不避分（分非分一视同仁按大小）：H-3 最小先垫，C-K 最大留手。
+  it('second+short+max throw, 5 cards: filler by size (H-3 first, C-K kept)', () => {
     const lead: Card[] = [cc('D', 14, 200), cc('D', 14, 201), cc('D', 13, 200)];
     const best = { cards: lead, playerIdx: 0 };
     const hand = [
       cc('D', 9, 0),    // 1 diamond
       cc('D', 14, 0),   // 1 diamond (D-A)
-      cc('C', 13, 0),   // C-K (10 pts) — filler, should AVOID
-      cc('H', 3, 0),    // H-3 (non-point) — filler, should USE
+      cc('C', 13, 0),   // C-K (10 pts) — largest, kept
+      cc('H', 3, 0),    // H-3 — smallest filler, used
       cc('H', 6, 0),    // extra
     ];
     const r = aiFollowPlay(hand, lead, Suit.Diamonds, cfgS2, best, 1);
     checkFollow(r.cards, hand, lead, 'D', cfgS2);
     expect(r.cards.length).toBe(3);
-    // Should NOT include C-K (13)
-    expect(r.cards.every(c => c.rank !== 13 || c.suit !== 'C')).toBe(true);
-    expect(r.reason).toContain('不加分');
+    // 垫其他花色优先张数最少的副牌花色（断门）：♣ 只有 1 张 → 整门垫出 C-K
+    expect(r.cards.some(c => c.rank === 13 && c.suit === 'C')).toBe(true);
+    expect(r.reason).not.toContain('加分');
   });
 
   // P0 leads D-A-K-K (AAK throw). P3=fourth, has D-6, D-7, D-9, D-5(5pts).
@@ -1113,8 +1116,9 @@ describe('tractor lead fill-with-pairs annotations (level=2, spades trump)', () 
   function cc(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
 
   // P0 leads H-KK+QQ (tractor, max). P1=second, has H-6-6 pair + H-4,H-5,H-8.
-  // No tractor match → fill with H-6-6 + 2 smallest non-point singles.
-  it('second+no-tractor avoids point fillers: "垫同花色（盖不过，不加分）"', () => {
+  // No tractor match → fill with H-6-6 + 2 smallest singles.
+  // 6 张手牌 <= 15 → 不避分（分非分一视同仁）：H-4, H-5 先垫（按大小）。
+  it('second+no-tractor, 6 cards: fill smallest singles by size (H-4, H-5)', () => {
     const lead: Card[] = [
       cc('H', 13, 200), cc('H', 13, 201),
       cc('H', 12, 200), cc('H', 12, 201),
@@ -1123,16 +1127,16 @@ describe('tractor lead fill-with-pairs annotations (level=2, spades trump)', () 
     const hand = [
       cc('H', 6, 0), cc('H', 6, 1),   // 6-6 pair
       cc('H', 4, 0),                    // 4 (non-point)
-      cc('H', 5, 0),                    // 5 (5 pts) - should AVOID
+      cc('H', 5, 0),                    // 5 (5 pts)
       cc('H', 8, 0),                    // 8 (non-point)
       cc('S', 7, 0),                    // extra trump
     ];
     const r = aiFollowPlay(hand, lead, Suit.Hearts, cfg, best, 1);
     checkFollow(r.cards, hand, lead, 'H', cfg);
     expect(r.cards.length).toBe(4);
-    // Should NOT include H-5
-    expect(r.cards.every(c => c.rank !== 5 || c.suit !== 'H')).toBe(true);
-    expect(r.reason).toContain('不加分');
+    // H-5 is smallest after H-4 → included (一视同仁按大小)
+    expect(r.cards.some(c => c.rank === 5 && c.suit === 'H')).toBe(true);
+    expect(r.reason).not.toContain('加分');
   });
 
   // P0 leads H-KK+QQ (tractor). P2=third, teammate wins.
@@ -1168,15 +1172,17 @@ describe('tractor lead fill-with-pairs annotations (level=2, spades trump)', () 
     expect(r.reason).toContain('加分');
   });
 
-  it('second + trump BJ single (max) + cannot beat -> avoid', () => {
-    // P0 leads trump BJ. P1=second, has H-A,K,8. Cannot beat BJ, lead is max -> avoid.
+  it('second + trump BJ single (max) -> plays smallest trump', () => {
+    // P0 leads trump BJ. P1=second, has H-A,K,8. 第3条：出最小主牌（不一定盖过），
+    // 避分改为手牌数规则（垫牌场景），跟主牌单张恒出最小。
     const cfgH2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 5 };
     const lead: Card[] = [cc('J', 16, 200)];
     const best = { cards: lead, playerIdx: 0 };
     const hand = [cc('H', 14, 0), cc('H', 13, 0), cc('H', 8, 0)];
     const r = aiFollowPlay(hand, lead, null, cfgH2, best, 1);
     checkFollow(r.cards, hand, lead, null, cfgH2);
-    expect(r.reason).toContain('不加分');
+    expect(r.cards[0].rank).toBe(8);
+    expect(r.reason).toContain('同花色出小');
   });
 
   it('second + small trump (not max) -> no annotation', () => {
@@ -1322,20 +1328,18 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
     });
   });
 
-  describe('overkill → always smallest beating', () => {
-    it('overkills existing trump with smallest beating (ignoring points)', () => {
-      // P0 leads S-K(10pts). P1 killed with H-Q. AI=P2 has H-A, H-10, H-K.
-      // Points exist, but overkill → smallest beating, not >=A.
-      // Smallest beating H-K(13) IS a point card → annotated 加分.
+  describe('overkill → kill mode by rule1 (points → >=A)', () => {
+    it('overkills with >=A when lead has points (rule1KillMode a-or-max)', () => {
+      // P0 leads S-K(10pts). P1 killed with H-Q. AI=P2=third has H-A, H-10, H-K.
+      // 第1条②：领出分牌 → 用不小于A的主牌毙（盖毙同样适用）。
+      // H-A(614) is the >=A beating card → overkill with H-A.
       const lead: Card[] = [cc('S', 13, 200)];
       const best = { cards: [cc('H', 12, 0)], playerIdx: 1 };
       const hand = [cc('H', 14, 0), cc('H', 13, 0), cc('H', 10, 0), cc('C', 8, 0)];
       const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 2);
       checkFollow(r.cards, hand, lead, 'S', cfg);
-      // H-10 beats H-Q? H-10 effRank=610, H-Q effRank=612 → 610<612, can't beat.
-      // H-13 beats H-Q? 613>612 → yes, smallest beating is H-13.
-      expect(r.cards[0].id).toBe(cc('H', 13, 0).id);
-      expect(r.reason).toBe('盖毙（用分牌盖）');
+      expect(r.cards[0].id).toBe(cc('H', 14, 0).id);
+      expect(r.reason).toBe('盖毙（用最小牌盖）');
     });
   });
 
@@ -1361,15 +1365,16 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
       expect(r.reason).toBe('用主牌毙（用分牌盖）');
     });
 
-    it('kill, all trumps non-point: picks smallest two', () => {
-      // Hand has ♠9,♠7,♠4 all non-point → kill uses ♠4+♠7.
+    it('kill, all trumps non-point: 毙甩牌用不小于A（没有则最大）', () => {
+      // Hand has ♠9,♠7,♠4 all non-point. 第二家第5条：甩牌只含单张 →
+      // 毙牌最大单张不小于A；无 >=A → 用最大能毙 ♠9，填充最小非分 ♠4。
       const lead: Card[] = [crd('H', 11, 200), crd('H', 9, 201)];
       const best = { cards: lead, playerIdx: 0 };
       const hand = [crd('S', 9, 0), crd('S', 7, 0), crd('S', 4, 0), crd('C', 8, 0)];
       const r = aiFollowPlay(hand, lead, Suit.Hearts, cfgS, best, 1);
       checkFollow(r.cards, hand, lead, 'H', cfgS);
       expect(r.cards.length).toBe(2);
-      expect(r.cards.map(c => c.rank).sort((a, b) => a - b)).toEqual([4, 7]);
+      expect(r.cards.map(c => c.rank).sort((a, b) => a - b)).toEqual([4, 9]);
       expect(r.reason).toBe('用主牌毙（用最小牌盖）');
     });
 
@@ -1593,7 +1598,7 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
       playerIndex: 1,
     };
 
-    it('scenario 1: ♣6 + ♠1010 + ♥55, score=50', () => {
+    it('scenario 1: ♣6 + ♠1010 + ♠4, score=50', () => {
       const hand = [
         crd('C', 6, 0),                          // 1 club (follow suit)
         crd('S', 10, 0), crd('S', 10, 1),        // ♠1010 (副10, point pair, 20pts)
@@ -1605,14 +1610,16 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
       const r = aiFollowPlay(hand, lead, Suit.Clubs, ctx);
       checkFollow(r.cards, hand, lead, 'C', ctx);
       expect(r.cards.length).toBe(4);
-      // Short-suited: ♣6 + 3 fillers. P1(teammate) wins with tractor.
-      // Filler picks points first: ♠10♠10 (副10, 20pts), then ♥5 (主5, 5pts).
+      // Short-suited: ♣6 + 3 fillers. 加分优先级（catAdd）：
+      // 副10 > 副K > 副5 > 其他非分副 > 主10 > 主K > 主5 > 主牌分对。
+      // 非分副（♠4）在主牌分对（♥55）之前 → ♠10♠10 + ♠4。
       expect(r.cards.some(c => c.rank === 6 && c.suit === 'C')).toBe(true);  // ♣6
       expect(r.cards.filter(c => c.rank === 10 && c.suit === 'S').length).toBe(2); // ♠10♠10
-      expect(r.cards.filter(c => c.rank === 5 && c.suit === 'H').length).toBe(1);  // one ♥5
+      expect(r.cards.some(c => c.rank === 4 && c.suit === 'S')).toBe(true);  // ♠4
+      expect(r.cards.filter(c => c.rank === 5 && c.suit === 'H').length).toBe(0); // ♥55 not played
     });
 
-    it('scenario 1: ♣6 + ♠1010 + ♥55, score=55 → break ♥5 for 80', () => {
+    it('scenario 1: ♣6 + ♠1010 + ♠4, score=55', () => {
       const hand = [
         crd('C', 6, 0),
         crd('S', 10, 0), crd('S', 10, 1),
@@ -1624,10 +1631,11 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
       const r = aiFollowPlay(hand, lead, Suit.Clubs, ctx);
       checkFollow(r.cards, hand, lead, 'C', ctx);
       expect(r.cards.length).toBe(4);
-      // Score 55 + 0(visible) + 25 = 80, crosses 80 threshold.
+      // 同 score=50：非分副 ♠4 先于主牌分对 ♥55（55+20+5=80 不触发拆对——♠4 无分）。
       expect(r.cards.some(c => c.rank === 6 && c.suit === 'C')).toBe(true);  // ♣6
       expect(r.cards.filter(c => c.rank === 10 && c.suit === 'S').length).toBe(2); // ♠10♠10
-      expect(r.cards.filter(c => c.rank === 5 && c.suit === 'H').length).toBe(1);  // one ♥5
+      expect(r.cards.some(c => c.rank === 4 && c.suit === 'S')).toBe(true);  // ♠4
+      expect(r.cards.filter(c => c.rank === 5 && c.suit === 'H').length).toBe(0); // ♥55 not played
     });
 
     it('scenario 2: void clubs, ♦nonpts+♦5+♠K+♥5544 → mixed discard', () => {
@@ -2072,8 +2080,8 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
       expect(r.cards.length).toBe(3);
       // Must play ♦7♦7 pair + a filler single — many singleton choices → NOT 唯一可出
       expect(r.reason).not.toContain('唯一可出');
-      // Second + !tmWin + max pattern → avoid points on filler single
-      expect(r.reason).toContain('不加分');
+      // 10 张手牌 <= 15 → 第二家不避分（填充按大小一视同仁），无避分标注
+      expect(r.reason).not.toContain('加分');
     });
   });
 

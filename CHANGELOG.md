@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-02 21:21
+
+### 重构：跟牌策略改为分位置决策（第二家/第三家/第四家）
+
+**问题**：原跟牌策略为"牌型驱动"（单张/对子/拖拉机/甩牌 + tmWin + isMaxPattern 判断），与新的分位置规格冲突：第二家避分按领出牌型而非手牌数、第三家加分条件粗糙（甩牌恒加分）、第四家加分优先级缺"非分副牌先于主分"与"非常主"限定、缺 70/75 禁分与 80 防御。
+
+**修复**：按分位置规格重构整个跟牌模块——新增 `ai/position-policy.ts`（跨类别垫牌排序 avoid/open/add/full/forbid、强后续判断、可见分统计、80 防御、拆对跨 40 台阶判定）；`follow-trump.ts`/`follow-offsuit.ts`/`index.ts` 按位置分支重写（第二家手牌数避分与拆对、字面最大盖过、毙牌三档 killMode、第三家领出大不毙与强牌抢权、主牌单 A+ 规则、甩牌内容感知加分、70/75 禁分、第四家 catAdd 优先级与跨 40 全力加分）；`reason.ts` 文案体系不变。NT（无主）逻辑保持原样；快照 ai-0801/ai-0726/ai-0707 不受影响。
+
+**新增 60 项测试**（ai-position-policy.test.ts：22 项、ai-position-follow.test.ts：38 项），引擎 580 项 + arena 64 项 + CLI 34 项 = 678 项通过。
+
+- **影响文件**：`packages/engine/src/ai/position-policy.ts`（新）、`follow-offsuit.ts`、`follow-trump.ts`、`helpers.ts`、`index.ts`、`utils.ts`、`STRATEGY.md`、`__tests__/ai-follow.test.ts`、`__tests__/ai-position-policy.test.ts`（新）、`__tests__/ai-position-follow.test.ts`（新）
+
 ## 2026-08-02 16:08
 
 ### 竞技场：复制当前策略快照 ai-0801

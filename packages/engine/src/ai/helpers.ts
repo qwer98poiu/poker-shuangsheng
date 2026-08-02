@@ -9,6 +9,10 @@ import { isTrump, getEffectiveRank } from '../model.js';
 import { findAllPairs, detectTractors } from '../pattern/index.js';
 import type { AIContext } from './types.js';
 import { isBigOffSuitCard, discardSort, pairSortAsc } from './utils.js';
+import {
+  visibleTrickPoints, selectFillers, secondShouldAvoid, shouldBreakPairForPoints,
+  type DiscardMode,
+} from './position-policy.js';
 import { annotateReason } from './reason.js';
 
 // ---- Sorting helpers ----
@@ -39,22 +43,17 @@ export function discardNonTrump(
   tmWin: boolean,
   leadCombo?: ComboClass,
 ): { cards: Card[]; reason: string } {
-  const nonTrump = hand.filter(c => !isTrump(c, ctx));
-  nonTrump.sort(discardSort(!!tmWin, ctx, nonTrump, ctx, leadLen));
   const combo = leadCombo || { type: 'single' as const, cards: [], length: leadLen, pairCount: 0, tractors: [], hasTractor: false };
-  if (nonTrump.length >= leadLen) {
-    const cards = nonTrump.slice(0, leadLen);
-    const addPt = tmWin && canAddPoints(tmWin, position, combo, ctx);
-    const intent = addPt ? 'add' : 'none';
-    const reason = annotateReason('垫牌', cards, [], [],
-      combo, leadLen, ctx, position, tmWin, false, intent);
-    return { cards, reason };
-  }
-  const trump = hand.filter(c => isTrump(c, ctx));
-  trump.sort(discardSort(!!tmWin, ctx, trump, ctx, leadLen));
-  const cards = [...nonTrump, ...trump].slice(0, leadLen);
-  const addPt2 = tmWin && canAddPoints(tmWin, position, combo, ctx);
-  const intent = addPt2 ? 'add' : 'none';
+  // 垫牌类别：第二家按手牌数避分；第三/四家队友大加分，否则避分
+  const mode: DiscardMode = position === 'second'
+    ? (secondShouldAvoid(hand) ? 'avoid' : 'open')
+    : (tmWin && canAddPoints(tmWin, position, combo, ctx))
+      ? ((ctx.isAttacker && attackerNearThreshold(ctx)) ? 'full' : 'add')
+      : 'avoid';
+  const cards = selectFillers(hand, leadLen, ctx, mode,
+    { allowBreakPair: shouldBreakPairForPoints(ctx, combo) });
+  const addPt = tmWin && canAddPoints(tmWin, position, combo, ctx);
+  const intent = addPt ? 'add' : 'none';
   const reason = annotateReason('垫牌', cards, [], [],
     combo, leadLen, ctx, position, tmWin, false, intent);
   return { cards, reason };
@@ -88,18 +87,31 @@ export function padWithDiscards(
  *  Fourth: always.
  *  Third: only if lead is max pattern — big card (A/K single or pair),
  *         has tractor, or is a throw (甩牌 already max).
- *  Never adds if defender team and any point card would push attacker to 80+. */
+ *  Never adds if defender team and any point card would push attacker to 80+.
+ *  分位置规格：甩副牌只有含顶张才加分；甩主牌加分；庄家方且闲家得分 +
+ *  本墩已出分为 70 或 75 时禁分。 */
 export function canAddPoints(tmWin: boolean, position: string, leadCombo: ComboClass, ctx: AIContext): boolean {
   if (!tmWin) return false;
   // Defender side: never add if attacker is close to 80 (even 5 pts could cross).
   if (!ctx.isAttacker && ctx.attackerPoints >= 75 && ctx.attackerPoints < 80) return false;
+  // 第三家原则9：庄家方且闲家得分 + 本墩已出分 = 70 或 75 时禁分。
+  if (!ctx.isAttacker) {
+    const vis = visibleTrickPoints(ctx, leadCombo.cards);
+    if (ctx.attackerPoints + vis === 70 || ctx.attackerPoints + vis === 75) return false;
+  }
   if (position === 'fourth') return true;
   if (position === 'third') {
+    const isTrumpLead = leadCombo.cards.every(c => isTrump(c, ctx));
+    if (isTrumpLead) {
+      if (leadCombo.type === 'throw') return true; // 甩主牌 → 加分
+      return isTrumpMax(leadCombo, ctx);
+    }
     if (leadCombo.hasTractor) return true;
-    if (leadCombo.type === 'throw') return true;
+    if (leadCombo.type === 'throw') {
+      // 甩副牌：含顶张才加分（含拖拉机已在 hasTractor 分支提前返回）
+      return leadCombo.cards.some(c => isBigOffSuitCard(c, ctx));
+    }
     if (leadCombo.type === 'single' || leadCombo.type === 'pair') {
-      const isTrumpLead = leadCombo.cards.every(c => isTrump(c, ctx));
-      if (isTrumpLead) return isTrumpMax(leadCombo, ctx);
       return leadCombo.cards.every(c => isBigOffSuitCard(c, ctx));
     }
   }
