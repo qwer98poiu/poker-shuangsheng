@@ -176,8 +176,11 @@ function followOffSuitMulti(
     }
   }
 
-  // Pair lead - match with pairs
-  if (leadCombo.pairCount > 0 && myPairs.length >= leadCombo.pairCount) {
+  // Pair lead / throw-with-pairs - include available pairs.
+  // （修复：甩牌含对子而跟牌者对子不足领出对数时，原条件 myPairs >= pairCount
+  //   为假会跳过本分支落到"出最小"，产生 0 对子的非法跟牌——引擎要求有对子
+  //   就必须带出至少 1 对。现在只要有对子就带出，数量不足时填充单张。）
+  if (leadCombo.pairCount > 0 && myPairs.length > 0) {
     pairKillSort(myPairs, leadSuitCards, ctx);
     let chosen = myPairs.slice(0, leadCombo.pairCount).flat();
     // If smallest pair(s) cannot beat, try finding a pair that can.

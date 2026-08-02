@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-02 16:06
+
+### 修复：甩牌带对子跟牌时对子不足导致 0 对子非法跟牌
+
+**问题**：竞技场合法性检测发现整场对局中止——跟 5 张甩牌（2 对 + 1 单）时，跟牌者手上有 1 对但少于领出的 2 对，ai 的 `followOffSuitMulti` 因 `myPairs.length >= leadCombo.pairCount` 不成立而跳过"带对子"分支，落到"出最小"产生 0 对子的非法跟牌；两级回退也失败（多张领出无法用单张跟），对局中止。此前 ai-0707 测试中的中止也是同一根因。
+
+**修复**：`followOffSuitMulti` 的对子分支条件放宽为 `myPairs.length > 0`——甩牌含对子时只要有对子就带出（数量不足时用单张填充），与引擎规则（有对子必须带出至少 1 对）一致。
+
+**新增 1 项测试**（ai-follow.test.ts：1 项，level=12 下 S-55 为真副牌对子），引擎 520 项 + arena 63 项 + CLI 34 项 = 617 项通过。
+
+- **影响文件**：`packages/engine/src/ai/follow-offsuit.ts`、`packages/engine/src/__tests__/ai-follow.test.ts`
+
 ## 2026-08-02 15:05
 
 ### 文档：README 补充策略竞技场介绍与启动命令

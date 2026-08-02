@@ -2804,4 +2804,21 @@ describe('break pair: score-aware pair breaking', () => {
     const tens = r.cards.filter(c => c.suit === 'D' && c.rank === 10);
     expect(tens.length).toBe(2); // both D-10 played
   });
+
+  it('甩牌带对子跟牌：对子不足领出对数时也必须带出（回归：0 对子非法跟牌）', () => {
+    // level=12：S-55 不是级牌，是真正的副牌对子（level 5 时会变成主牌，测不到本 bug）
+    const cfgQ: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 12 };
+    // 领出 S-AA S-1010 S-K：5 张甩牌，2 对 + 1 单
+    const lead = [c('S', 14, 200), c('S', 14, 201), c('S', 10, 202), c('S', 10, 203), c('S', 13, 204)];
+    // 跟牌手：7 张 S（S-55 一对 + 5 张单张），对子数少于领出、且非被迫全出
+    const hand = [c('S', 5, 0), c('S', 5, 1), c('S', 9, 2), c('S', 8, 3), c('S', 7, 4),
+      c('S', 6, 5), c('S', 4, 6),
+      c('H', 14, 10), c('H', 13, 11), c('C', 12, 12), c('D', 11, 13)];
+    const play = aiFollow(hand, lead, 'S', cfgQ);
+    checkFollow(play, hand, lead, 'S', cfgQ);
+    expect(play.length).toBe(5);
+    // 必须包含至少 1 对
+    const pairCount = classify(play, cfgQ).pairCount;
+    expect(pairCount).toBeGreaterThanOrEqual(1);
+  });
 });
