@@ -41,18 +41,19 @@ function printUsage(): void {
   console.log(`用法: npm run arena -w packages/arena -- [选项]
   --pairs N          初始对决数（=2N 场对局），默认 5000
   --max-matches N    对局上限，默认 100000（须 ≥ 2×pairs）
-  --step-matches N   每次追加的对局数，默认 1000
+  --step-matches N   显著性检查与检查点的间隔场数，默认 1000
   --seed N           随机种子（确定性），默认随机
   --workers W        worker 线程数，默认 4（1 = 进程内）
   --benchmark N      跑 N 场对局测速后退出
   --strategy-a NAME  策略 A，默认 ai
-  --strategy-b NAME  策略 B，默认 ai-v2
+  --strategy-b NAME  策略 B，默认 ai-0726
   --out PATH         JSON 导出路径，默认 results/arena-<时间>.json
   --no-json          不导出 JSON
   -h, --help         显示帮助
 
-进度: 每 100 场更新一行（含预估剩余时间）；每 1000 场写入检查点
-      results/checkpoint.json；Ctrl+C 保存部分结果后优雅退出。`);
+进度: 每 100 场更新一行（含预估剩余时间）；每 stepMatches 场（默认 1000）
+      输出显著性结果（leader/p̂/99% CI）并写入 results/checkpoint.json；
+      达到最小样本（默认 10000 场）且显著即停止；Ctrl+C 保存部分结果后优雅退出。`);
 }
 
 function parseArgs(argv: string[]): Args {
@@ -64,7 +65,7 @@ function parseArgs(argv: string[]): Args {
     workers: Math.min(8, os.cpus().length),
     benchmark: 0,
     strategyA: 'ai',
-    strategyB: 'ai-v2',
+    strategyB: 'ai-0726',
     out: null,
   };
   for (let i = 0; i < argv.length; i++) {
@@ -313,14 +314,13 @@ async function main(): Promise<void> {
   const totalMatches = maxPairs * 2;
   // 三档粒度（用户约定）：
   // - 进度条每 100 场更新一次（含预估剩余时间）
-  // - 检查点每 1000 场（500 对决）写入 results/checkpoint.json
-  // - 显著性检查：≥10000 场（minMatches）后每 +1000 场（stepMatches）检查一次
+  // - 每 stepMatches 场（默认 1000）输出显著性结果（leader/p̂/99% CI）并写入检查点
+  // - 停止判定：达到最小样本（2×pairs，默认 10000 场）且显著时才停止
   const PROGRESS_MATCHES = 100;
-  const CHECKPOINT_MATCHES = 1000;
+  const CHECKPOINT_MATCHES = args.stepMatches;
   let accA = createStats();
   let accB = createStats();
   let pairsDone = 0;
-  let nextMilestoneMatches = 2 * args.pairs;
   let outcome: SignificanceResult | null = null;
   let verdict = '无法判定（达到上限仍未显著）';
   let interrupted = false;
@@ -426,28 +426,33 @@ async function main(): Promise<void> {
     const elapsedMs = Date.now() - t0;
     const eta = formatDuration(estimateRemaining(elapsedMs, matches, totalMatches));
 
-    if (matches >= nextMilestoneMatches) {
-      outcome = checkSignificance(accA.matches.won, accB.matches.won, accA.matches.drawn, accA.matches.played);
-      const leader = outcome.leader ?? '—';
-      console.log(
-        `已完赛 ${matches} 场（${pairsDone} 对决）| leader=${leader} p̂=${outcome.pHat.toFixed(4)} ` +
-        `| 99% CI 下界=${outcome.ciLower.toFixed(4)} | ${outcome.significant ? '★ 显著' : '未显著，继续'} ` +
-        `| 进度 ${((matches / totalMatches) * 100).toFixed(1)}% | 已用 ${formatDuration(elapsedMs)} | 预计剩余 ${eta}`,
-      );
-      if (outcome.significant) {
-        verdict = `${outcome.leader}（${outcome.leader === 'A' ? args.strategyA : args.strategyB}）显著优于对方`;
-        break;
-      }
-      nextMilestoneMatches += args.stepMatches;
-    } else {
+    if (matches % CHECKPOINT_MATCHES !== 0 && pairsDone < maxPairs) {
+      // 普通进度行（每 100 场）
       console.log(
         `已完赛 ${matches} 场（${pairsDone} 对决）| 进度 ${((matches / totalMatches) * 100).toFixed(1)}% ` +
         `| 已用 ${formatDuration(elapsedMs)} | 预计剩余 ${eta}`,
       );
+      continue;
     }
 
-    if (matches % CHECKPOINT_MATCHES === 0 || pairsDone >= maxPairs) {
-      writeCheckpoint();
+    // 每 stepMatches 场（默认 1000）或运行结束：输出显著性结果 + 写入检查点
+    outcome = checkSignificance(accA.matches.won, accB.matches.won, accA.matches.drawn, accA.matches.played);
+    const leader = outcome.leader ?? '—';
+    const reachedMin = matches >= 2 * args.pairs;
+    const status = outcome.significant
+      ? (reachedMin ? '★ 显著' : '★ 显著（未达最小样本，继续）')
+      : '未显著，继续';
+    console.log(
+      `已完赛 ${matches} 场（${pairsDone} 对决）| 进度 ${((matches / totalMatches) * 100).toFixed(1)}% ` +
+      `| 已用 ${formatDuration(elapsedMs)} | 预计剩余 ${eta} ` +
+      `| leader=${leader} p̂=${outcome.pHat.toFixed(4)} | 99% CI 下界=${outcome.ciLower.toFixed(4)} | ${status}`,
+    );
+    writeCheckpoint();
+
+    // 停止判定：达到最小样本（默认 10000 场）且显著
+    if (outcome.significant && reachedMin) {
+      verdict = `${outcome.leader}（${outcome.leader === 'A' ? args.strategyA : args.strategyB}）显著优于对方`;
+      break;
     }
   }
   pool?.close();
