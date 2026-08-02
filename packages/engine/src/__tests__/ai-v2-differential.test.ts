@@ -157,7 +157,7 @@ describe('ai-v2 differential (copy must behave identically to ai/)', () => {
     const players: PlayerState[] = [0, 1, 2, 3].map(i => ({
       hand: [] as Card[], isHuman: false, name: `AI-${i + 1}`, index: i,
     }));
-    let state: GameState = createInitialState(players, 0, 5, false);
+    let state: GameState = createInitialState(players as [PlayerState, PlayerState, PlayerState, PlayerState], 0, 5, false);
     state = {
       ...state,
       trumpDeclaration: cfg5,

@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-08-02 10:37
+
+### 竞技场：提取 2026-07-26 基线策略 ai-0726 用于新旧对比
+
+**新增**：从提交 `7382d1a`（2026-07-26，NT 记牌器时期）提取 `ai/` 策略到 `packages/engine/src/ai-0726/`（12 个 .ts 文件，与当前引擎结构兼容），经 `export * as ai0726` 暴露；竞技场新增策略名 `ai-0726`，可通过 `--strategy-a/--strategy-b ai-0726` 与当前策略镜像对决。
+
+无新增测试（顺带修复 ai-v2-differential.test.ts 一处数组→元组的类型转换），总数 600 项通过。
+
+- **影响文件**：`packages/engine/src/ai-0726/*`、`packages/engine/src/index.ts`、`packages/arena/src/strategies.ts`、`packages/engine/src/__tests__/ai-v2-differential.test.ts`
+
 ## 2026-08-02 09:59
 
 ### 竞技场：NT 指标改为胜率，新增抠底频率与抠底成功频率
