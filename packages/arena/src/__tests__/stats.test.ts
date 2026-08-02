@@ -34,11 +34,11 @@ describe('addHandStats — 我方=team0', () => {
     expect(s.banker.wins).toBe(1);
     expect(s.banker.perLevel.get(12)).toEqual({ n: 1, d: 1 });
     expect(s.banker.trumpHands).toEqual({ n: 1, d: 1 });
-    expect(s.banker.ntHands).toBe(0);
+    expect(s.banker.ntHands).toEqual({ n: 0, d: 0 });
     expect(s.banker.avgLoss).toEqual({ n: 40, d: 1 });
     expect(s.banker.avgBottomPts).toEqual({ n: 15, d: 1 });
     expect(s.banker.killSuitFreq).toEqual({ n: 1, d: 1 });
-    expect(s.banker.keepLastTrick).toEqual({ n: 1, d: 1 });
+    expect(s.banker.keepBottom).toEqual({ n: 1, d: 1 });
     expect(s.tricks.won).toEqual({ n: 9, d: 13 });
     expect(s.tricks.leads).toEqual({ n: 7, d: 13 });
     expect(s.tricks.leadCards).toEqual({ n: 9, d: 7 });
@@ -52,7 +52,9 @@ describe('addHandStats — 我方=team0', () => {
     expect(s.attacker.wins).toBe(1);
     expect(s.attacker.perLevel.get(14)).toEqual({ n: 1, d: 1 });
     expect(s.attacker.trumpHands).toEqual({ n: 0, d: 0 });
-    expect(s.attacker.ntHands).toBe(1);
+    expect(s.attacker.ntHands).toEqual({ n: 1, d: 1 });
+    expect(s.attacker.kouDiFreq).toEqual({ n: 1, d: 1 });
+    expect(s.attacker.kouDiSuccess).toEqual({ n: 1, d: 1 });
     expect(s.attacker.avgKouDi).toEqual({ n: 40, d: 1 });
     expect(s.tricks.won).toEqual({ n: 3, d: 11 });
     expect(s.tricks.leads).toEqual({ n: 5, d: 11 });
@@ -70,15 +72,17 @@ describe('addHandStats — 我方=team1（镜像补集）', () => {
     expect(s.attacker.wins).toBe(0);
     expect(s.attacker.perLevel.get(10)).toEqual({ n: 0, d: 1 });
     expect(s.attacker.trumpHands).toEqual({ n: 0, d: 1 });
+    expect(s.attacker.kouDiFreq).toEqual({ n: 0, d: 1 });
+    expect(s.attacker.kouDiSuccess).toEqual({ n: 0, d: 1 });
     // 第二局 team1 是庄家（等级 5，NT 输局）
     expect(s.banker.hands).toBe(1);
     expect(s.banker.wins).toBe(0);
     expect(s.banker.perLevel.get(5)).toEqual({ n: 0, d: 1 });
-    expect(s.banker.ntHands).toBe(1);
+    expect(s.banker.ntHands).toEqual({ n: 0, d: 1 });
     expect(s.banker.avgLoss).toEqual({ n: 120, d: 1 });
     expect(s.banker.avgBottomPts).toEqual({ n: 20, d: 1 });
     expect(s.banker.killSuitFreq).toEqual({ n: 0, d: 1 });
-    expect(s.banker.keepLastTrick).toEqual({ n: 0, d: 1 });
+    expect(s.banker.keepBottom).toEqual({ n: 0, d: 1 });
     expect(s.banker.trumpHands).toEqual({ n: 0, d: 0 });
     // 墩数补集：总 13 → 我方 4；总 11 → 我方 8
     expect(s.tricks.won).toEqual({ n: 12, d: 24 });
@@ -134,5 +138,34 @@ describe('mergeStats 与 toJSON', () => {
     expect(j.banker.hands).toBe(1);
     expect(j.tricks.won).toEqual({ n: 9, d: 13 });
     expect(j.matches).toEqual({ played: 0, won: 0, drawn: 0 });
+  });
+});
+
+describe('抠底频率与抠底成功频率', () => {
+  it('底牌无分时赢最后一墩：计入抠底频率，不计入抠底成功频率', () => {
+    const evNoPoints: HandEvent = {
+      handIndex: 5, level: 6, attackerLevel: 4, declarerIdx: 1, teamBanker: 1,
+      trumpSuit: Suit.Hearts, bottomPoints: 0, killSuitCount: 0,
+      attackerWonLastTrick: true, kouDiAdd: 0, finalPts: 85, bankerWon: false,
+      tricksPlayed: 10, tricksWonByTeam0: 4, leadsByTeam0: 5,
+      leadCardsByTeam0: 6, leadCardsTotal: 13, aborted: false,
+    };
+    const s = createStats();
+    addHandStats(s, evNoPoints, 0); // team0 是闲家：赢了最后一墩但底牌无分
+    expect(s.attacker.kouDiFreq).toEqual({ n: 1, d: 1 });
+    expect(s.attacker.kouDiSuccess).toEqual({ n: 0, d: 0 }); // 分母只计底牌有分的小局
+    expect(s.attacker.avgKouDi).toEqual({ n: 0, d: 0 }); // 无底分自然无抠底加分
+  });
+
+  it('NT 胜率：两局无主当庄一胜一负 → {n:1,d:2}', () => {
+    const win: HandEvent = { ...evBankerWin, handIndex: 6, trumpSuit: null, bottomPoints: 0 };
+    const lose: HandEvent = {
+      ...evAttackerWin, handIndex: 7, teamBanker: 0, declarerIdx: 0,
+      attackerWonLastTrick: false, kouDiAdd: 0,
+    };
+    const s = createStats();
+    addHandStats(s, win, 0);
+    addHandStats(s, lose, 0);
+    expect(s.banker.ntHands).toEqual({ n: 1, d: 2 });
   });
 });

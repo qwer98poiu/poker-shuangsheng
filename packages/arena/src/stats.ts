@@ -17,18 +17,20 @@ export interface StrategyStats {
     wins: number;                          // 台上胜率 = wins/hands
     perLevel: Map<number, CountPair>;      // 台上各等级胜率, key = 我方等级
     trumpHands: CountPair;                 // 台上打有主胜率 = n/d (n=wins)
-    ntHands: number;                       // 台上打NT频率 = ntHands/hands
+    ntHands: CountPair;                    // 台上打NT胜率 = n/d (n=wins)
     avgLoss: CountPair;                    // 台上平均失分 = Σ闲家最终分/hands
     avgBottomPts: CountPair;               // 台上扣底平均分数 = Σ底牌分数/hands
     killSuitFreq: CountPair;               // 台上扣绝一门频率 = Σ(扣绝>0)/hands
-    keepLastTrick: CountPair;              // 庄家扣底成功(赢最后墩)频率 = n/hands
+    keepBottom: CountPair;                 // 庄家保底频率 = 庄家赢最后墩/hands
   };
   attacker: {
     hands: number;
     wins: number;                          // 台下胜率 = wins/hands (finalPts >= 80)
     perLevel: Map<number, CountPair>;      // 台下各等级胜率, key = 我方等级
     trumpHands: CountPair;                 // 台下打有主胜率
-    ntHands: number;                       // 台下打NT频率
+    ntHands: CountPair;                    // 台下打NT胜率 = n/d (n=wins)
+    kouDiFreq: CountPair;                  // 抠底频率 = 当闲家赢最后一墩/hands
+    kouDiSuccess: CountPair;               // 抠底成功频率 = 底牌有分的小局中赢最后墩/底牌有分小局
     avgKouDi: CountPair;                   // 闲家抠底平均加分 = Σ抠底加分/抠底发生局数
   };
   tricks: {
@@ -48,18 +50,20 @@ export function createStats(): StrategyStats {
       wins: 0,
       perLevel: new Map(),
       trumpHands: { n: 0, d: 0 },
-      ntHands: 0,
+      ntHands: { n: 0, d: 0 },
       avgLoss: { n: 0, d: 0 },
       avgBottomPts: { n: 0, d: 0 },
       killSuitFreq: { n: 0, d: 0 },
-      keepLastTrick: { n: 0, d: 0 },
+      keepBottom: { n: 0, d: 0 },
     },
     attacker: {
       hands: 0,
       wins: 0,
       perLevel: new Map(),
       trumpHands: { n: 0, d: 0 },
-      ntHands: 0,
+      ntHands: { n: 0, d: 0 },
+      kouDiFreq: { n: 0, d: 0 },
+      kouDiSuccess: { n: 0, d: 0 },
       avgKouDi: { n: 0, d: 0 },
     },
     tricks: {
@@ -96,7 +100,8 @@ export function addHandStats(s: StrategyStats, ev: HandEvent, ourParity: 0 | 1):
       b.trumpHands.n += ev.bankerWon ? 1 : 0;
       b.trumpHands.d += 1;
     } else {
-      b.ntHands += 1;
+      b.ntHands.n += ev.bankerWon ? 1 : 0;
+      b.ntHands.d += 1;
     }
     b.avgLoss.n += ev.finalPts;
     b.avgLoss.d += 1;
@@ -104,8 +109,8 @@ export function addHandStats(s: StrategyStats, ev: HandEvent, ourParity: 0 | 1):
     b.avgBottomPts.d += 1;
     if (ev.killSuitCount > 0) b.killSuitFreq.n += 1;
     b.killSuitFreq.d += 1;
-    if (!ev.attackerWonLastTrick) b.keepLastTrick.n += 1;
-    b.keepLastTrick.d += 1;
+    if (!ev.attackerWonLastTrick) b.keepBottom.n += 1;
+    b.keepBottom.d += 1;
   } else {
     const a = s.attacker;
     const won = ev.bankerWon ? 0 : 1;
@@ -116,7 +121,14 @@ export function addHandStats(s: StrategyStats, ev: HandEvent, ourParity: 0 | 1):
       a.trumpHands.n += won;
       a.trumpHands.d += 1;
     } else {
-      a.ntHands += 1;
+      a.ntHands.n += won;
+      a.ntHands.d += 1;
+    }
+    if (ev.attackerWonLastTrick) a.kouDiFreq.n += 1;
+    a.kouDiFreq.d += 1;
+    if (ev.bottomPoints > 0) {
+      if (ev.attackerWonLastTrick) a.kouDiSuccess.n += 1;
+      a.kouDiSuccess.d += 1;
     }
     if (ev.kouDiAdd > 0) {
       a.avgKouDi.n += ev.kouDiAdd;
@@ -167,18 +179,20 @@ export function mergeStats(a: StrategyStats, b: StrategyStats): StrategyStats {
       wins: a.banker.wins + b.banker.wins,
       perLevel: sumMap(a.banker.perLevel, b.banker.perLevel),
       trumpHands: sumPair(a.banker.trumpHands, b.banker.trumpHands),
-      ntHands: a.banker.ntHands + b.banker.ntHands,
+      ntHands: sumPair(a.banker.ntHands, b.banker.ntHands),
       avgLoss: sumPair(a.banker.avgLoss, b.banker.avgLoss),
       avgBottomPts: sumPair(a.banker.avgBottomPts, b.banker.avgBottomPts),
       killSuitFreq: sumPair(a.banker.killSuitFreq, b.banker.killSuitFreq),
-      keepLastTrick: sumPair(a.banker.keepLastTrick, b.banker.keepLastTrick),
+      keepBottom: sumPair(a.banker.keepBottom, b.banker.keepBottom),
     },
     attacker: {
       hands: a.attacker.hands + b.attacker.hands,
       wins: a.attacker.wins + b.attacker.wins,
       perLevel: sumMap(a.attacker.perLevel, b.attacker.perLevel),
       trumpHands: sumPair(a.attacker.trumpHands, b.attacker.trumpHands),
-      ntHands: a.attacker.ntHands + b.attacker.ntHands,
+      ntHands: sumPair(a.attacker.ntHands, b.attacker.ntHands),
+      kouDiFreq: sumPair(a.attacker.kouDiFreq, b.attacker.kouDiFreq),
+      kouDiSuccess: sumPair(a.attacker.kouDiSuccess, b.attacker.kouDiSuccess),
       avgKouDi: sumPair(a.attacker.avgKouDi, b.attacker.avgKouDi),
     },
     tricks: {
@@ -204,16 +218,18 @@ export function fromJSON(j: Record<string, any>): StrategyStats {
   s.banker.wins = j.banker.wins;
   s.banker.perLevel = objToMap(j.banker.perLevel);
   s.banker.trumpHands = { ...j.banker.trumpHands };
-  s.banker.ntHands = j.banker.ntHands;
+  s.banker.ntHands = { ...j.banker.ntHands };
   s.banker.avgLoss = { ...j.banker.avgLoss };
   s.banker.avgBottomPts = { ...j.banker.avgBottomPts };
   s.banker.killSuitFreq = { ...j.banker.killSuitFreq };
-  s.banker.keepLastTrick = { ...j.banker.keepLastTrick };
+  s.banker.keepBottom = { ...j.banker.keepBottom };
   s.attacker.hands = j.attacker.hands;
   s.attacker.wins = j.attacker.wins;
   s.attacker.perLevel = objToMap(j.attacker.perLevel);
   s.attacker.trumpHands = { ...j.attacker.trumpHands };
-  s.attacker.ntHands = j.attacker.ntHands;
+  s.attacker.ntHands = { ...j.attacker.ntHands };
+  s.attacker.kouDiFreq = { ...j.attacker.kouDiFreq };
+  s.attacker.kouDiSuccess = { ...j.attacker.kouDiSuccess };
   s.attacker.avgKouDi = { ...j.attacker.avgKouDi };
   s.tricks.won = { ...j.tricks.won };
   s.tricks.leads = { ...j.tricks.leads };
@@ -237,18 +253,20 @@ export function toJSON(s: StrategyStats): Record<string, unknown> {
       wins: s.banker.wins,
       perLevel: mapToObj(s.banker.perLevel),
       trumpHands: { ...s.banker.trumpHands },
-      ntHands: s.banker.ntHands,
+      ntHands: { ...s.banker.ntHands },
       avgLoss: { ...s.banker.avgLoss },
       avgBottomPts: { ...s.banker.avgBottomPts },
       killSuitFreq: { ...s.banker.killSuitFreq },
-      keepLastTrick: { ...s.banker.keepLastTrick },
+      keepBottom: { ...s.banker.keepBottom },
     },
     attacker: {
       hands: s.attacker.hands,
       wins: s.attacker.wins,
       perLevel: mapToObj(s.attacker.perLevel),
       trumpHands: { ...s.attacker.trumpHands },
-      ntHands: s.attacker.ntHands,
+      ntHands: { ...s.attacker.ntHands },
+      kouDiFreq: { ...s.attacker.kouDiFreq },
+      kouDiSuccess: { ...s.attacker.kouDiSuccess },
       avgKouDi: { ...s.attacker.avgKouDi },
     },
     tricks: {
