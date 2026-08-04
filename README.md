@@ -79,15 +79,16 @@ In NT (no-trump) mode, 12 constant trump cards (Big Joker × 2, Small Joker × 2
 - **Progress & checkpoints** — A progress line every 100 matches (with ETA); every `stepMatches` matches the significance result is printed and `results/checkpoint.json` is written; Ctrl+C saves partial results and exits gracefully. No resume — every run starts from 0.
 - **Upgrade log** — `--detail-pair N` prints the per-hand upgrade records of both mirrored matches side by side (same deck), showing banker side, both levels at hand start, attacker points, and the upgrade result.
 - **Historical baselines** — `ai-0712` (2026-07-12), `ai-0719` (2026-07-19), `ai-0726` (2026-07-26) and `ai-0707` (2026-07-08) were extracted from git history to PK against the current `ai`.
-- **Strategy Elo ratings** (baseline: current `ai` = 1000; derived from arena win rates via ΔR = 400·log10(p̂/(1−p̂)), p̂ including draws as 0.5):
+- **Strategy Elo ratings** (baseline: current `ai` = 1000):
 
   | Strategy | Elo |
   |---|---|
   | `ai` (current) | 1000.0 |
-  | `ai-0801` | 992.1 |
-  | `ai-0726` | 988.0 |
-
-  Cross-checked across three mirror pairings: the transitive difference between `ai-0801` and `ai-0726` (≈4.0) matches their direct pairing (≈4.2).
+  | `ai-0801` | 992.2 |
+  | `ai-0726` | 988.1 |
+  | `ai-0719` | 895.3 |
+  | `ai-0712` | 463.6 |
+  | `ai-0707` | -528.5 |
 
 ## Quick Start
 
@@ -244,15 +245,16 @@ MIT — see [LICENSE](LICENSE).
 - **进度与检查点**：每 100 场一行进度（含 ETA）；每 `stepMatches` 场输出显著性并写 `results/checkpoint.json`；Ctrl+C 保存部分结果后优雅退出。不支持恢复，每次从 0 开始。
 - **升级记录**：`--detail-pair N` 并排输出该对决镜像两场的逐手升级记录（同一副牌），含庄家方、双方等级、闲家得分与升级结果。
 - **历史基线策略**：`ai-0712`（2026-07-12）、`ai-0719`（2026-07-19）、`ai-0726`（2026-07-26）与 `ai-0707`（2026-07-08）从 git 历史提取，用于与当前策略 `ai` 对比。
-- **策略 Elo 评分**（以当前 `ai` = 1000 为基准；由竞技场胜率反解：ΔR = 400·log10(p̂/(1−p̂))，p̂ 含平局按 0.5 计）：
+- **策略 Elo 评分**（以当前 `ai` = 1000 为基准）：
 
   | 策略 | Elo |
   |---|---|
   | `ai`（当前） | 1000.0 |
-  | `ai-0801` | 992.1 |
-  | `ai-0726` | 988.0 |
-
-  三场镜像对决两两交叉验证一致（`ai-0801` 与 `ai-0726` 的传递差约 4.0，与直接对决差约 4.2 吻合）。
+  | `ai-0801` | 992.2 |
+  | `ai-0726` | 988.1 |
+  | `ai-0719` | 895.3 |
+  | `ai-0712` | 463.6 |
+  | `ai-0707` | -528.5 |
 
 ### 快速开始
 
