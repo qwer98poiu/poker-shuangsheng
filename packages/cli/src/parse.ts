@@ -21,5 +21,12 @@ export function parseCards(
     }
   }
 
+  // 同一张牌只能选一次：重复编号会让扣底/出牌数量失真——如扣底选 8 张实际只移走
+  // 7 张，庄家手牌多 1 张，总牌数不再守恒，后续出牌必然出错。
+  const dupes = [...new Set(indices.filter((v, i) => indices.indexOf(v) !== i))];
+  if (dupes.length > 0) {
+    return { cards: [], error: `重复编号: ${dupes.join(' ')}（同一张牌只能选一次）` };
+  }
+
   return { cards: indices.map(i => sorted[i]) };
 }

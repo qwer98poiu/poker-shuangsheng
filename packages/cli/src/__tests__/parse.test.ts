@@ -107,4 +107,58 @@ describe('parseCards', () => {
       expect(r.error).toContain('超出范围');
     });
   });
+
+  describe('duplicate indices (重复编号)', () => {
+    // 用户实测场景：33 张（25 手牌 + 8 底牌）扣底输入 "22 23 24 25 20 21 18 21"，
+    // 21 出现两次 → 旧实现返回 8 张（含同一张牌两次），扣底只移走 7 张，
+    // 庄家手牌剩 26 张而非 25 张，总牌数不再守恒。
+    it('rejects the user-reported duplicate bottom selection', () => {
+      const hand33: Card[] = Array.from({ length: 33 }, (_, i) => {
+        const suits = ['S', 'H', 'C', 'D'];
+        return c(suits[i % 4], 2 + (i % 13), i);
+      });
+      const r = parseCards('22 23 24 25 20 21 18 21', hand33, cfgD2);
+      expect(r.cards.length).toBe(0);
+      expect(r.error).toContain('重复编号');
+      expect(r.error).toContain('21');
+    });
+
+    it('rejects duplicate index in play input', () => {
+      const r = parseCards('5 5', hand25, cfgD2);
+      expect(r.cards.length).toBe(0);
+      expect(r.error).toContain('重复编号');
+    });
+
+    it('rejects any repeated index regardless of order', () => {
+      const r = parseCards('3 1 3', hand25, cfgD2);
+      expect(r.cards.length).toBe(0);
+      expect(r.error).toContain('重复编号');
+    });
+
+    it('rejects duplicates among 8 bottom picks', () => {
+      const hand33: Card[] = Array.from({ length: 33 }, (_, i) => {
+        const suits = ['S', 'H', 'C', 'D'];
+        return c(suits[i % 4], 2 + (i % 13), i);
+      });
+      const r = parseCards('0 1 2 3 4 5 6 6', hand33, cfgD2);
+      expect(r.cards.length).toBe(0);
+      expect(r.error).toContain('重复编号');
+    });
+
+    it('still accepts 8 distinct bottom picks', () => {
+      const hand33: Card[] = Array.from({ length: 33 }, (_, i) => {
+        const suits = ['S', 'H', 'C', 'D'];
+        return c(suits[i % 4], 2 + (i % 13), i);
+      });
+      const r = parseCards('0 1 2 3 4 5 6 7', hand33, cfgD2);
+      expect(r.error).toBeUndefined();
+      expect(r.cards.length).toBe(8);
+      expect(new Set(r.cards.map(c => c.id)).size).toBe(8);
+    });
+
+    it('range check still wins over duplicate check', () => {
+      const r = parseCards('5 5 99', hand25, cfgD2);
+      expect(r.error).toContain('超出范围');
+    });
+  });
 });

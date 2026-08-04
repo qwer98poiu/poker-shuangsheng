@@ -28,6 +28,35 @@ import type {
 
 const SAVE_DIR = path.join(process.cwd(), 'saves');
 
+/**
+ * 组合搜索：从 arr 中找第一个让 valid 返回 true 的 k 张组合（字典序）。
+ * 最多尝试 maxCombos 个组合（防止甩牌类大组合数穷举过久），找不到返回 null。
+ * 用于 AI 出牌被拒后的降级路径——正常对局中手牌数 ≥ 需出张数时必有合法出牌。
+ */
+function findValidCombination<T>(
+  arr: T[], k: number, valid: (combo: T[]) => boolean, maxCombos = 200000,
+): T[] | null {
+  if (k <= 0 || k > arr.length) return null;
+  let count = 0;
+  const chosen: T[] = [];
+  let found: T[] | null = null;
+  const rec = (start: number): void => {
+    if (found || count >= maxCombos) return;
+    if (chosen.length === k) {
+      count++;
+      if (valid(chosen)) found = chosen.slice();
+      return;
+    }
+    for (let i = start; i < arr.length && !found && count < maxCombos; i++) {
+      chosen.push(arr[i]);
+      rec(i + 1);
+      chosen.pop();
+    }
+  };
+  rec(0);
+  return found;
+}
+
 // ---- config ----
 let DEBUG = false;
 let HUMAN_COUNT = 1;
@@ -619,18 +648,37 @@ async function doPlayerTurn(playerIndex: number) {
       gameState = result.state;
       console.log(`${playerName(playerIndex)} 甩牌失败: ${showCards(cards)}`);
     } else if (result.error) {
-      const fb = playCards(gameState, playerIndex, player.hand.slice(0, Math.max(1, leadLen)));
-      if (fb.error) {
-        const fb2 = playCards(gameState, playerIndex, [player.hand[0]]);
-        if (fb2.error) {
-          console.log(`💀 AI ${playerName(playerIndex)} 崩溃: ${fb2.error}, 跳过`);
-          return;
-        }
-        gameState = fb2.state;
-        console.log(`${playerName(playerIndex)} 出: ${showCards([player.hand[0]])}`);
+      // AI 出牌被拒。正常对局中手牌数 ≥ 需出张数时必有合法出牌，走到这里说明
+      // AI 出牌非法或牌局状态异常。逐级降级：手牌前 leadLen 张 → 暴力搜索任意
+      // 合法组合。全部失败则抛错终止（外层 catch 转储现场）——不能静默跳过，
+      // 那会让本墩永远无法推进而陷入死循环。
+      const first = playCards(gameState, playerIndex, player.hand.slice(0, Math.max(1, leadLen)));
+      let fallback: Card[] | null = null;
+      if (!first.error) {
+        fallback = player.hand.slice(0, Math.max(1, leadLen));
       } else {
+        fallback = findValidCombination(player.hand, leadLen, (combo) => {
+          const r = playCards(gameState, playerIndex, combo);
+          return !r.error && !r.forcedPlay;
+        });
+      }
+      if (fallback) {
+        const fb = playCards(gameState, playerIndex, fallback);
+        if (fb.error || fb.forcedPlay) {
+          throw new Error(
+            `AI ${playerName(playerIndex)} 降级出牌被拒: ${fb.error ?? fb.forceReason}` +
+            `（手牌 ${player.hand.length} 张，需出 ${leadLen} 张）`,
+          );
+        }
         gameState = fb.state;
-        console.log(`${playerName(playerIndex)} 出: ${showCards(player.hand.slice(0, Math.max(1, leadLen)))}`);
+        cards = fallback;
+        reason = '降级出牌';
+        console.log(`${playerName(playerIndex)} 出: ${showCards(fallback)}`);
+      } else {
+        throw new Error(
+          `AI ${playerName(playerIndex)} 无法出牌: ${first.error}` +
+          `（手牌 ${player.hand.length} 张，需出 ${leadLen} 张）— 牌局状态异常，对局终止`,
+        );
       }
       if (DEBUG) console.log(DIM + `  (出错: ${result.error})` + RESET);
     } else {
