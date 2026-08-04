@@ -20,7 +20,7 @@ import {
 } from '@poker/engine';
 import { computeRoundOutcome } from './round-result.js';
 import type { RoundOutcome } from './round-result.js';
-import { parseCards } from './parse.js';
+import { parseCards, parseHumanCount } from './parse.js';
 import { parseLevelSuit } from './parse-level.js';
 import type {
   GameState, PlayerState, TrumpDeclaration, Card, AIReason,
@@ -128,8 +128,9 @@ async function main() {
     showRoundResult();
   } else {
     const hc = await q('人类玩家数量 (0-4, 默认1): ');
-    const parsed = parseInt(hc);
-    HUMAN_COUNT = isNaN(parsed) ? 1 : Math.max(0, Math.min(4, parsed));
+    const hcParsed = parseHumanCount(hc);
+    HUMAN_COUNT = hcParsed.count;
+    if (hcParsed.warning) console.log(YELLOW + `⚠️ ${hcParsed.warning}` + RESET);
     const dbg = await q('调试模式? (y/n, 默认n): ');
     DEBUG = dbg.toLowerCase() === 'y';
     const humanSeats: number[] = [];

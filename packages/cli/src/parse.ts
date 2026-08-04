@@ -30,3 +30,16 @@ export function parseCards(
 
   return { cards: indices.map(i => sorted[i]) };
 }
+
+/** 解析人类玩家数量输入 (0-4，默认 1)。非法/超范围输入钳制后附警告，空输入静默取默认。 */
+export function parseHumanCount(input: string): { count: number; warning: string | null } {
+  const trimmed = input.trim();
+  if (trimmed === '') return { count: 1, warning: null };
+  const parsed = parseInt(trimmed);
+  if (isNaN(parsed)) return { count: 1, warning: '无效输入，默认 1' };
+  if (parsed < 0 || parsed > 4) {
+    const count = Math.max(0, Math.min(4, parsed));
+    return { count, warning: `输入超出范围 (0-4)，已按 ${count} 处理` };
+  }
+  return { count: parsed, warning: null };
+}

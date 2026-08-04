@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { Suit } from '@poker/engine';
 import { createCard } from '@poker/engine';
-import { parseCards } from '../parse.js';
+import { parseCards, parseHumanCount } from '../parse.js';
 import type { Card, TrumpDeclaration } from '@poker/engine';
 
 const cfgD2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Diamonds, level: 2 };
@@ -160,5 +160,55 @@ describe('parseCards', () => {
       const r = parseCards('5 5 99', hand25, cfgD2);
       expect(r.error).toContain('超出范围');
     });
+  });
+});
+
+describe('parseHumanCount', () => {
+  it('accepts valid range 0-4 without warning', () => {
+    for (const [input, expected] of [['0', 0], ['1', 1], ['2', 2], ['3', 3], ['4', 4]]) {
+      const r = parseHumanCount(input);
+      expect(r.count).toBe(expected);
+      expect(r.warning).toBeNull();
+    }
+  });
+
+  it('clamps 5 to 4 with a warning', () => {
+    const r = parseHumanCount('5');
+    expect(r.count).toBe(4);
+    expect(r.warning).toContain('超出范围');
+  });
+
+  it('clamps negative input to 0 with a warning', () => {
+    const r = parseHumanCount('-1');
+    expect(r.count).toBe(0);
+    expect(r.warning).toContain('超出范围');
+  });
+
+  it('clamps 99 and -99 with the clamped value in the warning', () => {
+    const hi = parseHumanCount('99');
+    expect(hi.count).toBe(4);
+    expect(hi.warning).toContain('4');
+
+    const lo = parseHumanCount('-99');
+    expect(lo.count).toBe(0);
+    expect(lo.warning).toContain('0');
+  });
+
+  it('treats non-numeric input as default 1 with a warning', () => {
+    const r = parseHumanCount('abc');
+    expect(r.count).toBe(1);
+    expect(r.warning).toContain('无效');
+  });
+
+  it('treats empty input as default 1 silently (默认1)', () => {
+    const r = parseHumanCount('');
+    expect(r.count).toBe(1);
+    expect(r.warning).toBeNull();
+  });
+
+  it('treats whitespace input as empty', () => {
+    const r = parseHumanCount('   ');
+    expect(r.count).toBe(1);
+    expect(r.warning).toBeNull();
   });
 });
