@@ -43,3 +43,32 @@ export function parseHumanCount(input: string): { count: number; warning: string
   }
   return { count: parsed, warning: null };
 }
+
+/** 解析 y/n 回答（y/yes → true，n/no → false，不区分大小写）。空输入静默取默认，非法输入取默认并警告。 */
+export function parseYesNo(input: string, defaultValue: boolean): { value: boolean; warning: string | null } {
+  const t = input.trim().toLowerCase();
+  if (t === '') return { value: defaultValue, warning: null };
+  if (t === 'y' || t === 'yes') return { value: true, warning: null };
+  if (t === 'n' || t === 'no') return { value: false, warning: null };
+  return { value: defaultValue, warning: `无效输入 (y/n)，按默认 ${defaultValue ? 'y' : 'n'} 处理` };
+}
+
+/** 解析存档编号（1 基）。空输入静默跳过，非法/超范围返回 null 并警告。 */
+export function parseSaveChoice(input: string, count: number): { index: number | null; warning: string | null } {
+  if (input.trim() === '') return { index: null, warning: null };
+  const idx = parseInt(input) - 1;
+  if (isNaN(idx) || idx < 0 || idx >= count) {
+    return { index: null, warning: `无效编号 (1-${count})，未加载存档` };
+  }
+  return { index: idx, warning: null };
+}
+
+/** 解析续玩墩号 (0-max)。空输入返回 null（从当前继续），非法/越界返回 null 并警告。 */
+export function parseTrickNumber(input: string, max: number): { trick: number | null; warning: string | null } {
+  if (input.trim() === '') return { trick: null, warning: null };
+  const n = parseInt(input);
+  if (isNaN(n) || n < 0 || n > max) {
+    return { trick: null, warning: `墩号无效 (0-${max})，从当前墩继续` };
+  }
+  return { trick: n, warning: null };
+}

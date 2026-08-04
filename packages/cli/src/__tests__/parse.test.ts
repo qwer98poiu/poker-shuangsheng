@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { Suit } from '@poker/engine';
 import { createCard } from '@poker/engine';
-import { parseCards, parseHumanCount } from '../parse.js';
+import { parseCards, parseHumanCount, parseYesNo, parseSaveChoice, parseTrickNumber } from '../parse.js';
 import type { Card, TrumpDeclaration } from '@poker/engine';
 
 const cfgD2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Diamonds, level: 2 };
@@ -165,7 +165,7 @@ describe('parseCards', () => {
 
 describe('parseHumanCount', () => {
   it('accepts valid range 0-4 without warning', () => {
-    for (const [input, expected] of [['0', 0], ['1', 1], ['2', 2], ['3', 3], ['4', 4]]) {
+    for (const [input, expected] of [['0', 0], ['1', 1], ['2', 2], ['3', 3], ['4', 4]] as const) {
       const r = parseHumanCount(input);
       expect(r.count).toBe(expected);
       expect(r.warning).toBeNull();
@@ -210,5 +210,104 @@ describe('parseHumanCount', () => {
     const r = parseHumanCount('   ');
     expect(r.count).toBe(1);
     expect(r.warning).toBeNull();
+  });
+});
+
+describe('parseYesNo', () => {
+  it('accepts y/yes/n/no case-insensitively without warning', () => {
+    for (const [input, expected] of [['y', true], ['yes', true], ['Y', true], ['YES', true], ['n', false], ['no', false], ['N', false]] as const) {
+      const r = parseYesNo(input, false);
+      expect(r.value).toBe(expected);
+      expect(r.warning).toBeNull();
+    }
+  });
+
+  it('empty input silently returns default', () => {
+    const r = parseYesNo('', true);
+    expect(r.value).toBe(true);
+    expect(r.warning).toBeNull();
+  });
+
+  it('invalid input returns default with warning (默认 n)', () => {
+    const r = parseYesNo('abc', false);
+    expect(r.value).toBe(false);
+    expect(r.warning).toContain('无效输入');
+    expect(r.warning).toContain('n');
+  });
+
+  it('invalid input returns default with warning (默认 y)', () => {
+    const r = parseYesNo('xyz', true);
+    expect(r.value).toBe(true);
+    expect(r.warning).toContain('y');
+  });
+});
+
+describe('parseSaveChoice', () => {
+  it('empty input silently skips', () => {
+    const r = parseSaveChoice('', 3);
+    expect(r.index).toBeNull();
+    expect(r.warning).toBeNull();
+  });
+
+  it('parses 1-based index', () => {
+    const r = parseSaveChoice('2', 3);
+    expect(r.index).toBe(1);
+    expect(r.warning).toBeNull();
+  });
+
+  it('rejects out-of-range index with warning', () => {
+    const r = parseSaveChoice('5', 3);
+    expect(r.index).toBeNull();
+    expect(r.warning).toContain('1-3');
+  });
+
+  it('rejects 0 (not 1-based) with warning', () => {
+    const r = parseSaveChoice('0', 3);
+    expect(r.index).toBeNull();
+    expect(r.warning).toContain('无效编号');
+  });
+
+  it('rejects non-numeric input with warning', () => {
+    const r = parseSaveChoice('abc', 3);
+    expect(r.index).toBeNull();
+    expect(r.warning).toContain('无效编号');
+  });
+});
+
+describe('parseTrickNumber', () => {
+  it('empty input silently returns null (从当前)', () => {
+    const r = parseTrickNumber('', 25);
+    expect(r.trick).toBeNull();
+    expect(r.warning).toBeNull();
+  });
+
+  it('parses valid trick within range', () => {
+    const r = parseTrickNumber('12', 25);
+    expect(r.trick).toBe(12);
+    expect(r.warning).toBeNull();
+  });
+
+  it('parses 0', () => {
+    const r = parseTrickNumber('0', 25);
+    expect(r.trick).toBe(0);
+    expect(r.warning).toBeNull();
+  });
+
+  it('rejects negative with warning', () => {
+    const r = parseTrickNumber('-3', 25);
+    expect(r.trick).toBeNull();
+    expect(r.warning).toContain('0-25');
+  });
+
+  it('rejects beyond max with warning', () => {
+    const r = parseTrickNumber('99', 25);
+    expect(r.trick).toBeNull();
+    expect(r.warning).toContain('0-25');
+  });
+
+  it('rejects non-numeric input with warning', () => {
+    const r = parseTrickNumber('abc', 25);
+    expect(r.trick).toBeNull();
+    expect(r.warning).toContain('无效');
   });
 });

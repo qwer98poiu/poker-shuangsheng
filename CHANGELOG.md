@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-04 23:42
+
+### 修复：CLI 各选项非法输入弹警告
+
+**问题**：除人类玩家数量外，其余 CLI 提示对非法输入一律静默处理——存档编号越界静默不加载、续玩墩号非法静默回退、调试模式输入非 y 静默按 n、首局等级花色无法识别静默默认 2 级、继续下一局输入非 n 静默继续。用户无从得知输入被修正或忽略。
+
+**修复**：新增纯函数 `parseYesNo` / `parseSaveChoice` / `parseTrickNumber`（parse.ts），`parseLevelSuit` 增加 `warning` 字段（等级 <2 或 >14 钳制并警告、完全无法识别警告，`NT` 单独出现合法不警告）。CLI 各提示点接入，非法输入统一弹 `⚠️` 黄色警告；指定庄家与亮主的既有无效文案统一为 ⚠️ 样式。
+
+**新增 21 项测试**（parse.test.ts：15 项，parse-level.test.ts：6 项），引擎 580 项 + arena 66 项 + CLI 68 项 = 714 项通过。
+
+- **影响文件**：`packages/cli/src/parse.ts`、`packages/cli/src/parse-level.ts`、`packages/cli/src/index.ts`、`packages/cli/src/__tests__/parse.test.ts`、`packages/cli/src/__tests__/parse-level.test.ts`
+
 ## 2026-08-04 23:29
 
 ### 修复：人类玩家数量输入超范围时弹警告

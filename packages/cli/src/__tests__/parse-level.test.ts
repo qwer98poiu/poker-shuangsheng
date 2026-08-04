@@ -85,4 +85,41 @@ describe('parseLevelSuit', () => {
     expect(r.suit).toBeNull();
     expect(r.hasSuit).toBe(true);
   });
+
+  describe('warnings', () => {
+    it('warns when level > 14 and clamps to 2', () => {
+      const r = parseLevelSuit('15S');
+      expect(r.level).toBe(2);
+      expect(r.suit).toBe(Suit.Spades);
+      expect(r.warning).toContain('超出范围');
+    });
+
+    it('warns when level < 2 and clamps to 2', () => {
+      const r = parseLevelSuit('1');
+      expect(r.level).toBe(2);
+      expect(r.warning).toContain('超出范围');
+    });
+
+    it('warns on unparseable input', () => {
+      const r = parseLevelSuit('xyz');
+      expect(r.level).toBe(2);
+      expect(r.suit).toBeUndefined();
+      expect(r.warning).toContain('无法识别');
+    });
+
+    it('no warning for "NT" alone (valid, defaults level 2)', () => {
+      const r = parseLevelSuit('NT');
+      expect(r.warning).toBeNull();
+    });
+
+    it('no warning for valid inputs', () => {
+      for (const input of ['2C', '5', 'KNT', 'AH', 'jd']) {
+        expect(parseLevelSuit(input).warning).toBeNull();
+      }
+    });
+
+    it('no warning for empty input', () => {
+      expect(parseLevelSuit('').warning).toBeNull();
+    });
+  });
 });

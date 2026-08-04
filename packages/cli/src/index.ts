@@ -20,7 +20,7 @@ import {
 } from '@poker/engine';
 import { computeRoundOutcome } from './round-result.js';
 import type { RoundOutcome } from './round-result.js';
-import { parseCards, parseHumanCount } from './parse.js';
+import { parseCards, parseHumanCount, parseYesNo, parseSaveChoice, parseTrickNumber } from './parse.js';
 import { parseLevelSuit } from './parse-level.js';
 import type {
   GameState, PlayerState, TrumpDeclaration, Card, AIReason,
@@ -102,18 +102,16 @@ async function main() {
       console.log(`  [${i + 1}] ${path.basename(f)} — ${new Date(isMatch ? s[0]?.t : s.t).toLocaleString()} — ${playerCount}人 — ${roundCount} — 墩${trickCount}`);
     });
     const loadChoice = await q('加载存档? (输入编号, 回车跳过): ');
-    if (loadChoice) {
-      const idx = parseInt(loadChoice) - 1;
-      if (idx >= 0 && idx < saveFiles.length) {
-        resumeFile = saveFiles[idx];
-        const trickInput = await q(`从第几墩继续? (回车=从当前): `);
-        if (trickInput) {
-          resumeFromTrickNum = parseInt(trickInput);
-          if (isNaN(resumeFromTrickNum)) resumeFromTrickNum = 0;
-        } else {
-          resumeFromTrickNum = JSON.parse(fs.readFileSync(resumeFile, 'utf-8')).tricksPlayed;
-        }
-      }
+    const saveChoice = parseSaveChoice(loadChoice, saveFiles.length);
+    if (saveChoice.warning) console.log(YELLOW + `⚠️ ${saveChoice.warning}` + RESET);
+    if (saveChoice.index !== null) {
+      resumeFile = saveFiles[saveChoice.index];
+      const saved = JSON.parse(fs.readFileSync(resumeFile, 'utf-8'));
+      const maxTrick = Number.isFinite(saved.tricksPlayed) ? saved.tricksPlayed : 0;
+      const trickInput = await q(`从第几墩继续? (回车=从当前): `);
+      const trickChoice = parseTrickNumber(trickInput, maxTrick);
+      if (trickChoice.warning) console.log(YELLOW + `⚠️ ${trickChoice.warning}` + RESET);
+      resumeFromTrickNum = trickChoice.trick ?? maxTrick;
     }
   }
 
@@ -132,7 +130,9 @@ async function main() {
     HUMAN_COUNT = hcParsed.count;
     if (hcParsed.warning) console.log(YELLOW + `⚠️ ${hcParsed.warning}` + RESET);
     const dbg = await q('调试模式? (y/n, 默认n): ');
-    DEBUG = dbg.toLowerCase() === 'y';
+    const dbgChoice = parseYesNo(dbg, false);
+    DEBUG = dbgChoice.value;
+    if (dbgChoice.warning) console.log(YELLOW + `⚠️ ${dbgChoice.warning}` + RESET);
     const humanSeats: number[] = [];
     for (let i = 0; i < HUMAN_COUNT; i++) humanSeats.push(i);
     aiPlayers = [0, 1, 2, 3].map(i => !humanSeats.includes(i));
@@ -149,6 +149,7 @@ async function main() {
       targetLevel = parsed.level;
       targetSuit = parsed.suit;
       if (parsed.hasSuit) autoReveal = true;
+      if (parsed.warning) console.log(YELLOW + `⚠️ ${parsed.warning}` + RESET);
 
       const decl = await q('指定庄家? (p0-p3, n=不指定, 回车=自己): ');
       const dp = decl.trim().toUpperCase();
@@ -159,7 +160,7 @@ async function main() {
       } else if (dp === '') {
         forcedDeclarer = 0;
       } else {
-        console.log('无效输入，默认自己当庄家');
+        console.log(YELLOW + '⚠️ 无效输入，默认自己当庄家' + RESET);
         forcedDeclarer = 0;
       }
     }
@@ -280,7 +281,9 @@ async function gameLoop(
       await sleep(1500);
     } else {
       const ans = await ask(`\n继续下一局? (TeamAC=${rankLabel(levelAC)} TeamBD=${rankLabel(levelBD)}) (y/n, 默认y): `);
-      if (ans.toLowerCase() === 'n') break;
+      const ansChoice = parseYesNo(ans, true);
+      if (ansChoice.warning) console.log(YELLOW + `⚠️ ${ansChoice.warning}` + RESET);
+      if (!ansChoice.value) break;
     }
 
     nextDeclarer = attackerSits ? (declarerIdx + 1) % 4 : (declarerIdx + 2) % 4;
@@ -477,7 +480,7 @@ async function doReveal(isFirstRound: boolean, skipPlayer?: number) {
           else if (up === 'H') suit = Suit.Hearts;
           else if (up === 'C') suit = Suit.Clubs;
           else if (up === 'D') suit = Suit.Diamonds;
-          else { console.log('无效选择'); continue; }
+          else { console.log(YELLOW + '⚠️ 无效选择 (S/H/C/D/N)' + RESET); continue; }
 
           const before = gameState.currentReveal;
           gameState = tryReveal(gameState, pi, suit);
