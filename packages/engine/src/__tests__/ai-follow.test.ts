@@ -800,6 +800,70 @@ describe('trump kill validity (hearts trump, level=5)', () => {
       expect(r.cards.length).toBe(3);
       expect(r.reason).toBe('用主牌毙（用最小牌盖）');
     });
+
+    // 实测场景（用户牌局）：领出 ♣A♣A♣J♣J♣K（2 对+1 单，含 K 分），第四家缺门毙。
+    // 填充单张应分牌优先：手上有 ♥5 就不填 ♥3 —— "用分牌盖"意图要落到实处。
+    // 等级用 6（非 5）：让 ♥5 是普通 5 分牌而非级牌——级牌（rank=level）不算分牌，
+    // 只在跨 40 分台阶时出，不能作为填充优先的验证对象。
+    it('kills throw: filler prefers point card over smaller non-point', () => {
+      const cfg6: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 6 };
+      const lead: Card[] = [c2('S', 14, 0), c2('S', 14, 1), c2('S', 11, 2), c2('S', 11, 3), c2('S', 13, 4)];
+      const best = { cards: lead, playerIdx: 0 };
+      const hand = [
+        c2('H', 3, 0), c2('H', 3, 1),   // ♥3♥3 对
+        c2('H', 7, 0), c2('H', 7, 1),   // ♥7♥7 对
+        c2('H', 5, 0),                  // ♥5（5 分）
+        c2('H', 4, 1),                  // ♥4（非分）
+        c2('C', 9, 0), c2('D', 8, 0),
+      ];
+      const r = aiFollowPlay(hand, lead, Suit.Spades, cfg6, best, 3);
+      checkFollow(r.cards, hand, lead, 'S', cfg6);
+      expect(r.cards.length).toBe(5);
+      // 填充单张必须是分牌 ♥5，而不是更小的 ♥4
+      expect(r.cards.filter(c => c.rank === 5).length).toBe(1);
+      expect(r.cards.filter(c => c.rank === 4).length).toBe(0);
+      expect(r.reason).toContain('用分牌盖');
+    });
+
+    it('kills throw: with both 10 and 5 singles, filler picks the 10', () => {
+      const cfg6: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 6 };
+      const lead: Card[] = [c2('S', 14, 0), c2('S', 14, 1), c2('S', 11, 2), c2('S', 11, 3), c2('S', 13, 4)];
+      const best = { cards: lead, playerIdx: 0 };
+      const hand = [
+        c2('H', 3, 0), c2('H', 3, 1),
+        c2('H', 7, 0), c2('H', 7, 1),
+        c2('H', 10, 0),                // ♥10（10 分）
+        c2('H', 5, 1),                 // ♥5（5 分）
+        c2('C', 9, 0), c2('D', 8, 0),
+      ];
+      const r = aiFollowPlay(hand, lead, Suit.Spades, cfg6, best, 3);
+      checkFollow(r.cards, hand, lead, 'S', cfg6);
+      expect(r.cards.length).toBe(5);
+      // 分高在前：填 10 分牌，不填 5 分牌
+      expect(r.cards.filter(c => c.rank === 10).length).toBe(1);
+      expect(r.cards.filter(c => c.rank === 5).length).toBe(0);
+    });
+
+    it('kills throw with 4 trump pairs: K pair still chosen (points first)', () => {
+      const cfg6: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 6 };
+      const lead: Card[] = [c2('S', 14, 0), c2('S', 14, 1), c2('S', 11, 2), c2('S', 11, 3), c2('S', 13, 4)];
+      const best = { cards: lead, playerIdx: 0 };
+      // 4 个主对：♥3♥3、♥6♥6（级牌对）、♥7♥7、♥K♥K（K 是唯一分对也是大对）
+      const hand = [
+        c2('H', 3, 0), c2('H', 3, 1),
+        c2('H', 6, 0), c2('H', 6, 1),
+        c2('H', 7, 0), c2('H', 7, 1),
+        c2('H', 13, 0), c2('H', 13, 1),
+        c2('H', 4, 0),                  // 填充单张
+        c2('C', 9, 0), c2('D', 8, 0),
+      ];
+      const r = aiFollowPlay(hand, lead, Suit.Spades, cfg6, best, 3);
+      checkFollow(r.cards, hand, lead, 'S', cfg6);
+      expect(r.cards.length).toBe(5);
+      // hasPoints 反转后分对/大对在前：♥K♥K 对必然入选（与用户实测的建议一致）
+      expect(r.cards.filter(c => c.rank === 13).length).toBe(2);
+      expect(r.reason).toContain('用分牌盖');
+    });
   });
 
   describe('throw lead, void, best already trumped, cannot beat', () => {

@@ -534,7 +534,12 @@ export function trumpKill(
       }
       const used = new Set(chosen.map(c => c.id));
       const rest = trumpCards.filter(c => !used.has(c.id));
-      rest.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+      // 用分牌盖/加分意图：填充单张分牌优先（10 分 > K/5 的 5 分，同分取小），
+      // 无分再按最小——与"用分牌盖"注记一致（手上有 ♥5 就不会填 ♥3）。
+      // 级牌（rank=level）不算分牌：常主只在跨 40 分台阶时出，不作填充优先
+      const pointVal = (c: Card): number =>
+        c.rank === ctx.level ? 0 : (c.rank === 10 ? 10 : (c.rank === 13 || c.rank === 5 ? 5 : 0));
+      rest.sort((a, b) => (pointVal(b) - pointVal(a)) || (getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx)));
       const result = [...chosen, ...rest.slice(0, leadLen - chosen.length)];
       if (canTrumpKillBeat(result, leadCards, ctx)) {
         const reason = killReason(result, overkill ? '盖毙' : '用主牌毙');
