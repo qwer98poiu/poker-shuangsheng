@@ -20,7 +20,7 @@ import {
 } from '@poker/engine';
 import { computeRoundOutcome } from './round-result.js';
 import type { RoundOutcome } from './round-result.js';
-import { parseCards, parseHumanCount, parseYesNo, parseSaveChoice, parseTrickNumber, revealLabel } from './parse.js';
+import { parseCards, parseHumanCount, parseYesNo, parseSaveChoice, parseTrickNumber, revealLabel, usableRevealOptions, revealHint } from './parse.js';
 import { parseLevelSuit } from './parse-level.js';
 import type {
   GameState, PlayerState, TrumpDeclaration, Card, AIReason,
@@ -454,41 +454,29 @@ async function doReveal(isFirstRound: boolean, skipPlayer?: number) {
       const player = gameState.players[pi];
       const level = gameState.currentLevel;
 
-      const bigJ = player.hand.filter(c => c.rank === Rank.BigJoker);
-      const smallJ = player.hand.filter(c => c.rank === Rank.SmallJoker);
-      const canNT = bigJ.length >= 2 || smallJ.length >= 2;
+      // 只显示能成功亮/反的选项：手牌生成后按反主规则过滤
+      const usable = usableRevealOptions(player.hand, level, gameState.currentReveal);
+      if (usable.length === 0) continue; // 不能亮/反：不显示任何提示，直接输出亮主结果
 
-      const levelCards: { suit: Suit; count: number }[] = [];
-      for (const s of [Suit.Spades, Suit.Hearts, Suit.Clubs, Suit.Diamonds]) {
-        const cnt = player.hand.filter(c => c.suit === s && c.rank === level).length;
-        if (cnt > 0) levelCards.push({ suit: s, count: cnt });
-      }
+      const hint = revealHint(usable);
+      const choice = await ask(`亮主? (${hint}, 回车跳过): `);
+      if (choice) {
+        const up = choice.toUpperCase().trim();
+        let suit: Suit | null = null;
+        if (up === 'N') suit = null;
+        else if (up === 'S') suit = Suit.Spades;
+        else if (up === 'H') suit = Suit.Hearts;
+        else if (up === 'C') suit = Suit.Clubs;
+        else if (up === 'D') suit = Suit.Diamonds;
+        else { console.log(YELLOW + `⚠️ 无效选择 (${hint})` + RESET); continue; }
 
-      if (canNT || levelCards.length > 0) {
-        console.log(`\n${playerName(pi)} 可以亮主:`);
-        if (canNT) console.log(`  对王 -> 无主`);
-        for (const lc of levelCards) {
-          console.log(`  ${suitLabel(lc.suit)}${rankLabel(level)}${lc.count >= 2 ? '(对)' : ''} -> ${suitName(lc.suit)}主`);
-        }
-        const choice = await ask(`亮主? (输入花色缩写: S/H/C/D, N=无主, 回车跳过): `);
-        if (choice) {
-          const up = choice.toUpperCase().trim();
-          let suit: Suit | null = null;
-          if (up === 'N') suit = null;
-          else if (up === 'S') suit = Suit.Spades;
-          else if (up === 'H') suit = Suit.Hearts;
-          else if (up === 'C') suit = Suit.Clubs;
-          else if (up === 'D') suit = Suit.Diamonds;
-          else { console.log(YELLOW + '⚠️ 无效选择 (S/H/C/D/N)' + RESET); continue; }
-
-          const before = gameState.currentReveal;
-          gameState = tryReveal(gameState, pi, suit);
-          if (gameState.currentReveal !== before) {
-            console.log(GREEN + '亮主成功!' + RESET);
-            showRevealStatus();
-          } else {
-            console.log('亮主失败（力量不够）');
-          }
+        const before = gameState.currentReveal;
+        gameState = tryReveal(gameState, pi, suit);
+        if (gameState.currentReveal !== before) {
+          console.log(GREEN + '亮主成功!' + RESET);
+          showRevealStatus();
+        } else {
+          console.log('亮主失败（力量不够）');
         }
       }
     }

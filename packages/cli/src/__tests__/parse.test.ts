@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { Suit } from '@poker/engine';
 import { createCard } from '@poker/engine';
-import { parseCards, parseHumanCount, parseYesNo, parseSaveChoice, parseTrickNumber, revealLabel } from '../parse.js';
+import { parseCards, parseHumanCount, parseYesNo, parseSaveChoice, parseTrickNumber, revealLabel, usableRevealOptions, revealHint } from '../parse.js';
 import type { Card, TrumpDeclaration } from '@poker/engine';
 
 const cfgD2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Diamonds, level: 2 };
@@ -331,5 +331,58 @@ describe('revealLabel', () => {
 
   it('其他花色级别对子显示两张 (♠K♠K)', () => {
     expect(revealLabel({ suit: Suit.Spades, strength: 2 }, 13)).toBe('♠K♠K');
+  });
+});
+
+describe('usableRevealOptions / revealHint', () => {
+  // 手牌：♣5 对 + ♦5 单张（level 5）
+  const hand = [c('C', 5, 0), c('C', 5, 1), c('D', 5, 2)];
+
+  it('无当前亮主：全部选项可用', () => {
+    const opts = usableRevealOptions(hand, 5, null);
+    expect(opts.length).toBe(2);
+    expect(revealHint(opts)).toBe('C=草花主, D=方块主');
+  });
+
+  it('当前单张：只有对子可反（单张反不了单张）', () => {
+    const opts = usableRevealOptions(hand, 5, { suit: Suit.Hearts, strength: 1 });
+    expect(opts.length).toBe(1);
+    expect(opts[0].strength).toBe(2);
+    expect(revealHint(opts)).toBe('C=草花主');
+  });
+
+  it('当前对子：对子不能反，无可用选项', () => {
+    const opts = usableRevealOptions(hand, 5, { suit: Suit.Hearts, strength: 2 });
+    expect(opts.length).toBe(0);
+  });
+
+  it('当前对小王：只有对大王可用，提示 N=大王无主', () => {
+    const hand2 = [c('J', 16, 0), c('J', 16, 1), c('J', 15, 2), c('J', 15, 3)];
+    const opts = usableRevealOptions(hand2, 5, { suit: null, strength: 3 });
+    expect(opts.length).toBe(1);
+    expect(opts[0].strength).toBe(4);
+    expect(revealHint(opts)).toBe('N=大王无主');
+  });
+
+  it('只有对小王时提示 N=小王无主', () => {
+    const hand2 = [c('J', 15, 0), c('J', 15, 1)];
+    const opts = usableRevealOptions(hand2, 5, null);
+    expect(opts.length).toBe(1);
+    expect(opts[0].strength).toBe(3);
+    expect(revealHint(opts)).toBe('N=小王无主');
+  });
+
+  it('同时对大小王无当前亮主：去重后 N 用对大王（strength 4 优先）', () => {
+    const hand2 = [c('J', 15, 0), c('J', 15, 1), c('J', 16, 2), c('J', 16, 3)];
+    const opts = usableRevealOptions(hand2, 5, null);
+    expect(opts.length).toBe(1);
+    expect(opts[0].strength).toBe(4); // getRevealOptions 先推对大王，去重保留第一个
+    expect(revealHint(opts)).toBe('N=大王无主');
+  });
+
+  it('单张反不了单张（同花色也不同花色）', () => {
+    // ♦5 单张不能反 ♥5 单张，只有 ♣5 对可用
+    const opts = usableRevealOptions(hand, 5, { suit: Suit.Hearts, strength: 1 });
+    expect(opts.some(o => o.suit === Suit.Diamonds && o.strength === 1)).toBe(false);
   });
 });
