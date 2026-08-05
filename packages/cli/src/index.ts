@@ -20,7 +20,7 @@ import {
 } from '@poker/engine';
 import { computeRoundOutcome } from './round-result.js';
 import type { RoundOutcome } from './round-result.js';
-import { parseCards, parseHumanCount, parseYesNo, parseSaveChoice, parseTrickNumber } from './parse.js';
+import { parseCards, parseHumanCount, parseYesNo, parseSaveChoice, parseTrickNumber, revealLabel } from './parse.js';
 import { parseLevelSuit } from './parse-level.js';
 import type {
   GameState, PlayerState, TrumpDeclaration, Card, AIReason,
@@ -436,8 +436,7 @@ async function doDeal(skipAiReveal = false) {
 function showRevealStatus() {
   const rev = gameState.currentReveal;
   if (!rev) return;
-  const suit = rev.suit ? suitLabel(rev.suit) + rankLabel(gameState.currentLevel) : '无主';
-  console.log(CYAN + `  当前主: ${suit} (由 ${playerName(rev.playerIndex)} 亮)` + RESET);
+  console.log(CYAN + `  当前主: ${revealLabel(rev, gameState.currentLevel)} (由 ${playerName(rev.playerIndex)} 亮)` + RESET);
 }
 
 // ---- reveal ----

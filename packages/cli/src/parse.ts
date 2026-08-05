@@ -1,5 +1,20 @@
-import { sortHand } from '@poker/engine';
+import { sortHand, suitLabel, rankLabel, Suit } from '@poker/engine';
 import type { Card, TrumpDeclaration } from '@poker/engine';
+
+/**
+ * 亮主状态显示：对子亮主显示两张（♥5♥5），单张显示一张（♥5），王对显示
+ * JOKER JOKER / joker joker。避免"当前主: ♥5"这种单张外观让人误以为是单张
+ * 亮主（单张与对子的反主规则不同）。
+ */
+export function revealLabel(rev: { suit: Suit | null; strength: number }, level: number): string {
+  if (rev.suit) {
+    const label = suitLabel(rev.suit) + rankLabel(level);
+    return rev.strength >= 2 ? label + label : label;
+  }
+  if (rev.strength === 4) return 'JOKER JOKER';
+  if (rev.strength === 3) return 'joker joker';
+  return '无主';
+}
 
 export function parseCards(
   input: string, hand: Card[], trump: TrumpDeclaration | null,

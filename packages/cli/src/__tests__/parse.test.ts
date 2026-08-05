@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { Suit } from '@poker/engine';
 import { createCard } from '@poker/engine';
-import { parseCards, parseHumanCount, parseYesNo, parseSaveChoice, parseTrickNumber } from '../parse.js';
+import { parseCards, parseHumanCount, parseYesNo, parseSaveChoice, parseTrickNumber, revealLabel } from '../parse.js';
 import type { Card, TrumpDeclaration } from '@poker/engine';
 
 const cfgD2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Diamonds, level: 2 };
@@ -309,5 +309,27 @@ describe('parseTrickNumber', () => {
     const r = parseTrickNumber('abc', 25);
     expect(r.trick).toBeNull();
     expect(r.warning).toContain('无效');
+  });
+});
+
+describe('revealLabel', () => {
+  it('单张亮主显示单张 (♥5)', () => {
+    expect(revealLabel({ suit: Suit.Hearts, strength: 1 }, 5)).toBe('♥5');
+  });
+
+  it('对子亮主显示两张 (♥5♥5)', () => {
+    expect(revealLabel({ suit: Suit.Hearts, strength: 2 }, 5)).toBe('♥5♥5');
+  });
+
+  it('对大王显示 JOKER JOKER', () => {
+    expect(revealLabel({ suit: null, strength: 4 }, 5)).toBe('JOKER JOKER');
+  });
+
+  it('对小王显示 joker joker', () => {
+    expect(revealLabel({ suit: null, strength: 3 }, 5)).toBe('joker joker');
+  });
+
+  it('其他花色级别对子显示两张 (♠K♠K)', () => {
+    expect(revealLabel({ suit: Suit.Spades, strength: 2 }, 13)).toBe('♠K♠K');
   });
 });
