@@ -768,7 +768,10 @@ export function followNTTrumpLead(
       const myPairs = findAllPairs(myTrump);
       if (myPairs.length > 0) {
         pairKillSort(myPairs, myTrump, ctx);
-        const neededPairs = Math.min(myPairs.length, leadCombo.pairCount);
+        // 对子需求 = 独立对子 + 拖拉机包含的对子（纯拖拉机领出 pairCount=0，
+        // 若只看 pairCount 会一个对子都不出 → 拆对出非法跟牌）
+        const tractorPairs = leadCombo.tractors.reduce((s, t) => s + t.pairCount, 0);
+        const neededPairs = Math.min(myPairs.length, leadCombo.pairCount + tractorPairs);
         const used = myPairs.slice(0, neededPairs).flat();
         const usedIds = new Set(used.map(c => c.id));
         const rest = myTrump.filter(c => !usedIds.has(c.id));

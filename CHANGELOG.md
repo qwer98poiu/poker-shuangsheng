@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-05 19:30
+
+### 修复：NT 跟拖拉机领出时拆对出非法牌
+
+**问题**：`followNTTrumpLead` 多张分支的 `neededPairs` 只算 `leadCombo.pairCount`，纯拖拉机领出（如 NT 下对小王 + A级牌对，pairCount=0）时一个对子都不出，把对子拆成单张跟牌（"must play at least 1 pairs"），CLI 全降级失败后对局中止。通过 arena ai-0801 合法性测试中止定位。
+
+**修复**：对子需求 = 独立对子 + 拖拉机包含的对子数（`leadCombo.pairCount + Σ tractors.pairCount`）。
+
+**新增 8 项测试**（revealing.test.ts：7 项——canOverride 反主边界 3 项 + aiTryReveal 4 项；ai-follow.test.ts：1 项 NT 拖拉机跟牌），引擎 588 项 + arena 66 项 + CLI 68 项 = 722 项通过。
+
+- **影响文件**：`packages/engine/src/ai/follow-trump.ts`、`packages/engine/src/__tests__/ai-follow.test.ts`、`packages/engine/src/__tests__/revealing.test.ts`
+
 ## 2026-08-04 23:42
 
 ### 修复：CLI 各选项非法输入弹警告

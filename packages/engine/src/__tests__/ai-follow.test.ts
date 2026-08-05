@@ -2448,6 +2448,28 @@ describe('NT second position seizing lead (抢牌权)', () => {
     // Passive: no tractor/throw, just play smallest beater (SJ=15)
     expect(r.cards[0].rank).toBe(15); // SJ
   });
+
+  // 实测崩溃场景（arena 手36）：NT A 级（level=14），领出对小王 + A 级牌对
+  // （小王15 与 级牌14 相邻，是合法 2 对拖拉机），跟牌方只有大王对 + 3 张级牌
+  // 单张。旧代码 neededPairs 只看 leadCombo.pairCount（纯拖拉机 = 0），一个对子
+  // 都不出 → 拆对出非法跟牌（"must play at least 1 pairs"），全降级失败导致对局中止。
+  it('tractor lead in NT: keeps the pair intact (must not split)', () => {
+    const lead: Card[] = [
+      ct('J', 15, 200), ct('J', 15, 201),   // 对小王
+      ct('H', 14, 202), ct('H', 14, 203),   // A 级牌对（NT 常主）
+    ];
+    const best = { cards: lead, playerIdx: 0 };
+    const ctx14 = { ...ntCtx(1, 1, best), level: 14 };
+    const hand = [
+      ct('J', 16, 0), ct('J', 16, 1),       // 大王对
+      ct('D', 14, 2), ct('S', 14, 3), ct('C', 14, 4), // 级牌单张 ×3
+    ];
+    const r = aiFollowPlay(hand, lead, null as any, ctx14);
+    checkFollow(r.cards, hand, lead, null as any, ctx14);
+    expect(r.cards.length).toBe(4);
+    // 大王对必须整体出，不能拆成单张
+    expect(r.cards.filter(c => c.rank === 16).length).toBe(2);
+  });
 });
 
 
