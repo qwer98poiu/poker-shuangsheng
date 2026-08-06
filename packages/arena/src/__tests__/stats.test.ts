@@ -102,12 +102,13 @@ describe('中止局与 match outcome', () => {
     expect(s.tricks.won).toEqual({ n: 0, d: 0 });
   });
 
-  it('addMatchOutcome：胜/平/负精确计数', () => {
+  it('addMatchOutcome：胜/平/负精确计数，胜时累计对方终局等级', () => {
     const s = createStats();
-    addMatchOutcome(s, 0, 0);
-    addMatchOutcome(s, null, 0);
-    addMatchOutcome(s, 1, 0);
-    expect(s.matches).toEqual({ played: 3, won: 1, drawn: 1 });
+    addMatchOutcome(s, 0, 0, [14, 9]);    // 我方(team0)胜：对方 team1 终局等级 9
+    addMatchOutcome(s, null, 0, [5, 11]); // 平局不累计
+    addMatchOutcome(s, 1, 0, [8, 14]);    // 我方(team0)负：不累计
+    addMatchOutcome(s, 1, 1, [10, 14]);   // 我方(team1)胜：对方 team0 终局等级 10
+    expect(s.matches).toEqual({ played: 4, won: 2, drawn: 1, oppLevel: { n: 19, d: 2 } });
   });
 });
 
@@ -117,8 +118,8 @@ describe('mergeStats 与 toJSON', () => {
     const b = createStats();
     addHandStats(a, evBankerWin, 0);
     addHandStats(b, evAttackerWin, 0);
-    addMatchOutcome(a, 0, 0);
-    addMatchOutcome(b, null, 0);
+    addMatchOutcome(a, 0, 0, [14, 6]);
+    addMatchOutcome(b, null, 0, [7, 7]);
     const m = mergeStats(a, b);
     expect(m.handsPlayed).toBe(2);
     expect(m.banker.hands).toBe(1);
@@ -127,7 +128,7 @@ describe('mergeStats 与 toJSON', () => {
     expect(m.attacker.perLevel.get(14)).toEqual({ n: 1, d: 1 });
     expect(m.banker.avgLoss).toEqual({ n: 40, d: 1 });
     expect(m.tricks.won).toEqual({ n: 12, d: 24 });
-    expect(m.matches).toEqual({ played: 2, won: 1, drawn: 1 });
+    expect(m.matches).toEqual({ played: 2, won: 1, drawn: 1, oppLevel: { n: 6, d: 1 } });
   });
 
   it('toJSON：perLevel 转字符串键对象，其余字段原样', () => {
@@ -137,7 +138,7 @@ describe('mergeStats 与 toJSON', () => {
     expect(j.banker.perLevel['12']).toEqual({ n: 1, d: 1 });
     expect(j.banker.hands).toBe(1);
     expect(j.tricks.won).toEqual({ n: 9, d: 13 });
-    expect(j.matches).toEqual({ played: 0, won: 0, drawn: 0 });
+    expect(j.matches).toEqual({ played: 0, won: 0, drawn: 0, oppLevel: { n: 0, d: 0 } });
   });
 });
 

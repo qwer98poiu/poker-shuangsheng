@@ -29,8 +29,8 @@ export function runPair(
   for (const swapped of [false, true]) {
     const strategies: [Strategy, Strategy] = swapped ? [strategyB, strategyA] : [strategyA, strategyB];
     const result = playMatch({ seed, pairIndex, strategies });
-    addMatchOutcome(statsA, result.winnerTeam, swapped ? 1 : 0);
-    addMatchOutcome(statsB, result.winnerTeam, swapped ? 0 : 1);
+    addMatchOutcome(statsA, result.winnerTeam, swapped ? 1 : 0, result.finalLevels);
+    addMatchOutcome(statsB, result.winnerTeam, swapped ? 0 : 1, result.finalLevels);
     for (const ev of result.events) {
       addHandStats(statsA, ev, swapped ? 1 : 0);
       addHandStats(statsB, ev, swapped ? 0 : 1);

@@ -10,7 +10,12 @@ export interface CountPair {
 }
 
 export interface StrategyStats {
-  matches: { played: number; won: number; drawn: number };
+  matches: {
+    played: number;
+    won: number;
+    drawn: number;
+    oppLevel: CountPair;  // 胜出时对方平均等级 = Σ对方终局等级/胜场数（A=14）
+  };
   handsPlayed: number;
   banker: {
     hands: number;
@@ -43,7 +48,7 @@ export interface StrategyStats {
 
 export function createStats(): StrategyStats {
   return {
-    matches: { played: 0, won: 0, drawn: 0 },
+    matches: { played: 0, won: 0, drawn: 0, oppLevel: { n: 0, d: 0 } },
     handsPlayed: 0,
     banker: {
       hands: 0,
@@ -146,10 +151,16 @@ export function addHandStats(s: StrategyStats, ev: HandEvent, ourParity: 0 | 1):
 }
 
 /** Record a match outcome (winnerTeam) for our strategy (ourParity). */
-export function addMatchOutcome(s: StrategyStats, winnerTeam: 0 | 1 | null, ourParity: 0 | 1): void {
+export function addMatchOutcome(
+  s: StrategyStats, winnerTeam: 0 | 1 | null, ourParity: 0 | 1, finalLevels: [number, number],
+): void {
   s.matches.played += 1;
   if (winnerTeam === null) s.matches.drawn += 1;
-  else if (winnerTeam === ourParity) s.matches.won += 1;
+  else if (winnerTeam === ourParity) {
+    s.matches.won += 1;
+    s.matches.oppLevel.n += finalLevels[ourParity === 0 ? 1 : 0];
+    s.matches.oppLevel.d += 1;
+  }
 }
 
 function sumPair(a: CountPair, b: CountPair): CountPair {
@@ -172,6 +183,7 @@ export function mergeStats(a: StrategyStats, b: StrategyStats): StrategyStats {
       played: a.matches.played + b.matches.played,
       won: a.matches.won + b.matches.won,
       drawn: a.matches.drawn + b.matches.drawn,
+      oppLevel: sumPair(a.matches.oppLevel, b.matches.oppLevel),
     },
     handsPlayed: a.handsPlayed + b.handsPlayed,
     banker: {
@@ -212,7 +224,7 @@ export function fromJSON(j: Record<string, any>): StrategyStats {
     for (const [k, v] of Object.entries(o)) m.set(Number(k), { n: v.n, d: v.d });
     return m;
   };
-  s.matches = { played: j.matches.played, won: j.matches.won, drawn: j.matches.drawn };
+  s.matches = { played: j.matches.played, won: j.matches.won, drawn: j.matches.drawn, oppLevel: { ...j.matches.oppLevel } };
   s.handsPlayed = j.handsPlayed;
   s.banker.hands = j.banker.hands;
   s.banker.wins = j.banker.wins;

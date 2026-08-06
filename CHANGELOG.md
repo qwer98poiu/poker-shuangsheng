@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-06 23:26
+
+### 新增：竞技场报告指标"胜出时对方平均等级"
+
+**问题**：竞技场报告有胜率与各等级台上/台下胜率，但没有衡量"赢得的对局有多快/多压倒"的指标——同样是 60% 胜率，对方平均被压在第 5 级和第 12 级时含金量完全不同。
+
+**修复**：新增指标"胜出时对方平均等级"——每场我方胜出（庄家 A 级打赢）时记录对方终局等级，累计 Σ对方等级/胜场数。`playMatch` 在 `MatchResult` 增加 `finalLevels`（双方终局等级，封顶平局也记录）；`addMatchOutcome` 增加该参数并累计 `matches.oppLevel`；报告在胜率行下输出（如 `10.5000 (42/4)`）；JSON 导出/检查点随 `toJSON` 自动包含。统计口径与已有 per-level 表一致（L2–L14，A=14）。
+
+**修改 4 处测试断言**（stats.test.ts：3 处，arena-e2e.test.ts：1 处），总数不变：引擎 601 项 + arena 67 项 + CLI 80 项 = 748 项通过。
+
+- **影响文件**：`packages/arena/src/types.ts`、`packages/arena/src/match.ts`、`packages/arena/src/stats.ts`、`packages/arena/src/run-pairs.ts`、`packages/arena/src/run.ts`、`packages/arena/src/__tests__/stats.test.ts`、`packages/arena/src/__tests__/arena-e2e.test.ts`
+
 ## 2026-08-06 22:02
 
 ### 提取历史基线策略 ai-0802（ebe0625）

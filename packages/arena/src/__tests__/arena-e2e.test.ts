@@ -49,14 +49,21 @@ describe('arena e2e', () => {
     expect(m.capped).toBe(true);
     expect(m.handsPlayed).toBe(1);
     const s = createStats();
-    addMatchOutcome(s, m.winnerTeam, 0);
-    expect(s.matches).toEqual({ played: 1, won: 0, drawn: 1 });
+    addMatchOutcome(s, m.winnerTeam, 0, m.finalLevels);
+    expect(s.matches).toEqual({ played: 1, won: 0, drawn: 1, oppLevel: { n: 0, d: 0 } });
   });
 
   it('A==A 冒烟（seed 42, 20 对决）：精确 20/20、不显著、pHat=0.5', () => {
     const { statsA, statsB } = runPairs(42, 0, 20, engineStrategy, engineStrategy);
-    expect(statsA.matches).toEqual({ played: 40, won: 20, drawn: 0 });
-    expect(statsB.matches).toEqual({ played: 40, won: 20, drawn: 0 });
+    expect(statsA.matches.played).toBe(40);
+    expect(statsA.matches.won).toBe(20);
+    expect(statsA.matches.drawn).toBe(0);
+    expect(statsB.matches.played).toBe(40);
+    expect(statsB.matches.won).toBe(20);
+    expect(statsB.matches.drawn).toBe(0);
+    // 镜像对称：双方各胜 20 场，胜时对方平均等级 224/20 = 11.2（A=14）
+    expect(statsA.matches.oppLevel).toEqual({ n: 224, d: 20 });
+    expect(statsB.matches.oppLevel).toEqual({ n: 224, d: 20 });
     expect(statsA.handsPlayed).toBe(statsB.handsPlayed);
     expect(statsA.abortedHands).toBe(0);
     const sig = checkSignificance(statsA.matches.won, statsB.matches.won, statsA.matches.drawn, statsA.matches.played);

@@ -286,6 +286,7 @@ function printReport(
     const winRate = { n: s.matches.won + 0.5 * s.matches.drawn, d: s.matches.played };
     console.log(`\n策略 ${label} (${name}):`);
     console.log(`  胜率: ${winRate.d === 0 ? '—' : `${(winRate.n / winRate.d).toFixed(4)} (${winRate.n}/${winRate.d})`}`);
+    console.log(`  胜出时对方平均等级: ${ratio(s.matches.oppLevel)}`);
     console.log(`  当庄频率: ${ratio({ n: s.banker.hands, d: globalHands })}`);
     console.log(`  台上胜率: ${ratio({ n: s.banker.wins, d: s.banker.hands })}`);
     console.log(perLevelTable('  台上各等级胜率', s.banker.perLevel));

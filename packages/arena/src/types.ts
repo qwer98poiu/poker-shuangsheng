@@ -64,6 +64,7 @@ export interface MatchResult {
   handsPlayed: number;      // completed (non-aborted) hands
   abortedHands: number;
   capped: boolean;          // ended by the maxHands cap
+  finalLevels: [number, number]; // 终局双方等级 [team0, team1]（封顶平局也记录，A=14）
   events: HandEvent[];      // only populated when captureEvents=true
 }
 

@@ -271,11 +271,17 @@ export function playMatch(cfg: MatchConfig): MatchResult {
     sideLevels[advancingTeam] = adv.newLevel;
     if (adv.matchOver) {
       // matchOver 只可能发生在庄家在 A(14) 打赢 → 胜方即庄家队
-      return { winnerTeam: team, handsPlayed: handIndex - abortedHands, abortedHands, capped: false, events };
+      return {
+        winnerTeam: team, handsPlayed: handIndex - abortedHands, abortedHands, capped: false,
+        finalLevels: [...sideLevels] as [number, number], events,
+      };
     }
     // 轮转基于实际庄家（首局亮主者可能顶替预定庄家），与 cli gameLoop:255 一致
     declarerIdx = adv.attackerSits ? (ev.declarerIdx + 1) % 4 : (ev.declarerIdx + 2) % 4;
   }
 
-  return { winnerTeam: null, handsPlayed: handIndex - abortedHands, abortedHands, capped: true, events };
+  return {
+    winnerTeam: null, handsPlayed: handIndex - abortedHands, abortedHands, capped: true,
+    finalLevels: [...sideLevels] as [number, number], events,
+  };
 }
