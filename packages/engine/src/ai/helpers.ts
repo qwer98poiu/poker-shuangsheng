@@ -166,12 +166,12 @@ export function sideHasBigJoker(ctx: AIContext): boolean {
 // ---- Threshold helpers ----
 
 /** Whether the attacker should override shouldAvoid to cross a 40-point
- *  scoring threshold (40, 80, 120). Returns true when attackerPoints are
- *  within 10 points of the next threshold and adding any points would
- *  cross it. */
-export function attackerNearThreshold(ctx: AIContext): boolean {
+ *  scoring threshold (40, 80, 120). Returns true when attackerPoints
+ *  (加上本墩已出分 visiblePts) are within 10 points of the next threshold
+ *  and adding any points would cross it. */
+export function attackerNearThreshold(ctx: AIContext, visiblePts = 0): boolean {
   if (!ctx.isAttacker) return false;
-  const pts = ctx.attackerPoints;
+  const pts = ctx.attackerPoints + visiblePts;
   const next = Math.floor(pts / 40) * 40 + 40;
   return next - pts <= 10;
 }

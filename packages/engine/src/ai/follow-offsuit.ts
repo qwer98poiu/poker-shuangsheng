@@ -20,7 +20,7 @@ import { trumpKill, throwKillMode, rule1KillMode } from './follow-trump.js';
 import {
   hasStrongFollowUp, minEff, maxEff, pickDiscards, selectFillers,
   secondShouldAvoid, shouldBreakPairForPoints, pickBestAddCards,
-  type DiscardMode,
+  visibleTrickPoints, type DiscardMode,
 } from './position-policy.js';
 
 // ---- Follow off-suit lead ----
@@ -61,7 +61,7 @@ function breaksPair(card: Card, cards: Card[]): boolean {
 function fillMode(position: string, tmWin: boolean, hand: Card[], leadCombo: ComboClass, ctx: AIContext): DiscardMode {
   if (position === 'second') return secondShouldAvoid(hand) ? 'avoid' : 'open';
   if (tmWin && canAddPoints(tmWin, position, leadCombo, ctx)) {
-    return (ctx.isAttacker && attackerNearThreshold(ctx)) ? 'full' : 'add';
+    return (ctx.isAttacker && attackerNearThreshold(ctx, visibleTrickPoints(ctx, leadCombo.cards))) ? 'full' : 'add';
   }
   if (position === 'third' && tmWin) return 'open';
   if (position === 'third' || position === 'fourth') return 'avoid';
@@ -182,7 +182,7 @@ function followOffSuitSingle(
 
   // Can't beat opponent - play smallest
   if (!canBeat([leadSuitCards[0]], ctx.bestSoFar, ctx)) {
-    const crossThreshold = attackerNearThreshold(ctx);
+    const crossThreshold = attackerNearThreshold(ctx, visibleTrickPoints(ctx, leadCombo.cards));
     leadSuitCards.sort(crossThreshold ? discardSort(true, ctx, leadSuitCards, ctx) : discardSort(false, ctx));
     const cards = [leadSuitCards[0]];
     const shouldAvoid = !crossThreshold && ((position === 'fourth' && !tmWin)

@@ -30,7 +30,7 @@ import {
 import { followOffSuit, followOffSuitThrow } from './follow-offsuit.js';
 import {
   pickDiscards, selectFillers, secondShouldAvoid, shouldBreakPairForPoints,
-  pickBestAddCards, type DiscardMode,
+  pickBestAddCards, visibleTrickPoints, type DiscardMode,
 } from './position-policy.js';
 import { _aiLeadPlay } from './lead.js';
 
@@ -217,7 +217,7 @@ function _aiFollowPlay(
     const mode: DiscardMode = position === 'second'
       ? (secondShouldAvoid(hand) ? 'avoid' : 'open')
       : (tmWin && canAddPoints(tmWin, position, leadCombo, ctx))
-        ? ((ctx.isAttacker && attackerNearThreshold(ctx)) ? 'full' : 'add')
+        ? ((ctx.isAttacker && attackerNearThreshold(ctx, visibleTrickPoints(ctx, leadCombo.cards))) ? 'full' : 'add')
         : 'avoid';
     const fill = selectFillers(other, needed, ctx, mode,
       { allowBreakPair: shouldBreakPairForPoints(ctx, leadCombo) });
@@ -254,7 +254,7 @@ function _aiFollowPlay(
       }
       const addMode = canAddPoints(tmWin, position, leadCombo, ctx);
       const mode: DiscardMode = addMode
-        ? ((ctx.isAttacker && attackerNearThreshold(ctx)) ? 'full' : 'add')
+        ? ((ctx.isAttacker && attackerNearThreshold(ctx, visibleTrickPoints(ctx, leadCombo.cards))) ? 'full' : 'add')
         : 'open';
       const cards = pickDiscards(hand, leadLen, ctx, mode);
       const intent = (mode === 'add' || mode === 'full') ? 'add' : 'none';

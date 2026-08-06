@@ -69,10 +69,12 @@ interface Unit {
   kind: 'single' | 'pair';
   cards: Card[];
   card: Card;
+  /** 对单元是否处于拖拉机中（拆拖拉机才能用——副牌分对拆拖拉机的归类依据）。 */
+  inTractor?: boolean;
 }
 
 /** 相同 suit+rank 分组为单元：偶数成对（整对垫出不拆），奇数余单。 */
-function unitize(cards: Card[]): Unit[] {
+function unitize(cards: Card[], ctx?: TrumpDeclaration): Unit[] {
   const groups = new Map<string, Card[]>();
   for (const c of cards) {
     const key = `${c.suit}-${c.rank}`;
@@ -80,11 +82,20 @@ function unitize(cards: Card[]): Unit[] {
     if (!g) { g = []; groups.set(key, g); }
     g.push(c);
   }
+  let tractorIds: Set<string> | null = null;
+  if (ctx) {
+    tractorIds = new Set(detectTractors(cards, ctx).flat().map(c => c.id));
+  }
   const units: Unit[] = [];
   for (const g of groups.values()) {
     const pairs = Math.floor(g.length / 2);
     for (let i = 0; i < pairs; i++) {
-      units.push({ kind: 'pair', cards: [g[i * 2], g[i * 2 + 1]], card: g[i * 2] });
+      units.push({
+        kind: 'pair',
+        cards: [g[i * 2], g[i * 2 + 1]],
+        card: g[i * 2],
+        inTractor: tractorIds ? tractorIds.has(g[i * 2].id) : undefined,
+      });
     }
     if (g.length % 2 === 1) {
       const last = g[g.length - 1];
@@ -144,17 +155,24 @@ function catOf(u: Unit, mode: DiscardMode, ctx: TrumpDeclaration): number {
     return 5;
   }
   if (mode === 'add') {
-    // 第三家原则6：副10 < 副K < 副5 < 其他非分副 < 主10(非常主) < 主K(非常主)
-    //   < 主5(非常主) < 主牌分对 < 其他主牌；所有副牌花色一视同仁
-    if (!tr && c.rank === Rank.Ten) return 1;
-    if (!tr && c.rank === Rank.King) return 2;
-    if (!tr && c.rank === Rank.Five) return 3;
-    if (!tr && !pts) return 4;
-    if (tr && single && c.rank === Rank.Ten && !lvl) return 5;
-    if (tr && single && c.rank === Rank.King && !lvl) return 6;
-    if (tr && single && c.rank === Rank.Five && !lvl) return 7;
-    if (tr && pair && pts) return 8;
-    return 9;
+    // 第三家原则6：副10 < 副K < 副5 < 副牌分对(非拖拉机，类内10>K>5) < 其他非分副
+    //   < 副牌分对(拆拖拉机) < 主10(非常主) < 主K(非常主) < 主5(非常主)
+    //   < 主牌分对(非常主) < A以下主牌非分单 < A以下主牌非分对 < 常主分单
+    //   < 其他主牌(小→大，不分对单)；所有副牌花色一视同仁
+    if (!tr && single && c.rank === Rank.Ten) return 1;
+    if (!tr && single && c.rank === Rank.King) return 2;
+    if (!tr && single && c.rank === Rank.Five) return 3;
+    if (!tr && pair && pts && !u.inTractor) return 4;
+    if (!tr && !pts) return 5;
+    if (!tr && pair && pts && u.inTractor) return 6;
+    if (tr && single && c.rank === Rank.Ten && !lvl) return 7;
+    if (tr && single && c.rank === Rank.King && !lvl) return 8;
+    if (tr && single && c.rank === Rank.Five && !lvl) return 9;
+    if (tr && pair && pts && !lvl) return 10;
+    if (tr && single && !pts && eff < ace) return 11;
+    if (tr && pair && !pts && eff < ace) return 12;
+    if (tr && single && pts && lvl) return 13;
+    return 14;
   }
   if (mode === 'full') {
     // 第三家原则7：副10 < 副K < 主10(非常主) < 主K(非常主) < 常主10/K
@@ -184,6 +202,13 @@ function unitCompare(a: Unit, b: Unit, mode: DiscardMode, ctx: TrumpDeclaration)
   const ca = catOf(a, mode, ctx);
   const cb = catOf(b, mode, ctx);
   if (ca !== cb) return ca - cb;
+  // 副牌分对类内 10>K>5（分高在前，同分 rank 大在前）
+  if (mode === 'add' && (ca === 4 || ca === 6)) {
+    const pv = (c: Card): number => c.rank === Rank.Ten ? 10 : 5;
+    const d = pv(b.card) - pv(a.card);
+    if (d !== 0) return d;
+    return b.card.rank - a.card.rank;
+  }
   return getEffectiveRank(a.card, ctx) - getEffectiveRank(b.card, ctx);
 }
 
@@ -191,7 +216,7 @@ function unitCompare(a: Unit, b: Unit, mode: DiscardMode, ctx: TrumpDeclaration)
 export function sortDiscards(
   hand: Card[], ctx: TrumpDeclaration, mode: DiscardMode,
 ): Card[] {
-  return unitize(hand)
+  return unitize(hand, ctx)
     .sort((a, b) => unitCompare(a, b, mode, ctx))
     .flatMap(u => u.cards);
 }
@@ -205,7 +230,7 @@ export function pickDiscards(
   hand: Card[], need: number, ctx: TrumpDeclaration, mode: DiscardMode,
   opts?: { allowBreakPair?: boolean },
 ): Card[] {
-  const units = unitize(hand);
+  const units = unitize(hand, ctx);
   units.sort((a, b) => unitCompare(a, b, mode, ctx));
   const picked: Card[] = [];
   const used = new Set<string>();

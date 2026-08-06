@@ -860,9 +860,88 @@ describe('trump kill validity (hearts trump, level=5)', () => {
       const r = aiFollowPlay(hand, lead, Suit.Spades, cfg6, best, 3);
       checkFollow(r.cards, hand, lead, 'S', cfg6);
       expect(r.cards.length).toBe(5);
-      // hasPoints 反转后分对/大对在前：♥K♥K 对必然入选（与用户实测的建议一致）
+      // 分对/大对在前：♥K♥K 对必然入选（与用户实测的建议一致）
       expect(r.cards.filter(c => c.rank === 13).length).toBe(2);
       expect(r.reason).toContain('用分牌盖');
+    });
+
+    // 第四家毙牌优先选分牌（身后无人，加分安全）——规格第四家原则6注。
+    // 等级用 6（非 5）：♥5 是普通 5 分牌而非级牌（常主只在跨 40 分台阶时出）。
+    it('fourth kills single: prefers point card over smaller non-point (♠5 over ♠4)', () => {
+      const cfg6: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 6 };
+      const lead: Card[] = [c2('S', 14, 200)];
+      const best = { cards: lead, playerIdx: 0 };
+      const hand = [
+        c2('H', 4, 0), c2('H', 5, 1),   // ♥4（非分）与 ♥5（5 分）
+        c2('C', 9, 0), c2('D', 8, 0),
+      ];
+      const r = aiFollowPlay(hand, lead, Suit.Spades, cfg6, best, 3);
+      checkFollow(r.cards, hand, lead, 'S', cfg6);
+      expect(r.cards.length).toBe(1);
+      expect(r.cards[0].rank).toBe(5);  // 分牌优先，不出更小的 4
+      expect(r.reason).toContain('用分牌盖');
+    });
+
+    it('fourth kills single: with both 10 and 5, plays the 10', () => {
+      const lead: Card[] = [c2('S', 14, 200)];
+      const best = { cards: lead, playerIdx: 0 };
+      const hand = [
+        c2('H', 4, 0), c2('H', 5, 1), c2('H', 10, 2),
+        c2('C', 9, 0), c2('D', 8, 0),
+      ];
+      const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 3);
+      checkFollow(r.cards, hand, lead, 'S', cfg);
+      expect(r.cards[0].rank).toBe(10); // 10 分 > 5 分
+    });
+
+    it('fourth overkills single: point-max beater (10 over K/8)', () => {
+      const lead: Card[] = [c2('S', 14, 200)];
+      // 第三家已用 ♥6 毙（effRank=606），第四家盖毙
+      const best = { cards: [c2('H', 6, 300)], playerIdx: 2 };
+      const hand = [
+        c2('H', 8, 0), c2('H', 10, 1), c2('H', 13, 2),  // 都能盖 606
+        c2('C', 9, 0), c2('D', 8, 0),
+      ];
+      const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 3);
+      checkFollow(r.cards, hand, lead, 'S', cfg);
+      expect(r.cards.length).toBe(1);
+      expect(r.cards[0].rank).toBe(10); // 分最多优先，不出更小的 8
+      expect(r.reason).toContain('盖毙');
+    });
+
+    // 第四家盖毙甩牌：对子槽位要盖过对方最大的对应子牌型，分最多优先
+    it('fourth overkills throw: pair must beat opponent biggest pair (10-10 over 7-7)', () => {
+      const lead: Card[] = [c2('S', 14, 0), c2('S', 14, 1), c2('S', 13, 2)];
+      // 第三家已毙：♥8♥8 + ♥3（对子 608）
+      const best = { cards: [c2('H', 8, 300), c2('H', 8, 301), c2('H', 3, 302)], playerIdx: 2 };
+      const hand = [
+        c2('H', 10, 0), c2('H', 10, 1),  // ♥10♥10（能盖 608，分对）
+        c2('H', 7, 0), c2('H', 7, 1),    // ♥7♥7（607，盖不过 608）
+        c2('H', 9, 2),                   // 填充单张
+        c2('C', 9, 0), c2('D', 8, 0),
+      ];
+      const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 3);
+      checkFollow(r.cards, hand, lead, 'S', cfg);
+      expect(r.cards.length).toBe(3);
+      expect(r.cards.filter(c => c.rank === 10).length).toBe(2); // 10 对盖过 8 对
+      expect(r.cards.filter(c => c.rank === 7).length).toBeLessThan(2); // 7 对不拆（最多作填充单张）
+      expect(r.reason).toContain('盖毙');
+    });
+
+    it('fourth overkills throw: smallest pair that beats (9-9 over 7-7)', () => {
+      const lead: Card[] = [c2('S', 14, 0), c2('S', 14, 1), c2('S', 13, 2)];
+      const best = { cards: [c2('H', 8, 300), c2('H', 8, 301), c2('H', 3, 302)], playerIdx: 2 };
+      const hand = [
+        c2('H', 9, 0), c2('H', 9, 1),    // ♥9♥9（609，能盖 608）
+        c2('H', 7, 0), c2('H', 7, 1),    // ♥7♥7（607，盖不过）
+        c2('H', 6, 2),                   // 填充单张
+        c2('C', 9, 0), c2('D', 8, 0),
+      ];
+      const r = aiFollowPlay(hand, lead, Suit.Spades, cfg, best, 3);
+      checkFollow(r.cards, hand, lead, 'S', cfg);
+      expect(r.cards.length).toBe(3);
+      expect(r.cards.filter(c => c.rank === 9).length).toBe(2); // 唯一能盖的 9 对
+      expect(r.cards.filter(c => c.rank === 7).length).toBe(0);
     });
   });
 
@@ -2883,8 +2962,9 @@ describe('break pair: score-aware pair breaking', () => {
     expect(r.cards.some(c => c.suit === 'D' && c.rank === 10)).toBe(true);
   });
 
-  // fill-2, score=any: D-10 pair can both play, no breaking needed.
-  it('fill-2, score=55: plays D-10,D-10 pair (no breaking needed)', () => {
+  // fill-2, score=55: 加分优先级（原则6）副5单 > 副牌分对——先出 D-5，10 对
+  // 放不下（不拆对），再补 D-3。55+10=65 不跨 80，不走全力加分。
+  it('fill-2, score=55: plays D-5 + D-3 (5-single before point pair)', () => {
     const ctx = atkCtx(2, 55);
     const hand = [
       cc('C', 9, 0), cc('C', 8, 0), cc('C', 6, 0), // 3 clubs (short by 2)
@@ -2895,8 +2975,11 @@ describe('break pair: score-aware pair breaking', () => {
     const r = aiFollowPlay(hand, lead, Suit.Clubs, ctx);
     checkFollow(r.cards, hand, lead, 'C', cfg7);
     expect(r.cards.length).toBe(5);
+    // 副5 单优先于 副牌分对；对子不拆
+    expect(r.cards.some(c => c.suit === 'D' && c.rank === 5)).toBe(true);
+    expect(r.cards.some(c => c.suit === 'D' && c.rank === 3)).toBe(true);
     const tens = r.cards.filter(c => c.suit === 'D' && c.rank === 10);
-    expect(tens.length).toBe(2); // both D-10 played
+    expect(tens.length).toBe(0); // 10 对保持完整
   });
 
   it('甩牌带对子跟牌：对子不足领出对数时也必须带出（回归：0 对子非法跟牌）', () => {

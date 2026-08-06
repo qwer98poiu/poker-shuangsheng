@@ -158,6 +158,75 @@ describe('sortDiscards add（第三家原则6）', () => {
     const sorted = sortDiscards(hand, cfg2, 'add');
     expect(orderOf(sorted, hand)[0]).toBe('C10');
   });
+
+  it('修正规格：副5单 < 副牌分对（非拖拉机）< 其他非分副', () => {
+    const hand = [
+      c('H', 5, 1),             // 副5单
+      c('C', 10, 2), c('C', 10, 3),   // 副10对（独立，非拖拉机）
+      c('D', 3, 4),             // 其他非分副
+    ];
+    const sorted = sortDiscards(hand, cfg2, 'add');
+    const order = orderOf(sorted, hand);
+    expect(order.indexOf('H5')).toBeLessThan(order.indexOf('C10'));
+    expect(order.indexOf('C10')).toBeLessThan(order.indexOf('D3'));
+  });
+
+  it('副牌分对类内 10>K>5（分高在前，同分 rank 大在前）', () => {
+    const hand = [
+      c('H', 13, 1), c('H', 13, 2),   // 副K对
+      c('C', 10, 3), c('C', 10, 4),   // 副10对
+      c('D', 5, 5), c('D', 5, 6),     // 副5对
+    ];
+    const sorted = sortDiscards(hand, cfg2, 'add');
+    const order = orderOf(sorted, hand);
+    expect(order.indexOf('C10')).toBeLessThan(order.indexOf('H13'));
+    expect(order.indexOf('H13')).toBeLessThan(order.indexOf('D5'));
+  });
+
+  it('副牌分对（拆拖拉机）排在其他非分副之后', () => {
+    // C-10-10 + C-9-9 组成拖拉机：C10 对需拆拖拉机才能用
+    const hand = [
+      c('C', 10, 1), c('C', 10, 2), c('C', 9, 3), c('C', 9, 4),  // 拖拉机
+      c('D', 3, 5),             // 其他非分副
+      c('H', 5, 6),             // 副5单
+    ];
+    const sorted = sortDiscards(hand, cfg2, 'add');
+    const order = orderOf(sorted, hand);
+    expect(order.indexOf('H5')).toBeLessThan(order.indexOf('D3'));
+    expect(order.indexOf('D3')).toBeLessThan(order.indexOf('C10'));
+    expect(order.indexOf('C9')).toBeLessThan(order.indexOf('C10')); // 9 对先于需拆的 10 对
+  });
+
+  it('主牌分对（非常主）< A以下主牌非分单 < A以下主牌非分对 < 常主分单 < 其他主牌', () => {
+    // ♠ 主、打10：S10 是常主分单（级牌且是分牌）
+    const cfg10S: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 10 };
+    const hand = [
+      c('S', 13, 1), c('S', 13, 2),   // 主K对（非常主分对）
+      c('S', 3, 3),             // A以下主牌非分单
+      c('S', 4, 4), c('S', 4, 5),     // A以下主牌非分对
+      c('S', 10, 6),            // 常主分单
+      c('S', 14, 7),            // 其他主牌（A）
+    ];
+    const sorted = sortDiscards(hand, cfg10S, 'add');
+    const order = orderOf(sorted, hand);
+    expect(order.indexOf('S13')).toBeLessThan(order.indexOf('S3'));
+    expect(order.indexOf('S3')).toBeLessThan(order.indexOf('S4'));
+    expect(order.indexOf('S4')).toBeLessThan(order.indexOf('S10'));
+    expect(order.indexOf('S10')).toBeLessThan(order.indexOf('S14'));
+  });
+
+  it('常主分对归其他主牌（打5时 主5对 在 常主分单 之后）', () => {
+    const hand = [
+      c('S', 5, 1), c('S', 5, 2),     // 常主分对（打5：S5 是级牌）
+      c('H', 5, 3),             // 常主分单（H5 级牌）
+      c('S', 10, 4),            // 主10（非常主分单）
+    ];
+    const sorted = sortDiscards(hand, cfg5, 'add');
+    const order = orderOf(sorted, hand);
+    // 主10（非常主）< 常主分单 < 常主分对（其他主牌）
+    expect(order.indexOf('S10')).toBeLessThan(order.indexOf('H5'));
+    expect(order.indexOf('H5')).toBeLessThan(order.indexOf('S5'));
+  });
 });
 
 describe('sortDiscards full（第三家原则7）', () => {
