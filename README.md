@@ -78,7 +78,7 @@ In NT (no-trump) mode, 12 constant trump cards (Big Joker × 2, Small Joker × 2
 - **Dynamic progress target** — Before the minimum sample the progress denominator is fixed at 2×pairs; afterwards, if not yet significant, it projects the total matches needed under the current p̂ (rounded up to a `stepMatches` multiple), with the reason printed when it changes.
 - **Progress & checkpoints** — A progress line every 100 matches (with ETA); every `stepMatches` matches the significance result is printed and `results/checkpoint.json` is written; Ctrl+C saves partial results and exits gracefully. No resume — every run starts from 0.
 - **Upgrade log** — `--detail-pair N` prints the per-hand upgrade records of both mirrored matches side by side (same deck), showing banker side, both levels at hand start, attacker points, and the upgrade result.
-- **Historical baselines** — `ai-0712` (2026-07-12), `ai-0719` (2026-07-19), `ai-0726` (2026-07-26) and `ai-0707` (2026-07-08) were extracted from git history to PK against the current `ai`.
+- **Historical baselines** — `ai-0712` (2026-07-12), `ai-0719` (2026-07-19), `ai-0726` (2026-07-26), `ai-0707` (2026-07-08), `ai-0801` (2026-08-01, pre-refactor) and `ai-0802` (2026-08-02, position-based follow refactor) were extracted from git history to PK against the current `ai`.
 - **Strategy Elo ratings** (baseline: current `ai` = 1000):
 
   | Strategy | Elo |
@@ -120,7 +120,7 @@ npm run arena -w packages/arena -- --pairs 5000 --seed 42 --strategy-b ai-0707
 | `--step-matches N` | 1000 | Interval (in matches) for significance checks and checkpoints |
 | `--seed N` | random | Random seed — same seed + flags reproduce identical results |
 | `--workers W` | logical cores | Parallel child processes (1 = in-process) |
-| `--strategy-a NAME` | `ai` | Strategy A (`ai` / `ai-0801` / `ai-0726` / `ai-0719` / `ai-0712` / `ai-0707`) |
+| `--strategy-a NAME` | `ai` | Strategy A (`ai` / `ai-0801` / `ai-0802` / `ai-0726` / `ai-0719` / `ai-0712` / `ai-0707`) |
 | `--strategy-b NAME` | `ai-0726` | Strategy B |
 | `--benchmark N` | — | Run N matches for speed measurement, then exit |
 | `--detail-pair N` | — | Print the mirrored upgrade log of 对决 N, then exit |
@@ -244,7 +244,7 @@ MIT — see [LICENSE](LICENSE).
 - **动态进度基准**：最小样本前进度分母固定为 2×pairs；之后未显著时按当前胜率推算显著所需总场数（向上取整到 stepMatches 的倍数），基准变化时说明原因。
 - **进度与检查点**：每 100 场一行进度（含 ETA）；每 `stepMatches` 场输出显著性并写 `results/checkpoint.json`；Ctrl+C 保存部分结果后优雅退出。不支持恢复，每次从 0 开始。
 - **升级记录**：`--detail-pair N` 并排输出该对决镜像两场的逐手升级记录（同一副牌），含庄家方、双方等级、闲家得分与升级结果。
-- **历史基线策略**：`ai-0712`（2026-07-12）、`ai-0719`（2026-07-19）、`ai-0726`（2026-07-26）与 `ai-0707`（2026-07-08）从 git 历史提取，用于与当前策略 `ai` 对比。
+- **历史基线策略**：`ai-0712`（2026-07-12）、`ai-0719`（2026-07-19）、`ai-0726`（2026-07-26）、`ai-0707`（2026-07-08）、`ai-0801`（2026-08-01，重构前）、`ai-0802`（2026-08-02，分位置跟牌重构）从 git 历史提取，用于与当前策略 `ai` 对比。
 - **策略 Elo 评分**（以当前 `ai` = 1000 为基准）：
 
   | 策略 | Elo |
@@ -286,7 +286,7 @@ npm run arena -w packages/arena -- --pairs 5000 --seed 42 --strategy-b ai-0707
 | `--step-matches N` | 1000 | 显著性检查与检查点的间隔场数 |
 | `--seed N` | 随机 | 随机种子——同 seed 同参数结果可完全复现 |
 | `--workers W` | 逻辑核数 | 并行子进程数（1 = 进程内） |
-| `--strategy-a NAME` | `ai` | 策略 A（`ai` / `ai-0801` / `ai-0726` / `ai-0719` / `ai-0712` / `ai-0707`） |
+| `--strategy-a NAME` | `ai` | 策略 A（`ai` / `ai-0801` / `ai-0802` / `ai-0726` / `ai-0719` / `ai-0712` / `ai-0707`） |
 | `--strategy-b NAME` | `ai-0726` | 策略 B |
 | `--benchmark N` | — | 跑 N 场测速后退出 |
 | `--detail-pair N` | — | 输出第 N 个对决的镜像升级记录后退出 |

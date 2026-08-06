@@ -28,6 +28,7 @@ export * as ai0719 from './ai-0719/index.js'; // 98221b (2026-07-19)
 export * as ai0726 from './ai-0726/index.js'; // 7382d1a (2026-07-26)
 export * as ai0707 from './ai-0707/index.js'; // ae2b76 (2026-07-08)
 export * as ai0801 from './ai-0801/index.js'; // ai/ snapshot before the position-based follow refactor (2026-08-01)
+export * as ai0802 from './ai-0802/index.js'; // ai/ as of the position-based follow refactor (2026-08-02, ebe0625)
 
 // Serialization (reusing old model/serialize.ts)
 export * from './model/serialize.js';

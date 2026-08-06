@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-08-06 22:02
+
+### 提取历史基线策略 ai-0802（ebe0625）
+
+**新增**：从 git 历史提取 `ebe0625`（2026-08-02，分位置跟牌重构提交）时的 `ai/` 完整目录为 `ai-0802`（15 个文件），注册进竞技场（`--strategy-a/b ai-0802`），合法性测试覆盖（pairs 10、11），README 策略列表同步更新。用于 PK 重构效果（与重构前基线 ai-0801 对比）。
+
+**新增 1 项测试**（historical-strategies.test.ts：1 项），引擎 601 项 + arena 67 项 + CLI 80 项 = 748 项通过。
+
+- **影响文件**：`packages/engine/src/ai-0802/`、`packages/engine/src/index.ts`、`packages/arena/src/strategies.ts`、`packages/arena/src/__tests__/historical-strategies.test.ts`、`README.md`
+
 ## 2026-08-06 21:30
 
 ### 策略：修正加分垫牌优先级与毙牌/盖毙选牌（第三家⑥ + 第四家）
