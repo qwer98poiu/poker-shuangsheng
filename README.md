@@ -79,11 +79,12 @@ In NT (no-trump) mode, 12 constant trump cards (Big Joker × 2, Small Joker × 2
 - **Progress & checkpoints** — A progress line every 100 matches (with ETA); every `stepMatches` matches the significance result is printed and `results/checkpoint.json` is written; Ctrl+C saves partial results and exits gracefully. No resume — every run starts from 0.
 - **Upgrade log** — `--detail-pair N` prints the per-hand upgrade records of both mirrored matches side by side (same deck), showing banker side, both levels at hand start, attacker points, and the upgrade result.
 - **Historical baselines** — `ai-0712` (2026-07-12), `ai-0719` (2026-07-19), `ai-0726` (2026-07-26), `ai-0707` (2026-07-08), `ai-0801` (2026-08-01, pre-refactor) and `ai-0802` (2026-08-02, position-based follow refactor) were extracted from git history to PK against the current `ai`.
-- **Strategy Elo ratings** (baseline: current `ai` = 1000):
+- **Strategy Elo ratings** (baseline `ai-0802` = 1000; current `ai` measured 1009.1):
 
   | Strategy | Elo |
   |---|---|
-  | `ai` (current) | 1000.0 |
+  | `ai` (current) | 1009.1 |
+  | `ai-0802` | 1000.0 |
   | `ai-0801` | 992.2 |
   | `ai-0726` | 988.1 |
   | `ai-0719` | 895.3 |
@@ -245,11 +246,12 @@ MIT — see [LICENSE](LICENSE).
 - **进度与检查点**：每 100 场一行进度（含 ETA）；每 `stepMatches` 场输出显著性并写 `results/checkpoint.json`；Ctrl+C 保存部分结果后优雅退出。不支持恢复，每次从 0 开始。
 - **升级记录**：`--detail-pair N` 并排输出该对决镜像两场的逐手升级记录（同一副牌），含庄家方、双方等级、闲家得分与升级结果。
 - **历史基线策略**：`ai-0712`（2026-07-12）、`ai-0719`（2026-07-19）、`ai-0726`（2026-07-26）、`ai-0707`（2026-07-08）、`ai-0801`（2026-08-01，重构前）、`ai-0802`（2026-08-02，分位置跟牌重构）从 git 历史提取，用于与当前策略 `ai` 对比。
-- **策略 Elo 评分**（以当前 `ai` = 1000 为基准）：
+- **策略 Elo 评分**（基准 `ai-0802` = 1000；当前 `ai` 实测 1009.1）：
 
   | 策略 | Elo |
   |---|---|
-  | `ai`（当前） | 1000.0 |
+  | `ai`（当前） | 1009.1 |
+  | `ai-0802` | 1000.0 |
   | `ai-0801` | 992.2 |
   | `ai-0726` | 988.1 |
   | `ai-0719` | 895.3 |
