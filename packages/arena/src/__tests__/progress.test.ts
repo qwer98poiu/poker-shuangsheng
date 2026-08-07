@@ -40,7 +40,7 @@ describe('buildCheckpointDoc', () => {
     const meta = {
       seed: 42,
       strategyA: 'ai',
-      strategyB: 'ai-0726',
+      strategyB: 'ai-0801',
       minMatches: 10_000,
       maxMatches: 100_000,
       stepMatches: 1000,
@@ -51,6 +51,6 @@ describe('buildCheckpointDoc', () => {
     expect(doc.evaluatedMatches).toBe(3000);
     expect(doc.pairsDone).toBe(1500);
     expect(doc.strategies.A).toEqual({ name: 'ai', handsPlayed: 100 });
-    expect(doc.strategies.B).toEqual({ name: 'ai-0726', handsPlayed: 100 });
+    expect(doc.strategies.B).toEqual({ name: 'ai-0801', handsPlayed: 100 });
   });
 });

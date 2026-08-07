@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-08-07 19:27
+
+### 归档移除基线策略 ai-0707 / ai-0712 / ai-0726
+
+**移除**：删除三个已归档基线策略的完整目录（`packages/engine/src/ai-0707/`、`ai-0712/`、`ai-0726/`），引擎 `index.ts` 导出、竞技场适配器与 `strategyByName` 条目同步移除；`historical-strategies.test.ts` 删除对应 3 项合法性测试。竞技场默认策略 B 从 `ai-0726` 改为 `ai-0801`（现存最近基线）。README 历史基线列表与选项表移除三项（标注归档），**Elo 表完整保留仅作展示**（`ai-0726` = 988.1、`ai-0712` = 463.6、`ai-0707` = -528.5），`elo-verify.ts` 不受影响（独立数学验证，复跑通过）。
+
+**删除 3 项测试**（historical-strategies.test.ts：3 项），引擎 601 项 + arena 64 项 + CLI 80 项 = 745 项通过。
+
+- **影响文件**：`packages/engine/src/ai-0707/`、`packages/engine/src/ai-0712/`、`packages/engine/src/ai-0726/`（删除）、`packages/engine/src/index.ts`、`packages/arena/src/strategies.ts`、`packages/arena/src/run.ts`、`packages/arena/src/__tests__/historical-strategies.test.ts`、`packages/arena/src/__tests__/progress.test.ts`、`README.md`
+
 ## 2026-08-06 23:48
 
 ### 文档：更新策略 Elo 表（当前 ai 实测 1009.1）

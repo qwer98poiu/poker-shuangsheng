@@ -52,7 +52,7 @@ function printUsage(): void {
   --benchmark N      跑 N 场对局测速后退出
   --detail-pair N    输出第 N 个对决的镜像两场升级记录后退出
   --strategy-a NAME  策略 A，默认 ai
-  --strategy-b NAME  策略 B，默认 ai-0726
+  --strategy-b NAME  策略 B，默认 ai-0801
   --out PATH         JSON 导出路径，默认 results/arena-<时间>.json
   --no-json          不导出 JSON
   -h, --help         显示帮助
@@ -72,7 +72,7 @@ function parseArgs(argv: string[]): Args {
     benchmark: 0,
     detailPair: null,
     strategyA: 'ai',
-    strategyB: 'ai-0726',
+    strategyB: 'ai-0801',
     out: null,
   };
   for (let i = 0; i < argv.length; i++) {
