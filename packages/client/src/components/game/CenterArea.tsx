@@ -1,7 +1,6 @@
 import React from 'react';
 import type { GameState } from '@poker/engine';
-import { GamePhase, suitLabel, rankLabel, suitName, isPointCard } from '@poker/engine';
-import { getLeadSuit } from '@poker/engine';
+import { GamePhase, suitLabel, rankLabel, suitName, isPointRank, cardPointsFromRank } from '@poker/engine';
 import CardFace from '../cards/CardFace.js';
 
 interface CenterAreaProps {
@@ -46,11 +45,12 @@ const CenterArea: React.FC<CenterAreaProps> = ({ gameState, lastTrickReview, onC
       {trickHistory.length > 0 && (
         <div className="point-collection">
           {(() => {
-            const attackerTeam = gameState.dealerIndex % 2 === 0 ? 1 : 0;
+            const declarerIdx = gameState.trumpDeclaration?.declarerIndex ?? gameState.declarerIndex;
+            const attackerTeam = declarerIdx % 2 === 0 ? 1 : 0;
             const allPointCards = trickHistory
               .filter(t => t.points > 0 && t.winnerIndex % 2 === attackerTeam)
               .flatMap(t => t.plays.flatMap(p => p.cards))
-              .filter(c => isPointCard(c.rank));
+              .filter(c => isPointRank(c.rank));
             if (allPointCards.length === 0) return null;
             return (
               <>

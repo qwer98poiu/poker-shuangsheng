@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-08-08 18:25
+
+### 新增：无视觉 AI 的 GUI 调试基建（ui-dump/ui-smoke）
+
+**问题**：开发 GUI 时模型不支持图片输入，无法通过截图调试界面；且调试需要可复现的牌局。
+
+**修复**：client 暴露 `window.__POKER_STORE__`（自动化可读完整 GameState）；新增 `?seed=N`/`?auto=1`/`?speed=n` 开发参数（种子化发牌 + 4AI 观战 + 加速）；新增 playwright-core 脚本 `scripts/ui-dump.ts`（驱动系统 Chrome 无头输出 DOM/布局/状态文本 dump，无视觉模型的"眼睛"）与 `scripts/ui-smoke.ts`（种子化逐墩断言 + 同种子双跑指纹比对）。依赖 playwright-core@1.48.2（兼容 Node 17，系统 Chrome channel 免下载）。
+
+- **影响文件**：`packages/client/src/dev.ts`、`packages/client/src/main.tsx`、`packages/client/src/store/gameStore.ts`、`packages/client/scripts/ui-dump.ts`、`packages/client/scripts/ui-smoke.ts`、`packages/client/scripts/lib/driver.ts`
+
+### 修复：client 无法编译（引擎 API 已改名）
+
+**问题**：`packages/client` 引用引擎已不存在的导出（`dealCards`/`getLeadSuit`/`isPointCard`/`cardPoints`）与字段（`dealerIndex`），`tsc --noEmit` 报 8 个类型错误，应用无法加载（浏览器端 vite 编译直接抛错）。
+
+**修复**：映射到现行引擎 API——`getLeadSuit(pattern)` → `PlayedCards.leadSuit` 字段、`isPointCard` → `isPointRank`、`cardPoints` → `cardPointsFromRank`、`dealerIndex` → `trumpDeclaration.declarerIndex ?? declarerIndex`；删除未使用的 `dealCards` 导入；AI 命名对齐 `AI-2`（CLAUDE.md 约定）。client 自身类型检查恢复干净。
+
+- **影响文件**：`packages/client/src/store/gameStore.ts`、`packages/client/src/components/game/CenterArea.tsx`
+
 ## 2026-08-08 16:09
 
 ### 修复：缺门垫牌全是主牌时理由应为"垫主牌"

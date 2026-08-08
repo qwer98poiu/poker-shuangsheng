@@ -1,15 +1,19 @@
 import { create } from 'zustand';
 import type { Card, GameState, PlayerState, Reveal, AIReason } from '@poker/engine';
 import {
-  createFullDeck, shuffle, dealCards,
+  createFullDeck, shuffle,
   createInitialState, GamePhase,
   tryReveal, finalizeReveal, playCards, computeLevelChange,
   aiTryReveal, aiChooseBottomCards, aiLeadPlay, aiFollowPlay,
-  sortHand, isPointCard, cardPoints,
+  sortHand,
+  mulberry32, seededShuffle,
   Suit,
 } from '@poker/engine';
 import type { Suit as SuitType } from '@poker/engine';
-import { getLeadSuit } from '@poker/engine';
+import { devParams, seedFor } from '../dev.js';
+
+// Interval helper: divide by dev speed (?_speed / auto mode) for fast automated runs.
+const tick = (ms: number) => Math.max(1, Math.round(ms / devParams.speed));
 
 export type GameMode = 'setup' | 'playing';
 
@@ -26,6 +30,8 @@ interface StoreState {
   highlightedCards: string[];
   humanCanReveal: boolean;
   showBottomCards: boolean; // show bottom cards on table when revealed
+  /** 0-based round number (used for deterministic per-round seeds). */
+  roundNumber: number;
 }
 
 interface StoreActions {
@@ -67,19 +73,28 @@ export const useGameStore = create<GameStore>((set, get) => {
     highlightedCards: [],
     humanCanReveal: false,
     showBottomCards: false,
+    roundNumber: 0,
 
     startGame: (aiConfig: boolean[], debug: boolean) => {
-      const deck = shuffle(createFullDeck());
+      // ?seed=N: deterministic deck + initial dealer (seededShuffle/mulberry32
+      // from engine, so the same seed reproduces the same match).
+      const seed = devParams.seed;
+      const deck = seed !== null
+        ? seededShuffle(createFullDeck(), seedFor(seed, 0))
+        : shuffle(createFullDeck());
       const emptyPlayers = [0, 1, 2, 3].map(i => ({
         hand: [] as Card[],
         isHuman: !aiConfig[i],
-        name: aiConfig[i] ? `AI ${i + 1}` : `玩家 ${i + 1}`,
+        name: aiConfig[i] ? `AI-${i + 1}` : `玩家 ${i + 1}`,
         index: i,
       })) as [PlayerState, PlayerState, PlayerState, PlayerState];
 
+      const declarerIdx = seed !== null
+        ? Math.floor(mulberry32(seed)() * 4)
+        : Math.floor(Math.random() * 4);
       const state = createInitialState(
         emptyPlayers,
-        Math.floor(Math.random() * 4),
+        declarerIdx,
         2,
         debug,
       );
@@ -96,6 +111,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         highlightedCards: [],
         humanCanReveal: false,
         showBottomCards: false,
+        roundNumber: 0,
       });
 
       get().runDealStep(deck);
@@ -163,7 +179,7 @@ export const useGameStore = create<GameStore>((set, get) => {
               message: `出牌开始！${ready.players[ready.currentPlayerIndex].name} 领出`,
               humanCanReveal: false,
             });
-            setTimeout(() => get().runAiTurns(), 600);
+            setTimeout(() => get().runAiTurns(), tick(600));
           } else {
             // human declarer picks bottom cards
             set({
@@ -172,7 +188,7 @@ export const useGameStore = create<GameStore>((set, get) => {
               humanCanReveal: false,
             });
           }
-        }, 1500);
+        }, tick(1500));
         return;
       }
 
@@ -212,7 +228,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         humanCanReveal: true,
       });
 
-      setTimeout(() => get().runDealStep(deck), 180);
+      setTimeout(() => get().runDealStep(deck), tick(180));
     },
 
     selectCard: (cardId: string) => {
@@ -301,12 +317,12 @@ export const useGameStore = create<GameStore>((set, get) => {
 
       if (result.state.phase === GamePhase.RoundEnd) {
         set({ message: `本局结束！闲家得分: ${result.state.attackerPoints}` });
-        setTimeout(() => get().startNewRound(), 4000);
+        setTimeout(() => get().startNewRound(), tick(4000));
         return;
       }
 
       set({ message: `${result.state.players[result.state.currentPlayerIndex].name} 出牌` });
-      setTimeout(() => get().runAiTurns(), 600);
+      setTimeout(() => get().runAiTurns(), tick(600));
     },
 
     runAiTurns: () => {
@@ -315,7 +331,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       if (gameState.phase === GamePhase.Dealing || gameState.phase === GamePhase.Revealing) return;
 
       if (gameState.phase === GamePhase.RoundEnd) {
-        setTimeout(() => get().startNewRound(), 3000);
+        setTimeout(() => get().startNewRound(), tick(3000));
         return;
       }
 
@@ -339,8 +355,7 @@ export const useGameStore = create<GameStore>((set, get) => {
           reason = r.reason;
         } else {
           const leadPlay = gameState.trickPlays[0];
-          const suit = getLeadSuit(leadPlay.pattern);
-          const r = aiFollowPlay(player.hand, leadPlay.cards, suit!, config);
+          const r = aiFollowPlay(player.hand, leadPlay.cards, leadPlay.leadSuit, config);
           cards = r.cards;
           reason = r.reason;
         }
@@ -372,27 +387,32 @@ export const useGameStore = create<GameStore>((set, get) => {
 
         if (get().gameState?.phase === GamePhase.RoundEnd) {
           set({ message: `本局结束！闲家得分: ${get().gameState!.attackerPoints}` });
-          setTimeout(() => get().startNewRound(), 4000);
+          setTimeout(() => get().startNewRound(), tick(4000));
           return;
         }
 
         set({ message: `${get().gameState?.players[get().gameState!.currentPlayerIndex].name} 出牌` });
-        setTimeout(() => get().runAiTurns(), 800);
+        setTimeout(() => get().runAiTurns(), tick(800));
       }
     },
 
     startNewRound: () => {
-      const { gameState, debug } = get();
+      const { gameState, debug, roundNumber } = get();
       if (!gameState) return;
 
-      const deck = shuffle(createFullDeck());
+      const nextRound = roundNumber + 1;
+      const seed = devParams.seed;
+      const deck = seed !== null
+        ? seededShuffle(createFullDeck(), seedFor(seed, nextRound))
+        : shuffle(createFullDeck());
       const emptyPlayers = gameState.players.map((p, i) => ({
         ...p,
         hand: [] as Card[],
       })) as [PlayerState, PlayerState, PlayerState, PlayerState];
 
-      const newDealer = (gameState.dealerIndex + 1) % 4;
-      const attackerTeam = gameState.dealerIndex % 2 === 0 ? 1 : 0;
+      const declarerIdx = gameState.trumpDeclaration?.declarerIndex ?? gameState.declarerIndex;
+      const newDealer = (declarerIdx + 1) % 4;
+      const attackerTeam = declarerIdx % 2 === 0 ? 1 : 0;
       const changes = computeLevelChange(gameState.attackerPoints);
       const newLevel = attackerTeam === 1
         ? gameState.currentLevel + changes.attackerChange
@@ -409,6 +429,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         highlightedCards: [],
         humanCanReveal: false,
         showBottomCards: false,
+        roundNumber: nextRound,
       });
 
       get().runDealStep(deck);
@@ -448,8 +469,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         reason = r.reason;
       } else if (gameState.trickPlays.length > 0) {
         const lead = gameState.trickPlays[0];
-        const suit = getLeadSuit(lead.pattern);
-        const r = aiFollowPlay(player.hand, lead.cards, suit!, config);
+        const r = aiFollowPlay(player.hand, lead.cards, lead.leadSuit, config);
         suggested = r.cards;
         reason = r.reason;
       }
