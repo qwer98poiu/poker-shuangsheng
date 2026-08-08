@@ -71,6 +71,7 @@ Co-Authored-By: DeepSeek V4 Pro <noreply@deepseek.com>
 - **Changelog 只在更新代码时写**（fix/feat/strategy/refactor/test 等）；纯文档提交（`docs:`）一律不写 Changelog。
 - **测试断言优先用精确值**（`toBe(n)`），避免使用 `toBeGreaterThan`、`toBeGreaterThanOrEqual` 等模糊匹配，除非值本身因外部因素不确定。
 - **基础模块的测试必须逐项穷举**。对于记牌器这类高阶策略依赖的基础模块，测试覆盖所有视角 × 所有目标玩家 × 所有可能的牌（suit-rank）× 精确张数断言，不允许只验证部分卡牌。
+- **每次提交前必须跑类型检查并清理全部错误**：在 `packages/engine` 与 `packages/client` 下各跑一次 `npx tsc --noEmit`，须零错误后才提交。vitest 经 esbuild 转译不做类型检查，类型错误不会导致测试失败，因此必须显式检查。
 
 ## 测试命令
 
