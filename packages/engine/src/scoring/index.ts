@@ -90,3 +90,8 @@ export function computeLevelChange(rawPoints: number): {
   if (n === 1) return { defenderChange: 1, attackerChange: 0 };
   return { defenderChange: 0, attackerChange: n - 2 };
 }
+
+// ---- 11. Round outcome & level advancement (统一口径，自 CLI/arena 下沉) ----
+
+export * from './round-outcome.js';
+export * from './advance-level.js';

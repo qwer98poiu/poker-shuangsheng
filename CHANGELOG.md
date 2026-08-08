@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-08 18:28
+
+### 重构：结算口径下沉引擎（computeRoundOutcome/advanceLevel 唯一来源）
+
+**问题**：上台判定与等级变更口径散落在 CLI（round-result.ts）与 arena（advance-level.ts，必打 K/A 规则）两处，GUI 开发又需要同一口径——继续复刻将是第三份拷贝。
+
+**修复**：`computeRoundOutcome`/`RoundOutcome` 迁入 `packages/engine/src/scoring/round-outcome.ts`，`advanceLevel`/`LEVEL_K`/`LEVEL_A` 迁入 `scoring/advance-level.ts`，经 scoring/index 导出；CLI 与 arena 的源文件改为 re-export shim，行为零变化（两包测试原样通过）。
+
+**新增 18 项测试**（round-outcome.test.ts：9 项，advance-level.test.ts：9 项），引擎 632 项 + arena 64 项 + CLI 80 项 = 776 项通过。
+
+- **影响文件**：`packages/engine/src/scoring/round-outcome.ts`、`packages/engine/src/scoring/advance-level.ts`、`packages/engine/src/scoring/index.ts`、`packages/cli/src/round-result.ts`、`packages/arena/src/advance-level.ts`
+
 ## 2026-08-08 18:25
 
 ### 新增：无视觉 AI 的 GUI 调试基建（ui-dump/ui-smoke）
