@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-08 22:44
+
+### 修复：第四家队友已大不盖过——加分优先，没分出最小（不局限吊主）
+
+**问题**：第四家且队友已大（tmWin）时，多处跟牌路径仍"盖过队友"：单张吊主 `hasPoints` 无条件出最大主牌（用户场景：方块主 level 2，手牌 H2 级牌/DA/DJ 全大于队友 D9，建议出级牌 H2 浪费最强主牌）；拖拉机/对子分支第四家找不到最小匹配时去找能盖的组合盖队友；NT 单张同样缺"不盖"逻辑。违反"队友已大不需要盖过"原则。
+
+**修复**：统一原则（第四家 tmWin，吊主与领副通用）：① 加分优先——手牌有分牌出最小分牌（不盖过更好）；② 没分可加 → 出最小的不盖过的主牌/副牌（垫，让队友赢）；③ 手牌全部大于 currentMax（被迫盖）→ 出最小能盖的，保留大牌。覆盖 7 处：follow-trump.ts 单张吊主、吊主拖拉机（不找盖）、吊主对子（不降序、不找盖对）、NT 单张；follow-offsuit.ts 跟副拖拉机、跟副对子。跟副单张原有"加分/避分"逻辑已符合，未动。用户场景修复后出 DJ（保留 H2 级牌与 DA）；有分牌场景（队友 A 大、手牌 SK）出 SK 加分且不盖。
+
+**新增 2 项测试**（ai-follow.test.ts：2 项），更新 1 项旧断言（盖队友→垫最小）+ arena A==A 镜像值（214→221，第四家策略改变对局走向），引擎 636 项 + arena 64 项 + CLI 80 项 + client 4 项 = 784 项通过。
+
+- **影响文件**：`packages/engine/src/ai/follow-trump.ts`、`packages/engine/src/ai/follow-offsuit.ts`、`packages/engine/src/__tests__/ai-follow.test.ts`、`packages/arena/src/__tests__/arena-e2e.test.ts`
+
 ## 2026-08-08 20:10
 
 ### 修复：引擎类型检查全绿，`npm run build` 首次完整通过

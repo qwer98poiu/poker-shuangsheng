@@ -3146,10 +3146,29 @@ describe('fourth position reason always carries add/avoid mark', () => {
     };
   }
 
-  it('主牌单张 队友大、能盖过（盖过队友）→ 加分标注（含"但没分可加"）', () => {
+  it('主牌单张 队友大、有分牌可加 → 出最小分牌加分（不盖队友、不浪费大王）', () => {
     const hand = [c4('J', 16, 0), c4('S', 2, 0), c4('S', 13, 0), c4('S', 7, 0), c4('H', 9, 0)];
     const lead = [c4('S', 5, 200)];
     const r = aiFollowPlay(hand, lead, Suit.Spades, ctx4({ cards: [c4('S', 14, 0)], playerIndex: 1 }));
+    expect(r.cards[0].id).toBe('S-13-0'); // SK（10分）加分，13 < A 不盖队友；不出大王
+    expect(r.reason).toBe('同花色出大（队友已大，加分）');
+  });
+
+  it('主牌单张 队友大、无分牌可加且有不盖过的主牌 → 垫最小主牌（让队友赢）', () => {
+    const hand = [c4('J', 16, 0), c4('S', 2, 0), c4('S', 8, 0), c4('S', 7, 0), c4('H', 9, 0)];
+    const lead = [c4('S', 5, 200)];
+    const r = aiFollowPlay(hand, lead, Suit.Spades, ctx4({ cards: [c4('S', 14, 0)], playerIndex: 1 }));
+    expect(r.cards[0].id).toBe('S-2-0'); // 垫最小主牌（黑桃2），不盖队友的 A
+    expect(r.reason).toBe('同花色出小（但没分可加）');
+  });
+
+  it('主牌单张 队友大、手牌全部大于队友（被迫盖）→ 出最小能盖，保留级牌/大牌', () => {
+    // 用户场景：level 2 方块主，手牌 H2(级牌)/DA/DJ 全 > 队友 D9 → 出 DJ
+    const hand = [c4('H', 2, 0), c4('D', 14, 1), c4('D', 11, 2)];
+    const lead = [c4('D', 5, 200)];
+    const r = aiFollowPlay(hand, lead, Suit.Diamonds,
+      ctx4({ cards: [c4('D', 9, 0)], playerIndex: 1 }, { trumpSuit: Suit.Diamonds, level: 2 }));
+    expect(r.cards[0].id).toBe('D-11-2'); // DJ：最小的能盖的，保留 H2 级牌与 DA
     expect(r.reason).toBe('同花色出大（但没分可加）');
   });
 
