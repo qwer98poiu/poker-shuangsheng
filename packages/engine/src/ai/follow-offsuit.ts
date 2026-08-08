@@ -173,10 +173,12 @@ function followOffSuitSingle(
   }
 
   if (tmWin) {
+    // 队友大但禁分（70/75 等）→ 不加分标注（第四家）
     leadSuitCards.sort(discardSort(false, ctx));
     const cards = [leadSuitCards[0]];
+    const intent = position === 'fourth' ? 'avoid' : 'none';
     const reason = annotateReason('同花色出小', cards, leadSuitCards, trumpCards,
-      leadCombo, 1, ctx, position, tmWin, false, 'none');
+      leadCombo, 1, ctx, position, tmWin, false, intent);
     return { cards, reason };
   }
 
@@ -212,7 +214,9 @@ function followOffSuitSingle(
       }
       beaters.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
       const cards = [beaters[0]];
-      const intent = fourthBeat ? 'beat_points' : 'none';
+      // 第四家恒标注：对手大=抢分，队友大盖过=加分
+      const intent = fourthBeat ? 'beat_points'
+        : (position === 'fourth' && tmWin) ? 'add' : 'none';
       const reason = annotateReason('同花色出大', cards, leadSuitCards, trumpCards,
         leadCombo, 1, ctx, position, tmWin, false, intent);
       return { cards, reason };
@@ -220,8 +224,9 @@ function followOffSuitSingle(
   }
 
   const cards = [leadSuitCards[0]];
+  const intent = position === 'fourth' ? (tmWin ? 'add' : 'beat_points') : 'none';
   const reason = annotateReason('同花色出大', cards, leadSuitCards, trumpCards,
-    leadCombo, 1, ctx, position, tmWin, false, 'none');
+    leadCombo, 1, ctx, position, tmWin, false, intent);
   return { cards, reason };
 }
 
@@ -308,7 +313,8 @@ function followOffSuitMulti(
         if (alt && canBeat(alt, ctx.bestSoFar, ctx)) picked = alt;
       }
       if (picked) {
-        const intent = addPoints ? 'add' : 'none';
+        // 第四家 !addPoints（对手大）垫牌恒标注不加分
+        const intent = addPoints ? 'add' : (shouldAvoidT ? 'avoid' : 'none');
         const beating = canBeat(picked, ctx.bestSoFar, ctx);
         const isThrow3 = leadCombo.type === 'throw';
         const baseReason = isThrow3 ? '垫同花色' : (beating ? '同花色出大' : '同花色出小');

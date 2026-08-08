@@ -170,8 +170,8 @@ export function followTrumpLead(
           if (bigBeaters.length > 0) {
             bigBeaters.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
             const cards = [bigBeaters[0]];
-            const fourthBeat = position === 'fourth' && !tmWin;
-            const intent = fourthBeat ? 'beat_points' : 'none';
+            // 第四家恒标注：队友大盖过=加分，对手大=抢分
+            const intent = position === 'fourth' ? (tmWin ? 'add' : 'beat_points') : 'none';
             const reason = annotateReason('同花色出大', cards, myTrump, myTrump,
               leadCombo, 1, ctx, position, tmWin, false, intent);
             return { cards, reason };
@@ -180,7 +180,8 @@ export function followTrumpLead(
         }
         const cards = [canBeatCards[0]];
         const fourthBeat = position === 'fourth' && !tmWin;
-        const intent = hasPoints ? 'none'
+        const intent = position === 'fourth' ? (tmWin ? 'add' : 'beat_points')
+          : hasPoints ? 'none'
           : (tmWin && canAddPoints(tmWin, position, leadCombo, ctx)) ? 'add'
           : fourthBeat ? 'beat_points' : 'none';
         const reason = annotateReason('同花色出大', cards, myTrump, myTrump,
@@ -263,7 +264,8 @@ export function matchTrumpPattern(
         if (alt && canBeat(alt, ctx.bestSoFar, ctx)) picked = alt;
       }
       if (picked) {
-        const intent = addPoints ? 'add' : 'none';
+        // 第四家 !addPoints（对手大）垫牌恒标注不加分
+        const intent = addPoints ? 'add' : (shouldAvoidT ? 'avoid' : 'none');
         const beating = canBeat(picked, ctx.bestSoFar, ctx);
         const isThrow = leadCombo.type === 'throw';
         const baseReason = isThrow ? '垫同花色' : (beating ? '同花色出大' : '同花色出小');
@@ -355,7 +357,7 @@ export function matchTrumpPattern(
 
   // Pure singles: play smallest trump
   // 第二家甩主牌：垫牌（按手牌数避分）；第三家甩主牌：垫牌优先加分；
-  // 第四家：队友大加分，否则避分
+  // 第四家：队友大加分，否则避分（恒标注）
   let cards2: Card[];
   let intent2: 'add' | 'avoid' | 'none' = 'none';
   if (position === 'second') {
@@ -371,6 +373,7 @@ export function matchTrumpPattern(
       intent2 = 'add';
     } else {
       myTrump.sort(discardSort(false, ctx));
+      intent2 = position === 'fourth' ? 'avoid' : 'none';
     }
     cards2 = myTrump.slice(0, leadLen);
   }
@@ -430,11 +433,18 @@ function trumpKillSingle(
           : isFourth ? sortKillCards(canBeatCards, ctx)[0] : minEff(canBeatCards, ctx);
       return { cards: [chosen], reason: killReason([chosen], '盖毙') };
     }
+    // 盖不过恒标注不加分（第四家）
     if (nonTrump.length > 0) {
       nonTrump.sort(discardSort(!!tmWin, ctx, nonTrump, ctx));
-      return { cards: [nonTrump[0]], reason: '盖不过，垫副牌' };
+      const cards = [nonTrump[0]];
+      const reason = annotateReason('盖不过，垫副牌', cards, [], trumpCards,
+        leadCombo, 1, ctx, position, tmWin, true, 'avoid');
+      return { cards, reason };
     }
-    return { cards: [trumpCards[0]], reason: '盖不过，垫主牌' };
+    const cards = [trumpCards[0]];
+    const reason = annotateReason('盖不过，垫主牌', cards, [], trumpCards,
+      leadCombo, 1, ctx, position, tmWin, true, 'avoid');
+    return { cards, reason };
   }
 
   // First kill (bestSoFar is off-suit or none)
@@ -845,7 +855,8 @@ export function followNTTrumpLead(
         const beating = canBeat(cards, ctx.bestSoFar, ctx);
         const baseReason = beating ? '同花色出大' : '同花色出小';
         const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
-        const intent = addPoints ? 'add' : 'none';
+        // 第四家恒标注：不加分（对手大）时标注避分
+        const intent = addPoints ? 'add' : (position === 'fourth' && !tmWin) ? 'avoid' : 'none';
         const reason = annotateReason(baseReason, cards, [], myTrump,
           leadCombo, leadLen, ctx, position, tmWin, false, intent);
         return { cards, reason };
@@ -860,7 +871,7 @@ export function followNTTrumpLead(
       sorted.sort(discardSort(false, ctx));
     }
     const cards = sorted.slice(0, leadLen);
-    const intent = addPoints ? 'add' : 'none';
+    const intent = addPoints ? 'add' : (position === 'fourth' && !tmWin) ? 'avoid' : 'none';
     const reason = annotateReason('垫同花色', cards, [], myTrump,
       leadCombo, leadLen, ctx, position, tmWin, false, intent);
     return { cards, reason };

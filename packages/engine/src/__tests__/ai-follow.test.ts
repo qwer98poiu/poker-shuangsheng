@@ -3121,3 +3121,89 @@ describe('break pair: score-aware pair breaking', () => {
     expect(pairCount).toBeGreaterThanOrEqual(1);
   });
 });
+
+// ================================================================
+// 第四家出牌理由恒标注（加分/不加分/尽量少加分）
+// ================================================================
+describe('fourth position reason always carries add/avoid mark', () => {
+  const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 6 };
+  const c4 = (s: string, r: number, i: number): Card => createCard(s as any, r as any, i);
+  const MARK = /加分|不加分|少加分|分牌盖|最小牌盖|唯一可出|必出/;
+
+  function ctx4(
+    bestSoFar: { cards: Card[]; playerIndex: number },
+    overrides: Partial<AIContext> = {},
+  ): AIContext {
+    return {
+      declarerIndex: 0, trumpSuit: Suit.Spades, level: 6,
+      myIndex: 3, isDeclarer: false, isDeclarerPartner: false,
+      isAttacker: true, attackerPoints: 20,
+      handCounts: [16, 12, 12, 12], trickHistory: [], reveals: [],
+      playCount: 3, leadPlayerIndex: 0,
+      bestSoFar,
+      ntState: null, bottomCards: [], debug: false,
+      ...overrides,
+    };
+  }
+
+  it('主牌单张 队友大、能盖过（盖过队友）→ 加分标注（含"但没分可加"）', () => {
+    const hand = [c4('J', 16, 0), c4('S', 2, 0), c4('S', 13, 0), c4('S', 7, 0), c4('H', 9, 0)];
+    const lead = [c4('S', 5, 200)];
+    const r = aiFollowPlay(hand, lead, Suit.Spades, ctx4({ cards: [c4('S', 14, 0)], playerIndex: 1 }));
+    expect(r.reason).toBe('同花色出大（但没分可加）');
+  });
+
+  it('主牌单张 对手大、有分、能盖过 → 抢分标注', () => {
+    const hand = [c4('J', 16, 0), c4('S', 2, 0), c4('S', 13, 0), c4('S', 7, 0), c4('H', 9, 0)];
+    const lead = [c4('S', 5, 200)];
+    const r = aiFollowPlay(hand, lead, Suit.Spades, ctx4({ cards: [c4('S', 5, 200)], playerIndex: 0 }));
+    expect(r.reason).toBe('同花色出大（用最小牌盖）');
+  });
+
+  it('主牌单张 对手大、盖不过 → 不加分标注', () => {
+    const hand = [c4('J', 16, 0), c4('S', 2, 0), c4('S', 13, 0), c4('S', 7, 0), c4('H', 9, 0)];
+    const lead = [c4('J', 16, 200)];
+    const r = aiFollowPlay(hand, lead, Suit.Spades, ctx4({ cards: [c4('J', 16, 200)], playerIndex: 0 }));
+    expect(r.reason).toBe('同花色出小（盖不过，不加分）');
+  });
+
+  it('副牌单张 队友大、70 禁分（庄家方）→ 不加分标注', () => {
+    const hand = [c4('H', 13, 0), c4('H', 5, 0), c4('H', 9, 0), c4('S', 7, 0)];
+    const lead = [c4('H', 10, 200)];
+    const r = aiFollowPlay(hand, lead, Suit.Hearts,
+      ctx4({ cards: [c4('H', 12, 0)], playerIndex: 1 }, { isAttacker: false, attackerPoints: 60 }));
+    expect(r.reason).toBe('同花色出小（盖不过，不加分）');
+  });
+
+  it('副牌单张 对手大、能盖过 → 抢分标注', () => {
+    const hand = [c4('H', 13, 0), c4('H', 5, 0), c4('H', 9, 0), c4('S', 7, 0)];
+    const lead = [c4('H', 4, 200)];
+    const r = aiFollowPlay(hand, lead, Suit.Hearts, ctx4({ cards: [c4('H', 9, 0)], playerIndex: 0 }));
+    expect(r.reason).toBe('同花色出大（用分牌盖）');
+  });
+
+  it('副牌对 void 无主垫牌 → 不加分标注', () => {
+    const hand = [c4('H', 13, 0), c4('H', 5, 0), c4('H', 9, 0), c4('C', 8, 0), c4('C', 3, 0)];
+    const lead = [c4('D', 12, 200), c4('D', 12, 201)];
+    const r = aiFollowPlay(hand, lead, Suit.Diamonds,
+      ctx4({ cards: [c4('D', 12, 200), c4('D', 12, 201)], playerIndex: 0 }));
+    expect(r.reason).toBe('垫牌（盖不过，不加分）');
+  });
+
+  it('毙牌盖不过 → 不加分标注', () => {
+    const hand = [c4('S', 7, 0), c4('H', 13, 0), c4('H', 5, 0)];
+    const lead = [c4('D', 9, 200)];
+    const r = aiFollowPlay(hand, lead, Suit.Diamonds,
+      ctx4({ cards: [c4('S', 14, 0)], playerIndex: 2 }));
+    expect(r.reason).toBe('盖不过，垫副牌（尽量少加分）');
+  });
+
+  it('NT 甩主牌多张 对手大垫牌 → 不加分标注', () => {
+    const hand = [c4('J', 15, 0), c4('J', 16, 0), c4('H', 6, 0), c4('C', 5, 0), c4('D', 9, 0), c4('D', 8, 0)];
+    const lead = [c4('J', 15, 200), c4('J', 16, 200)];
+    const r = aiFollowPlay(hand, lead, Suit.Hearts,
+      ctx4({ cards: [c4('J', 15, 200), c4('J', 16, 200)], playerIndex: 0 },
+        { trumpSuit: null as any, level: 6 }));
+    expect(r.reason).toBe('垫同花色（盖不过，不加分）');
+  });
+});

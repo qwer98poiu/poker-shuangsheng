@@ -53,7 +53,9 @@ export function discardNonTrump(
   const cards = selectFillers(hand, leadLen, ctx, mode,
     { allowBreakPair: shouldBreakPairForPoints(ctx, combo) });
   const addPt = tmWin && canAddPoints(tmWin, position, combo, ctx);
-  const intent = addPt ? 'add' : 'none';
+  // 第四家恒标注：不加分时（avoid/forbid）标注避分；第二/三家保持原样
+  const intent = addPt ? 'add'
+    : (position === 'fourth' && (mode === 'avoid' || mode === 'forbid')) ? 'avoid' : 'none';
   const reason = annotateReason('垫牌', cards, [], [],
     combo, leadLen, ctx, position, tmWin, false, intent);
   return { cards, reason };

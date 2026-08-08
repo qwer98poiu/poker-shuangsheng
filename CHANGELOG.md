@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-08 15:48
+
+### 修复：第四家出牌理由恒标注加分/不加分
+
+**问题**：第四家的决策完全围绕加不加分，但多个路径的 reason 缺标注（实测矩阵枚举）：主牌单张队友大盖过、对手大有分盖过（「同花色出大」无后缀）；副牌单张队友大 70 禁分（「同花色出小」）；void 垫牌（「垫牌」）；毙牌盖不过（「盖不过，垫副牌」）；NT 甩主牌多张与拖拉机垫牌（「垫同花色/垫主牌」）——与 short 路径的「（盖不过，不加分）」不一致。
+
+**修复**：第四家各路径 intent 补齐——能盖过：队友大 → 加分（add），对手大 → 抢分（beat_points）；盖不过/禁分/void 垫牌/毙牌盖不过/NT 多张/拖拉机垫 → 不加分（avoid）。fast path（唯一可出/最后 N 张必出）豁免。第二/三家与 lead fallback 行为不变；跨 40 台阶冲分场景维持现状（add 后缀会错标"队友已大"，文案体系未新增冲分后缀）。
+
+**新增 8 项测试**（ai-follow.test.ts：8 项，第四家 reason 恒标注矩阵），引擎 613 项 + arena 64 项 + CLI 80 项 = 757 项通过。
+
+- **影响文件**：`packages/engine/src/ai/follow-trump.ts`、`packages/engine/src/ai/follow-offsuit.ts`、`packages/engine/src/ai/helpers.ts`、`packages/engine/src/__tests__/ai-follow.test.ts`
+
 ## 2026-08-08 14:44
 
 ### 修复：getCompareKey 兜底顺序漏拖拉机——本可盖毙却垫牌
