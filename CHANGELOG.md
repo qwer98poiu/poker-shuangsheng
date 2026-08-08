@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-08-08 19:15
+
+### 修复：GUI 可玩——store 编排重写（亮主/扣底/结算/轮转）+ 引擎甩牌早结束
+
+**问题**：client 有多处致命缺陷——① finalizeReveal 后 phase 停在 BottomExchange 从未置 Playing，第一局发完即卡死；② 人类扣底面板条件 `hand.length===33` 永不成立（底牌从未并入人类手牌）；③ 人类亮主只有 1.5 秒窗口且被自动 finalize 抢跑；④ 局间升级/庄家轮转是近似实现（dealerIndex 不存在、未用 computeRoundOutcome 口径）；⑤ 引擎 RoundEnd 只看 `tricksPlayed>=25`，甩牌局单墩多张时手牌提前耗尽仍要求出牌 → AI 空手牌卡死（GUI 种子局第 17 墩复现，CLI 同样会触发）。
+
+**修复**：
+- 引擎：`advanceAfterPlay` 的 RoundEnd 判定增加"所有玩家手牌为空"（game/index.ts），新增 round-end-early 测试 2 项。
+- client store 重写：finalize/扣底统一走 `finalizeRevealAndBottom`（人类确定 → finalize → AI 庄家 25 张自动扣底 / 人类庄家底牌并入 33 张待选，两分支显式置 `phase: Playing`）；人类亮主面板等待人工操作（不再被抢跑），`humanPassReveal` = 亮主完毕；startNewRound 用引擎 computeRoundOutcome + advanceLevel（必打 K/A）正确升级/轮转/结算 matchOver。
+- UI：局末结算面板（大光/小光/保级/上台、底牌翻出×倍数、抠底、胜利屏，与 CLI showRoundResult 同口径）；座位限制（仅南座人类 + 4AI 观战）；观战模式隐藏本地手牌；全组件 data-testid/data-card-id 铺底；玩家命名对齐 `玩家1`/`AI-2`；`?speed=` 参数独立于 auto 生效。
+- ui-dump：动作按命令行顺序执行（wait/click 交错）、waitForSelector 防渲染竞态、新增 `--click-testid`。
+
+**新增 2 项测试**（round-end-early.test.ts：2 项），引擎 634 项 + arena 64 项 + CLI 80 项 = 778 项通过。ui-smoke 种子局 359 断言全绿（含双跑指纹一致）。
+
+- **影响文件**：`packages/engine/src/game/index.ts`、`packages/engine/src/__tests__/round-end-early.test.ts`、`packages/client/src/store/gameStore.ts`、`packages/client/src/components/game/GameTable.tsx`、`packages/client/src/components/game/SetupPanel.tsx`、`packages/client/src/components/game/PlayerSeat.tsx`、`packages/client/src/components/game/CenterArea.tsx`、`packages/client/src/components/cards/CardFace.tsx`、`packages/client/src/dev.ts`、`packages/client/scripts/ui-dump.ts`
+
 ## 2026-08-08 18:28
 
 ### 重构：结算口径下沉引擎（computeRoundOutcome/advanceLevel 唯一来源）

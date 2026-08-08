@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useGameStore } from '../../store/gameStore.js';
-import { GamePhase, sortHand, Suit, suitLabel, rankLabel, isTrump } from '@poker/engine';
+import { GamePhase, sortHand, Suit, suitLabel, rankLabel, isTrump, getRevealOptions, canOverride, computeRoundOutcome, advanceLevel } from '@poker/engine';
+import CardFace from '../cards/CardFace.js';
 import PlayerHand from './PlayerHand.js';
 import PlayerSeat from './PlayerSeat.js';
 import CenterArea from './CenterArea.js';
@@ -11,11 +12,11 @@ const GameTable: React.FC = () => {
   const {
     gameState, localPlayerIndex, selectedCardIds, debug,
     message, errorMessage, lastTrickReview, highlightedCards,
-    humanCanReveal,
     selectCard, deselectCard, clearSelection,
     submitPlay, submitBottomExchange,
     humanReveal, humanPassReveal,
     toggleLastTrickReview, getHint,
+    aiPlayers, teamLevels, matchOver,
   } = useGameStore();
 
   const [trumpConfirm, setTrumpConfirm] = useState(false);
@@ -37,8 +38,10 @@ const GameTable: React.FC = () => {
 
   const isPlaying = gameState.phase === GamePhase.Playing;
   const isRevealing = gameState.phase === GamePhase.Revealing;
+  const isBottomExchange = gameState.phase === GamePhase.BottomExchange;
   const isMyTurn = gameState.currentPlayerIndex === localPlayerIndex;
   const isDeclarer = gameState.trumpDeclaration?.declarerIndex === localPlayerIndex;
+  const isSpectator = aiPlayers.every(Boolean);
 
   const getPlayedForPlayer = (playerIndex: number) => {
     const idx = gameState.trickPlays.findIndex(p => {
@@ -114,44 +117,55 @@ const GameTable: React.FC = () => {
         {!errorMessage && <span className="info-msg">{message}</span>}
       </div>
 
-      {/* reveal panel for humans */}
-      {isRevealing && humanCanReveal && localPlayer.isHuman && (
-        <div className="reveal-panel">
-          <span className="reveal-hint">亮主：点选花色（或选无主）</span>
-          {([Suit.Spades, Suit.Hearts, Suit.Clubs, Suit.Diamonds] as Suit[]).map(suit => {
-            const hasLevel = localPlayer.hand.filter(c => c.suit === suit && c.rank === gameState.currentLevel);
-            return (
+      {/* reveal panel for humans — options filtered by hand + override rules */}
+      {isRevealing && !isSpectator && localPlayer.isHuman && (() => {
+        const opts = getRevealOptions(localPlayer.hand, gameState.currentLevel)
+          .filter(o => canOverride(gameState.currentReveal, {
+            playerIndex: localPlayerIndex, suit: o.suit, strength: o.strength,
+          }));
+        if (opts.length === 0 && !gameState.currentReveal) return null;
+        return (
+          <div className="reveal-panel" data-testid="reveal-panel">
+            <span className="reveal-hint">
+              {gameState.currentReveal
+                ? `当前: ${gameState.currentReveal.suit ? suitLabel(gameState.currentReveal.suit) + rankLabel(gameState.currentLevel) : '无主'}（可反主）`
+                : '亮主：点选花色（或选无主）'}
+            </span>
+            {opts.map(o => (
               <button
-                key={suit}
-                className="reveal-btn"
-                disabled={hasLevel.length === 0}
-                onClick={() => humanReveal(suit)}
+                key={o.suit ?? 'NT'}
+                className={`reveal-btn ${o.suit === null ? 'reveal-nt' : ''}`}
+                data-testid={`reveal-btn-${o.suit ?? 'NT'}`}
+                onClick={() => humanReveal(o.suit)}
               >
-                {suitLabel(suit)} {rankLabel(gameState.currentLevel)}
-                {hasLevel.length >= 2 ? ' (对)' : ''}
+                {o.suit === null ? '无主 🃏' : `${suitLabel(o.suit)} ${rankLabel(gameState.currentLevel)}${o.strength >= 2 ? ' (对)' : ''}`}
               </button>
-            );
-          })}
-          <button className="reveal-btn reveal-nt" onClick={() => humanReveal(null)}>
-            无主 🃏
-          </button>
-          <button className="reveal-pass-btn" onClick={humanPassReveal}>不亮</button>
-        </div>
-      )}
+            ))}
+            <button
+              className="reveal-pass-btn"
+              data-testid="reveal-done"
+              onClick={humanPassReveal}
+            >
+              确定{gameState.currentReveal ? '（结束亮主）' : '（不亮）'}
+            </button>
+          </div>
+        );
+      })()}
 
-      {/* bottom exchange panel */}
-      {isDeclarer && gameState.players[localPlayerIndex].hand.length === 33 && isPlaying && (
-        <div className="bottom-exchange">
+      {/* bottom exchange panel — human declarer, 33-card hand */}
+      {isBottomExchange && isDeclarer && localPlayer.isHuman && (
+        <div className="bottom-exchange" data-testid="bottom-exchange">
           <span>扣底：选 8 张手牌放入底牌 (已选 {selectedCardIds.length}/8)</span>
           {trumpConfirm ? (
             <div className="trump-warning">
               <span>⚠️ 含主牌，确定扣入？</span>
-              <button className="action-btn play-btn" onClick={() => { setTrumpConfirm(false); submitBottomExchange(); }}>确认扣主</button>
+              <button className="action-btn play-btn" data-testid="trump-confirm" onClick={() => { setTrumpConfirm(false); submitBottomExchange(); }}>确认扣主</button>
               <button className="action-btn cancel-btn" onClick={() => setTrumpConfirm(false)}>取消</button>
             </div>
           ) : (
             <button
               className="action-btn play-btn"
+              data-testid="bottom-confirm"
               disabled={selectedCardIds.length !== 8}
               onClick={() => {
                 const declarer = gameState.players[localPlayerIndex];
@@ -180,6 +194,47 @@ const GameTable: React.FC = () => {
           onClearSelection={clearSelection}
         />
       )}
+
+      {/* round-end settlement panel — same wording as CLI showRoundResult */}
+      {gameState.phase === GamePhase.RoundEnd && (() => {
+        const declarerIdx = gameState.trumpDeclaration?.declarerIndex ?? gameState.declarerIndex;
+        const lastTrick = gameState.trickHistory[gameState.trickHistory.length - 1] ?? null;
+        const outcome = computeRoundOutcome(
+          gameState.attackerPoints, gameState.bottomCards, lastTrick,
+          gameState.trumpDeclaration, declarerIdx,
+        );
+        const advancingTeam = outcome.attackerSits ? (declarerIdx + 1) % 2 : declarerIdx % 2;
+        const adv = advanceLevel(teamLevels[advancingTeam], outcome.finalPts);
+        const verdict = matchOver
+          ? '🏆 庄家队在 A 打赢，胜出！'
+          : outcome.attackerSits
+            ? `闲家上台（${adv.newLevel > teamLevels[advancingTeam] ? `+${adv.newLevel - teamLevels[advancingTeam]} 级` : '不升级'}）`
+            : outcome.changes.defenderChange === 3 ? '大光！庄家 +3 级'
+            : outcome.changes.defenderChange === 2 ? '小光！庄家 +2 级'
+            : '庄家保级 +1 级';
+        return (
+          <div className="round-result" data-testid="round-result">
+            <div className="round-verdict">{verdict}</div>
+            <div className="round-detail">
+              <span>闲家得分: {outcome.finalPts}</span>
+              {outcome.bottomPoints > 0 && (
+                <span>底牌 {outcome.bottomPoints} 分 ×{outcome.multiplier}
+                  {outcome.attackerWonLast ? '（闲家抠底）' : ''}
+                </span>
+              )}
+              {matchOver && <span>胜方: {declarerIdx % 2 === 0 ? '玩家1/AI-3' : 'AI-2/AI-4'} 队</span>}
+            </div>
+            <div className="round-bottom">
+              <span className="bottom-label">底牌 (8张)</span>
+              <div className="bottom-cards">
+                {gameState.bottomCards.map(card => (
+                  <CardFace key={card.id} card={card} size="small" />
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* debug controls */}
       {debug && (
@@ -211,18 +266,25 @@ const GameTable: React.FC = () => {
         </div>
       )}
 
-      {/* local player hand */}
+      {/* spectator banner */}
+      {isSpectator && (
+        <div className="spectator-banner" data-testid="spectator-banner">👀 观战模式</div>
+      )}
+
+      {/* local player hand — hidden in spectator mode */}
       <div className="table-bottom">
-        <PlayerHand
-          cards={displayHand}
-          selectedIds={selectedCardIds}
-          highlightedIds={highlightedCards}
-          onSelectCard={selectCard}
-          onDeselectCard={deselectCard}
-          isActive={isMyTurn && (isPlaying || (isDeclarer && gameState.players[localPlayerIndex].hand.length === 33))}
-          playerName={localPlayer.name}
-          isHuman={localPlayer.isHuman}
-        />
+        {!isSpectator && (
+          <PlayerHand
+            cards={displayHand}
+            selectedIds={selectedCardIds}
+            highlightedIds={highlightedCards}
+            onSelectCard={selectCard}
+            onDeselectCard={deselectCard}
+            isActive={isMyTurn && (isPlaying || isBottomExchange)}
+            playerName={localPlayer.name}
+            isHuman={localPlayer.isHuman}
+          />
+        )}
       </div>
     </div>
   );

@@ -17,8 +17,9 @@ function parseParams(): DevParams {
   const seed = rawSeed !== null && /^\d+$/.test(rawSeed) ? Number(rawSeed) : null;
   const auto = sp.get('auto') === '1';
   const rawSpeed = sp.get('speed');
+  // explicit ?speed= wins; auto mode defaults to 8, single mode to 1.
   const speed =
-    auto && rawSpeed !== null && /^\d+$/.test(rawSpeed) && Number(rawSpeed) >= 1
+    rawSpeed !== null && /^\d+$/.test(rawSpeed) && Number(rawSpeed) >= 1
       ? Number(rawSpeed)
       : auto ? 8 : 1;
   return { seed, auto, speed };

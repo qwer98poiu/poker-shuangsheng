@@ -22,7 +22,7 @@ const CenterArea: React.FC<CenterAreaProps> = ({ gameState, lastTrickReview, onC
 
   return (
     <div className="center-area">
-      <div className="phase-banner">{getPhaseText()}</div>
+      <div className="phase-banner" data-testid="phase-banner">{getPhaseText()}</div>
 
       {trumpDeclaration && (
         <div className="trump-indicator">

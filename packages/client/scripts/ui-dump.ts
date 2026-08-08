@@ -7,8 +7,9 @@
  *
  * Usage:
  *   npx tsx scripts/ui-dump.ts [--url http://localhost:3000] [--seed 42] [--auto 1]
- *     [--start] [--click-card <cardId>...] [--wait-phase <phase>] [--wait-tricks N]
- *     [--auto-tricks N] [--dump [file|-]] [--shot out.png] [--no-spawn] [--timeout-ms 60000]
+ *     [--start] [--click-card <cardId>...] [--click-testid <testid>...] [--wait-phase <phase>]
+ *     [--wait-tricks N] [--auto-tricks N] [--dump [file|-]] [--shot out.png]
+ *     [--no-spawn] [--timeout-ms 60000]
  *
  * Exit codes: 0 ok, 1 step failure, 2 usage error.
  */
@@ -31,8 +32,7 @@ interface Args {
   auto: boolean;
   speed: number | null;
   start: boolean;
-  clickCards: string[];
-  waitPhase: string | null;
+  actions: Array<{ type: 'wait-phase' | 'click-card' | 'click-testid'; value: string }>;
   waitTricks: number | null;
   autoTricks: number | null;
   dump: string | null; // null = none, '-' = stdout
@@ -51,7 +51,7 @@ function usage(): never {
 function parseArgs(argv: string[]): Args {
   const args: Args = {
     url: DEFAULT_URL, seed: null, auto: false, speed: null,
-    start: false, clickCards: [], waitPhase: null, waitTricks: null,
+    start: false, actions: [], waitTricks: null,
     autoTricks: null, dump: null, shot: null, noSpawn: false, timeoutMs: 60000,
   };
   for (let i = 0; i < argv.length; i++) {
@@ -63,8 +63,9 @@ function parseArgs(argv: string[]): Args {
       case '--auto': args.auto = next() === '1'; break;
       case '--speed': args.speed = Number(next()); break;
       case '--start': args.start = true; break;
-      case '--click-card': args.clickCards.push(next()); break;
-      case '--wait-phase': args.waitPhase = next(); break;
+      case '--click-card': args.actions.push({ type: 'click-card', value: next() }); break;
+      case '--click-testid': args.actions.push({ type: 'click-testid', value: next() }); break;
+      case '--wait-phase': args.actions.push({ type: 'wait-phase', value: next() }); break;
       case '--wait-tricks': args.waitTricks = Number(next()); break;
       case '--auto-tricks': args.autoTricks = Number(next()); break;
       case '--dump': args.dump = argv[i + 1] !== undefined && !argv[i + 1].startsWith('--') ? next() : '-'; break;
@@ -240,13 +241,18 @@ async function main(): Promise<void> {
         });
         await page.waitForTimeout(200);
       }
-      for (const id of args.clickCards) {
-        await page.click(`[data-card-id="${id}"]`, { timeout: 5000 }).catch(() => {
-          throw new Error(`card [data-card-id="${id}"] not found (data-card-id lands in P4)`);
-        });
-        await page.waitForTimeout(50);
+      for (const act of args.actions) {
+        if (act.type === 'wait-phase') {
+          await waitPhase(page, act.value, args.timeoutMs);
+        } else {
+          const sel = act.type === 'click-card' ? `[data-card-id="${act.value}"]` : `[data-testid="${act.value}"]`;
+          await page.waitForSelector(sel, { timeout: 5000 }).catch(() => {
+            throw new Error(`${act.type === 'click-card' ? 'card' : 'testid'} "${act.value}" not found`);
+          });
+          await page.click(sel);
+          await page.waitForTimeout(50);
+        }
       }
-      if (args.waitPhase) await waitPhase(page, args.waitPhase, args.timeoutMs);
       if (args.waitTricks !== null) await waitTricks(page, args.waitTricks, args.timeoutMs);
 
       if (args.autoTricks !== null) {

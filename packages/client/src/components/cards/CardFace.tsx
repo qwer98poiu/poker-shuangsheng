@@ -24,7 +24,7 @@ const CardFace: React.FC<CardFaceProps> = ({
 }) => {
   if (faceDown) {
     return (
-      <div className={`card card-back size-${size}`}>
+      <div className={`card card-back size-${size}`} data-card-id={card.id}>
         <div className="card-back-pattern">🂠</div>
       </div>
     );
@@ -48,6 +48,7 @@ const CardFace: React.FC<CardFaceProps> = ({
         highlighted ? 'highlighted' : '',
         isJoker ? 'joker-card' : '',
       ].filter(Boolean).join(' ')}
+      data-card-id={card.id}
       onClick={disabled ? undefined : onClick}
     >
       <div className="card-corner top-left">

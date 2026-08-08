@@ -183,7 +183,9 @@ function advanceAfterPlay(state: GameState, playerIndex: number, play: PlayedCar
   };
 
   const tricksPlayed = state.tricksPlayed + 1;
-  const roundOver = tricksPlayed >= 25;
+  // Round ends at 25 tricks — or earlier when throws/tractors consumed all
+  // cards before that (hands empty).
+  const roundOver = tricksPlayed >= 25 || newPlayers.every(p => p.hand.length === 0);
 
   return {
     ...state,

@@ -9,9 +9,13 @@ const SetupPanel: React.FC<SetupPanelProps> = ({ onStart }) => {
   const [debug, setDebug] = useState(false);
 
   const toggleAi = (index: number) => {
-    const next = [...aiConfig];
-    next[index] = !next[index];
-    setAiConfig(next);
+    // Only seat 0 (南, the human player) can toggle; seats 1-3 stay AI.
+    if (index !== 0) return;
+    setAiConfig(next => {
+      const n = [...next];
+      n[0] = !n[0];
+      return n;
+    });
   };
 
   const humanCount = aiConfig.filter(v => !v).length;
@@ -31,15 +35,20 @@ const SetupPanel: React.FC<SetupPanelProps> = ({ onStart }) => {
             <button
               className={`setup-toggle ${isAi ? 'ai' : 'human'}`}
               onClick={() => toggleAi(i)}
+              disabled={i !== 0 && !isAi}
+              title={i !== 0 ? '仅南座可为人类' : ''}
             >
               {isAi ? '🤖 AI' : '👤 人类'}
             </button>
+            {i !== 0 && !isAi && <span className="setup-locked">(锁定)</span>}
           </div>
         ))}
       </div>
 
       <div className="setup-summary">
-        {isSpectator ? '👀 观战模式 — 4 AI 自动对战' : `${humanCount} 人类 + ${4 - humanCount} AI`}
+        {isSpectator
+          ? '👀 观战模式 — 4 AI 自动对战'
+          : `1 人类 (南) + 3 AI`}
       </div>
 
       <div className="setup-debug">
@@ -55,6 +64,7 @@ const SetupPanel: React.FC<SetupPanelProps> = ({ onStart }) => {
 
       <button
         className="setup-start-btn"
+        data-testid="setup-start"
         onClick={() => onStart(aiConfig, debug)}
       >
         开始游戏

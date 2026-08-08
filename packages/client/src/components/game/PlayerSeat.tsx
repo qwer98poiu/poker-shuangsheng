@@ -22,7 +22,10 @@ const PlayerSeat: React.FC<PlayerSeatProps> = ({
   playedCards,
 }) => {
   return (
-    <div className={`player-seat seat-${position} ${isActive ? 'active-seat' : ''}`}>
+    <div
+      className={`player-seat seat-${position} ${isActive ? 'active-seat' : ''}`}
+      data-testid={`seat-${player.index}`}
+    >
       <div className="player-info">
         <span className="player-name">{player.name}</span>
         <span className="player-card-count">({player.hand.length} 张)</span>
