@@ -6,7 +6,7 @@
 
 A full-stack implementation of the Chinese trick-taking card game **双升 (Shēng Jí / Tractor)**, featuring a deterministic game engine, an NT-mode (无主) trump tracker, and a rule-based AI opponent.
 
-> **Note:** The graphical client (`packages/client`) is currently under development and not yet playable. All gameplay is conducted via the CLI.
+> **Note:** The graphical client (`packages/client`) is playable: run `npm run dev` and open <http://localhost:3000> (south-seat human vs 3 AIs, or 4-AI spectator mode). Dev shortcuts: `?seed=N` (deterministic deck), `?auto=1` (auto spectator match), `?speed=n` (faster animations).
 
 ## Game Rules
 
@@ -61,7 +61,7 @@ Cards are played in patterns that must be **matched** by subsequent players:
 
 - **Engine** ([`packages/engine`](packages/engine/)) — Core game logic: card types, pattern classification, trick comparison, validation, AI strategies, and NT trump tracking (count-based deduction).
 - **CLI** ([`packages/cli`](packages/cli/)) — Terminal-based interactive play with full-color card display.
-- **Client** ([`packages/client`](packages/client/)) — React + Vite web frontend with Zustand state management (work in progress, not yet playable).
+- **Client** ([`packages/client`](packages/client/)) — React + Vite web frontend with Zustand state management (playable: south-seat human vs 3 AIs, or 4-AI spectator).
 - **Arena** ([`packages/arena`](packages/arena/)) — Headless strategy tournament: mirrored full matches (2→A, with 必打 K/A) between two AI strategies, 99%-CI win-rate significance testing, and 17+ technical metrics.
 
 ### NT Trump Tracker
@@ -106,6 +106,21 @@ npx tsx packages/cli/src/index.ts    # or: npm start -w packages/cli
 ```
 
 The CLI is interactive: it prompts for the number of human players, debug mode, etc.
+
+### GUI (client)
+
+```bash
+npm run dev                          # Vite dev server on http://localhost:3000
+```
+
+South-seat human vs 3 AIs, or toggle to 4-AI spectator mode on the setup panel. Dev shortcuts in the URL: `?seed=N` (deterministic deck), `?auto=1` (auto-start a 4-AI spectator match), `?speed=n` (divide animation delays by n).
+
+Automated GUI verification (requires system Google Chrome; playwright-core connects to it):
+
+```bash
+npx tsx packages/client/scripts/ui-dump.ts --seed 42 --auto 1 --auto-tricks 3 --dump -   # text dump of DOM/layout/state
+npx tsx packages/client/scripts/ui-smoke.ts --seed 42 --max-rounds 3                      # per-trick assertions + determinism fingerprint
+```
 
 ### Strategy Arena
 
@@ -176,11 +191,11 @@ MIT — see [LICENSE](LICENSE).
 
 **双升（拖拉机）**是中国流行的四人两副牌升级类扑克游戏。本项目包含三个子包：
 
-> **注意：** 图形界面（`packages/client`）仍在开发中，暂不可用。所有对局均通过命令行进行。
+> **注意：** 图形界面（`packages/client`）可玩：`npm run dev` 后打开 <http://localhost:3000>（南座人类 vs 3 AI，或 4 AI 观战）。开发参数：`?seed=N`（确定性发牌）、`?auto=1`（自动观战对局）、`?speed=n`（加速动画）。
 
 - **[`packages/engine`](packages/engine/)** — 核心引擎：牌型分类、比较、验牌、AI 出牌策略、NT 记牌器（基于计数的常主追踪）。
 - **[`packages/cli`](packages/cli/)** — 终端交互版，支持全色彩牌面显示。
-- **[`packages/client`](packages/client/)** — React 网页前端（开发中，暂不可用）。
+- **[`packages/client`](packages/client/)** — React 网页前端（可玩：南座人类 vs 3 AI，或 4 AI 观战）。
 - **[`packages/arena`](packages/arena/)** — 策略竞技场：两套 AI 策略在完整对局（2→A，含必打 K/A）中镜像对决，99% 置信度显著性判定，输出 17+ 项技术指标。
 
 ### 游戏规则
@@ -273,6 +288,21 @@ npx tsx packages/cli/src/index.ts    # 或 npm start -w packages/cli
 ```
 
 CLI 为交互式：启动后按提示输入玩家数、调试模式等。
+
+#### 图形界面（client）
+
+```bash
+npm run dev                          # Vite 开发服务器：http://localhost:3000
+```
+
+南座人类 vs 3 AI；设置面板可切换为 4 AI 观战模式。URL 开发参数：`?seed=N`（确定性发牌）、`?auto=1`（自动开始 4 AI 观战对局）、`?speed=n`（动画加速 n 倍）。
+
+GUI 自动化验证（需系统安装 Google Chrome，playwright-core 直连）：
+
+```bash
+npx tsx packages/client/scripts/ui-dump.ts --seed 42 --auto 1 --auto-tricks 3 --dump -   # DOM/布局/状态文本 dump
+npx tsx packages/client/scripts/ui-smoke.ts --seed 42 --max-rounds 3                      # 逐墩断言 + 确定性双跑指纹
+```
 
 #### 策略竞技场
 
