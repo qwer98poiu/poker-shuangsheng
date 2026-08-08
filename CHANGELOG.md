@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-08 19:23
+
+### 新增：client store 单测（种子局全流程/亮主等待/33 张扣底/matchOver 停局）
+
+**问题**：GUI 的 store 编排逻辑（发牌/亮主/扣底/结算/轮转）无任何自动化测试，回归只能靠 ui-smoke 浏览器断言。
+
+**修复**：client 新增 vitest 配置与 `gameStore.test.ts` 4 项测试（fake timers + mock dev 参数锁定 seed=42）：①4 AI 种子局完整打到 RoundEnd（得分 145 与 smoke 已知结果一致、甩牌局 17 墩提前耗尽）；②有人类时亮主阶段等待人工操作不自动 finalize；③人类亮无主顶庄 → 33 张选 8 扣底 → 25 张出牌；④庄家 A 打赢 → matchOver 停局不再续局。dev.ts 增加非浏览器环境容错。
+
+**新增 4 项测试**（gameStore.test.ts：4 项），引擎 634 项 + arena 64 项 + CLI 80 项 + client 4 项 = 782 项通过。
+
+- **影响文件**：`packages/client/vitest.config.ts`、`packages/client/src/store/gameStore.test.ts`、`packages/client/src/dev.ts`
+
 ## 2026-08-08 19:15
 
 ### 修复：GUI 可玩——store 编排重写（亮主/扣底/结算/轮转）+ 引擎甩牌早结束

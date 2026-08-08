@@ -12,7 +12,10 @@ export interface DevParams {
 }
 
 function parseParams(): DevParams {
-  const sp = new URLSearchParams(window.location.search);
+  // Tolerate non-browser environments (vitest runs the store in node).
+  const sp = typeof window !== 'undefined'
+    ? new URLSearchParams(window.location.search)
+    : new URLSearchParams();
   const rawSeed = sp.get('seed');
   const seed = rawSeed !== null && /^\d+$/.test(rawSeed) ? Number(rawSeed) : null;
   const auto = sp.get('auto') === '1';

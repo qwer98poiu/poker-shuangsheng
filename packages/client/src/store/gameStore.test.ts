@@ -1,0 +1,136 @@
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { createInitialState, GamePhase, Suit } from '@poker/engine';
+import type { GameState, PlayerState } from '@poker/engine';
+
+// Deterministic dev params (same derivation as src/dev.ts).
+vi.mock('../dev.js', () => ({
+  devParams: { seed: 42, auto: false, speed: 8 },
+  seedFor: (seed: number, roundNumber: number) => (seed + roundNumber * 31) >>> 0,
+}));
+
+import { useGameStore } from './gameStore.js';
+
+const advance = (ms: number) => vi.advanceTimersByTimeAsync(ms);
+
+async function waitFor(pred: () => boolean, guard = 4000): Promise<void> {
+  let n = 0;
+  while (!pred() && n++ < guard) await advance(200);
+  expect(pred()).toBe(true);
+}
+
+function emptyPlayer(name: string, index: number): PlayerState {
+  return { name, index, hand: [], isHuman: false };
+}
+
+beforeEach(() => {
+  vi.useFakeTimers();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+describe('gameStore — seeded 4-AI match', () => {
+  it('种子局完整打到 RoundEnd：得分/历史一致，25 张牌耗尽', async () => {
+    useGameStore.getState().startGame([true, true, true, true], false);
+    await waitFor(() => useGameStore.getState().gameState?.phase === 'round_end');
+
+    const gs = useGameStore.getState().gameState!;
+    expect(gs.phase).toBe(GamePhase.RoundEnd);
+    expect(useGameStore.getState().roundNumber).toBe(0);
+    // seed=42 已知结果（与 ui-smoke 一致）
+    expect(gs.attackerPoints).toBe(145);
+    expect(gs.players.every(p => p.hand.length === 0)).toBe(true);
+
+    const declarer = gs.trumpDeclaration!.declarerIndex;
+    const attackerTeam = declarer % 2 === 0 ? 1 : 0;
+    const expected = gs.trickHistory
+      .filter(t => t.winnerIndex % 2 === attackerTeam)
+      .reduce((s, t) => s + t.points, 0);
+    expect(gs.attackerPoints).toBe(expected);
+    expect(gs.trickHistory).toHaveLength(gs.tricksPlayed);
+    expect(gs.tricksPlayed).toBe(17); // 甩牌局提前耗尽（引擎 round-end-early 修复）
+  });
+});
+
+describe('gameStore — human reveal flow', () => {
+  it('有人类时亮主阶段等待人类操作，不自动 finalize', async () => {
+    useGameStore.getState().startGame([false, true, true, true], false);
+    await waitFor(() => useGameStore.getState().gameState?.phase === 'revealing');
+
+    // 人类不操作：推进 5 秒仍停留在 revealing
+    await advance(5000);
+    expect(useGameStore.getState().gameState?.phase).toBe('revealing');
+
+    // 人类点"确定" → 亮主完毕进入后续流程（seed=42：AI-1 已亮无主，扣底后 playing）
+    useGameStore.getState().humanPassReveal();
+    await waitFor(() => {
+      const p = useGameStore.getState().gameState?.phase;
+      return p === 'playing' || p === 'bottom_exchange' || p === 'round_end';
+    });
+    expect(useGameStore.getState().gameState?.phase).toBe('playing');
+  });
+
+  it('人类亮主（对大王无主）→ 顶庄 → 33 张选 8 扣底 → 25 张出牌（真实种子流程）', async () => {
+    useGameStore.getState().startGame([false, true, true, true], false);
+    await waitFor(() => useGameStore.getState().gameState?.phase === 'revealing');
+
+    // seed=42：人类手牌有对大王 → 亮无主（strength 4）
+    useGameStore.getState().humanReveal(null);
+    let gs = useGameStore.getState().gameState!;
+    expect(gs.currentReveal).toEqual({ playerIndex: 0, suit: null, strength: 4 });
+    expect(gs.phase).toBe(GamePhase.Revealing); // 亮主后仍等待人类"确定"
+
+    useGameStore.getState().humanPassReveal();
+    await waitFor(() => useGameStore.getState().gameState?.phase === 'bottom_exchange');
+    gs = useGameStore.getState().gameState!;
+    expect(gs.trumpDeclaration?.declarerIndex).toBe(0); // 首局亮主者顶庄
+    expect(gs.players[0].hand).toHaveLength(33); // 底牌并入
+
+    // 选 8 张扣底（含主牌 → store 层不拦截，UI 层有二次确认）
+    const picks = gs.players[0].hand.slice(0, 8);
+    for (const c of picks) useGameStore.getState().selectCard(c.id);
+    expect(useGameStore.getState().selectedCardIds).toHaveLength(8);
+    useGameStore.getState().submitBottomExchange();
+    await advance(200);
+
+    gs = useGameStore.getState().gameState!;
+    expect(gs.phase).toBe(GamePhase.Playing);
+    expect(gs.players[0].hand).toHaveLength(25);
+    expect(gs.bottomCards).toHaveLength(8);
+    expect(gs.bottomCards.map(c => c.id).sort()).toEqual(picks.map(c => c.id).sort());
+  });
+});
+
+describe('gameStore — match over', () => {
+  it('庄家在 A 打赢 → matchOver 停局，不再自动续局', async () => {
+    const players: [PlayerState, PlayerState, PlayerState, PlayerState] = [
+      emptyPlayer('玩家1', 0), emptyPlayer('AI-2', 1),
+      emptyPlayer('AI-3', 2), emptyPlayer('AI-4', 3),
+    ];
+    const base = createInitialState(players, 0, 14, false);
+    const fake: GameState = {
+      ...base,
+      phase: GamePhase.RoundEnd,
+      attackerPoints: 40,
+      trumpDeclaration: { declarerIndex: 0, trumpSuit: Suit.Spades, level: 14 },
+      bottomCards: [],
+      trickHistory: [],
+    };
+    useGameStore.setState({
+      gameState: fake,
+      aiPlayers: [true, true, true, true],
+      roundNumber: 5,
+      teamLevels: [14, 2],
+      matchOver: false,
+    });
+
+    useGameStore.getState().startNewRound();
+    expect(useGameStore.getState().matchOver).toBe(true);
+    // 停在结算屏：不再发牌
+    expect(useGameStore.getState().gameState?.phase).toBe(GamePhase.RoundEnd);
+    await advance(10000);
+    expect(useGameStore.getState().gameState?.phase).toBe(GamePhase.RoundEnd);
+    expect(useGameStore.getState().roundNumber).toBe(5);
+  });
+});
