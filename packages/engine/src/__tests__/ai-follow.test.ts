@@ -549,6 +549,42 @@ describe('position-aware point adding (diamonds trump, level=2)', () => {
       expect(r.reason).toBeTruthy();
       // Should not crash
     });
+
+    it('NT 领对大王、第三家队友已大 → 垫两张级牌4，保留小王', () => {
+      // 用户场景：4NT 无主，P0 领对大王。NT 中级牌4是最小主牌（< 小王），
+      // 修复前 discardSort 的"级牌排后"规则错误地把小王排在前面被垫掉。
+      const lead: Card[] = [ct('J', 16, 200), ct('J', 16, 201)];
+      const hand = [ct('J', 15, 0), ct('C', 4, 1), ct('H', 4, 2), ct('S', 9, 3)];
+      const ctx: AIContext = {
+        declarerIndex: 0, trumpSuit: null, level: 4,
+        myIndex: 2, isDeclarer: false, isDeclarerPartner: false,
+        isAttacker: true, attackerPoints: 0,
+        handCounts: [25, 25, 25, 25] as const, trickHistory: [], reveals: [],
+        playCount: 2, leadPlayerIndex: 0,
+        bestSoFar: { cards: lead, playerIndex: 0 },
+        ntState: mockNTState, bottomCards: [], debug: false,
+      };
+      const r = aiFollowPlay(hand, lead, null as any, ctx);
+      expect(r.cards.map(c => c.id).sort()).toEqual(['C-4-1', 'H-4-2']);
+      expect(r.cards.some(c => c.rank === 15)).toBe(false); // 不垫小王
+    });
+
+    it('NT 领对大王、第四家对手已大（盖不过）→ 垫两张级牌4，保留小王', () => {
+      const lead: Card[] = [ct('J', 16, 200), ct('J', 16, 201)];
+      const hand = [ct('J', 15, 0), ct('C', 4, 1), ct('H', 4, 2), ct('S', 9, 3)];
+      const ctx: AIContext = {
+        declarerIndex: 0, trumpSuit: null, level: 4,
+        myIndex: 3, isDeclarer: false, isDeclarerPartner: false,
+        isAttacker: true, attackerPoints: 0,
+        handCounts: [25, 25, 25, 25] as const, trickHistory: [], reveals: [],
+        playCount: 3, leadPlayerIndex: 0,
+        bestSoFar: { cards: lead, playerIndex: 0 },
+        ntState: mockNTState, bottomCards: [], debug: false,
+      };
+      const r = aiFollowPlay(hand, lead, null as any, ctx);
+      expect(r.cards.map(c => c.id).sort()).toEqual(['C-4-1', 'H-4-2']);
+      expect(r.cards.some(c => c.rank === 15)).toBe(false); // 不垫小王
+    });
   });
 
 });
