@@ -41,10 +41,20 @@ Third position with tmWin should check canAddPoints before trumping.
 Adds nonTrump.length >= leadLen guard for safe filler selection.
 
 第三家队友已大时，缺门应先检查可加分再毙牌。
-新增1项测试，452项通过。
+新增 1 项测试，引擎 614 项 + arena 64 项 + CLI 80 项 = 758 项通过。
 
 Co-Authored-By: DeepSeek V4 Pro <noreply@deepseek.com>
 ```
+
+测试数行格式（提交信息与 Changelog 一致）：
+
+```
+新增 N 项测试，引擎 X 项 + arena X 项 + CLI X 项 + client X 项 = X 项通过。
+```
+
+- 无新增测试写 `无新增测试`；删除测试写 `删除 N 项测试`。
+- client 无测试时省略 `client` 项。
+- 提交信息与 Changelog 中的测试数必须与实际测试结果一致（`npm run test` 各包之和）。
 
 ## Changelog 格式
 
@@ -57,7 +67,7 @@ Co-Authored-By: DeepSeek V4 Pro <noreply@deepseek.com>
 
 **修复**：<修复描述>
 
-**新增 N 项测试**（file.ts：M 项），总数 通过。
+**新增 N 项测试**（file.ts：M 项），引擎 X 项 + arena X 项 + CLI X 项 + client X 项 = X 项通过。
 
 - **影响文件**：`path/to/file.ts`
 ```
