@@ -126,8 +126,14 @@ function getCompareKey(lead: Card[], follow: Card[], config: TrumpDeclaration): 
     const key = getMaxInTractors(fc.tractors, minLen, config);
     if (key) return key;
   }
-  if (lc.pairs.length > 0) return maxCard(fc.pairs.flat(), config);
-  return maxCard(fc.singles, config);
+  // follow 可能没有与领出对应的独立对/单张成分（如用拖拉机覆盖领出的对、
+  // 或纯主牌盖毙）——成分为空时用 follow 整体最大牌兜底，避免对空数组求值。
+  if (lc.pairs.length > 0) {
+    const pairCards = fc.pairs.flat();
+    if (pairCards.length > 0) return maxCard(pairCards, config);
+  }
+  if (fc.singles.length > 0) return maxCard(fc.singles, config);
+  return maxCard(follow, config);
 }
 
 // ---- Two-card comparison ----

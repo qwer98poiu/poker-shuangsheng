@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-08 14:29
+
+### 修复：竞技场崩溃——拖拉机覆盖领出对子时 getCompareKey 对空数组求 maxCard
+
+**问题**：`npm run arena -- --pairs 5000 --seed 43 --strategy-b ai-0801` 跑 7000 场后崩溃 `Reduce of empty array with no initial value`（PAIR 3547 复现）。根因：NT 模式（级牌 11），领出 ♠A♠A♠Q♠Q♠K（两对+单甩），玩家 2 用 2 大王+♦11♦11+♣11 全主盖毙；第四家 AI 手上有小王对+♥11对（NT 常主跨组拖拉机），盖毙时 `trumpKill` 把拖拉机当两个独立对选出，`compareTwo` 双方都匹配领出后进入 `getCompareKey`——领出含对（lc.pairs 非空）而 follow 的成分全被拖拉机吞掉（fc.pairs 空）→ `maxCard([])` 崩溃。另：闲家 60 分 + 领出 10 分 = 70 触发禁分（不走加分路径），才走到盖毙崩溃路径。
+
+**修复**：`getCompareKey` throw 分支对空成分兜底——fc.pairs 为空时依次尝试 fc.singles、最后用 follow 整体最大牌（`maxCard(follow)`），不再对空数组求值。该分支仅在拖拉机覆盖领出对（或纯主牌毙）时触发，其余路径行为不变。
+
+**验证**：seed 43 崩溃对决（PAIR 3547）修复后正常（AI 盖不过垫牌）；新增 2 项测试（ai-follow.test.ts：2 项）——修复前均崩溃（空数组 reduce），修复后通过。引擎 604 项 + arena 64 项 + CLI 80 项 = 748 项通过。
+
+- **影响文件**：`packages/engine/src/comparing/index.ts`、`packages/engine/src/__tests__/ai-follow.test.ts`、`packages/arena/src/__tests__/arena-e2e.test.ts`
+
 ## 2026-08-08 12:54
 
 ### 修复：第三家盖不过主牌单张时垫分牌而非非分牌
