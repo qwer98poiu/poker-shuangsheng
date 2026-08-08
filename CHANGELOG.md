@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-08 16:09
+
+### 修复：缺门垫牌全是主牌时理由应为"垫主牌"
+
+**问题**：第 13 墩场景（P2 领 ♥9♥9，P0 第二家手牌全主、无主对不能毙对子），/hint 建议 ♠Q♠A 理由显示"垫牌"——垫出的全是主牌，应显示"垫主牌"（finishTeammateWin 已有此区分，discardNonTrump 缺门路径漏了）。
+
+**修复**：`discardNonTrump` 的 reason base 按垫出牌判定——全部是主牌 → 「垫主牌」，否则「垫牌」（与 finishTeammateWin 的 hasNonTrump 判定一致）。STRATEGY.md 后缀表「垫主牌」语义同步扩展。
+
+**新增 1 项测试**（ai-follow.test.ts：1 项），引擎 614 项 + arena 64 项 + CLI 80 项 = 758 项通过。
+
+- **影响文件**：`packages/engine/src/ai/helpers.ts`、`packages/engine/src/__tests__/ai-follow.test.ts`、`packages/engine/src/ai/STRATEGY.md`
+
 ## 2026-08-08 15:48
 
 ### 修复：第四家出牌理由恒标注加分/不加分

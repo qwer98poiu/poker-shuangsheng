@@ -3207,3 +3207,29 @@ describe('fourth position reason always carries add/avoid mark', () => {
     expect(r.reason).toBe('垫同花色（盖不过，不加分）');
   });
 });
+
+// ================================================================
+// 缺门垫牌全是主牌 → 垫主牌（用户第13墩场景）
+// ================================================================
+describe('void discard with all-trump hand says 垫主牌', () => {
+  const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 6 };
+  const c5 = (s: string, r: number, i: number): Card => createCard(s as any, r as any, i);
+
+  it('第二家、缺门不能毙、手牌全主 → 垫主牌', () => {
+    // P2 领出 ♥9♥9（红桃对），P0（第二家）无红桃、主牌全单张不能毙对子
+    const hand = [c5('J', 16, 0), c5('J', 15, 0), c5('C', 6, 0), c5('S', 14, 0), c5('S', 12, 0)];
+    const lead = [c5('H', 9, 200), c5('H', 9, 201)];
+    const ctx: AIContext = {
+      declarerIndex: 0, trumpSuit: Suit.Spades, level: 6,
+      myIndex: 0, isDeclarer: false, isDeclarerPartner: false,
+      isAttacker: true, attackerPoints: 30,
+      handCounts: [5, 5, 5, 5], trickHistory: [], reveals: [],
+      playCount: 1, leadPlayerIndex: 2,               // 第二家
+      bestSoFar: { cards: lead, playerIndex: 2 },     // 领出者（队友）最大
+      ntState: null, bottomCards: [], debug: false,
+    };
+    const r = aiFollowPlay(hand, lead, Suit.Hearts, ctx);
+    checkFollow(r.cards, hand, lead, 'H', cfg);
+    expect(r.reason).toBe('垫主牌');
+  });
+});
