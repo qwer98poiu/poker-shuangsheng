@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-08 20:10
+
+### 修复：引擎类型检查全绿，`npm run build` 首次完整通过
+
+**问题**：引擎 `tsc --noEmit` 报 63 个类型错误——① `ai/helpers.ts` 的 `mode === 'forbid'` 比较：本函数内 mode 仅产生 avoid/open/add/full，第一个比较后 TS 收窄使 'forbid' 永远不可达（TS2367）；② 62 个测试文件错误：引擎类型重构后 `createCard('S', ...)`/`pair('H')` 等仍用字符串字面量传 `CardSuit` 参数。这些错误使引擎 build 与根 `npm run build`（tsc && vite build）一直失败。
+
+**修复**：helpers.ts 删除死代码比较（forbid 仅来自 follow-offsuit 的 fillMode，此处不可能出现），注释注明口径；测试文件改用枚举 `Suit.Spades/Hearts/Clubs/Diamonds` 与 `SpecialSuit.Joker`（ai-follow.test.ts 41 处、round-outcome.test.ts 17 处、revealing.test.ts 4 处）。行为零变化，`npm run build` 完整通过。
+
+**新增 0 项测试**，引擎 634 项 + arena 64 项 + CLI 80 项 + client 4 项 = 782 项通过。
+
+- **影响文件**：`packages/engine/src/ai/helpers.ts`、`packages/engine/src/__tests__/ai-follow.test.ts`、`packages/engine/src/__tests__/round-outcome.test.ts`、`packages/engine/src/__tests__/revealing.test.ts`
+
 ## 2026-08-08 19:23
 
 ### 新增：client store 单测（种子局全流程/亮主等待/33 张扣底/matchOver 停局）

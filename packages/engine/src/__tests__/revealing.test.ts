@@ -100,22 +100,22 @@ describe('Revealing — aiTryReveal 对子反主', () => {
   const pair = (s: CardSuit) => [createCard(s, 5, 0), createCard(s, 5, 1)];
 
   it('对子反单张（保持既有行为）', () => {
-    const r = aiTryReveal(pair('H'), [], 1, 5, { suit: Suit.Diamonds, strength: 1 });
+    const r = aiTryReveal(pair(Suit.Hearts), [], 1, 5, { suit: Suit.Diamonds, strength: 1 });
     expect(r?.suit).toBe(Suit.Hearts);
   });
 
   it('对子不能反其他花色对子', () => {
-    const r = aiTryReveal(pair('C'), [], 1, 5, { suit: Suit.Hearts, strength: 2 });
+    const r = aiTryReveal(pair(Suit.Clubs), [], 1, 5, { suit: Suit.Hearts, strength: 2 });
     expect(r).toBeNull();
   });
 
   it('对子不能反同花色对子', () => {
-    const r = aiTryReveal(pair('H'), [], 1, 5, { suit: Suit.Hearts, strength: 2 });
+    const r = aiTryReveal(pair(Suit.Hearts), [], 1, 5, { suit: Suit.Hearts, strength: 2 });
     expect(r).toBeNull();
   });
 
   it('对子不能反对王（无主）', () => {
-    const r = aiTryReveal(pair('H'), [], 1, 5, { suit: null, strength: 3 });
+    const r = aiTryReveal(pair(Suit.Hearts), [], 1, 5, { suit: null, strength: 3 });
     expect(r).toBeNull();
   });
 });

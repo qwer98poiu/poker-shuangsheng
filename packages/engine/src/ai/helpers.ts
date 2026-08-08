@@ -53,9 +53,10 @@ export function discardNonTrump(
   const cards = selectFillers(hand, leadLen, ctx, mode,
     { allowBreakPair: shouldBreakPairForPoints(ctx, combo) });
   const addPt = tmWin && canAddPoints(tmWin, position, combo, ctx);
-  // 第四家恒标注：不加分时（avoid/forbid）标注避分；第二/三家保持原样
+  // 第四家恒标注：不加分时（avoid）标注避分；第二/三家保持原样。
+  // 本函数内 mode 仅来自上方三元（avoid/open/add/full），不产生 forbid。
   const intent = addPt ? 'add'
-    : (position === 'fourth' && (mode === 'avoid' || mode === 'forbid')) ? 'avoid' : 'none';
+    : (position === 'fourth' && mode === 'avoid') ? 'avoid' : 'none';
   // 垫出的全是主牌（缺门不能毙、手牌全主）→ 垫主牌（与 finishTeammateWin 一致）
   const baseReason = cards.every(c => isTrump(c, ctx)) ? '垫主牌' : '垫牌';
   const reason = annotateReason(baseReason, cards, [], [],

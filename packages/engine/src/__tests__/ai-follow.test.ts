@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Suit } from '../types.js';
+import { Suit, SpecialSuit } from '../types.js';
 import { createCard, isTrump } from '../model.js';
 import { classify } from '../pattern/index.js';
 import { compareTwo } from '../comparing/index.js';
@@ -1445,15 +1445,15 @@ describe('NT throw kill: 拖拉机覆盖领出对子（getCompareKey 空成分�
 
   it('盖毙用拖拉机（小王对+级牌对）盖两对甩领出：不崩溃且出牌合法', () => {
     const lead: Card[] = [
-      createCard('S', 14, 200), createCard('S', 14, 201),
-      createCard('S', 12, 202), createCard('S', 12, 203),
-      createCard('S', 13, 204),
+      createCard(Suit.Spades, 14, 200), createCard(Suit.Spades, 14, 201),
+      createCard(Suit.Spades, 12, 202), createCard(Suit.Spades, 12, 203),
+      createCard(Suit.Spades, 13, 204),
     ];
     const hand: Card[] = [
-      createCard('D', 3, 0), createCard('D', 2, 0),
-      createCard('J', 15, 0), createCard('J', 15, 1),   // 小王对（主）
-      createCard('H', 13, 0), c11('H', 0), createCard('D', 8, 0), createCard('D', 5, 0),
-      c11('H', 1), createCard('D', 13, 0), createCard('H', 5, 0), c11('S', 0),
+      createCard(Suit.Diamonds, 3, 0), createCard(Suit.Diamonds, 2, 0),
+      createCard(SpecialSuit.Joker, 15, 0), createCard(SpecialSuit.Joker, 15, 1),   // 小王对（主）
+      createCard(Suit.Hearts, 13, 0), c11('H', 0), createCard(Suit.Diamonds, 8, 0), createCard(Suit.Diamonds, 5, 0),
+      c11('H', 1), createCard(Suit.Diamonds, 13, 0), createCard(Suit.Hearts, 5, 0), c11('S', 0),
     ];
     const ctx: AIContext = {
       declarerIndex: 0, trumpSuit: null, level: 11,
@@ -1462,7 +1462,7 @@ describe('NT throw kill: 拖拉机覆盖领出对子（getCompareKey 空成分�
       handCounts: [12, 7, 7, 7], trickHistory: [], reveals: [],
       playCount: 3, leadPlayerIndex: 1,               // 第四家
       bestSoFar: {
-        cards: [createCard('J', 16, 107), createCard('J', 16, 53),
+        cards: [createCard(SpecialSuit.Joker, 16, 107), createCard(SpecialSuit.Joker, 16, 53),
           c11('D', 48), c11('D', 102), c11('C', 35)], // 玩家2 全主盖毙
         playerIndex: 2,
       },
@@ -1477,17 +1477,17 @@ describe('NT throw kill: 拖拉机覆盖领出对子（getCompareKey 空成分�
     // 直接回归 comparing：领出两对+单，bestSoFar 全主盖毙（匹配），
     // follow 是拖拉机（无独立对）——first/second 都匹配才进 getCompareKey。
     const lead: Card[] = [
-      createCard('S', 14, 200), createCard('S', 14, 201),
-      createCard('S', 12, 202), createCard('S', 12, 203),
-      createCard('S', 13, 204),
+      createCard(Suit.Spades, 14, 200), createCard(Suit.Spades, 14, 201),
+      createCard(Suit.Spades, 12, 202), createCard(Suit.Spades, 12, 203),
+      createCard(Suit.Spades, 13, 204),
     ];
     const bs: Card[] = [
-      createCard('J', 16, 107), createCard('J', 16, 53),
+      createCard(SpecialSuit.Joker, 16, 107), createCard(SpecialSuit.Joker, 16, 53),
       c11('D', 48), c11('D', 102), c11('C', 35),
     ];
     const follow: Card[] = [
-      createCard('J', 15, 300), createCard('J', 15, 301),
-      createCard('H', 11, 302), createCard('H', 11, 303),
+      createCard(SpecialSuit.Joker, 15, 300), createCard(SpecialSuit.Joker, 15, 301),
+      createCard(Suit.Hearts, 11, 302), createCard(Suit.Hearts, 11, 303),
     ];
     expect(() => compareTwo(bs, follow, lead, cfg)).not.toThrow();
   });
@@ -1498,16 +1498,16 @@ describe('NT throw kill: 拖拉机覆盖领出对子（getCompareKey 空成分�
     // 顺序 pairs→singles→follow 跳过了拖拉机，填充后 key 取单张（800）
     // 与对方打平 → 误判盖不过而垫牌。应出拖拉机+单盖毙。
     const lead: Card[] = [
-      createCard('S', 14, 200), createCard('S', 14, 201),
-      createCard('S', 12, 202), createCard('S', 12, 203),
-      createCard('S', 13, 204),
+      createCard(Suit.Spades, 14, 200), createCard(Suit.Spades, 14, 201),
+      createCard(Suit.Spades, 12, 202), createCard(Suit.Spades, 12, 203),
+      createCard(Suit.Spades, 13, 204),
     ];
     const hand: Card[] = [
-      createCard('J', 15, 0), createCard('J', 15, 1),   // 小王对（主）
+      createCard(SpecialSuit.Joker, 15, 0), createCard(SpecialSuit.Joker, 15, 1),   // 小王对（主）
       c11('H', 0), c11('H', 1), c11('S', 0),            // ♥11对 + ♠11（主）
-      createCard('D', 3, 0), createCard('D', 2, 0), createCard('H', 13, 0),
-      createCard('D', 8, 0), createCard('D', 5, 0), createCard('D', 13, 0),
-      createCard('H', 5, 0),
+      createCard(Suit.Diamonds, 3, 0), createCard(Suit.Diamonds, 2, 0), createCard(Suit.Hearts, 13, 0),
+      createCard(Suit.Diamonds, 8, 0), createCard(Suit.Diamonds, 5, 0), createCard(Suit.Diamonds, 13, 0),
+      createCard(Suit.Hearts, 5, 0),
     ];
     const ctx: AIContext = {
       declarerIndex: 0, trumpSuit: null, level: 11,
