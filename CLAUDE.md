@@ -66,8 +66,9 @@ Co-Authored-By: DeepSeek V4 Pro <noreply@deepseek.com>
 
 ## 开发原则
 
-- **用户反馈的 bug，先根据其输入的牌局构造测试用例，确认复现 bug 后再修复**。测试应尽可能还原用户描述的场景（手牌、领出、位置等），确保回归测试能捕获同类问题。
+- **用户反馈牌局时（无论要求修 bug 还是理论分析），先执行代码拿到结果，再思考**。应构造场景直接调用引擎 AI（`aiFollowPlay`/`aiLeadPlay` 等，可手写 AIContext 或写临时脚本实测）或写复现测试，先取得实测输出，再基于结果分析；不要先手推逻辑或凭规格推断。修 bug 时：先根据其输入的牌局构造测试用例，确认复现 bug 后再修复。测试应尽可能还原用户描述的场景（手牌、领出、位置等），确保回归测试能捕获同类问题。
 - **修改 Changelog 必须在代码提交之前**。每次提交前先写 Changelog，再 `git add` 一起提交。Changelog 时间与提交时间允许相差几分钟，无需强制对齐。
+- **Changelog 只在更新代码时写**（fix/feat/strategy/refactor/test 等）；纯文档提交（`docs:`）一律不写 Changelog。
 - **测试断言优先用精确值**（`toBe(n)`），避免使用 `toBeGreaterThan`、`toBeGreaterThanOrEqual` 等模糊匹配，除非值本身因外部因素不确定。
 - **基础模块的测试必须逐项穷举**。对于记牌器这类高阶策略依赖的基础模块，测试覆盖所有视角 × 所有目标玩家 × 所有可能的牌（suit-rank）× 精确张数断言，不允许只验证部分卡牌。
 
