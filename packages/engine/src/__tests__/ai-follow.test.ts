@@ -177,6 +177,28 @@ describe('AI follow play compliance', () => {
       checkFollow(play, hand, lead, leadTrump ? null : 'H', cfg5);
     });
 
+    it('third position, cannot beat trump single -> non-point trump before point trump（盖不过避分）', () => {
+      // 用户场景：P3 领出吊主 ♥10，P0（第二家）出大王盖过，P1（第三家）盖不过。
+      // 规格：盖不过前两家出最小主牌且不加分 → 不加分按避分优先级
+      // （主牌 A 以下非分单 ♥Q 先于主牌 A 以下分单 ♥10）→ 应出 ♥Q 而非 ♥10。
+      const lead: Card[] = [c('H', 10, 200)];
+      const ctx: AIContext = {
+        declarerIndex: 0, trumpSuit: Suit.Hearts, level: 5,
+        myIndex: 1, isDeclarer: false, isDeclarerPartner: false,
+        isAttacker: false, attackerPoints: 15,
+        handCounts: [6, 6, 6, 6], trickHistory: [], reveals: [],
+        playCount: 2, leadPlayerIndex: 3,
+        bestSoFar: { cards: [c('J', 16, 0)], playerIndex: 0 }, // 玩家1 大王
+        ntState: null, bottomCards: [], debug: false,
+      };
+      const hand = [c('H', 12, 0), c('H', 10, 0), c('S', 12, 0)]; // ♥Q(非分) ♥10(10分) ♠Q
+      const r = aiFollowPlay(hand, lead, Suit.Hearts, ctx);
+      checkFollow(r.cards, hand, lead, 'H', cfg5);
+      expect(r.cards.length).toBe(1);
+      expect(r.cards[0].rank).toBe(12); // ♥Q，不是 ♥10
+      expect(r.reason).toContain('同花色出小');
+    });
+
     it('single trump, only one trump in hand -> 唯一可出', () => {
       // AI-2 has only ♣7 (H-8) as trump, rest are non-trump.
       // Lead H-12 — AI-2 plays its sole trump, no choice.

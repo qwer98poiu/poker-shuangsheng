@@ -61,9 +61,10 @@ describe('arena e2e', () => {
     expect(statsB.matches.played).toBe(40);
     expect(statsB.matches.won).toBe(20);
     expect(statsB.matches.drawn).toBe(0);
-    // 镜像对称：双方各胜 20 场，胜时对方平均等级 224/20 = 11.2（A=14）
-    expect(statsA.matches.oppLevel).toEqual({ n: 224, d: 20 });
-    expect(statsB.matches.oppLevel).toEqual({ n: 224, d: 20 });
+    // 镜像对称：双方各胜 20 场，胜时对方平均等级 214/20 = 10.7（A=14）
+    //（44073d6 第三家避分修复改变对局走向后的值）
+    expect(statsA.matches.oppLevel).toEqual({ n: 214, d: 20 });
+    expect(statsB.matches.oppLevel).toEqual({ n: 214, d: 20 });
     expect(statsA.handsPlayed).toBe(statsB.handsPlayed);
     expect(statsA.abortedHands).toBe(0);
     const sig = checkSignificance(statsA.matches.won, statsB.matches.won, statsA.matches.drawn, statsA.matches.played);

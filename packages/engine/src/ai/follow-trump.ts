@@ -150,8 +150,9 @@ export function followTrumpLead(
             leadCombo, 1, ctx, position, tmWin, false, 'none');
           return { cards, reason };
         }
-        // 盖不过前两家 → 最小主牌且不加分
-        myTrump.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+        // 盖不过前两家 → 最小主牌且不加分（避分优先级：主牌A以下非分单先于分单，
+        // 级牌归"主牌A或更大"末类；分牌不优先）
+        myTrump.sort(discardSort(false, ctx));
         const cards = [myTrump[0]];
         const reason = annotateReason('同花色出小', cards, myTrump, myTrump,
           leadCombo, 1, ctx, position, tmWin, false, 'avoid');
