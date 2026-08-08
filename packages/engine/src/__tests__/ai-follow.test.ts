@@ -1491,6 +1491,42 @@ describe('NT throw kill: 拖拉机覆盖领出对子（getCompareKey 空成分�
     ];
     expect(() => compareTwo(bs, follow, lead, cfg)).not.toThrow();
   });
+
+  it('拖拉机+单盖毙能盖过的对方（900 > 800）：用拖拉机盖毙而非垫牌', () => {
+    // 用户追问：AI 试图用对小王盖毙——若对方毙牌无大王（最大 800），
+    // AI 的拖拉机（小王对+♥11对，900）本可盖过，但 getCompareKey 兜底
+    // 顺序 pairs→singles→follow 跳过了拖拉机，填充后 key 取单张（800）
+    // 与对方打平 → 误判盖不过而垫牌。应出拖拉机+单盖毙。
+    const lead: Card[] = [
+      createCard('S', 14, 200), createCard('S', 14, 201),
+      createCard('S', 12, 202), createCard('S', 12, 203),
+      createCard('S', 13, 204),
+    ];
+    const hand: Card[] = [
+      createCard('J', 15, 0), createCard('J', 15, 1),   // 小王对（主）
+      c11('H', 0), c11('H', 1), c11('S', 0),            // ♥11对 + ♠11（主）
+      createCard('D', 3, 0), createCard('D', 2, 0), createCard('H', 13, 0),
+      createCard('D', 8, 0), createCard('D', 5, 0), createCard('D', 13, 0),
+      createCard('H', 5, 0),
+    ];
+    const ctx: AIContext = {
+      declarerIndex: 0, trumpSuit: null, level: 11,
+      myIndex: 0, isDeclarer: false, isDeclarerPartner: false,
+      isAttacker: false, attackerPoints: 20,           // 避开 70/75 禁分
+      handCounts: [12, 7, 7, 7], trickHistory: [], reveals: [],
+      playCount: 3, leadPlayerIndex: 1,                // 第四家
+      bestSoFar: {
+        cards: [c11('D', 48), c11('D', 102), c11('C', 35), c11('C', 61), c11('H', 70)], // P3 毙牌，最大 800
+        playerIndex: 3,
+      },
+      ntState: null, bottomCards: [], debug: false,
+    };
+    const r = aiFollowPlay(hand, lead, Suit.Spades, ctx);
+    checkFollow(r.cards, hand, lead, 'S', cfg);
+    // 应出 小王对+♥11对（拖拉机）+♠11 盖毙，而不是垫牌
+    expect(r.cards.map(c => c.rank)).toEqual([15, 15, 11, 11, 11]);
+    expect(r.reason).toContain('盖毙');
+  });
 });
 
 // ================================================================

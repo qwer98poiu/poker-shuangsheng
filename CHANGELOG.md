@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-08 14:44
+
+### 修复：getCompareKey 兜底顺序漏拖拉机——本可盖毙却垫牌
+
+**问题**：14:29 修复（拖拉机覆盖领出对子时崩溃）的兜底顺序为 `fc.pairs → fc.singles → maxCard(follow)`，跳过了拖拉机成分。当 AI 用「拖拉机+单」盖毙（如 NT 下 小王对+♥11对+♠11，最大 900）对付最大 800 的对方毙牌时，填充后 key 取单张（800）与对方打平，被误判盖不过——**本可盖毙却垫牌**。用户追问"第四家试图用对小王盖毙，但他实际上盖不过"暴露了这一点（原崩溃场景对方有 2 大王，AI 确实盖不过、正确垫牌；但无大王的场景会被误判）。
+
+**修复**：`getCompareKey` throw 分支在 fc.pairs 为空时**先取 fc.tractors 最大牌**（与 matchPattern 的对数折算一致），再 singles、最后 follow 整体兜底。原崩溃场景行为不变（盖不过仍垫牌）。
+
+**新增 1 项测试**（ai-follow.test.ts：1 项，修复前失败——垫牌 [2,3,8,5,5] 而非盖毙），引擎 605 项 + arena 64 项 + CLI 80 项 = 749 项通过。
+
+- **影响文件**：`packages/engine/src/comparing/index.ts`、`packages/engine/src/__tests__/ai-follow.test.ts`
+
 ## 2026-08-08 14:29
 
 ### 修复：竞技场崩溃——拖拉机覆盖领出对子时 getCompareKey 对空数组求 maxCard
