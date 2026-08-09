@@ -18,7 +18,7 @@
 import type { Card, CardSuit, ValidationResult } from '../types.js';
 import type { TrumpDeclaration, ComboClass } from '../types.js';
 import { isTrump } from '../model.js';
-import { findAllPairs, detectTractors } from '../pattern/index.js';
+import { findAllPairs, detectTractors, classify } from '../pattern/index.js';
 
 // ---- helpers ----
 
@@ -232,6 +232,46 @@ export function isOnlyLegalPlay(
 }
 
 // ---- Ideal follow computation ----
+
+// ---- Followable cards (UI grey-out) ----
+
+/**
+ * 返回"能出现在某个合法跟牌组合中的牌"（UI 灰色判定用）：
+ * - leadCards 空（领出）→ null（全可选）
+ * - 缺门（手牌无 lead 组牌）→ null（可垫/毙任意）
+ * - 手牌 lead 组牌数 < lead 张数 → null（组牌必出 + 其余任意填）
+ * - 手牌 lead 组牌数 == lead 张数 → 组牌（唯一可出，其余全灰）
+ * - 手牌 lead 组牌数 > lead 张数 → 按 lead 牌型收窄：
+ *   - lead 含单张（single/throw 有单张）→ 组牌（fill 空间自由）
+ *   - lead 全对（pair/tractor）：手牌有对子/拖拉机 → 对子牌（含拖拉机牌）；
+ *     手牌无对子 → 组牌任意（单张组合合法）
+ */
+export function computeFollowableCards(
+  hand: Card[],
+  leadCards: Card[],
+  config: TrumpDeclaration,
+): Card[] | null {
+  if (leadCards.length === 0) return null;
+  const group = followGroup(leadCards, config);
+  const handInGroup = hand.filter(c => followGroup([c], config) === group);
+  const leadLen = leadCards.length;
+
+  if (handInGroup.length === 0) return null;              // 缺门：任意
+  if (handInGroup.length < leadLen) return null;          // 组牌必出 + 任意填
+  if (handInGroup.length === leadLen) return handInGroup; // 唯一可出：只组牌
+
+  const leadPattern = classify(leadCards, config);
+  const tractorPairCount = leadPattern.tractors.reduce((s, t) => s + t.pairCount, 0);
+  const leadAllPairs = leadLen === (leadPattern.pairCount + tractorPairCount) * 2;
+  if (!leadAllPairs) return handInGroup; // lead 含单张 → 有 fill 空间 → 组内任意
+
+  // lead 全对：手牌有对子（含拖拉机）时必须出对子 → 对子牌可点
+  const pairIds = new Set<string>();
+  for (const t of detectTractors(handInGroup, config)) t.forEach(c => pairIds.add(c.id));
+  for (const p of findAllPairs(handInGroup)) p.forEach(c => pairIds.add(c.id));
+  if (pairIds.size > 0) return handInGroup.filter(c => pairIds.has(c.id));
+  return handInGroup; // 手牌无对子/拖拉机：组内任意（单张组合合法）
+}
 
 export interface FollowSpec {
   tractorPairCounts: number[];  // required tractor pair counts, longest first

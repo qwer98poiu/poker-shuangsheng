@@ -44,14 +44,11 @@ describe('computePlayableIds — 不符合规则的牌灰色不可选', () => {
     expect(computePlayableIds(hand, [play([c('S', 5, 9)], null)], cfg, GamePhase.Playing)).toBeNull();
   });
 
-  it('跟对子：手牌同花色牌数 < lead 张数 → 全可点（组牌必出 + 任意填）', () => {
+  it('跟对子：手牌同花色牌数 < lead 张数 → 全可点 null（组牌必出 + 任意填）', () => {
     const hand = [c('H', 3, 0), c('D', 3, 1), c('D', 5, 2)];
-    // lead 是红桃对子（2 张），手牌只有 1 张红桃 → 必须出 H3 + 任意 1 张填
+    // lead 是红桃对子（2 张），手牌只有 1 张红桃 → 全可点（组牌必出由出牌校验）
     const ids = computePlayableIds(hand, [play([c('H', 7, 9), c('H', 8, 10)], Suit.Hearts)], cfg, GamePhase.Playing);
-    expect(ids).not.toBeNull();
-    expect(ids!.has('H-3-0')).toBe(true);   // 组牌必出
-    expect(ids!.has('D-3-1')).toBe(true);   // 填任意
-    expect(ids!.has('D-5-2')).toBe(true);   // 填任意
+    expect(ids).toBeNull();
   });
 
   it('跟单张：手牌同花色数 == lead 张数 → 恰好出该组', () => {

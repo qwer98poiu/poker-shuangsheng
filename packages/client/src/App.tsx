@@ -14,7 +14,9 @@ const App: React.FC = () => {
       <WindowSizeWarning />
       <div className="game-frame">
         {mode === 'setup' ? (
-          <SetupPanel onStart={(aiConfig: boolean[], debug: boolean) => startGame(aiConfig, debug)} />
+          <div className="app-container">
+            <SetupPanel onStart={(aiConfig: boolean[], debug: boolean) => startGame(aiConfig, debug)} />
+          </div>
         ) : (
           <GameTable />
         )}

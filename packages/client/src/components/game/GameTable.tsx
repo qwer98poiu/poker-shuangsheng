@@ -39,6 +39,32 @@ const GameTable: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameState?.phase, gameState?.currentReveal, gameState?.currentLevel, aiPlayers]);
 
+  // 最后一墩自动打出：跟出张数 == 出牌前手牌张数（这墩后手牌清零），
+  // 且人类跟出（非领出）→ 停留 1 秒后自动出全部手牌，无需确认。
+  useEffect(() => {
+    const gs = gameState;
+    if (!gs || gs.phase !== GamePhase.Playing) return;
+    if (gs.currentPlayerIndex !== localPlayerIndex) return;
+    if (gs.trickPlays.length === 0) return; // 领出不自动
+    const leadLen = gs.trickPlays[0].cards.length;
+    if (gs.players[localPlayerIndex].hand.length !== leadLen) return; // 非最后一墩
+    if (selectedCardIds.length > 0) return; // 人类已手动选牌
+    const t = setTimeout(() => {
+      const st = useGameStore.getState();
+      const cur = st.gameState;
+      if (!cur || cur.phase !== GamePhase.Playing) return;
+      if (cur.currentPlayerIndex !== st.localPlayerIndex) return;
+      if (cur.trickPlays.length === 0) return;
+      if (cur.players[st.localPlayerIndex].hand.length !== cur.trickPlays[0].cards.length) return;
+      // 手牌全部必出：选中全部手牌并打出
+      st.clearSelection();
+      cur.players[st.localPlayerIndex].hand.forEach(c => st.selectCard(c.id));
+      st.submitPlay();
+    }, 1000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState, localPlayerIndex, selectedCardIds.length]);
+
   if (!gameState) return null;
 
   const getUIPosition = (gameIndex: number): 'top' | 'left' | 'right' => {
@@ -248,47 +274,55 @@ const GameTable: React.FC = () => {
         );
       })()}
 
-      {/* debug controls — 建议出牌居中；🔧 菜单右上角（点开不挤压布局） */}
+      {/* 建议出牌（调试模式）— 居中 */}
       {debug && (
         <div className="debug-bar">
           <button className="debug-btn" onClick={getHint} data-testid="hint-btn">
             🤖 建议出牌
           </button>
-          <details className="debug-menu" data-testid="debug-menu">
-            <summary>🔧 调试</summary>
-            <div className="debug-menu-content">
-              <button className="debug-btn" onClick={toggleLastTrickReview}>
-                {lastTrickReview ? '隐藏' : '回看'}上轮
-              </button>
-              <button
-                className="debug-btn"
-                data-testid="export-btn"
-                onClick={() => {
-                  const text = formatGameExport({ gameState, roundNumber });
-                  navigator.clipboard.writeText(text).then(
-                    () => setExportCopied(true),
-                    () => setExportCopied(false),
-                  );
-                }}
-              >
-                {exportCopied ? '✅ 已复制' : '📋 导出'}
-              </button>
-              {gameState.aiReasons.length > 0 && (
-                <details className="ai-log" open>
-                  <summary>AI 日志 ({gameState.aiReasons.length})</summary>
-                  <div className="ai-log-content">
-                    {[...gameState.aiReasons].reverse().map((r, i) => (
-                      <div key={i} className="ai-log-entry">
-                        <strong>{gameState.players[r.playerIndex].name}</strong> [{r.phase}]
-                        <span className="ai-reason">{r.reason}</span>
-                      </div>
-                    ))}
-                  </div>
-                </details>
-              )}
-            </div>
-          </details>
         </div>
+      )}
+
+      {/* 回看上轮 — 非调试模式也提供 */}
+      <div className="debug-bar">
+        <button className="debug-btn" onClick={toggleLastTrickReview} data-testid="review-btn">
+          {lastTrickReview ? '隐藏上轮' : '回看上轮'}
+        </button>
+      </div>
+
+      {/* 调试菜单 — 右上角（absolute，展开不覆盖手牌） */}
+      {debug && (
+        <details className="debug-menu" data-testid="debug-menu">
+          <summary>🔧 调试</summary>
+          <div className="debug-menu-content">
+            <button
+              className="debug-btn"
+              data-testid="export-btn"
+              onClick={() => {
+                const text = formatGameExport({ gameState, roundNumber });
+                navigator.clipboard.writeText(text).then(
+                  () => setExportCopied(true),
+                  () => setExportCopied(false),
+                );
+              }}
+            >
+              {exportCopied ? '✅ 已复制' : '📋 导出'}
+            </button>
+            {gameState.aiReasons.length > 0 && (
+              <details className="ai-log" open>
+                <summary>AI 日志 ({gameState.aiReasons.length})</summary>
+                <div className="ai-log-content">
+                  {[...gameState.aiReasons].reverse().map((r, i) => (
+                    <div key={i} className="ai-log-entry">
+                      <strong>{gameState.players[r.playerIndex].name}</strong> [{r.phase}]
+                      <span className="ai-reason">{r.reason}</span>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
+          </div>
+        </details>
       )}
 
       {/* spectator banner */}

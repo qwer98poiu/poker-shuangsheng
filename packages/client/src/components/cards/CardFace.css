@@ -46,7 +46,8 @@
 }
 
 .card.disabled {
-  opacity: 0.5;
+  opacity: 1; /* 不透明灰：清晰可见但不可选（grayscale 替代半透明） */
+  filter: grayscale(0.85);
   cursor: not-allowed;
 }
 

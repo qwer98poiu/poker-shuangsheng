@@ -224,6 +224,17 @@
   min-height: 50px;
 }
 
+/* 墩结算中央标注（赢家 + 得分），沿用方位布局不新开框 */
+.trick-pos-center {
+  grid-area: center;
+  font-size: 12px;
+  color: #ffd740;
+  background: rgba(255, 215, 0, 0.12);
+  border-radius: 6px;
+  padding: 4px 10px;
+  white-space: nowrap;
+}
+
 .bottom-reveal {
   margin-top: 12px;
   padding: 8px;
@@ -537,7 +548,7 @@
   color: #ccc;
 }
 
-/* debug bar — 建议出牌居中；🔧 菜单右上角（absolute，点开不挤压布局）；固定 30px */
+/* debug bar — 建议出牌/回看上轮居中；固定 30px */
 .debug-bar {
   position: relative;
   display: flex;
@@ -549,12 +560,13 @@
   overflow: hidden;
 }
 
+/* 调试菜单 — 游戏画布右上角（absolute 相对 .game-table，展开不覆盖手牌） */
 .debug-menu {
   position: absolute;
   right: 12px;
-  top: 4px;
-  z-index: 30;
-  background: rgba(0, 0, 0, 0.5);
+  top: 8px;
+  z-index: 40;
+  background: rgba(0, 0, 0, 0.7);
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 8px;
   padding: 4px 10px;
@@ -639,44 +651,6 @@
   font-size: 11px;
   opacity: 0.6;
   margin-bottom: 4px;
-}
-
-/* 墩结算显示（第四家出牌后保留到下一墩第一张牌），限高防挤压手牌区 */
-.settled-trick {
-  margin-top: 4px;
-  padding: 4px 8px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 8px;
-  font-size: 12px;
-  max-height: 110px;
-  overflow-y: auto;
-}
-
-.settled-label {
-  font-size: 11px;
-  opacity: 0.6;
-  margin-bottom: 4px;
-}
-
-.settled-play {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 2px 0;
-}
-
-.settled-player {
-  min-width: 70px;
-}
-
-.settled-cards {
-  display: flex;
-}
-
-.settled-points {
-  margin-top: 4px;
-  color: #ffd740;
 }
 
 .review-play {

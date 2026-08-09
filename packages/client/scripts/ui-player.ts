@@ -167,6 +167,32 @@ async function doBottomExchange(page: Page, timeoutMs: number): Promise<void> {
   await waitStateChange(page, sigOf(gs), 'bottom exchange done', timeoutMs);
 }
 
+/**
+ * 以一定概率（15%）展开调试菜单、随机点一个功能（导出/展开 AI 日志），
+ * 然后关闭——验证菜单交互且展开不覆盖手牌（不影响后续出牌）。
+ */
+async function maybeUseDebugMenu(page: Page, snap: UiSnapshot, seed: number): Promise<void> {
+  const st = snap.store!;
+  const gs = st.gameState;
+  const rnd = mulberry32((seed + st.roundNumber * 7919 + gs.tricksPlayed * 131 + 777) >>> 0)();
+  if (rnd >= 0.15) return;
+  const check = await collectSnapshot(page);
+  if (!check.elements.some(e => e.testid === 'debug-menu' && e.visible)) return; // 非调试模式
+  await safeClick(page, '[data-testid="debug-menu"] > summary');
+  await page.waitForTimeout(150);
+  // 菜单内功能：导出（clipboard）+ AI 日志折叠
+  if (rnd < 0.5) {
+    await safeClick(page, '[data-testid="export-btn"]');
+  } else {
+    const log = await collectSnapshot(page);
+    const aiLog = log.elements.find(e => e.cls.includes('ai-log') && e.tag === 'summary');
+    if (aiLog) await safeClick(page, '.ai-log > summary');
+  }
+  await page.waitForTimeout(100);
+  await safeClick(page, '[data-testid="debug-menu"] > summary'); // 关闭
+  console.error('  [dbg-menu] opened, used a feature, closed');
+}
+
 async function doPlay(page: Page, snap: UiSnapshot, seed: number, timeoutMs: number): Promise<void> {
   const st = snap.store!;
   const gs = st.gameState;
@@ -354,6 +380,7 @@ async function runMatch(page: Page, seed: number, maxRounds: number, timeoutMs: 
             const snap = await collectSnapshot(page);
             if (snap.store?.gameState?.phase === GamePhase.Playing
                 && snap.store.gameState.currentPlayerIndex === 0) {
+              await maybeUseDebugMenu(page, snap, seed);
               await doPlay(page, snap, seed, timeoutMs);
             }
           }

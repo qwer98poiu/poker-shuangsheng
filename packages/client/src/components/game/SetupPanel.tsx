@@ -55,6 +55,7 @@ const SetupPanel: React.FC<SetupPanelProps> = ({ onStart }) => {
         <label className="debug-label">
           <input
             type="checkbox"
+            data-testid="setup-debug"
             checked={debug}
             onChange={e => setDebug(e.target.checked)}
           />

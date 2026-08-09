@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-09 18:01
+
+### 新增：GUI 交互与显示完善——引擎可出牌集合、调试菜单右上角、墩结算融入中央、拖拽选牌、最后一墩自动出、局末底牌倍率
+
+**问题**：初始界面（setup 面板）不在画布中央（重写 App 时丢失居中容器）；调试菜单在右下角且不可选中（debug-bar overflow 裁切）；墩结算新开独立框挤压中央区；跟对子/拖拉机时非对牌仍可选（playable 简化花色规则与引擎不一致）；回看上轮藏在调试菜单里、非调试模式不可用；不可选牌半透明（opacity 0.5）不可辨识；手牌只能逐张点击、无法拖拽多选；最后一墩人类跟出仍需手动确认；局末底牌不显示抠底倍率（庄家保底时未归零）。
+
+**修复**：恢复 `.app-container` 居中容器（setup 面板回到画布中央，实测 x=430/552）；调试菜单移到画布右上角（absolute，展开不覆盖手牌），回看上轮独立按钮常驻居中（非调试模式也提供），建议出牌保持调试模式；墩结算不再新开框——沿用四方位布局在中央格显示"赢家 👑 · N 分"（`settled-center`）；引擎新增 `computeFollowableCards`（返回能出现在某合法跟牌组合中的牌，与 validateFollow 同口径：缺门/组牌不足 null 全可点、恰等仅组牌、全对 lead 仅对子/拖拉机牌），client playable 委托引擎；不可选牌改为不透明灰（grayscale 替代半透明）；手牌支持拖拽框选（轨迹矩形覆盖的牌全部选中，单击不误吞——仅真位移后抑制 click）；最后一墩（跟出张数 == 出牌前手牌数，非领出）停留 1 秒自动打出全部手牌（seed 7 实测自动触发）；局末中央展示底牌 + "底牌 N 分 ×倍率"（闲家抠底用引擎 multiplier、庄家保底显示 ×0）；ui-player 以 15% 概率展开调试菜单随机点功能（导出/AI 日志）后关闭再出牌，验证菜单不覆盖手牌。
+
+**新增 12 项测试**（followable.test.ts：12 项），引擎 650 项 + arena 65 项 + CLI 80 项 + client 17 项 = 812 项通过。
+
+- **影响文件**：`packages/engine/src/following/index.ts`、`packages/engine/src/__tests__/followable.test.ts`（新）、`packages/client/src/components/game/playable.ts`、`packages/client/src/App.tsx`、`packages/client/src/components/game/GameTable.tsx`、`packages/client/src/components/game/GameTable.css`、`packages/client/src/components/game/CenterArea.tsx`、`packages/client/src/components/game/PlayerHand.tsx`、`packages/client/src/components/cards/CardFace.css`、`packages/client/src/components/game/SetupPanel.tsx`、`packages/client/scripts/ui-player.ts`
+
 ## 2026-08-09 17:04
 
 ### 修复：ui-player 进度日志实时落盘与 round_end 可靠捕获——stderr 输出、页面内 subscribe hook、轻量轮询
