@@ -1,5 +1,5 @@
 import React from 'react';
-import type { GameState } from '@poker/engine';
+import type { GameState, Trick } from '@poker/engine';
 import { GamePhase, suitLabel, rankLabel, suitName, isPointRank, cardPointsFromRank } from '@poker/engine';
 import CardFace from '../cards/CardFace.js';
 
@@ -7,9 +7,11 @@ interface CenterAreaProps {
   gameState: GameState;
   lastTrickReview: boolean;
   onCloseReview: () => void;
+  /** 上一墩结算显示（第四家出牌后保留到下一墩第一张牌出现）。 */
+  settledTrick?: Trick | null;
 }
 
-const CenterArea: React.FC<CenterAreaProps> = ({ gameState, lastTrickReview, onCloseReview }) => {
+const CenterArea: React.FC<CenterAreaProps> = ({ gameState, lastTrickReview, onCloseReview, settledTrick = null }) => {
   const { phase, trumpDeclaration, attackerPoints, currentLevel, trickPlays, bottomCards, trickHistory } = gameState;
 
   const getPhaseText = () => {
@@ -87,6 +89,29 @@ const CenterArea: React.FC<CenterAreaProps> = ({ gameState, lastTrickReview, onC
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* settled trick — 第四家出牌后保留显示到下一墩第一张牌出现 */}
+      {settledTrick && phase === GamePhase.Playing && trickPlays.length === 0 && (
+        <div className="settled-trick" data-testid="settled-trick">
+          <div className="settled-label">本墩结算</div>
+          {settledTrick.plays.map((play, i) => {
+            const pi = (settledTrick.leadPlayerIndex + i) % 4;
+            return (
+              <div key={i} className="settled-play">
+                <span className="settled-player">
+                  {gameState.players[pi].name} {pi === settledTrick.winnerIndex ? '👑' : ''}
+                </span>
+                <div className="settled-cards">
+                  {play.cards.map(card => (
+                    <CardFace key={card.id} card={card} size="small" />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+          <div className="settled-points">得分: {settledTrick.points}</div>
         </div>
       )}
 

@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-09 11:07
+
+### 修复：GUI 交互——灰色禁选、建议直接选中、回看 5 秒、第四家停顿、手牌固定、日志滑动
+
+**问题**：不符合规则的牌仍可选中；提示与建议出牌是两个按钮且不选中候选牌；上轮回看无自动关闭；第四家出牌瞬间被下一墩覆盖（trickPlays 清空即消失）；中间内容挤压手牌区；AI 日志过高挤压界面。
+
+**修复**：新增 `computePlayableIds` 纯函数（领出全可选/跟牌同花色限定/吊主有主必出主/缺门全可选），不符合规则的牌灰色不可选；建议出牌按钮合一并直接选中候选牌；上轮回看 5 秒后自动关闭；新增墩结算显示（settledTrick：第四家出牌后保留上一墩到下一墩第一张牌出现，含👑赢家与得分）；手牌区 `flex-shrink: 0` 固定；AI 日志压缩为 120px 滑动窗口。
+
+**新增 8 项测试**（playable.test.ts：5 项，gameStore.test.ts：3 项），引擎 638 项 + arena 65 项 + CLI 80 项 + client 12 项 = 795 项通过。
+
+- **影响文件**：`packages/client/src/components/game/playable.ts`（新）、`packages/client/src/components/game/playable.test.ts`（新）、`packages/client/src/components/game/GameTable.tsx`、`packages/client/src/components/game/PlayerHand.tsx`、`packages/client/src/components/game/CenterArea.tsx`、`packages/client/src/components/game/GameTable.css`、`packages/client/src/store/gameStore.ts`、`packages/client/src/store/gameStore.test.ts`
+
 ## 2026-08-09 10:21
 
 ### 修复：GUI 信息显示——AI 日志命名、庄家显示、发牌进度、得分左上角

@@ -80,6 +80,7 @@
 /* bottom section */
 .table-bottom {
   padding: 10px 20px 16px;
+  flex-shrink: 0; /* 手牌区固定，不被中间内容挤压 */
 }
 
 /* ===== player seat ===== */
@@ -544,7 +545,7 @@
 }
 
 .ai-log-content {
-  max-height: 200px;
+  max-height: 120px;
   overflow-y: auto;
   margin-top: 4px;
 }
@@ -578,6 +579,42 @@
   font-size: 11px;
   opacity: 0.6;
   margin-bottom: 4px;
+}
+
+/* 墩结算显示（第四家出牌后保留到下一墩第一张牌） */
+.settled-trick {
+  margin-top: 8px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.settled-label {
+  font-size: 11px;
+  opacity: 0.6;
+  margin-bottom: 4px;
+}
+
+.settled-play {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0;
+}
+
+.settled-player {
+  min-width: 70px;
+}
+
+.settled-cards {
+  display: flex;
+}
+
+.settled-points {
+  margin-top: 4px;
+  color: #ffd740;
 }
 
 .review-play {

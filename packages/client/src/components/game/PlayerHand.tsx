@@ -6,6 +6,8 @@ interface PlayerHandProps {
   cards: Card[];
   selectedIds: string[];
   highlightedIds: string[];
+  /** null = 全部可选；非 null = 仅这些牌可出（其余灰色不可选） */
+  playableIds?: Set<string> | null;
   onSelectCard: (id: string) => void;
   onDeselectCard: (id: string) => void;
   isActive: boolean;
@@ -17,6 +19,7 @@ const PlayerHand: React.FC<PlayerHandProps> = ({
   cards,
   selectedIds,
   highlightedIds,
+  playableIds = null,
   onSelectCard,
   onDeselectCard,
   isActive,
@@ -25,6 +28,7 @@ const PlayerHand: React.FC<PlayerHandProps> = ({
 }) => {
   const handleCardClick = (id: string) => {
     if (!isActive || !isHuman) return;
+    if (playableIds && !playableIds.has(id)) return; // 灰色牌不可选
     selectedIds.includes(id) ? onDeselectCard(id) : onSelectCard(id);
   };
 
@@ -45,7 +49,7 @@ const PlayerHand: React.FC<PlayerHandProps> = ({
               size={isHuman ? 'medium' : 'small'}
               selected={selectedIds.includes(card.id)}
               highlighted={highlightedIds.includes(card.id)}
-              disabled={!isActive || !isHuman}
+              disabled={!isActive || !isHuman || (playableIds !== null && !playableIds.has(card.id))}
               onClick={() => handleCardClick(card.id)}
               faceDown={!isHuman}
             />

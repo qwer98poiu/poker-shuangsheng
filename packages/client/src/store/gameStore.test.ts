@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { createInitialState, GamePhase, Suit } from '@poker/engine';
-import type { GameState, PlayerState } from '@poker/engine';
+import { createCard, createInitialState, GamePhase, Suit } from '@poker/engine';
+import type { Card, GameState, PlayerState } from '@poker/engine';
 
 // Deterministic dev params (same derivation as src/dev.ts).
 vi.mock('../dev.js', () => ({
@@ -8,9 +8,11 @@ vi.mock('../dev.js', () => ({
   seedFor: (seed: number, roundNumber: number) => (seed + roundNumber * 31) >>> 0,
 }));
 
-import { useGameStore } from './gameStore.js';
+import { useGameStore, settledFrom } from './gameStore.js';
 
 const advance = (ms: number) => vi.advanceTimersByTimeAsync(ms);
+
+const c = (s: string, r: number, i: number): Card => createCard(s as any, r as any, i);
 
 async function waitFor(pred: () => boolean, guard = 4000): Promise<void> {
   let n = 0;
@@ -132,5 +134,89 @@ describe('gameStore — match over', () => {
     await advance(10000);
     expect(useGameStore.getState().gameState?.phase).toBe(GamePhase.RoundEnd);
     expect(useGameStore.getState().roundNumber).toBe(5);
+  });
+});
+
+describe('gameStore — suggestion selects cards / review auto-close / settled trick', () => {
+  it('建议出牌直接选中候选牌（可立即点跟牌）', async () => {
+    useGameStore.getState().startGame([false, true, true, true], false);
+    await waitFor(() => useGameStore.getState().gameState?.phase === 'revealing');
+    useGameStore.getState().humanPassReveal();
+    // 推进到人类（P0）轮到出牌：领出或跟牌皆可
+    await waitFor(() => {
+      const gs = useGameStore.getState().gameState;
+      return gs?.phase === 'playing' && gs.currentPlayerIndex === 0;
+    });
+    const before = useGameStore.getState().selectedCardIds.length;
+    useGameStore.getState().getHint();
+    const after = useGameStore.getState().selectedCardIds;
+    expect(after.length).toBeGreaterThan(0);
+    expect(after.length).not.toBe(before);
+    // 候选牌必须来自手牌
+    const hand = useGameStore.getState().gameState!.players[0].hand.map(c => c.id);
+    expect(after.every(id => hand.includes(id))).toBe(true);
+  });
+
+  it('上轮回看 5 秒后自动关闭（回到当前出牌）', async () => {
+    // 构造有历史墩的 state
+    const players: [PlayerState, PlayerState, PlayerState, PlayerState] = [
+      emptyPlayer('玩家1', 0), emptyPlayer('AI-2', 1),
+      emptyPlayer('AI-3', 2), emptyPlayer('AI-4', 3),
+    ];
+    const base = createInitialState(players, 0, 2, false);
+    const trick: any = {
+      plays: [
+        { cards: [c('S', 3, 0)], pattern: {}, leadSuit: Suit.Spades },
+        { cards: [c('S', 4, 1)], pattern: {}, leadSuit: Suit.Spades },
+        { cards: [c('S', 5, 2)], pattern: {}, leadSuit: Suit.Spades },
+        { cards: [c('S', 6, 3)], pattern: {}, leadSuit: Suit.Spades },
+      ],
+      leadPlayerIndex: 0, winnerIndex: 3, points: 0,
+    };
+    const fake: GameState = {
+      ...base, phase: GamePhase.Playing, trickHistory: [trick],
+      trumpDeclaration: { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 },
+    };
+    useGameStore.setState({
+      gameState: fake, aiPlayers: [false, true, true, true],
+      lastTrickReview: false, highlightedCards: [],
+    });
+    useGameStore.getState().toggleLastTrickReview();
+    expect(useGameStore.getState().lastTrickReview).toBe(true);
+    await advance(5000);
+    expect(useGameStore.getState().lastTrickReview).toBe(false);
+  });
+
+  it('settledFrom：墩结算时返回上一墩，非结算返回 null', () => {
+    const mkGs = (tricksPlayed: number, trickPlaysLen: number, hasTrick: boolean): GameState => {
+      const players: [PlayerState, PlayerState, PlayerState, PlayerState] = [
+        emptyPlayer('玩家1', 0), emptyPlayer('AI-2', 1),
+        emptyPlayer('AI-3', 2), emptyPlayer('AI-4', 3),
+      ];
+      const base = createInitialState(players, 0, 2, false);
+      const trick: any = {
+        plays: [
+          { cards: [c('S', 3, 0)], pattern: {}, leadSuit: Suit.Spades },
+          { cards: [c('S', 4, 1)], pattern: {}, leadSuit: Suit.Spades },
+          { cards: [c('S', 5, 2)], pattern: {}, leadSuit: Suit.Spades },
+          { cards: [c('S', 6, 3)], pattern: {}, leadSuit: Suit.Spades },
+        ],
+        leadPlayerIndex: 0, winnerIndex: 3, points: 0,
+      };
+      return {
+        ...base, phase: GamePhase.Playing, tricksPlayed,
+        trickPlays: Array.from({ length: trickPlaysLen }, () => ({ cards: [c('S', 9, 9)], pattern: {} as any, leadSuit: Suit.Spades })),
+        trickHistory: hasTrick ? [trick] : [],
+        trumpDeclaration: { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 },
+      };
+    };
+    const prev = mkGs(0, 3, false);
+    // 结算：trickPlays 清空且 tricksPlayed +1 → 返回上一墩
+    const settled = settledFrom(prev, mkGs(1, 0, true));
+    expect(settled).not.toBeNull();
+    expect(settled!.winnerIndex).toBe(3);
+    // 非结算（墩中）：返回 null
+    expect(settledFrom(prev, mkGs(0, 3, false))).toBeNull();
+    expect(settledFrom(prev, mkGs(0, 2, false))).toBeNull();
   });
 });

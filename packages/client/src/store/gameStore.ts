@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Card, GameState, PlayerState, Reveal, AIReason } from '@poker/engine';
+import type { Card, GameState, PlayerState, Reveal, AIReason, Trick } from '@poker/engine';
 import {
   createFullDeck, shuffle,
   createInitialState, GamePhase,
@@ -31,6 +31,8 @@ interface StoreState {
   debug: boolean;
   lastTrickReview: boolean;
   highlightedCards: string[];
+  /** 上一墩结算显示（第四家出牌后保留到下一墩第一张牌出现）。 */
+  settledTrick: Trick | null;
   /** 0-based round number (used for deterministic per-round seeds + first-round reveal). */
   roundNumber: number;
   /** Levels per team (team = declarerIndex % 2). */
@@ -58,6 +60,14 @@ interface StoreActions {
 
 type GameStore = StoreState & StoreActions;
 
+/** 墩结算显示：第四家出牌后 trickPlays 清空，把上一墩保留到下一墩第一张牌出现。 */
+export function settledFrom(prev: GameState, next: GameState): Trick | null {
+  if (next.trickPlays.length === 0 && next.tricksPlayed > prev.tricksPlayed) {
+    return next.trickHistory[next.trickHistory.length - 1] ?? null;
+  }
+  return null;
+}
+
 const emptyPlayersOf = (aiConfig: boolean[]): [PlayerState, PlayerState, PlayerState, PlayerState] =>
   [0, 1, 2, 3].map(i => ({
     hand: [] as Card[],
@@ -77,6 +87,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   debug: false,
   lastTrickReview: false,
   highlightedCards: [],
+  settledTrick: null,
   roundNumber: 0,
   teamLevels: [2, 2],
   matchOver: false,
@@ -336,6 +347,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       selectedCardIds: [],
       highlightedCards: [],
       errorMessage: null,
+      settledTrick: settledFrom(gameState, result.state),
     });
 
     if (result.state.phase === GamePhase.RoundEnd) {
@@ -392,9 +404,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
         set({
           gameState: fb.state,
           errorMessage: `${result.error}（${reason}）`,
+          settledTrick: settledFrom(gameState, fb.state),
         });
       } else {
-        set({ gameState: result.state, errorMessage: null });
+        set({
+          gameState: result.state,
+          errorMessage: null,
+          settledTrick: settledFrom(gameState, result.state),
+        });
       }
 
       // record AI reasoning in debug
@@ -475,21 +492,26 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   toggleLastTrickReview: () => {
-    set(s => {
-      const gs = s.gameState;
-      if (!gs || gs.trickHistory.length === 0) return {};
-      const last = gs.trickHistory[gs.trickHistory.length - 1];
-      const isOpening = !s.lastTrickReview;
-      // highlight the winner's cards
-      const winnerPlay = last.plays[
-        last.winnerIndex === last.leadPlayerIndex ? 0 :
-        (last.winnerIndex - last.leadPlayerIndex + 4) % 4
-      ];
-      return {
-        lastTrickReview: isOpening,
-        highlightedCards: isOpening ? winnerPlay.cards.map(c => c.id) : [],
-      };
+    const s = get();
+    if (!s.gameState || s.gameState.trickHistory.length === 0) return;
+    const last = s.gameState.trickHistory[s.gameState.trickHistory.length - 1];
+    const isOpening = !s.lastTrickReview;
+    // highlight the winner's cards
+    const winnerPlay = last.plays[
+      last.winnerIndex === last.leadPlayerIndex ? 0 :
+      (last.winnerIndex - last.leadPlayerIndex + 4) % 4
+    ];
+    set({
+      lastTrickReview: isOpening,
+      highlightedCards: isOpening ? winnerPlay.cards.map(c => c.id) : [],
     });
+    // 5 秒后自动关闭回看，回到当前出牌
+    if (isOpening) {
+      setTimeout(() => {
+        const st = get();
+        if (st.lastTrickReview) set({ lastTrickReview: false, highlightedCards: [] });
+      }, 5000);
+    }
   },
 
   getHint: () => {
@@ -513,8 +535,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
       reason = r.reason;
     }
 
+    // 建议出牌直接选中候选牌，可直接点"跟牌/出牌"
     set({
-      highlightedCards: suggested.map(c => c.id),
+      selectedCardIds: suggested.map(c => c.id),
+      highlightedCards: [],
       message: `💡 建议: ${reason}`,
     });
   },

@@ -6,6 +6,7 @@ import PlayerHand from './PlayerHand.js';
 import PlayerSeat from './PlayerSeat.js';
 import CenterArea from './CenterArea.js';
 import ActionBar from './ActionBar.js';
+import { computePlayableIds } from './playable.js';
 import './GameTable.css';
 
 const GameTable: React.FC = () => {
@@ -16,7 +17,7 @@ const GameTable: React.FC = () => {
     submitPlay, submitBottomExchange,
     humanReveal, humanPassReveal,
     toggleLastTrickReview, getHint,
-    aiPlayers, teamLevels, matchOver,
+    aiPlayers, teamLevels, matchOver, settledTrick,
   } = useGameStore();
 
   const [trumpConfirm, setTrumpConfirm] = useState(false);
@@ -56,6 +57,11 @@ const GameTable: React.FC = () => {
   // sorted hand for display
   const displayHand = sortHand(localPlayer.hand, gameState.trumpDeclaration);
 
+  // 可出牌集合：不符合规则的牌灰色不可选（见 playable.ts）
+  const playableIds = computePlayableIds(
+    localPlayer.hand, gameState.trickPlays, gameState.trumpDeclaration, gameState.phase,
+  );
+
   return (
     <div className="game-table">
       {/* top section: partner + opponents */}
@@ -92,7 +98,12 @@ const GameTable: React.FC = () => {
         </div>
 
         <div className="table-center">
-          <CenterArea gameState={gameState} lastTrickReview={lastTrickReview} onCloseReview={toggleLastTrickReview} />
+          <CenterArea
+            gameState={gameState}
+            lastTrickReview={lastTrickReview}
+            onCloseReview={toggleLastTrickReview}
+            settledTrick={settledTrick}
+          />
         </div>
 
         <div className="table-right">
@@ -242,14 +253,9 @@ const GameTable: React.FC = () => {
           <button className="debug-btn" onClick={toggleLastTrickReview}>
             {lastTrickReview ? '隐藏' : '回看'}上轮
           </button>
-          <button className="debug-btn" onClick={getHint}>
-            💡 提示
+          <button className="debug-btn" onClick={getHint} data-testid="hint-btn">
+            🤖 建议出牌（直接选中）
           </button>
-          {isMyTurn && localPlayer.isHuman && (
-            <button className="debug-btn" onClick={getHint}>
-              🤖 建议出牌
-            </button>
-          )}
           {gameState.aiReasons.length > 0 && (
             <details className="ai-log">
               <summary>AI 日志 ({gameState.aiReasons.length})</summary>
@@ -278,6 +284,7 @@ const GameTable: React.FC = () => {
             cards={displayHand}
             selectedIds={selectedCardIds}
             highlightedIds={highlightedCards}
+            playableIds={playableIds}
             onSelectCard={selectCard}
             onDeselectCard={deselectCard}
             isActive={isMyTurn && (isPlaying || isBottomExchange)}
