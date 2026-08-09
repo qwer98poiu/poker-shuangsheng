@@ -78,12 +78,13 @@ In NT (no-trump) mode, 12 constant trump cards (Big Joker × 2, Small Joker × 2
 - **Dynamic progress target** — Before the minimum sample the progress denominator is fixed at 2×pairs; afterwards, if not yet significant, it projects the total matches needed under the current p̂ (rounded up to a `stepMatches` multiple), with the reason printed when it changes.
 - **Progress & checkpoints** — A progress line every 100 matches (with ETA); every `stepMatches` matches the significance result is printed and `results/checkpoint.json` is written; Ctrl+C saves partial results and exits gracefully. No resume — every run starts from 0.
 - **Upgrade log** — `--detail-pair N` prints the per-hand upgrade records of both mirrored matches side by side (same deck), showing banker side, both levels at hand start, attacker points, and the upgrade result.
-- **Historical baselines** — `ai-0719` (2026-07-19), `ai-0801` (2026-08-01, pre-refactor) and `ai-0802` (2026-08-02, position-based follow refactor) were extracted from git history to PK against the current `ai`. (Archived: `ai-0707`, `ai-0712`, `ai-0726` — removed 2026-08-07; Elo scores below kept for reference.)
-- **Strategy Elo ratings** (baseline `ai-0802` = 1000; current `ai` measured 1012):
+- **Historical baselines** — `ai-0719` (2026-07-19), `ai-0801` (2026-08-01, pre-refactor), `ai-0802` (2026-08-02, position-based follow refactor) and `ai-0808` (2026-08-08, before the fourth-position no-overkill / NT-discard fixes) were extracted from git history to PK against the current `ai`. (Archived: `ai-0707`, `ai-0712`, `ai-0726` — removed 2026-08-07; Elo scores below kept for reference.)
+- **Strategy Elo ratings** (baseline `ai-0802` = 1000; `ai-0808` measured 1012 — the 1012 figure in README is the ai as of 133900d, now the `ai-0808` baseline; current `ai` updated since, Elo pending re-measurement):
 
   | Strategy | Elo |
   |---|---|
-  | `ai` (current) | 1012 |
+  | `ai` (current) | — (re-measure pending) |
+  | `ai-0808` | 1012 |
   | `ai-0802` | 1000.0 |
   | `ai-0801` | 992.2 |
   | `ai-0726` | 988.1 |
@@ -136,7 +137,7 @@ npm run arena -w packages/arena -- --pairs 5000 --seed 42 --strategy-b ai-0801
 | `--step-matches N` | 1000 | Interval (in matches) for significance checks and checkpoints |
 | `--seed N` | random | Random seed — same seed + flags reproduce identical results |
 | `--workers W` | logical cores | Parallel child processes (1 = in-process) |
-| `--strategy-a NAME` | `ai` | Strategy A (`ai` / `ai-0801` / `ai-0802` / `ai-0719`) |
+| `--strategy-a NAME` | `ai` | Strategy A (`ai` / `ai-0808` / `ai-0802` / `ai-0801` / `ai-0719`) |
 | `--strategy-b NAME` | `ai-0801` | Strategy B |
 | `--benchmark N` | — | Run N matches for speed measurement, then exit |
 | `--detail-pair N` | — | Print the mirrored upgrade log of 对决 N, then exit |
@@ -260,12 +261,13 @@ MIT — see [LICENSE](LICENSE).
 - **动态进度基准**：最小样本前进度分母固定为 2×pairs；之后未显著时按当前胜率推算显著所需总场数（向上取整到 stepMatches 的倍数），基准变化时说明原因。
 - **进度与检查点**：每 100 场一行进度（含 ETA）；每 `stepMatches` 场输出显著性并写 `results/checkpoint.json`；Ctrl+C 保存部分结果后优雅退出。不支持恢复，每次从 0 开始。
 - **升级记录**：`--detail-pair N` 并排输出该对决镜像两场的逐手升级记录（同一副牌），含庄家方、双方等级、闲家得分与升级结果。
-- **历史基线策略**：`ai-0719`（2026-07-19）、`ai-0801`（2026-08-01，重构前）、`ai-0802`（2026-08-02，分位置跟牌重构）从 git 历史提取，用于与当前策略 `ai` 对比。（已归档移除：`ai-0707`、`ai-0712`、`ai-0726`，2026-08-07 删除；下方 Elo 分数仅保留展示。）
-- **策略 Elo 评分**（基准 `ai-0802` = 1000；当前 `ai` 实测 1012）：
+- **历史基线策略**：`ai-0719`（2026-07-19）、`ai-0801`（2026-08-01，重构前）、`ai-0802`（2026-08-02，分位置跟牌重构）、`ai-0808`（2026-08-08，第四家不盖过/NT 垫牌修复前）从 git 历史提取，用于与当前策略 `ai` 对比。（已归档移除：`ai-0707`、`ai-0712`、`ai-0726`，2026-08-07 删除；下方 Elo 分数仅保留展示。）
+- **策略 Elo 评分**（基准 `ai-0802` = 1000；`ai-0808` 实测 1012——README 中 1012 是 133900d 时刻的 ai，即现在的 `ai-0808` 基线；当前 `ai` 此后已更新，Elo 待重新测量）：
 
   | 策略 | Elo |
   |---|---|
-  | `ai`（当前） | 1012 |
+  | `ai`（当前） | —（待重测） |
+  | `ai-0808` | 1012 |
   | `ai-0802` | 1000.0 |
   | `ai-0801` | 992.2 |
   | `ai-0726` | 988.1 |
@@ -318,7 +320,7 @@ npm run arena -w packages/arena -- --pairs 5000 --seed 42 --strategy-b ai-0801
 | `--step-matches N` | 1000 | 显著性检查与检查点的间隔场数 |
 | `--seed N` | 随机 | 随机种子——同 seed 同参数结果可完全复现 |
 | `--workers W` | 逻辑核数 | 并行子进程数（1 = 进程内） |
-| `--strategy-a NAME` | `ai` | 策略 A（`ai` / `ai-0801` / `ai-0802` / `ai-0719`） |
+| `--strategy-a NAME` | `ai` | 策略 A（`ai` / `ai-0808` / `ai-0802` / `ai-0801` / `ai-0719`） |
 | `--strategy-b NAME` | `ai-0801` | 策略 B |
 | `--benchmark N` | — | 跑 N 场测速后退出 |
 | `--detail-pair N` | — | 输出第 N 个对决的镜像升级记录后退出 |

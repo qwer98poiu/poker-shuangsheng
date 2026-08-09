@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-09 09:37
+
+### 新增：提取历史基线 ai-0808（133900d 快照）
+
+**问题**：当前 ai 在 133900d 后做了第四家不盖过、NT 垫牌保留王等策略修复，133900d 时刻的策略（README 中 Elo 1012 的测量对象）需要冻结为基线用于对比。
+
+**修复**：提取 133900d 的 ai/ 完整树（14 文件）为 `packages/engine/src/ai-0808`，注册引擎命名空间导出（`ai0808`）与竞技场策略（`--strategy-a/b ai-0808`），新增合法性测试（无中止、无验牌回退）。README 基线列表与 Elo 表更新：1012 归 `ai-0808`，当前 `ai` 标注待重测。ai-0808 的 helpers.ts 同步死代码清理（行为与快照一致，仅消除 TS2367）。
+
+**新增 1 项测试**（historical-strategies.test.ts：1 项），引擎 638 项 + arena 65 项 + CLI 80 项 + client 4 项 = 787 项通过。
+
+- **影响文件**：`packages/engine/src/ai-0808/`（新）、`packages/engine/src/index.ts`、`packages/arena/src/strategies.ts`、`packages/arena/src/__tests__/historical-strategies.test.ts`、`README.md`
+
 ## 2026-08-09 00:05
 
 ### 修复：NT 无主垫牌垫掉小王——级牌4是最小主牌应优先垫
