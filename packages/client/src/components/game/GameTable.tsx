@@ -61,16 +61,6 @@ const GameTable: React.FC = () => {
   const isDeclarer = gameState.trumpDeclaration?.declarerIndex === localPlayerIndex;
   const isSpectator = aiPlayers.every(Boolean);
 
-  const getPlayedForPlayer = (playerIndex: number) => {
-    const idx = gameState.trickPlays.findIndex(p => {
-      const playIdx = gameState.trickPlays.indexOf(p);
-      const pi = (gameState.leadPlayerIndex + playIdx) % 4;
-      return pi === playerIndex;
-    });
-    if (idx >= 0) return gameState.trickPlays[idx];
-    return null;
-  };
-
   // sorted hand for display
   const displayHand = sortHand(localPlayer.hand, gameState.trumpDeclaration);
 
@@ -91,7 +81,6 @@ const GameTable: React.FC = () => {
               player={gameState.players[idx]}
               position="top"
               isActive={gameState.currentPlayerIndex === idx}
-              playedCards={getPlayedForPlayer(idx)}
             />
           );
         })}
@@ -108,8 +97,7 @@ const GameTable: React.FC = () => {
                 player={gameState.players[idx]}
                 position="left"
                 isActive={gameState.currentPlayerIndex === idx}
-                playedCards={getPlayedForPlayer(idx)}
-              />
+                />
             );
           })}
         </div>
@@ -132,8 +120,7 @@ const GameTable: React.FC = () => {
                 player={gameState.players[idx]}
                 position="right"
                 isActive={gameState.currentPlayerIndex === idx}
-                playedCards={getPlayedForPlayer(idx)}
-              />
+                />
             );
           })}
         </div>
@@ -155,7 +142,7 @@ const GameTable: React.FC = () => {
           <div className="reveal-panel" data-testid="reveal-panel">
             <span className="reveal-hint">
               {gameState.currentReveal
-                ? `当前: ${gameState.currentReveal.suit ? suitLabel(gameState.currentReveal.suit) + rankLabel(gameState.currentLevel) : '无主'}${opts.length > 0 ? '（可反主）' : '（不可反）'}`
+                ? `${gameState.players[gameState.currentReveal.playerIndex].name} 亮主: ${gameState.currentReveal.suit ? suitLabel(gameState.currentReveal.suit) + rankLabel(gameState.currentLevel) : '无主'}${opts.length > 0 ? '（可反主）' : '（不可反）'}`
                 : '亮主：点选花色（或选无主）'}
             </span>
             {opts.map(o => (
@@ -261,17 +248,17 @@ const GameTable: React.FC = () => {
         );
       })()}
 
-      {/* debug controls — 折叠菜单（含 AI 日志与导出） */}
+      {/* debug controls — 建议出牌居中；🔧 菜单右上角（点开不挤压布局） */}
       {debug && (
         <div className="debug-bar">
+          <button className="debug-btn" onClick={getHint} data-testid="hint-btn">
+            🤖 建议出牌
+          </button>
           <details className="debug-menu" data-testid="debug-menu">
             <summary>🔧 调试</summary>
             <div className="debug-menu-content">
               <button className="debug-btn" onClick={toggleLastTrickReview}>
                 {lastTrickReview ? '隐藏' : '回看'}上轮
-              </button>
-              <button className="debug-btn" onClick={getHint} data-testid="hint-btn">
-                🤖 建议出牌（直接选中）
               </button>
               <button
                 className="debug-btn"

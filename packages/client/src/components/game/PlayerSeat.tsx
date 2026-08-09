@@ -1,12 +1,11 @@
 import React from 'react';
-import type { Card, PlayerState, PlayedCards } from '@poker/engine';
+import type { PlayerState } from '@poker/engine';
 import CardFace from '../cards/CardFace.js';
 
 interface PlayerSeatProps {
   player: PlayerState;
   position: 'top' | 'left' | 'right';
   isActive: boolean;
-  playedCards: PlayedCards | null;
 }
 
 const positionLabels: Record<string, string> = {
@@ -19,7 +18,6 @@ const PlayerSeat: React.FC<PlayerSeatProps> = ({
   player,
   position,
   isActive,
-  playedCards,
 }) => {
   return (
     <div
@@ -31,14 +29,7 @@ const PlayerSeat: React.FC<PlayerSeatProps> = ({
         <span className="player-card-count">({player.hand.length} 张)</span>
       </div>
 
-      {/* played cards area */}
-      {playedCards && (
-        <div className="seat-played-cards">
-          {playedCards.cards.map(card => (
-            <CardFace key={card.id} card={card} size="small" />
-          ))}
-        </div>
-      )}
+      {/* 已出牌统一显示在中央区域（按玩家方位），座位旁不再重复显示 */}
 
       {/* face-down hand representation */}
       {!player.isHuman && (

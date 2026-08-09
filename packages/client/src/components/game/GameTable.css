@@ -168,39 +168,42 @@
   opacity: 0.8;
 }
 
-.trick-display {
-  margin-top: 12px;
-  padding: 8px;
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 10px;
+/* 当前墩按玩家方位布局：牌放在对应玩家旁边，没出就空着 */
+.trick-position-layout {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  grid-template-rows: auto 1fr auto;
+  grid-template-areas:
+    ". top ."
+    "left center right"
+    ". bottom .";
+  justify-items: center;
+  align-items: center;
+  min-height: 130px;
+  padding: 4px;
 }
 
-.trick-label {
-  font-size: 12px;
-  opacity: 0.6;
-  margin-bottom: 6px;
-}
-
-.trick-cards {
+.trick-pos {
   display: flex;
-  gap: 16px;
-  justify-content: center;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
 }
 
-.trick-play-slot {
-  text-align: center;
-}
+.trick-pos-top { grid-area: top; }
+.trick-pos-bottom { grid-area: bottom; }
+.trick-pos-left { grid-area: left; }
+.trick-pos-right { grid-area: right; }
 
-.trick-player-label {
-  font-size: 11px;
+.trick-pos-player {
+  font-size: 10px;
   opacity: 0.6;
-  margin-bottom: 2px;
 }
 
-.trick-cards-row {
+.trick-pos-cards {
   display: flex;
   gap: 2px;
+  min-height: 50px;
 }
 
 .bottom-reveal {
@@ -247,6 +250,8 @@
   display: flex;
   justify-content: center;
   overflow-x: auto;
+  /* 候选牌 translateY(-12px) 上移不被截断 */
+  padding-top: 12px;
 }
 
 .hand-card-wrapper {
@@ -506,17 +511,20 @@
   color: #ccc;
 }
 
-/* debug bar — 折叠菜单 */
+/* debug bar — 建议出牌居中；🔧 菜单右上角（absolute，点开不挤压布局） */
 .debug-bar {
+  position: relative;
   display: flex;
-  gap: 8px;
   justify-content: center;
   padding: 6px 0;
-  flex-wrap: wrap;
   font-size: 12px;
 }
 
 .debug-menu {
+  position: absolute;
+  right: 12px;
+  top: 4px;
+  z-index: 30;
   background: rgba(0, 0, 0, 0.5);
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 8px;
@@ -604,7 +612,7 @@
   margin-bottom: 4px;
 }
 
-/* 墩结算显示（第四家出牌后保留到下一墩第一张牌） */
+/* 墩结算显示（第四家出牌后保留到下一墩第一张牌），限高防挤压手牌区 */
 .settled-trick {
   margin-top: 8px;
   padding: 8px;
@@ -612,6 +620,8 @@
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 8px;
   font-size: 12px;
+  max-height: 150px;
+  overflow-y: auto;
 }
 
 .settled-label {

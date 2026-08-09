@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-09 12:50
+
+### 修复：GUI 布局与显示——亮主玩家、调试菜单右上角、出牌方位布局、发牌提速、墩结算不占位
+
+**问题**：亮主面板不显示亮主玩家；调试菜单居中且点开挤压布局；建议出牌藏在菜单里；发牌 18 秒过慢；AI 已出牌在座位旁与中央重复显示两次；候选牌上移被截断；当前墩纵向列表不贴近玩家方位；玩家1大时本墩结算不消失挤出手牌区。
+
+**修复**：亮主面板显示"XX 亮主: 主牌（可反主）"；🔧 调试菜单移到右上角（absolute，点开不挤压布局），建议出牌独立按钮居中（去掉"（直接选中）"）；发牌每张 180→120ms（约 12 秒发完）；移除座位旁 playedCards（已出牌统一中央显示）；候选牌容器加 padding-top 防截断；当前墩改为四方位布局（上/左/右/下对应玩家，没出就空着）；轮到人类时清除 settledTrick + 限高 150px 滚动，防手牌被挤出。
+
+**新增 0 项测试**，引擎 638 项 + arena 65 项 + CLI 80 项 + client 14 项 = 797 项通过。
+
+- **影响文件**：`packages/client/src/components/game/GameTable.tsx`、`packages/client/src/components/game/CenterArea.tsx`、`packages/client/src/components/game/PlayerSeat.tsx`、`packages/client/src/components/game/GameTable.css`、`packages/client/src/store/gameStore.ts`
+
 ## 2026-08-09 11:37
 
 ### 修复：GUI 调试菜单与导出——折叠菜单（含 AI 日志）、一键复制对局信息

@@ -189,7 +189,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       message: `发牌中... ${newPlayers[get().localPlayerIndex].hand.length}/25`,
     });
 
-    setTimeout(() => get().runDealStep(deck), tick(180));
+    setTimeout(() => get().runDealStep(deck), tick(120)); // 100 张 × 120ms ≈ 12 秒发完
   },
 
   /** Finalize reveal (human "确定" or spectator auto) then run bottom exchange. */
@@ -377,7 +377,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     const cp = gameState.currentPlayerIndex;
     if (!aiPlayers[cp]) {
-      set({ message: `等待 ${gameState.players[cp].name} 出牌` });
+      // 轮到人类：清除上一墩结算显示（否则人类领出时一直占位挤压手牌区）
+      set({ message: `等待 ${gameState.players[cp].name} 出牌`, settledTrick: null });
       return;
     }
 

@@ -2,6 +2,7 @@ import React from 'react';
 import type { GameState, Trick } from '@poker/engine';
 import { GamePhase, suitLabel, rankLabel, suitName, isPointRank, cardPointsFromRank } from '@poker/engine';
 import CardFace from '../cards/CardFace.js';
+import { useGameStore } from '../../store/gameStore.js';
 
 interface CenterAreaProps {
   gameState: GameState;
@@ -12,6 +13,7 @@ interface CenterAreaProps {
 }
 
 const CenterArea: React.FC<CenterAreaProps> = ({ gameState, lastTrickReview, onCloseReview, settledTrick = null }) => {
+  const localPlayerIndex = useGameStore(s => s.localPlayerIndex);
   const { phase, trumpDeclaration, attackerPoints, currentLevel, trickPlays, bottomCards, trickHistory } = gameState;
 
   const getPhaseText = () => {
@@ -71,24 +73,24 @@ const CenterArea: React.FC<CenterAreaProps> = ({ gameState, lastTrickReview, onC
         </div>
       )}
 
-      {/* current trick */}
-      {trickPlays.length > 0 && phase === GamePhase.Playing && (
-        <div className="trick-display">
-          <div className="trick-label">当前牌局</div>
-          <div className="trick-cards">
-            {trickPlays.map((play, i) => (
-              <div key={i} className="trick-play-slot">
-                <div className="trick-player-label">
-                  {gameState.players[(gameState.leadPlayerIndex + i) % 4].name}
-                </div>
-                <div className="trick-cards-row">
-                  {play.cards.map(card => (
+      {/* current trick — 按玩家方位布局（上/左/右/下），没出就空着 */}
+      {phase === GamePhase.Playing && (
+        <div className="trick-position-layout" data-testid="trick-position-layout">
+          {([0, 1, 2, 3] as const).map(rel => {
+            const pi = (localPlayerIndex + rel) % 4;
+            const pos = ['bottom', 'right', 'top', 'left'][rel];
+            const play = trickPlays.find((p, j) => (gameState.leadPlayerIndex + j) % 4 === pi);
+            return (
+              <div key={rel} className={`trick-pos trick-pos-${pos}`}>
+                <div className="trick-pos-player">{gameState.players[pi].name}</div>
+                <div className="trick-pos-cards">
+                  {play ? play.cards.map(card => (
                     <CardFace key={card.id} card={card} size="small" />
-                  ))}
+                  )) : null}
                 </div>
               </div>
-            ))}
-          </div>
+            );
+          })}
         </div>
       )}
 
