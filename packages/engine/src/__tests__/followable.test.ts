@@ -73,6 +73,20 @@ describe('computeFollowableCards — 可出现在某合法跟牌组合中的牌�
     expect(ids(got)).toEqual(['D-3-0', 'D-4-1', 'D-6-3', 'D-7-2']);
   });
 
+  it('throw lead 全对（2 对）+ 手牌对子不足 → 组牌全可点（可垫近似组合）', () => {
+    const hand = [c('D', 3, 0), c('D', 3, 1), c('D', 4, 2), c('D', 6, 3), c('D', 7, 4)];
+    // lead = 方片对子 + 黑桃对子（2 对甩牌，均非主），手牌方片组只有 1 对 → 无法匹配 → 全可点
+    const got = computeFollowableCards(hand, [c('D', 7, 9), c('D', 7, 10), c('S', 8, 11), c('S', 8, 12)], cfg5);
+    expect(ids(got)).toEqual(['D-3-0', 'D-3-1', 'D-4-2', 'D-6-3', 'D-7-4']);
+  });
+
+  it('throw lead 全对（2 对）+ 手牌对子足够 → 只对子牌可点', () => {
+    const hand = [c('D', 3, 0), c('D', 3, 1), c('D', 4, 2), c('D', 4, 3), c('D', 6, 4)];
+    // 手牌 2 对方片 → 可匹配 2 对 → 只对子牌
+    const got = computeFollowableCards(hand, [c('D', 7, 9), c('D', 7, 10), c('S', 8, 11), c('S', 8, 12)], cfg5);
+    expect(ids(got)).toEqual(['D-3-0', 'D-3-1', 'D-4-2', 'D-4-3']);
+  });
+
   it('吊主（lead 是主牌组）→ 主牌组判定正确', () => {
     const hand = [c('H', 3, 0), c('H', 4, 1), c('H', 3, 2), c('H', 4, 3), c('D', 3, 4)];
     // 红桃主（cfg5）：lead 红桃对子，手牌有红桃对子

@@ -231,7 +231,8 @@ async function doPlay(page: Page, snap: UiSnapshot, seed: number, timeoutMs: num
     }
   }
   if (finalCards.length < cards.length) {
-    console.error(`  play constrained (decision ${cards.length}→${finalCards.length}: UI playable subset)`);
+    const lead = gs.trickPlays[0];
+    console.error(`  play constrained (t${gs.tricksPlayed} lead=${lead ? lead.cards.map(c => c.id).join(',') : '-'} decision=${cards.map(c => c.id).join(',')} playable=${playable ? [...playable].join(',') : 'null'} inPool=${inPool.map(c => c.id).join(',')} final=${finalCards.map(c => c.id).join(',')} err=${playCards(gs, 0, inPool).error ?? '-'})`);
   }
   const ids = finalCards.map(c => c.id);
 

@@ -233,6 +233,10 @@ export async function safeClick(page: Page, selector: string, opts: { timeout?: 
   if (fail) {
     throw new Error(`safeClick: "${selector}" OUT OF CANVAS (${box.join('x')}@(${box[0]},${box[1]}) → ${fail.edge})`);
   }
+  // 点击日志：组件（selector）+ 实际点击坐标（box 中心），stderr 实时落盘
+  const cx = Math.round(box[0] + box[2] / 2);
+  const cy = Math.round(box[1] + box[3] / 2);
+  console.error(`click: ${selector} @(${cx},${cy})`);
   await el.click();
 }
 

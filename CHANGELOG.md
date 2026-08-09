@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-09 18:35
+
+### 修复：模拟点击日志带坐标与组件名；computeFollowableCards 甩牌全对不足时降级可点（模拟整场发现）
+
+**问题**：① 模拟器点击日志无坐标与组件信息，无法核对点击位置；② 模拟完整一场（seed 42）在第 12 局第 6 墩失败——领出为甩牌 2 对（♥ 对 + ♣ 对）时，手牌 ♣ 组只有 1 对，`computeFollowableCards` 的"lead 全对 → 仅对子牌可点"未考虑手牌无法匹配时的降级（标准规则允许垫同张数近似组合，validateFollow 的 computeIdealFollow 本就允许），UI 可点集合过窄导致模拟器无合法组合可出（"must play 4 cards"）。
+
+**修复**：safeClick 每次点击输出 `click: [组件] @(x,y)`（box 中心坐标，stderr 实时落盘）；`computeFollowableCards` 的 lead 全对分支增加"手牌对子/拖拉机总量 ≥ lead 需求"判断——足够时仅对子牌可点，不足时组牌全可点（可垫近似组合）。**seed 42 完整一场复测：31 局 match over（14:8），684 项断言全绿，1614 次点击日志（全部在画布内），83 次调试菜单试用，exit 0**。
+
+**新增 2 项测试**（followable.test.ts：2 项），引擎 652 项 + arena 65 项 + CLI 80 项 + client 17 项 = 814 项通过。
+
+- **影响文件**：`packages/engine/src/following/index.ts`、`packages/engine/src/__tests__/followable.test.ts`、`packages/client/scripts/lib/driver.ts`、`packages/client/scripts/ui-player.ts`
+
 ## 2026-08-09 18:01
 
 ### 新增：GUI 交互与显示完善——引擎可出牌集合、调试菜单右上角、墩结算融入中央、拖拽选牌、最后一墩自动出、局末底牌倍率

@@ -265,12 +265,14 @@ export function computeFollowableCards(
   const leadAllPairs = leadLen === (leadPattern.pairCount + tractorPairCount) * 2;
   if (!leadAllPairs) return handInGroup; // lead 含单张 → 有 fill 空间 → 组内任意
 
-  // lead 全对：手牌有对子（含拖拉机）时必须出对子 → 对子牌可点
+  // lead 全对：手牌对子/拖拉机总量足够时必须出对子 → 对子牌可点；
+  // 不足（无法匹配 lead 牌型）→ 可垫近似组合（同张数任意，validateFollow 允许）
   const pairIds = new Set<string>();
   for (const t of detectTractors(handInGroup, config)) t.forEach(c => pairIds.add(c.id));
   for (const p of findAllPairs(handInGroup)) p.forEach(c => pairIds.add(c.id));
-  if (pairIds.size > 0) return handInGroup.filter(c => pairIds.has(c.id));
-  return handInGroup; // 手牌无对子/拖拉机：组内任意（单张组合合法）
+  const needPairs = leadPattern.pairCount + tractorPairCount;
+  if (pairIds.size / 2 >= needPairs) return handInGroup.filter(c => pairIds.has(c.id));
+  return handInGroup; // 对子不足：组内任意（可垫近似组合）
 }
 
 export interface FollowSpec {
