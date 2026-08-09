@@ -12,7 +12,7 @@
  *   - DOM ↔ 引擎一致（座位张数 label）
  *   - 局转：下一局 level/declarer 与 advanceLevel 预测一致
  *
- * Usage: npx tsx scripts/ui-player.ts [--seed 42] [--max-rounds 2]
+ * Usage: npx tsx scripts/ui-player.ts [--seed 42] [--max-rounds 2] [--speed 8]
  *        [--url http://localhost:3000] [--no-spawn] [--timeout-ms 240000]
  *
  * Exit codes: 0 all green, 1 any failure.
@@ -302,7 +302,7 @@ async function runMatch(page: Page, seed: number, maxRounds: number, timeoutMs: 
     if (gs.phase === GamePhase.RoundEnd && st.roundNumber > roundEndLogged) {
       roundEndLogged = st.roundNumber;
       prevRoundEnd = { gs, teamLevels: st.teamLevels, roundNumber: st.roundNumber };
-      console.log(`  round ${st.roundNumber} ended (attacker=${gs.attackerPoints}, tricks=${gs.tricksPlayed})`);
+      console.log(`  round ${st.roundNumber} ended (attacker=${gs.attackerPoints}, tricks=${gs.tricksPlayed}, level=${gs.currentLevel}, teams=${st.teamLevels?.join(',')})`);
     }
 
     // 局轮转断言
@@ -313,12 +313,17 @@ async function runMatch(page: Page, seed: number, maxRounds: number, timeoutMs: 
     }
     lastRound = st.roundNumber;
 
-    // 完成条件：第 maxRounds 局进入结算（或 matchOver）
-    if (gs.phase === GamePhase.RoundEnd && st.roundNumber >= maxRounds - 1) {
-      if (st.matchOver) { console.log(`  match over (team won at round ${st.roundNumber})`); return; }
-      // matchOver 前最后一局的转局断言由下一轮 roundNumber 增加触发；
-      // 若已确认结算完成则直接返回
-      if (prevRoundEnd && prevRoundEnd.roundNumber === st.roundNumber) return;
+    // 完成条件：matchOver（庄家队 A 打赢，不再开新局）无条件结束；
+    // 否则第 maxRounds 局进入结算后结束
+    if (gs.phase === GamePhase.RoundEnd) {
+      if (st.matchOver) {
+        console.log(`  match over (team won at round ${st.roundNumber})`);
+        return;
+      }
+      if (st.roundNumber >= maxRounds - 1
+          && prevRoundEnd && prevRoundEnd.roundNumber === st.roundNumber) {
+        return;
+      }
     }
 
     // 阶段动作（人类回合才交互）
@@ -345,7 +350,7 @@ async function runMatch(page: Page, seed: number, maxRounds: number, timeoutMs: 
 
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
-  let seed = 42, maxRounds = 2, timeoutMs = 240000, noSpawn = false, url = 'http://localhost:3000';
+  let seed = 42, maxRounds = 2, timeoutMs = 240000, noSpawn = false, url = 'http://localhost:3000', speed = 8;
   for (let i = 0; i < argv.length; i++) {
     switch (argv[i]) {
       case '--seed': seed = Number(argv[++i]); break;
@@ -353,6 +358,7 @@ async function main(): Promise<void> {
       case '--timeout-ms': timeoutMs = Number(argv[++i]); break;
       case '--no-spawn': noSpawn = true; break;
       case '--url': url = argv[++i]; break;
+      case '--speed': speed = Number(argv[++i]); break;
       default: console.error(`Unknown flag: ${argv[i]}`); process.exit(2);
     }
   }
@@ -369,7 +375,7 @@ async function main(): Promise<void> {
           check('no console.error', false, msg.text());
         }
       });
-      await page.goto(buildUrl({ url, seed, auto: false, speed: 8 }), { waitUntil: 'domcontentloaded' });
+      await page.goto(buildUrl({ url, seed, auto: false, speed }), { waitUntil: 'domcontentloaded' });
       await page.waitForTimeout(300);
 
       // setup：勾选调试模式（hint 按钮需要 debug）→ 开始游戏（默认人类南座）

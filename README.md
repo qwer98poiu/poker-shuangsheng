@@ -6,7 +6,6 @@
 
 A full-stack implementation of the Chinese trick-taking card game **双升 (Shēng Jí / Tractor)**, featuring a deterministic game engine, an NT-mode (无主) trump tracker, and a rule-based AI opponent.
 
-> **Note:** The graphical client (`packages/client`) is playable: run `npm run dev` and open <http://localhost:3000> (south-seat human vs 3 AIs, or 4-AI spectator mode). Dev shortcuts: `?seed=N` (deterministic deck), `?auto=1` (auto spectator match), `?speed=n` (faster animations).
 
 ## Game Rules
 
@@ -123,6 +122,8 @@ npx tsx packages/client/scripts/ui-dump.ts --seed 42 --auto 1 --auto-tricks 3 --
 npx tsx packages/client/scripts/ui-smoke.ts --seed 42 --max-rounds 3                      # per-trick assertions + determinism fingerprint
 ```
 
+> **Note:** Details are still being polished.
+
 ### Strategy Arena
 
 ```bash
@@ -191,8 +192,6 @@ MIT — see [LICENSE](LICENSE).
 ### 项目简介
 
 **双升（拖拉机）**是中国流行的四人两副牌升级类扑克游戏。本项目包含三个子包：
-
-> **注意：** 图形界面（`packages/client`）可玩：`npm run dev` 后打开 <http://localhost:3000>（南座人类 vs 3 AI，或 4 AI 观战）。开发参数：`?seed=N`（确定性发牌）、`?auto=1`（自动观战对局）、`?speed=n`（加速动画）。
 
 - **[`packages/engine`](packages/engine/)** — 核心引擎：牌型分类、比较、验牌、AI 出牌策略、NT 记牌器（基于计数的常主追踪）。
 - **[`packages/cli`](packages/cli/)** — 终端交互版，支持全色彩牌面显示。
@@ -305,6 +304,8 @@ GUI 自动化验证（需系统安装 Google Chrome，playwright-core 直连）�
 npx tsx packages/client/scripts/ui-dump.ts --seed 42 --auto 1 --auto-tricks 3 --dump -   # DOM/布局/状态文本 dump
 npx tsx packages/client/scripts/ui-smoke.ts --seed 42 --max-rounds 3                      # 逐墩断言 + 确定性双跑指纹
 ```
+
+> **注意：** 界面细节仍待打磨。
 
 #### 策略竞技场
 
