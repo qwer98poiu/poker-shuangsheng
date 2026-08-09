@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useGameStore } from '../../store/gameStore.js';
 import { GamePhase, sortHand, Suit, suitLabel, rankLabel, isTrump, getRevealOptions, canOverride, computeRoundOutcome, advanceLevel } from '@poker/engine';
 import CardFace from '../cards/CardFace.js';
@@ -21,6 +21,21 @@ const GameTable: React.FC = () => {
   } = useGameStore();
 
   const [trumpConfirm, setTrumpConfirm] = useState(false);
+
+  // 亮主自动确认：能亮/反主 → 3 秒后自动确认；不能亮/反 → 1 秒后自动（无需人类操作）。
+  // 人类点击亮主后 humanReveal 直接 finalize，phase 变化触发 cleanup。
+  useEffect(() => {
+    const gs = gameState;
+    if (gs?.phase !== GamePhase.Revealing || aiPlayers.every(Boolean) || !gs.players[0].isHuman) return;
+    const opts = getRevealOptions(gs.players[0].hand, gs.currentLevel)
+      .filter(o => canOverride(gs.currentReveal, {
+        playerIndex: 0, suit: o.suit, strength: o.strength,
+      }));
+    const delay = opts.length > 0 ? 3000 : 1000;
+    const t = setTimeout(() => humanPassReveal(), delay);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState?.phase, gameState?.currentReveal, gameState?.currentLevel, aiPlayers]);
 
   if (!gameState) return null;
 
@@ -128,18 +143,17 @@ const GameTable: React.FC = () => {
         {!errorMessage && <span className="info-msg">{message}</span>}
       </div>
 
-      {/* reveal panel for humans — options filtered by hand + override rules */}
-      {isRevealing && !isSpectator && localPlayer.isHuman && (() => {
+      {/* reveal panel for humans — dealing & reveal phases; 亮主即确认 */}
+      {(isRevealing || gameState.phase === GamePhase.Dealing) && !isSpectator && localPlayer.isHuman && (() => {
         const opts = getRevealOptions(localPlayer.hand, gameState.currentLevel)
           .filter(o => canOverride(gameState.currentReveal, {
             playerIndex: localPlayerIndex, suit: o.suit, strength: o.strength,
           }));
-        if (opts.length === 0 && !gameState.currentReveal) return null;
         return (
           <div className="reveal-panel" data-testid="reveal-panel">
             <span className="reveal-hint">
               {gameState.currentReveal
-                ? `当前: ${gameState.currentReveal.suit ? suitLabel(gameState.currentReveal.suit) + rankLabel(gameState.currentLevel) : '无主'}（可反主）`
+                ? `当前: ${gameState.currentReveal.suit ? suitLabel(gameState.currentReveal.suit) + rankLabel(gameState.currentLevel) : '无主'}${opts.length > 0 ? '（可反主）' : '（不可反）'}`
                 : '亮主：点选花色（或选无主）'}
             </span>
             {opts.map(o => (
@@ -152,13 +166,11 @@ const GameTable: React.FC = () => {
                 {o.suit === null ? '无主 🃏' : `${suitLabel(o.suit)} ${rankLabel(gameState.currentLevel)}${o.strength >= 2 ? ' (对)' : ''}`}
               </button>
             ))}
-            <button
-              className="reveal-pass-btn"
-              data-testid="reveal-done"
-              onClick={humanPassReveal}
-            >
-              确定{gameState.currentReveal ? '（结束亮主）' : '（不亮）'}
-            </button>
+            {opts.length === 0 && (
+              <span className="reveal-wait">
+                {isRevealing ? '（无可亮/反选项，即将开始）' : '（发牌中，可亮主/反主）'}
+              </span>
+            )}
           </div>
         );
       })()}

@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-09 11:27
+
+### 修复：GUI 亮主流程——发牌中可亮主/反主，亮主即确认，3 秒自动确认
+
+**问题**：亮主面板只在发牌完成后显示（发牌中无法亮主/反主）；人类亮主/反主后仍需点"确定"；无操作时没有自动确认，人类不点就永久停等。
+
+**修复**：亮主面板在发牌中（Dealing）即显示，可随时亮主/反主（发牌中 AI 后续仍可反）；亮主/反主即确认——Revealing 阶段点亮主按钮直接进入扣底；能亮/反但没点 → 3 秒后自动确认；不能亮/反 → 1 秒后自动确认（无需人类操作）；面板移除"确定"按钮，空选项时显示等待提示。humanReveal 支持 Dealing 阶段。
+
+**新增 0 项测试**，引擎 638 项 + arena 65 项 + CLI 80 项 + client 12 项 = 795 项通过。
+
+- **影响文件**：`packages/client/src/components/game/GameTable.tsx`、`packages/client/src/store/gameStore.ts`、`packages/client/src/store/gameStore.test.ts`
+
 ## 2026-08-09 11:07
 
 ### 修复：GUI 交互——灰色禁选、建议直接选中、回看 5 秒、第四家停顿、手牌固定、日志滑动

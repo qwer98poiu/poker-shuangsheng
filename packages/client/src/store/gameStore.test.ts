@@ -77,14 +77,11 @@ describe('gameStore — human reveal flow', () => {
     useGameStore.getState().startGame([false, true, true, true], false);
     await waitFor(() => useGameStore.getState().gameState?.phase === 'revealing');
 
-    // seed=42：人类手牌有对大王 → 亮无主（strength 4）
+    // seed=42：人类手牌有对大王 → 亮无主（strength 4），亮主即确认直接进入扣底
     useGameStore.getState().humanReveal(null);
     let gs = useGameStore.getState().gameState!;
     expect(gs.currentReveal).toEqual({ playerIndex: 0, suit: null, strength: 4 });
-    expect(gs.phase).toBe(GamePhase.Revealing); // 亮主后仍等待人类"确定"
-
-    useGameStore.getState().humanPassReveal();
-    await waitFor(() => useGameStore.getState().gameState?.phase === 'bottom_exchange');
+    expect(gs.phase).toBe(GamePhase.BottomExchange); // 亮主即确认，不再等待"确定"
     gs = useGameStore.getState().gameState!;
     expect(gs.trumpDeclaration?.declarerIndex).toBe(0); // 首局亮主者顶庄
     expect(gs.players[0].hand).toHaveLength(33); // 底牌并入

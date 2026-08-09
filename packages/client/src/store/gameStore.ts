@@ -8,7 +8,7 @@ import {
   aiTryReveal, aiChooseBottomCards, aiLeadPlay, aiFollowPlay,
   buildAIContext,
   getRevealOptions, canOverride,
-  sortHand,
+  sortHand, suitLabel, rankLabel,
   mulberry32, seededShuffle,
   Suit,
 } from '@poker/engine';
@@ -268,7 +268,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   humanReveal: (suit: SuitType | null) => {
     const { gameState, localPlayerIndex } = get();
-    if (!gameState || gameState.phase !== GamePhase.Revealing) return;
+    if (!gameState || (gameState.phase !== GamePhase.Revealing && gameState.phase !== GamePhase.Dealing)) return;
     // tryReveal applies the strength hierarchy internally (via getRevealOptions).
     const revealed = tryReveal(gameState, localPlayerIndex, suit);
     if (revealed.currentReveal === gameState.currentReveal && revealed.reveals.length === gameState.reveals.length) {
@@ -278,8 +278,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const rev = revealed.currentReveal;
     set({
       gameState: revealed,
-      message: rev ? `已亮主，可继续反主或点"确定"` : '亮主阶段',
+      message: rev ? `已亮主: ${rev.suit ? suitLabel(rev.suit) + rankLabel(revealed.currentLevel) : '无主'}` : '亮主阶段',
     });
+    // 亮主/反主即确认：亮主阶段直接进入扣底；发牌中等待发牌完成（AI 可能反主）
+    if (revealed.phase === GamePhase.Revealing) {
+      get().finalizeRevealAndBottom();
+    }
   },
 
   /** Human ends the reveal phase ("确定" button). */
