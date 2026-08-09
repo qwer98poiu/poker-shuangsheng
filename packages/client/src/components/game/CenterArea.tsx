@@ -42,7 +42,16 @@ const CenterArea: React.FC<CenterAreaProps> = ({ gameState, lastTrickReview, onC
                   const s = suitLabel(trumpDeclaration.trumpSuit!);
                   return `${isPair ? s + s : s} ${rankLabel(trumpDeclaration.level)}`;
                 })()
-              : `无主 (${rankLabel(trumpDeclaration.level)})`}
+              : (() => {
+                  // 无主区分大王/小王（strength 4=对大王、3=对小王）
+                  const finalReveal = gameState.reveals[gameState.reveals.length - 1];
+                  const bigJoker = !!finalReveal && finalReveal.suit === null && finalReveal.strength >= 4;
+                  return (
+                    <span className={bigJoker ? 'nt-big' : 'nt-small'}>
+                      {bigJoker ? '大王' : '小王'}无主 ({rankLabel(trumpDeclaration.level)})
+                    </span>
+                  );
+                })()}
           </span>
           <span className="declarer-label" data-testid="declarer-label">
             庄家: {gameState.players[trumpDeclaration.declarerIndex].name}
@@ -53,7 +62,36 @@ const CenterArea: React.FC<CenterAreaProps> = ({ gameState, lastTrickReview, onC
       <div className="score-display" data-testid="score-display">
         <span className="score-item">级别: {rankLabel(currentLevel)}</span>
         <span className="score-item">闲家得分: {attackerPoints}</span>
-        <span className="score-item">墩数: {gameState.tricksPlayed}/25</span>
+        <span className="score-item">墩数: {gameState.tricksPlayed}</span>
+        {(() => {
+          // 闲家已获得的分牌：一行 5 张，10/K 档在前、5 在后，同档按花色 SHCD
+          const declarerIdx = gameState.trumpDeclaration?.declarerIndex ?? gameState.declarerIndex;
+          const attackerTeam = declarerIdx % 2 === 0 ? 1 : 0;
+          const pointCards = trickHistory
+            .filter(t => t.points > 0 && t.winnerIndex % 2 === attackerTeam)
+            .flatMap(t => t.plays.flatMap(p => p.cards))
+            .filter(c => isPointRank(c.rank));
+          if (pointCards.length === 0) return null;
+          const suitOrder: Record<string, number> = { S: 0, H: 1, C: 2, D: 3 };
+          const sorted = [...pointCards].sort((a, b) => {
+            const ka = (a.rank === 10 || a.rank === 13) ? 0 : 1;
+            const kb = (b.rank === 10 || b.rank === 13) ? 0 : 1;
+            if (ka !== kb) return ka - kb;
+            const sa = suitOrder[a.suit] ?? 4;
+            const sb = suitOrder[b.suit] ?? 4;
+            if (sa !== sb) return sa - sb;
+            return b.rank - a.rank;
+          });
+          return (
+            <div className="score-points" data-testid="score-points">
+              {sorted.map((c, i) => (
+                <span key={`${c.id}-${i}`} className={`score-point ${c.isJoker || c.suit === 'H' || c.suit === 'D' ? 'red' : ''}`}>
+                  {rankLabel(c.rank)}{c.isJoker ? '' : suitLabel(c.suit)}
+                </span>
+              ))}
+            </div>
+          );
+        })()}
       </div>
 
       {/* played point cards collected by attacker */}

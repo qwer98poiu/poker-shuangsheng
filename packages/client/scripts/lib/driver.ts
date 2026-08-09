@@ -117,6 +117,7 @@ export interface UiSnapshot {
     message: string;
     errorMessage: string | null;
     selectedCardIds: string[];
+    lockedCardIds: string[];
     teamLevels: [number, number] | null;
     matchOver: boolean;
     gameState: any;
@@ -175,7 +176,8 @@ export async function collectSnapshot(page: Page): Promise<UiSnapshot> {
         ? {
             mode: st.mode, roundNumber: st.roundNumber, aiPlayers: st.aiPlayers,
             message: st.message, errorMessage: st.errorMessage,
-            selectedCardIds: st.selectedCardIds, teamLevels: st.teamLevels ?? null,
+            selectedCardIds: st.selectedCardIds, lockedCardIds: st.lockedCardIds ?? [],
+            teamLevels: st.teamLevels ?? null,
             matchOver: !!st.matchOver, gameState: gs,
           }
         : null,

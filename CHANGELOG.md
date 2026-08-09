@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-09 21:20
+
+### 新增：GUI 交互完善——NT 大王/小王区分、跟牌张数分母、分牌展示、调试菜单扩展（手牌/底牌/历史/记牌器）、唯一可出自动选中锁定、庄家查看底牌
+
+**问题**：无主不区分大王/小王；跟牌按钮不显示应出张数；左上角墩数显示 /25 分母（一局不一定是 25 墩）；闲家得分只有数字没有分牌；调试菜单只有导出；人类庄家无法查看底牌；唯一可出时仍需手动选牌；建议出牌与回看上轮分两行。
+
+**修复**：① NT 区分——strength≥4 大王（红 NT）/≤3 小王（黑 NT），亮主按钮与主牌指示均区分；② 建议出牌（调试）+ 回看上轮合并一行，与跟牌/重选对齐；③ 跟牌按钮显示"跟牌（已选/应出 张）"；④ 导出按钮在调试菜单关闭时重置为"导出"（onToggle）；⑤ 拖拽多选只认露出部分（手牌 overlap 被盖的左 34px 不计）；⑥ 回看上轮无历史时提示"暂无历史墩"；⑦ 墩数去掉分母；⑧ 左上角闲家得分显示分牌——一行 5 张，10/K 档在前、5 在后、同档按花色 SHCD（实测 `K♥10♥K♣K♦K♦10♦10♦5♣5♣5♦`=85 分匹配）；⑨ 调试菜单新增 其他玩家手牌（二级：玩家列表）、底牌（非庄家可见）、历史出牌、记牌器（无主，移植 CLI showOneTracker，二级：玩家视角），全部文字输出；⑩ 人类庄家增加"查看底牌"按钮（非调试模式可用，弹层显示 8 张底牌）；⑪ 非最后一墩且唯一可出（引擎 isOnlyLegalPlay）→ 自动选中并**锁定不可放下**（deselect/clear 均保留，出牌后释放；最后一墩自动打保留）——实测 seed 42/7/123 自动选中 4/2/1 张且点击不取消。
+
+**无新增测试**，引擎 652 项 + arena 65 项 + CLI 80 项 + client 17 项 = 814 项通过。
+
+- **影响文件**：`packages/client/src/store/gameStore.ts`、`packages/client/src/components/game/GameTable.tsx`、`packages/client/src/components/game/GameTable.css`、`packages/client/src/components/game/CenterArea.tsx`、`packages/client/src/components/game/PlayerHand.tsx`、`packages/client/src/components/game/ActionBar.tsx`、`packages/client/scripts/lib/driver.ts`
+
 ## 2026-08-09 20:05
 
 ### 修复：GUI 显示细节——主牌对子双花色符号、不可选牌字体半透明且悬停无效果、回看上墩改文字一行

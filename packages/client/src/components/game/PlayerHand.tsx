@@ -62,7 +62,10 @@ const PlayerHand: React.FC<PlayerHandProps> = ({
       if (selectedIds.includes(card.id)) return;
       if (playableIds && !playableIds.has(card.id)) return; // 灰色不可拖选
       const r = el.getBoundingClientRect();
-      if (r.left < x2 && r.right > x1 && r.top < y2 && r.bottom > y1) {
+      // 只认露出部分：手牌重叠摆放（overlap -34px），左 34px 被前一张盖住，
+      // 轨迹覆盖被盖部分不视为选择 → 用可见的右 36px 判定
+      const visibleLeft = r.left + 34;
+      if (visibleLeft < x2 && r.right > x1 && r.top < y2 && r.bottom > y1) {
         onSelectCard(card.id);
       }
     });

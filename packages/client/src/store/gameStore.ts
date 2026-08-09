@@ -39,6 +39,8 @@ interface StoreState {
   teamLevels: [number, number];
   /** A-side won the match (banker wins at A). Stops auto-starting new rounds. */
   matchOver: boolean;
+  /** 唯一可出自动选中的牌：不可放下（deselect/clear 均保留，出牌后释放）。 */
+  lockedCardIds: string[];
 }
 
 interface StoreActions {
@@ -46,6 +48,8 @@ interface StoreActions {
   selectCard: (cardId: string) => void;
   deselectCard: (cardId: string) => void;
   clearSelection: () => void;
+  autoSelectCards: (cardIds: string[]) => void;
+  clearLockedCards: () => void;
   submitPlay: () => void;
   submitBottomExchange: () => void;
   humanReveal: (suit: SuitType | null) => void;
@@ -91,6 +95,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   roundNumber: 0,
   teamLevels: [2, 2],
   matchOver: false,
+  lockedCardIds: [],
 
   startGame: (aiConfig: boolean[], debug: boolean) => {
     // ?seed=N: deterministic deck + initial dealer (seededShuffle/mulberry32
@@ -245,6 +250,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       set({
         gameState: ready,
         selectedCardIds: [],
+        lockedCardIds: [],
         message: '请选择8张手牌扣入底牌',
       });
     }
@@ -259,12 +265,26 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   deselectCard: (cardId: string) => {
+    // 唯一可出自动选中的牌不可放下
+    if (get().lockedCardIds.includes(cardId)) return;
     set(s => ({
       selectedCardIds: s.selectedCardIds.filter(id => id !== cardId),
     }));
   },
 
-  clearSelection: () => set({ selectedCardIds: [], highlightedCards: [] }),
+  clearSelection: () => {
+    // 锁定牌保留（不可放下），其余清空
+    const locked = get().lockedCardIds;
+    set({ selectedCardIds: locked, highlightedCards: [] });
+  },
+
+  /** 唯一可出自动选中：选中并锁定（不可放下）。 */
+  autoSelectCards: (cardIds: string[]) => {
+    set({ selectedCardIds: cardIds, lockedCardIds: cardIds });
+  },
+
+  /** 出牌/新墩后释放锁定。 */
+  clearLockedCards: () => set({ lockedCardIds: [] }),
 
   humanReveal: (suit: SuitType | null) => {
     const { gameState, localPlayerIndex } = get();
@@ -327,6 +347,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({
       gameState: ready,
       selectedCardIds: [],
+      lockedCardIds: [],
       message: `出牌开始！${ready.players[declarerIdx].name} 领出`,
       errorMessage: null,
     });
@@ -349,6 +370,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({
       gameState: result.state,
       selectedCardIds: [],
+      lockedCardIds: [],
       highlightedCards: [],
       errorMessage: null,
       settledTrick: settledFrom(gameState, result.state),
@@ -484,6 +506,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({
       gameState: { ...fresh, phase: GamePhase.Dealing },
       selectedCardIds: [],
+      lockedCardIds: [],
       message: '发牌中...',
       errorMessage: null,
       lastTrickReview: false,
@@ -498,7 +521,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   toggleLastTrickReview: () => {
     const s = get();
-    if (!s.gameState || s.gameState.trickHistory.length === 0) return;
+    if (!s.gameState || s.gameState.trickHistory.length === 0) {
+      // 无历史墩时给提示（否则点击无反应）
+      if (s.gameState) set({ message: '暂无历史墩' });
+      return;
+    }
     const last = s.gameState.trickHistory[s.gameState.trickHistory.length - 1];
     const isOpening = !s.lastTrickReview;
     // highlight the winner's cards

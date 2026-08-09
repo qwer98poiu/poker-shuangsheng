@@ -186,6 +186,32 @@
   opacity: 0.8;
 }
 
+/* 闲家分牌：一行 5 张，10/K 前 5 后，同档按花色 SHCD */
+.score-points {
+  display: grid;
+  grid-template-columns: repeat(5, auto);
+  gap: 1px 8px;
+  margin-top: 4px;
+  max-height: 64px;
+  overflow-y: auto;
+  font-size: 12px;
+}
+
+.score-point {
+  font-family: 'Georgia', 'Noto Sans SC', serif;
+  color: #212121;
+  background: #fff;
+  border: 1px solid #999;
+  border-radius: 3px;
+  padding: 0 3px;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.score-point.red {
+  color: #d32f2f;
+}
+
 /* 当前墩按玩家方位布局：牌放在对应玩家旁边，没出就空着 */
 .trick-position-layout {
   display: grid;
@@ -509,6 +535,21 @@
   color: #ff9800;
 }
 
+/* 无主：大王（红 NT）/ 小王（黑 NT）区分 */
+.nt-big {
+  color: #ff5252;
+  background: rgba(255, 82, 82, 0.18);
+  border-radius: 4px;
+  padding: 0 4px;
+}
+
+.nt-small {
+  color: #e0e0e0;
+  background: #3a3a3a;
+  border-radius: 4px;
+  padding: 0 4px;
+}
+
 .reveal-pass-btn {
   padding: 6px 14px;
   border: 1px solid rgba(255,255,255,0.15);
@@ -600,6 +641,54 @@
 
 .debug-btn:hover {
   background: rgba(255,255,255,0.1);
+}
+
+/* 调试二级菜单（手牌/记牌器）与文字输出 */
+.debug-sub {
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  padding: 2px 8px;
+}
+
+.debug-sub summary {
+  cursor: pointer;
+  color: #81c784;
+}
+
+.debug-text {
+  font-size: 11px;
+  color: #ccc;
+  white-space: pre-wrap;
+  word-break: break-all;
+  padding: 4px 0 2px 10px;
+  line-height: 1.5;
+}
+
+/* 查看底牌弹层（人类庄家，覆盖中央不挤压布局） */
+.bottom-view {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 50;
+  background: rgba(0, 0, 0, 0.85);
+  border: 1px solid rgba(255, 215, 0, 0.3);
+  border-radius: 12px;
+  padding: 12px 16px;
+  text-align: center;
+}
+
+.bottom-view-title {
+  font-size: 13px;
+  color: #ffd740;
+  margin-bottom: 8px;
+}
+
+.bottom-view-cards {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
 }
 
 .ai-log {

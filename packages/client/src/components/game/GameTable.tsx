@@ -1,6 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useGameStore } from '../../store/gameStore.js';
-import { GamePhase, sortHand, Suit, suitLabel, rankLabel, isTrump, getRevealOptions, canOverride, computeRoundOutcome, advanceLevel } from '@poker/engine';
+import {
+  GamePhase, sortHand, Suit, suitLabel, rankLabel, isTrump, getRevealOptions, canOverride,
+  computeRoundOutcome, advanceLevel, computeFollowableCards, isOnlyLegalPlay, classify, buildAIContext,
+} from '@poker/engine';
+import type { GameState, Card } from '@poker/engine';
 import CardFace from '../cards/CardFace.js';
 import PlayerHand from './PlayerHand.js';
 import PlayerSeat from './PlayerSeat.js';
@@ -9,6 +13,63 @@ import ActionBar from './ActionBar.js';
 import { computePlayableIds } from './playable.js';
 import { formatGameExport } from './export-game.js';
 import './GameTable.css';
+
+/** 牌面文字（调试输出用） */
+const cardText = (c: Card): string => c.isJoker
+  ? (c.rank === 16 ? '大王' : '小王')
+  : `${rankLabel(c.rank)}${suitLabel(c.suit)}`;
+
+const TRACKER_SUIT_ORDER: Record<string, number> = { S: 0, H: 1, C: 2, D: 3 };
+
+function possibleTrumpLabel(key: string): string {
+  const idx = key.indexOf('-');
+  const suit = key.slice(0, idx);
+  const rank = parseInt(key.slice(idx + 1), 10);
+  return rank === 16 ? '大王' : rank === 15 ? '小王' : `${suitLabel(suit as any)}${rankLabel(rank as any)}`;
+}
+
+function trackerSortKey(key: string): number {
+  if (key.startsWith('J-16')) return 0; // 大王
+  if (key.startsWith('J-15')) return 1; // 小王
+  return TRACKER_SUIT_ORDER[key[0]] ?? 9;
+}
+
+/** 无主记牌器文字（移植 CLI showOneTracker，视角 playerIndex） */
+function ntrackerText(gs: GameState, playerIndex: number): string {
+  const ctx = buildAIContext(gs, playerIndex);
+  if (!ctx?.ntState) return '记牌器数据不可用';
+  const s = ctx.ntState;
+  const lines: string[] = [];
+  const label = (i: number) => gs.players[i].name;
+
+  const myTrumps = s.knownTrumpsPerPlayer[playerIndex];
+  lines.push(`手牌常主 (${myTrumps.length}张): ${myTrumps.length ? myTrumps.map(cardText).join(' ') : '无'}`);
+
+  const renderRec = (idx: number, recLabel: string): void => {
+    const rec = s.possibleTrumps[idx];
+    if (rec === null) { lines.push(`${recLabel}可能常主: (已知,不追踪)`); return; }
+    const total = Object.values(rec).reduce((a, b) => a + b, 0);
+    if (total === 0) { lines.push(`${recLabel}可能常主: 无`); return; }
+    const parts = Object.entries(rec)
+      .filter(([, n]) => n > 0)
+      .sort(([a], [b]) => trackerSortKey(a) - trackerSortKey(b))
+      .map(([k, n]) => (n > 1 ? Array(n).fill(possibleTrumpLabel(k)).join(' ') : possibleTrumpLabel(k)));
+    lines.push(`${recLabel}可能常主 (${total}张): ${parts.join(' ')}`);
+  };
+
+  for (let idx = 0; idx < 4; idx++) {
+    if (idx === playerIndex) continue;
+    renderRec(idx, label(idx));
+  }
+  renderRec(4, ctx.isDeclarer ? '底牌(已知)' : '底牌');
+
+  const flags: string[] = [];
+  for (let p = 0; p < 4; p++) {
+    if (s.playersWithNoTrump.has(p)) flags.push(`${label(p)}无主`);
+  }
+  if (flags.length > 0) lines.push(`无主: ${flags.join(', ')}`);
+  return lines.join('\n');
+}
 
 const GameTable: React.FC = () => {
   const {
@@ -23,6 +84,9 @@ const GameTable: React.FC = () => {
 
   const [trumpConfirm, setTrumpConfirm] = useState(false);
   const [exportCopied, setExportCopied] = useState(false);
+  const [showBottomView, setShowBottomView] = useState(false);
+  // 每墩重置：唯一可出自动选中只发生一次，用户清空后不再自动
+  const autoSelectedRef = useRef(false);
 
   // 亮主自动确认：能亮/反主 → 3 秒后自动确认；不能亮/反 → 1 秒后自动（无需人类操作）。
   // 人类点击亮主后 humanReveal 直接 finalize，phase 变化触发 cleanup。
@@ -62,6 +126,39 @@ const GameTable: React.FC = () => {
       st.submitPlay();
     }, 1000);
     return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState, localPlayerIndex, selectedCardIds.length]);
+
+  // 新墩重置自动选中标记 + 释放上一墩的锁定（每墩最多自动选中一次）
+  useEffect(() => {
+    autoSelectedRef.current = false;
+    useGameStore.getState().clearLockedCards();
+  }, [gameState?.tricksPlayed]);
+
+  // 非最后一墩且唯一可出 → 自动选中（不自动出牌；最后一墩仍由上方自动打处理）。
+  // 用户已手动选/清空后不再自动（每墩仅一次）。
+  useEffect(() => {
+    const gs = gameState;
+    if (!gs || gs.phase !== GamePhase.Playing) return;
+    if (gs.currentPlayerIndex !== localPlayerIndex) return;
+    if (gs.trickPlays.length === 0) return; // 领出不自动
+    const trump = gs.trumpDeclaration;
+    if (!trump) return;
+    const lead = gs.trickPlays[0];
+    const leadLen = lead.cards.length;
+    const hand = gs.players[localPlayerIndex].hand;
+    if (hand.length === leadLen) return; // 最后一墩（自动打分支处理）
+    if (autoSelectedRef.current) return;
+    if (selectedCardIds.length > 0) return; // 已手动选
+    const groupIsTrump = isTrump(lead.cards[0], trump);
+    // 组判定与引擎 followGroup 一致：主组 = 全部主牌；花色组 = 同花色非主牌
+    const groupCards = hand.filter(c => (groupIsTrump ? isTrump(c, trump) : c.suit === lead.cards[0].suit && !isTrump(c, trump)));
+    if (!isOnlyLegalPlay(groupCards, leadLen, classify(lead.cards, trump), trump)) return; // 非唯一
+    const followable = computeFollowableCards(hand, lead.cards, trump);
+    if (!followable || followable.length === 0) return;
+    autoSelectedRef.current = true;
+    // 自动选中并锁定（不可放下，出牌后释放）
+    useGameStore.getState().autoSelectCards(followable.map(c => c.id));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameState, localPlayerIndex, selectedCardIds.length]);
 
@@ -174,11 +271,13 @@ const GameTable: React.FC = () => {
             {opts.map(o => (
               <button
                 key={o.suit ?? 'NT'}
-                className={`reveal-btn ${o.suit === null ? 'reveal-nt' : ''}`}
+                className={`reveal-btn ${o.suit === null ? (o.strength >= 4 ? 'reveal-nt nt-big' : 'reveal-nt nt-small') : ''}`}
                 data-testid={`reveal-btn-${o.suit ?? 'NT'}`}
                 onClick={() => humanReveal(o.suit)}
               >
-                {o.suit === null ? '无主 🃏' : `${suitLabel(o.suit)} ${rankLabel(gameState.currentLevel)}${o.strength >= 2 ? ' (对)' : ''}`}
+                {o.suit === null
+                  ? (o.strength >= 4 ? '大王NT' : '小王NT')
+                  : `${suitLabel(o.suit)} ${rankLabel(gameState.currentLevel)}${o.strength >= 2 ? ' (对)' : ''}`}
               </button>
             ))}
             {opts.length === 0 && (
@@ -274,25 +373,46 @@ const GameTable: React.FC = () => {
         );
       })()}
 
-      {/* 建议出牌（调试模式）— 居中 */}
-      {debug && (
-        <div className="debug-bar">
+      {/* 建议出牌（调试）+ 回看上轮 + 查看底牌（人类庄家，非调试也可用）— 一行对齐跟牌/重选 */}
+      <div className="debug-bar">
+        {debug && (
           <button className="debug-btn" onClick={getHint} data-testid="hint-btn">
             🤖 建议出牌
           </button>
-        </div>
-      )}
-
-      {/* 回看上轮 — 非调试模式也提供 */}
-      <div className="debug-bar">
+        )}
         <button className="debug-btn" onClick={toggleLastTrickReview} data-testid="review-btn">
           {lastTrickReview ? '隐藏上轮' : '回看上轮'}
         </button>
+        {isDeclarer && localPlayer.isHuman && (
+          <button
+            className="debug-btn"
+            data-testid="bottom-view-btn"
+            onClick={() => setShowBottomView(v => !v)}
+          >
+            {showBottomView ? '隐藏底牌' : '查看底牌'}
+          </button>
+        )}
       </div>
+
+      {/* 查看底牌弹层（人类庄家） */}
+      {showBottomView && isDeclarer && localPlayer.isHuman && (
+        <div className="bottom-view" data-testid="bottom-view">
+          <div className="bottom-view-title">底牌 ({gameState.bottomCards.length}张)</div>
+          <div className="bottom-view-cards">
+            {gameState.bottomCards.map(card => (
+              <CardFace key={card.id} card={card} size="small" />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 调试菜单 — 右上角（absolute，展开不覆盖手牌） */}
       {debug && (
-        <details className="debug-menu" data-testid="debug-menu">
+        <details
+          className="debug-menu"
+          data-testid="debug-menu"
+          onToggle={e => { if (!e.currentTarget.open) setExportCopied(false); }} // 关闭时重置导出文案
+        >
           <summary>🔧 调试</summary>
           <div className="debug-menu-content">
             <button
@@ -308,6 +428,53 @@ const GameTable: React.FC = () => {
             >
               {exportCopied ? '✅ 已复制' : '📋 导出'}
             </button>
+
+            {/* 其他玩家手牌（二级菜单：功能 → 玩家 → 手牌） */}
+            <details className="debug-sub">
+              <summary data-testid="dbg-hands">🖐 其他玩家手牌</summary>
+              {[0, 1, 2, 3].filter(i => i !== localPlayerIndex).map(i => (
+                <details key={i} className="debug-sub">
+                  <summary data-testid={`dbg-player-${i}`}>{gameState.players[i].name} ({gameState.players[i].hand.length}张)</summary>
+                  <div className="debug-text">
+                    {gameState.players[i].hand.map(cardText).join(' ') || '(空)'}
+                  </div>
+                </details>
+              ))}
+            </details>
+
+            {/* 底牌（即使不是庄家） */}
+            <details className="debug-sub">
+              <summary data-testid="dbg-bottom">🂠 底牌 ({gameState.bottomCards.length}张)</summary>
+              <div className="debug-text">
+                {gameState.bottomCards.map(cardText).join(' ') || '(空)'}
+              </div>
+            </details>
+
+            {/* 历史出牌 */}
+            <details className="debug-sub">
+              <summary data-testid="dbg-history">📜 历史出牌 ({gameState.trickHistory.length}墩)</summary>
+              <div className="debug-text">
+                {gameState.trickHistory.map((t, i) =>
+                  `第${i + 1}墩: ${t.plays.map((p, j) =>
+                    `${gameState.players[(t.leadPlayerIndex + j) % 4].name} ${p.cards.map(cardText).join('')}`
+                  ).join(' | ')}`
+                ).join('\n') || '(无)'}
+              </div>
+            </details>
+
+            {/* 记牌器（无主模式）— 二级菜单 */}
+            {gameState.trumpDeclaration?.trumpSuit === null && (
+              <details className="debug-sub">
+                <summary data-testid="dbg-tracker">🧮 记牌器（无主）</summary>
+                {[0, 1, 2, 3].map(i => (
+                  <details key={i} className="debug-sub">
+                    <summary>{gameState.players[i].name}</summary>
+                    <pre className="debug-text">{ntrackerText(gameState, i)}</pre>
+                  </details>
+                ))}
+              </details>
+            )}
+
             {gameState.aiReasons.length > 0 && (
               <details className="ai-log" open>
                 <summary>AI 日志 ({gameState.aiReasons.length})</summary>

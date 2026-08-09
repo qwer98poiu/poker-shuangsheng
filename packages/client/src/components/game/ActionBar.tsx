@@ -33,7 +33,9 @@ const ActionBar: React.FC<ActionBarProps> = ({
         disabled={selectedCardCount === 0}
         onClick={onSubmitPlay}
       >
-        {isLeading ? '出牌' : '跟牌'} ({selectedCardCount} 张)
+        {isLeading
+          ? `出牌 (${selectedCardCount} 张)`
+          : `跟牌 (${selectedCardCount}/${gameState.trickPlays[0].cards.length} 张)`}
       </button>
       <button
         className="action-btn clear-btn"

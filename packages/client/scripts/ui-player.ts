@@ -262,6 +262,12 @@ async function doPlay(page: Page, snap: UiSnapshot, seed: number, timeoutMs: num
         `hint=${[...sel].sort().join(',')} expected=${[...ids].sort().join(',')}`);
     }
   } else {
+    // 先清空已有选中（可能与自动选中/上次选择冲突，重选避免 toggle）
+    const before = (await collectSnapshot(page)).store!.selectedCardIds;
+    if (before.length > 0) {
+      await safeClick(page, '[data-testid="clear-btn"]');
+      await page.waitForTimeout(80);
+    }
     for (const id of ids) {
       await safeClick(page, `[data-card-id="${id}"]`);
       await page.waitForTimeout(30);
