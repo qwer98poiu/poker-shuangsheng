@@ -108,10 +108,12 @@ async function doReveal(page: Page, timeoutMs: number): Promise<void> {
   if (opts.length > 0) {
     const pick = opts[0];
     check(`r${snap.store!.roundNumber} reveal buttons in canvas`, true);
+    console.error(`  reveal r${snap.store!.roundNumber}: click ${pick.suit ?? 'NT'}`);
     await safeClick(page, `[data-testid="reveal-btn-${pick.suit ?? 'NT'}"]`);
     await waitStateChange(page, sigOf(gs), 'reveal click', timeoutMs);
   } else {
     // 无可亮/反选项 → 1s 自动确认（无按钮可点）
+    console.error(`  reveal r${snap.store!.roundNumber}: no options, wait auto-pass`);
     await waitStateChange(page, sigOf(gs), 'reveal auto-pass', timeoutMs);
   }
 }
@@ -146,6 +148,7 @@ async function doBottomExchange(page: Page, timeoutMs: number): Promise<void> {
     console.error(`  bottom: engine discard invalid (${inHand.length}), fell back to heuristic`);
   }
 
+  console.error(`  bottom r${st.roundNumber}: click ${discard.map(c => c.id).join(',')}`);
   for (const c of discard) {
     await safeClick(page, `[data-card-id="${c.id}"]`);
     await page.waitForTimeout(30);
@@ -209,6 +212,7 @@ async function doPlay(page: Page, snap: UiSnapshot, seed: number, timeoutMs: num
   // 每墩确定性地随机选交互路径：A = 点建议出牌；B = 手动逐张选牌
   const rnd = mulberry32((seed + st.roundNumber * 7919 + gs.tricksPlayed * 131) >>> 0)();
   const sig = sigOf(gs);
+  console.error(`  play r${st.roundNumber} t${gs.tricksPlayed}: ${ids.join(',')} via ${rnd < 0.5 ? 'hint' : 'manual'}`);
 
   if (rnd < 0.5) {
     await safeClick(page, '[data-testid="hint-btn"]');
@@ -286,60 +290,79 @@ function assertRoundTransition(prev: RoundEndRec, next: { gs: any; teamLevels: [
 async function runMatch(page: Page, seed: number, maxRounds: number, timeoutMs: number): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   let lastRound = -1;
+  let lastTrick = -1;
   let prevRoundEnd: RoundEndRec | null = null;
   let roundEndLogged = -1;
 
   while (Date.now() < deadline) {
-    const snap = await collectSnapshot(page);
-    const st = snap.store;
-    if (!st?.gameState) { await page.waitForTimeout(100); continue; }
-    const gs = st.gameState;
+    // 轻量读取（~1ms）：高频率全量 DOM 快照会占满页面主线程，游戏定时器饥饿。
+    // 只在墩推进/局结束/人类回合时做全量 collectSnapshot。
+    const light = await page.evaluate((): any => {
+      const st = (window as any).__POKER_STORE__?.getState?.();
+      const gs = st?.gameState;
+      if (!gs) return null;
+      return {
+        phase: gs.phase, roundNumber: st.roundNumber, tricks: gs.tricksPlayed,
+        current: gs.currentPlayerIndex, matchOver: !!st.matchOver, humanSeat: !st.aiPlayers[0],
+        // 页面内 zustand subscribe 同步捕获的上一局结算快照（round_end 窗口短，
+        // 外部轮询常错过；subscribe 回调在 set 内同步执行，不丢）
+        lastRoundEndSeen: (window as any).__POKER_LAST_ROUND_END__?.roundNumber ?? -1,
+      };
+    });
 
-    // 边界断言：阶段变化时 + 每 500ms 兜底（跳过发牌期高频轮询）
-    if (gs.phase !== GamePhase.Dealing) assertCanvasBounds(snap, st.roundNumber);
+    if (light) {
+      const round = light.roundNumber;
 
-    // 局结束记录（每局一次）
-    if (gs.phase === GamePhase.RoundEnd && st.roundNumber > roundEndLogged) {
-      roundEndLogged = st.roundNumber;
-      prevRoundEnd = { gs, teamLevels: st.teamLevels, roundNumber: st.roundNumber };
-      console.log(`  round ${st.roundNumber} ended (attacker=${gs.attackerPoints}, tricks=${gs.tricksPlayed}, level=${gs.currentLevel}, teams=${st.teamLevels?.join(',')})`);
-    }
-
-    // 局轮转断言
-    if (st.roundNumber > lastRound && lastRound >= 0) {
-      if (prevRoundEnd && prevRoundEnd.roundNumber === st.roundNumber - 1) {
-        assertRoundTransition(prevRoundEnd, { gs, teamLevels: st.teamLevels });
+      // 墩推进 → 全量断言（所有元素在画布内）
+      if (light.tricks > lastTrick) {
+        lastTrick = light.tricks;
+        const snap = await collectSnapshot(page);
+        assertCanvasBounds(snap, round);
       }
-    }
-    lastRound = st.roundNumber;
 
-    // 完成条件：matchOver（庄家队 A 打赢，不再开新局）无条件结束；
-    // 否则第 maxRounds 局进入结算后结束
-    if (gs.phase === GamePhase.RoundEnd) {
-      if (st.matchOver) {
-        console.log(`  match over (team won at round ${st.roundNumber})`);
-        return;
-      }
-      if (st.roundNumber >= maxRounds - 1
-          && prevRoundEnd && prevRoundEnd.roundNumber === st.roundNumber) {
-        return;
-      }
-    }
-
-    // 阶段动作（人类回合才交互）
-    switch (gs.phase) {
-      case GamePhase.Dealing: break; // 发牌中（speed=8 约 1.5s）
-      case GamePhase.Revealing: await doReveal(page, timeoutMs); break;
-      case GamePhase.BottomExchange: await doBottomExchange(page, timeoutMs); break;
-      case GamePhase.Playing:
-        if (gs.currentPlayerIndex === 0 && !st.aiPlayers[0]) {
-          await doPlay(page, snap, seed, timeoutMs);
+      // 局结束记录（页面内 hook 捕获，同步可靠）
+      if (light.lastRoundEndSeen > roundEndLogged) {
+        roundEndLogged = light.lastRoundEndSeen;
+        const hook = await page.evaluate((): any => (window as any).__POKER_LAST_ROUND_END__);
+        if (hook) {
+          prevRoundEnd = { gs: hook.gs, teamLevels: hook.teamLevels, roundNumber: hook.roundNumber };
+          console.error(`  round ${hook.roundNumber} ended (attacker=${hook.gs.attackerPoints}, tricks=${hook.gs.tricksPlayed}, level=${hook.gs.currentLevel}, teams=${hook.teamLevels?.join(',')})`);
+          if (hook.roundNumber >= maxRounds - 1) return;
         }
-        break;
-      case GamePhase.RoundEnd: break; // 等自动 startNewRound（4s）
-      default: break;
+      }
+
+      // matchOver：round_end 持久（不再开新局），主循环轮询可观察到
+      if (light.phase === GamePhase.RoundEnd && light.matchOver) {
+        console.error(`  match over (team won at round ${round})`);
+        return;
+      }
+
+      // 局轮转断言（新局开始时，用全量快照）
+      if (round > lastRound && lastRound >= 0 && prevRoundEnd && prevRoundEnd.roundNumber === round - 1) {
+        const snap = await collectSnapshot(page);
+        assertRoundTransition(prevRoundEnd, { gs: snap.store!.gameState, teamLevels: snap.store!.teamLevels });
+      }
+      lastRound = round;
+
+      // 阶段动作（人类回合才交互）
+      switch (light.phase) {
+        case GamePhase.Dealing: break; // 发牌中（speed=8 约 1.5s）
+        case GamePhase.Revealing: await doReveal(page, timeoutMs); break;
+        case GamePhase.BottomExchange: await doBottomExchange(page, timeoutMs); break;
+        case GamePhase.Playing:
+          if (light.current === 0 && light.humanSeat) {
+            const snap = await collectSnapshot(page);
+            if (snap.store?.gameState?.phase === GamePhase.Playing
+                && snap.store.gameState.currentPlayerIndex === 0) {
+              await doPlay(page, snap, seed, timeoutMs);
+            }
+          }
+          break;
+        case GamePhase.RoundEnd: break; // 等自动 startNewRound
+        default: break;
+      }
     }
-    await page.waitForTimeout(80);
+    await page.waitForTimeout(15);
   }
   const gs = (await collectSnapshot(page)).store?.gameState;
   throw new Error(`match did not finish ${maxRounds} round(s) within ${timeoutMs}ms (phase=${gs?.phase}, tricks=${gs?.tricksPlayed}, round=${(await collectSnapshot(page)).store?.roundNumber})`);
@@ -378,11 +401,31 @@ async function main(): Promise<void> {
       await page.goto(buildUrl({ url, seed, auto: false, speed }), { waitUntil: 'domcontentloaded' });
       await page.waitForTimeout(300);
 
+      // 页面内注入 zustand subscribe：round_end 瞬间同步捕获完整结算状态。
+      // 外部轮询会错过短窗口（speed 高时 startNewRound 延迟被压缩到 ~100ms），
+      // subscribe 回调在 store set 内同步执行，不丢状态。
+      await page.evaluate(() => {
+        const w = window as any;
+        if (!w.__POKER_PHASE_HOOK__) {
+          w.__POKER_PHASE_HOOK__ = true;
+          w.__POKER_LAST_ROUND_END__ = null;
+          w.__POKER_STORE__.subscribe((s: any, prev: any) => {
+            const p = s?.gameState?.phase;
+            const pp = prev?.gameState?.phase;
+            if (p && p !== pp && p === 'round_end') {
+              w.__POKER_LAST_ROUND_END__ = {
+                gs: s.gameState, teamLevels: s.teamLevels, roundNumber: s.roundNumber,
+              };
+            }
+          });
+        }
+      });
+
       // setup：勾选调试模式（hint 按钮需要 debug）→ 开始游戏（默认人类南座）
       await safeClick(page, '.setup-debug input');
       await safeClick(page, '[data-testid="setup-start"]');
 
-      console.log(`ui-player: seed=${seed}, max-rounds=${maxRounds}, viewport=1280x720`);
+      console.error(`ui-player: seed=${seed}, max-rounds=${maxRounds}, viewport=1280x720`);
       await runMatch(page, seed, maxRounds, timeoutMs);
       await page.close();
     } finally {
@@ -392,9 +435,10 @@ async function main(): Promise<void> {
     killProcessTree(child);
   }
 
-  console.log(`\n${asserts.length} assertions, ${failures} failed`);
+  // 进度/结果日志全部走 stderr（同步无缓冲，run_in_background 时实时落盘）
+  console.error(`\n${asserts.length} assertions, ${failures} failed`);
   if (failures > 0) process.exit(1);
-  console.log('ALL GREEN');
+  console.error('ALL GREEN');
 }
 
 main().catch(err => {

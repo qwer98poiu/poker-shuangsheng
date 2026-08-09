@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-09 17:04
+
+### 修复：ui-player 进度日志实时落盘与 round_end 可靠捕获——stderr 输出、页面内 subscribe hook、轻量轮询
+
+**问题**：① Node 17 下 stdout 重定向到文件有块缓冲，每局进度日志不实时落盘（后台跑完整一场时无法实时查看进度）；② 外部轮询（80ms 全量/15ms 轻量）都观察不到 round_end 状态——speed 高时 startNewRound 延迟 tick(3000) 被压缩到 ~100ms，CDP evaluate 在浏览器主线程排队错过整个窗口，导致每局结算记录缺失、转局断言从未执行、maxRounds 完成条件永不满足；③ 全量 DOM 快照每 15ms 轮询会占满页面主线程，游戏定时器饥饿。
+
+**修复**：进度/结果日志全部改走 stderr（同步无缓冲，实时落盘）；页面内注入 zustand `subscribe` hook（回调在 store set 内同步执行，不丢状态）在 phase 变为 round_end 瞬间捕获完整结算快照（`__POKER_LAST_ROUND_END__`），模拟器读取 hook 记录每局结算并触发转局断言与完成条件；主循环改为轻量轮询（每 15ms 只读 phase/roundNumber 等字段，~1ms），仅在墩推进/局结束/人类回合时做全量快照；阶段动作（亮主/扣底/出牌路径）加 stderr 实时日志。**seed 42 实测完整一场：31 局，match over（庄家队 A=14 打赢闲家队 8），680 项断言全绿，exit 0**——32 行进度日志全部实时可见，31 局转局断言全部执行。
+
+**无新增测试**，引擎 638 项 + arena 65 项 + CLI 80 项 + client 17 项 = 800 项通过。
+
+- **影响文件**：`packages/client/scripts/ui-player.ts`
+
 ## 2026-08-09 16:25
 
 ### 修复：ui-player 模拟点击跑完竞技场完整一场（2→A，31 局）——matchOver 完成条件、--speed 参数、每局日志
