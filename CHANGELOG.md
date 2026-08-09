@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-09 11:37
+
+### 修复：GUI 调试菜单与导出——折叠菜单（含 AI 日志）、一键复制对局信息
+
+**问题**：调试按钮平铺挤压界面；无法便捷导出对局信息供复盘。
+
+**修复**：调试区改为折叠菜单（🔧 调试，含 回看上轮/建议出牌/导出/AI 日志，菜单内容 40vh 滚动）；新增导出按钮——点击将本局亮主信息、底牌、历史出牌、当前墩、所有玩家手牌以 CLI 紧凑格式复制到剪贴板（新增 `export-game.ts` 格式化纯函数）。
+
+**新增 2 项测试**（export-game.test.ts：2 项），引擎 638 项 + arena 65 项 + CLI 80 项 + client 14 项 = 797 项通过。
+
+- **影响文件**：`packages/client/src/components/game/export-game.ts`（新）、`packages/client/src/components/game/export-game.test.ts`（新）、`packages/client/src/components/game/GameTable.tsx`、`packages/client/src/components/game/GameTable.css`
+
 ## 2026-08-09 11:27
 
 ### 修复：GUI 亮主流程——发牌中可亮主/反主，亮主即确认，3 秒自动确认

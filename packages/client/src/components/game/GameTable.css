@@ -506,7 +506,7 @@
   color: #ccc;
 }
 
-/* debug bar */
+/* debug bar — 折叠菜单 */
 .debug-bar {
   display: flex;
   gap: 8px;
@@ -514,6 +514,28 @@
   padding: 6px 0;
   flex-wrap: wrap;
   font-size: 12px;
+}
+
+.debug-menu {
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 4px 10px;
+}
+
+.debug-menu summary {
+  cursor: pointer;
+  color: #ffd740;
+  font-size: 12px;
+}
+
+.debug-menu-content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+  max-height: 40vh;
+  overflow-y: auto;
 }
 
 .debug-btn {
@@ -524,6 +546,7 @@
   color: #aaa;
   font-size: 12px;
   cursor: pointer;
+  text-align: left;
 }
 
 .debug-btn:hover {

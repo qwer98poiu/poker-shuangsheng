@@ -7,6 +7,7 @@ import PlayerSeat from './PlayerSeat.js';
 import CenterArea from './CenterArea.js';
 import ActionBar from './ActionBar.js';
 import { computePlayableIds } from './playable.js';
+import { formatGameExport } from './export-game.js';
 import './GameTable.css';
 
 const GameTable: React.FC = () => {
@@ -17,10 +18,11 @@ const GameTable: React.FC = () => {
     submitPlay, submitBottomExchange,
     humanReveal, humanPassReveal,
     toggleLastTrickReview, getHint,
-    aiPlayers, teamLevels, matchOver, settledTrick,
+    aiPlayers, teamLevels, matchOver, settledTrick, roundNumber,
   } = useGameStore();
 
   const [trumpConfirm, setTrumpConfirm] = useState(false);
+  const [exportCopied, setExportCopied] = useState(false);
 
   // 亮主自动确认：能亮/反主 → 3 秒后自动确认；不能亮/反 → 1 秒后自动（无需人类操作）。
   // 人类点击亮主后 humanReveal 直接 finalize，phase 变化触发 cleanup。
@@ -259,28 +261,46 @@ const GameTable: React.FC = () => {
         );
       })()}
 
-      {/* debug controls */}
+      {/* debug controls — 折叠菜单（含 AI 日志与导出） */}
       {debug && (
         <div className="debug-bar">
-          <button className="debug-btn" onClick={toggleLastTrickReview}>
-            {lastTrickReview ? '隐藏' : '回看'}上轮
-          </button>
-          <button className="debug-btn" onClick={getHint} data-testid="hint-btn">
-            🤖 建议出牌（直接选中）
-          </button>
-          {gameState.aiReasons.length > 0 && (
-            <details className="ai-log">
-              <summary>AI 日志 ({gameState.aiReasons.length})</summary>
-              <div className="ai-log-content">
-                {[...gameState.aiReasons].reverse().map((r, i) => (
-                  <div key={i} className="ai-log-entry">
-                    <strong>{gameState.players[r.playerIndex].name}</strong> [{r.phase}]
-                    <span className="ai-reason">{r.reason}</span>
+          <details className="debug-menu" data-testid="debug-menu">
+            <summary>🔧 调试</summary>
+            <div className="debug-menu-content">
+              <button className="debug-btn" onClick={toggleLastTrickReview}>
+                {lastTrickReview ? '隐藏' : '回看'}上轮
+              </button>
+              <button className="debug-btn" onClick={getHint} data-testid="hint-btn">
+                🤖 建议出牌（直接选中）
+              </button>
+              <button
+                className="debug-btn"
+                data-testid="export-btn"
+                onClick={() => {
+                  const text = formatGameExport({ gameState, roundNumber });
+                  navigator.clipboard.writeText(text).then(
+                    () => setExportCopied(true),
+                    () => setExportCopied(false),
+                  );
+                }}
+              >
+                {exportCopied ? '✅ 已复制' : '📋 导出'}
+              </button>
+              {gameState.aiReasons.length > 0 && (
+                <details className="ai-log" open>
+                  <summary>AI 日志 ({gameState.aiReasons.length})</summary>
+                  <div className="ai-log-content">
+                    {[...gameState.aiReasons].reverse().map((r, i) => (
+                      <div key={i} className="ai-log-entry">
+                        <strong>{gameState.players[r.playerIndex].name}</strong> [{r.phase}]
+                        <span className="ai-reason">{r.reason}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </details>
-          )}
+                </details>
+              )}
+            </div>
+          </details>
         </div>
       )}
 
