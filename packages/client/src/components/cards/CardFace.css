@@ -18,6 +18,12 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
+/* 不可选牌：牌面本身不透明，字体/花色半透明，悬停无任何效果（不上浮） */
+.card.disabled:hover {
+  transform: none;
+  box-shadow: none;
+}
+
 .card.size-small {
   width: 50px;
   height: 70px;
@@ -46,9 +52,17 @@
 }
 
 .card.disabled {
-  opacity: 1; /* 不透明灰：清晰可见但不可选（grayscale 替代半透明） */
-  filter: grayscale(0.85);
+  opacity: 1; /* 牌面不透明 */
+  filter: none;
   cursor: not-allowed;
+}
+
+/* 不可选：仅字体/花色符号半透明（牌面仍清晰） */
+.card.disabled .card-rank,
+.card.disabled .card-suit,
+.card.disabled .card-suit-large,
+.card.disabled .card-joker-icon {
+  opacity: 0.3;
 }
 
 .card.highlighted {

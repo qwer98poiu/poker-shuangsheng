@@ -653,18 +653,6 @@
   margin-bottom: 4px;
 }
 
-.review-play {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 0;
-}
-
-.review-play.winner-play {
-  background: rgba(255,215,0,0.1);
-  border-radius: 4px;
-}
-
 .review-player {
   font-size: 11px;
   width: 80px;
@@ -673,6 +661,40 @@
 .review-cards {
   display: flex;
   gap: 2px;
+}
+
+/* 回看上墩：文字一行，按出牌顺序从左到右 */
+.review-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.review-seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.review-arrow {
+  opacity: 0.5;
+  margin-right: 4px;
+}
+
+.review-name {
+  color: #aaa;
+}
+
+.review-name.winner {
+  color: #ffd740;
+  font-weight: bold;
+}
+
+.review-cards-text {
+  color: #e0e0e0;
 }
 
 .review-points {

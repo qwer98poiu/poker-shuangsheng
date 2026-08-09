@@ -33,7 +33,15 @@ const CenterArea: React.FC<CenterAreaProps> = ({ gameState, lastTrickReview, onC
           <span className="trump-label">主牌:</span>
           <span className="trump-value">
             {trumpDeclaration.trumpSuit
-              ? `${suitLabel(trumpDeclaration.trumpSuit)} ${rankLabel(trumpDeclaration.level)}`
+              ? (() => {
+                  // 对子亮主显示两个花色符号（如 ♣♣ 2）
+                  const finalReveal = gameState.reveals[gameState.reveals.length - 1];
+                  const isPair = !!finalReveal
+                    && finalReveal.suit === trumpDeclaration.trumpSuit
+                    && finalReveal.strength >= 2;
+                  const s = suitLabel(trumpDeclaration.trumpSuit!);
+                  return `${isPair ? s + s : s} ${rankLabel(trumpDeclaration.level)}`;
+                })()
               : `无主 (${rankLabel(trumpDeclaration.level)})`}
           </span>
           <span className="declarer-label" data-testid="declarer-label">
@@ -110,32 +118,36 @@ const CenterArea: React.FC<CenterAreaProps> = ({ gameState, lastTrickReview, onC
         );
       })()}
 
-      {/* last trick review */}
+      {/* last trick review — 文字一行，按出牌顺序从左到右 */}
       {lastTrickReview && trickHistory.length > 0 && (() => {
         const last = trickHistory[trickHistory.length - 1];
+        const cardText = (c: any) => c.isJoker
+          ? (c.rank === 16 ? '大王' : '小王')
+          : `${rankLabel(c.rank)}${suitLabel(c.suit)}`;
         return (
           <div className="last-trick-review">
             <div className="review-header">
               <span className="review-label">上一墩回顾</span>
               <button className="review-close-btn" onClick={onCloseReview}>✕ 关闭</button>
             </div>
-            {last.plays.map((play, i) => {
-              const pi = (last.leadPlayerIndex + i) % 4;
-              const isWinner = pi === last.winnerIndex;
-              return (
-                <div key={i} className={`review-play ${isWinner ? 'winner-play' : ''}`}>
-                  <span className="review-player">
-                    {gameState.players[pi].name} {isWinner ? '👑' : ''}
+            <div className="review-line" data-testid="review-line">
+              {last.plays.map((play, i) => {
+                const pi = (last.leadPlayerIndex + i) % 4;
+                const isWinner = pi === last.winnerIndex;
+                return (
+                  <span key={i} className="review-seg">
+                    {i > 0 && <span className="review-arrow">→</span>}
+                    <span className={`review-name ${isWinner ? 'winner' : ''}`}>
+                      {gameState.players[pi].name}{isWinner ? '👑' : ''}
+                    </span>
+                    <span className="review-cards-text">
+                      {play.cards.map(c => cardText(c)).join(' ')}
+                    </span>
                   </span>
-                  <div className="review-cards">
-                    {play.cards.map(c => (
-                      <CardFace key={c.id} card={c} size="small" highlighted={isWinner} />
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-            <div className="review-points">得分: {last.points}</div>
+                );
+              })}
+              <span className="review-points">得分: {last.points}</span>
+            </div>
           </div>
         );
       })()}

@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-09 20:05
+
+### 修复：GUI 显示细节——主牌对子双花色符号、不可选牌字体半透明且悬停无效果、回看上墩改文字一行
+
+**问题**：① 对子亮主时主牌仍显示单个花色符号（如 ♠ 2，应为 ♠♠ 2）；② 不可选牌视觉上区分度不足（grayscale 灰化不明显），且悬停时仍会上浮（hover 效果未对 disabled 屏蔽）；③ 回看上墩渲染为卡片列表（每行一人），非"文字一行按出牌顺序"。
+
+**修复**：trump-indicator 从 `gameState.reveals` 末条取 strength——对子亮主（strength≥2 且花色匹配）显示双花色符号（实测 seed 9："♠ 2 (对)" → `主牌:♠♠ 2`）；不可选牌改为**牌面不透明 + 仅字体/花色符号 opacity 0.3**（`.card.disabled:hover` 取消 transform/shadow，悬停无任何效果，实测 hover 后 transform=none）；回看上墩改为文字一行按出牌顺序从左到右（`AI-3K♥ K♥→AI-49♥ Q♥→玩家14♥ 4♥→AI-2👑A♥ A♥得分: 20`，赢家 👑 高亮）。
+
+**无新增测试**，引擎 652 项 + arena 65 项 + CLI 80 项 + client 17 项 = 814 项通过。
+
+- **影响文件**：`packages/client/src/components/game/CenterArea.tsx`、`packages/client/src/components/game/GameTable.css`、`packages/client/src/components/cards/CardFace.css`
+
 ## 2026-08-09 18:35
 
 ### 修复：模拟点击日志带坐标与组件名；computeFollowableCards 甩牌全对不足时降级可点（模拟整场发现）
