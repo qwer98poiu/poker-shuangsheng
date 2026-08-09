@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-09 14:33
+
+### 新增：GUI 固定画布 1280×720——窗口过小警告、布局按画布重排、调试越界检查与人类模拟器
+
+**问题**：组件位置随窗口自适应不确定，小窗口无提示且部分功能不可用；座位扇子（8 张背面卡 204px）超出 140px 座位列宽、扣底 33 张手牌超出 1280 宽；跟对子/拖拉机时 UI 只允许选 lead 花色，与引擎"组牌不足必须全出+任意填"规则不一致，用户选不满张数无法出牌。
+
+**修复**：固定画布 1280×720 绝对居中（大屏保持绿色桌布留白），窗口任一边小于画布时显示警告横幅（"超出画布区域不可见/不可点击，请放大窗口"）；布局改为固定高度分配（顶部 58px / 中央 ~396px / 消息 24px / 面板 48px / 手牌 164px），CenterArea 内部子块限高滚动；座位扇子 overlap -40px、手牌 -34px；ActionBar 补 data-testid；调试基建升级——ui-dump 默认 1280×720 视口、新增 --viewport/--resize 参数与 bounds 越界检查段（被滚动容器裁切的元素不算画布越界）、ui-smoke 每墩断言所有元素在画布内 + 小视口警告横幅断言；新增 ui-player 人类模拟器——真实 page.click 驱动完整对局（亮主/扣底/出牌/结算/轮转），每墩确定性随机走"建议出牌"或"手动选牌"路径，出牌决策以 UI 可点集合为约束（组合搜索偏好 AI 决策的合法组合）；playable.ts 与引擎 validateFollow 规则对齐（组牌数 < lead 张数全可点、相等/更大仅组牌）。
+
+**新增 3 项测试**（playable.test.ts：3 项），引擎 638 项 + arena 65 项 + CLI 80 项 + client 17 项 = 800 项通过。
+
+- **影响文件**：`packages/client/src/components/WindowSizeWarning.tsx`（新）、`packages/client/src/App.tsx`、`packages/client/src/styles/global.css`、`packages/client/src/components/game/GameTable.css`、`packages/client/src/components/game/playable.ts`、`packages/client/src/components/game/playable.test.ts`、`packages/client/src/components/game/ActionBar.tsx`、`packages/client/scripts/ui-player.ts`（新）、`packages/client/scripts/ui-dump.ts`、`packages/client/scripts/ui-smoke.ts`、`packages/client/scripts/lib/driver.ts`
+
 ## 2026-08-09 12:50
 
 ### 修复：GUI 布局与显示——亮主玩家、调试菜单右上角、出牌方位布局、发牌提速、墩结算不占位

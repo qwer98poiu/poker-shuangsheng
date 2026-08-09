@@ -17,8 +17,8 @@ import fs from 'node:fs';
 import type { ChildProcess } from 'node:child_process';
 import { rankLabel, suitLabel } from '@poker/engine';
 import {
-  DEFAULT_URL, collectSnapshot, ensureServer, killProcessTree, launchBrowser, buildUrl,
-  waitPhase, waitTricks, type UiSnapshot,
+  DEFAULT_URL, CANVAS_W, CANVAS_H, collectSnapshot, ensureServer, killProcessTree,
+  launchBrowser, buildUrl, listOutOfBounds, waitPhase, waitTricks, type UiSnapshot,
 } from './lib/driver.js';
 
 const DUMP_VERSION = 'v1';
@@ -39,13 +39,22 @@ interface Args {
   shot: string | null;
   noSpawn: boolean;
   timeoutMs: number;
+  viewport: [number, number]; // 默认画布 1280×720
+  resize: [number, number] | null; // 快照前 setViewportSize（验证小窗口警告）
 }
 
 function usage(): never {
   console.error(`Usage: npx tsx scripts/ui-dump.ts [--url URL] [--seed N] [--auto 1] [--speed N]
     [--start] [--click-card <id>...] [--wait-phase <phase>] [--wait-tricks N]
-    [--auto-tricks N] [--dump [file|-]] [--shot out.png] [--no-spawn] [--timeout-ms N]`);
+    [--auto-tricks N] [--dump [file|-]] [--shot out.png] [--no-spawn]
+    [--viewport WxH] [--resize WxH] [--timeout-ms N]`);
   process.exit(2);
+}
+
+function parseViewport(v: string): [number, number] {
+  const m = /^(\d+)x(\d+)$/.exec(v);
+  if (!m) throw new Error(`bad viewport "${v}" (expect WxH)`);
+  return [Number(m[1]), Number(m[2])];
 }
 
 function parseArgs(argv: string[]): Args {
@@ -53,6 +62,7 @@ function parseArgs(argv: string[]): Args {
     url: DEFAULT_URL, seed: null, auto: false, speed: null,
     start: false, actions: [], waitTricks: null,
     autoTricks: null, dump: null, shot: null, noSpawn: false, timeoutMs: 60000,
+    viewport: [CANVAS_W, CANVAS_H], resize: null,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -71,6 +81,8 @@ function parseArgs(argv: string[]): Args {
       case '--dump': args.dump = argv[i + 1] !== undefined && !argv[i + 1].startsWith('--') ? next() : '-'; break;
       case '--shot': args.shot = next(); break;
       case '--no-spawn': args.noSpawn = true; break;
+      case '--viewport': args.viewport = parseViewport(next()); break;
+      case '--resize': args.resize = parseViewport(next()); break;
       case '--timeout-ms': args.timeoutMs = Number(next()); break;
       default:
         if (a.startsWith('--')) { console.error(`Unknown flag: ${a}`); usage(); }
@@ -143,6 +155,17 @@ function formatDump(snap: UiSnapshot): string {
   for (const e of snap.elements) {
     if (!e.visible) continue;
     out.push(`  [${e.tag}${e.testid ? ` testid=${e.testid}` : ''}${e.cardId ? ` card=${e.cardId}` : ''} .${e.cls.split(' ').join('.')}] box=${e.box.join('x')}@(${e.box[0]},${e.box[1]}) z=${e.z} text="${e.text}"`);
+  }
+
+  // canvas bounds — 所有可见元素必须在 1280×720 画布内
+  const fails = listOutOfBounds(snap.elements);
+  if (fails.length === 0) {
+    out.push(`bounds: OK (${snap.elements.filter(e => e.visible).length} visible)`);
+  } else {
+    out.push(`bounds: OUT (${fails.length})`);
+    for (const f of fails) {
+      out.push(`  ${f.edge}: ${f.selector} box=${f.box.join('x')}@(${f.box[0]},${f.box[1]})`);
+    }
   }
 
   // ascii layout: seats + center, from element boxes
@@ -226,7 +249,7 @@ async function main(): Promise<void> {
     child = await ensureServer({ url: args.url, noSpawn: args.noSpawn });
     const browser = await launchBrowser();
     try {
-      const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+      const page = await browser.newPage({ viewport: { width: args.viewport[0], height: args.viewport[1] } });
       page.on('pageerror', (err) => console.error(`[pageerror] ${err.message}`));
       page.on('console', (msg) => {
         if (msg.type() === 'error') console.error(`[console.error] ${msg.text()}`);
@@ -257,6 +280,12 @@ async function main(): Promise<void> {
 
       if (args.autoTricks !== null) {
         await runAutoTricks(page, args.autoTricks, args.dump, args.timeoutMs);
+      }
+
+      // --resize：模拟小窗口（验证警告横幅），再取快照
+      if (args.resize) {
+        await page.setViewportSize({ width: args.resize[0], height: args.resize[1] });
+        await page.waitForTimeout(200); // resize 事件 + React 渲染
       }
 
       const snap = await collectSnapshot(page);

@@ -1,7 +1,7 @@
 .game-table {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 720px; /* 固定画布高：各区块固定高度，组件位置不随阶段变化 */
   position: relative;
   background: #0d5332;
   background: linear-gradient(135deg, #0a3d24 0%, #0d5332 50%, #0a4f2a 100%);
@@ -24,22 +24,26 @@
   border-radius: 6px;
 }
 
-/* top section */
+/* top section — 固定 58px */
 .table-top {
   display: flex;
   justify-content: center;
-  padding: 10px 0;
-  min-height: 80px;
+  padding: 8px 0;
+  height: 58px;
+  flex-shrink: 0;
+  overflow: hidden;
 }
 
-/* middle section */
+/* middle section — 弹性高度，顶部对齐（子元素 y 不变） */
 .table-middle {
   display: flex;
   flex: 1;
+  min-height: 366px;
   align-items: center;
   justify-content: center;
   gap: 10px;
   padding: 0 20px;
+  overflow: hidden;
 }
 
 .table-left, .table-right {
@@ -54,13 +58,17 @@
   max-width: 500px;
 }
 
-/* message area */
+/* message area — 固定 24px */
 .table-message {
   display: flex;
   justify-content: center;
-  padding: 6px 0;
+  align-items: center;
+  padding: 3px 0;
   font-size: 14px;
-  min-height: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .error-msg {
@@ -77,10 +85,12 @@
   border-radius: 4px;
 }
 
-/* bottom section */
+/* bottom section — 固定 164px（手牌区固定，不被中间内容挤压） */
 .table-bottom {
-  padding: 10px 20px 16px;
-  flex-shrink: 0; /* 手牌区固定，不被中间内容挤压 */
+  padding: 8px 20px 10px;
+  height: 164px;
+  flex-shrink: 0;
+  overflow: hidden;
 }
 
 /* ===== player seat ===== */
@@ -138,20 +148,28 @@
 .center-area {
   background: rgba(0, 0, 0, 0.3);
   border-radius: 16px;
-  padding: 16px;
+  padding: 8px 16px;
   text-align: center;
+  max-height: 396px;
+  overflow-y: auto; /* 内容超预算时滚动兜底 */
 }
 
 .phase-banner {
   font-size: 20px;
   font-weight: bold;
-  padding: 8px 0;
+  padding: 2px 0;
   color: #ffd740;
+  height: 28px;
+  line-height: 28px;
+  overflow: hidden;
 }
 
 .trump-indicator {
   font-size: 16px;
-  padding: 6px 0;
+  padding: 2px 0;
+  height: 22px;
+  line-height: 22px;
+  overflow: hidden;
 }
 
 .trump-label {
@@ -179,8 +197,8 @@
     ". bottom .";
   justify-items: center;
   align-items: center;
-  min-height: 130px;
-  padding: 4px;
+  min-height: 100px;
+  padding: 2px;
 }
 
 .trick-pos {
@@ -398,7 +416,10 @@
   display: flex;
   gap: 12px;
   justify-content: center;
-  padding: 8px 0;
+  align-items: center;
+  height: 48px;
+  flex-shrink: 0;
+  overflow: hidden;
 }
 
 .action-btn {
@@ -436,14 +457,16 @@
   background: rgba(255, 255, 255, 0.2);
 }
 
-/* reveal panel */
+/* reveal panel — 固定行高 48px（与 action-bar/bottom-exchange 同一槽位） */
 .reveal-panel {
   display: flex;
   gap: 8px;
   justify-content: center;
   align-items: center;
-  padding: 8px 0;
-  flex-wrap: wrap;
+  height: 48px;
+  flex-shrink: 0;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .reveal-hint {
@@ -485,13 +508,16 @@
   cursor: pointer;
 }
 
-/* bottom exchange */
+/* bottom exchange — 固定行高 48px */
 .bottom-exchange {
   display: flex;
   gap: 12px;
   justify-content: center;
   align-items: center;
-  padding: 8px 0;
+  height: 48px;
+  flex-shrink: 0;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .trump-warning {
@@ -511,13 +537,16 @@
   color: #ccc;
 }
 
-/* debug bar — 建议出牌居中；🔧 菜单右上角（absolute，点开不挤压布局） */
+/* debug bar — 建议出牌居中；🔧 菜单右上角（absolute，点开不挤压布局）；固定 30px */
 .debug-bar {
   position: relative;
   display: flex;
   justify-content: center;
-  padding: 6px 0;
+  align-items: center;
+  height: 30px;
+  flex-shrink: 0;
   font-size: 12px;
+  overflow: hidden;
 }
 
 .debug-menu {
@@ -614,13 +643,13 @@
 
 /* 墩结算显示（第四家出牌后保留到下一墩第一张牌），限高防挤压手牌区 */
 .settled-trick {
-  margin-top: 8px;
-  padding: 8px;
+  margin-top: 4px;
+  padding: 4px 8px;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 8px;
   font-size: 12px;
-  max-height: 150px;
+  max-height: 110px;
   overflow-y: auto;
 }
 
@@ -678,12 +707,14 @@
   text-align: right;
 }
 
-/* point collection */
+/* point collection — 限高 90px，超长滚动 */
 .point-collection {
-  margin-top: 6px;
-  padding: 4px 8px;
+  margin-top: 4px;
+  padding: 2px 8px;
   background: rgba(76,175,80,0.08);
   border-radius: 6px;
+  max-height: 90px;
+  overflow-y: auto;
 }
 
 .point-label {

@@ -29,6 +29,7 @@ const ActionBar: React.FC<ActionBarProps> = ({
     <div className="action-bar">
       <button
         className="action-btn play-btn"
+        data-testid="play-btn"
         disabled={selectedCardCount === 0}
         onClick={onSubmitPlay}
       >
@@ -36,6 +37,7 @@ const ActionBar: React.FC<ActionBarProps> = ({
       </button>
       <button
         className="action-btn clear-btn"
+        data-testid="clear-btn"
         disabled={selectedCardCount === 0}
         onClick={onClearSelection}
       >

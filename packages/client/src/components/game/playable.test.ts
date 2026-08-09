@@ -43,4 +43,31 @@ describe('computePlayableIds — 不符合规则的牌灰色不可选', () => {
     const hand = [c('D', 3, 0), c('H', 3, 1)];
     expect(computePlayableIds(hand, [play([c('S', 5, 9)], null)], cfg, GamePhase.Playing)).toBeNull();
   });
+
+  it('跟对子：手牌同花色牌数 < lead 张数 → 全可点（组牌必出 + 任意填）', () => {
+    const hand = [c('H', 3, 0), c('D', 3, 1), c('D', 5, 2)];
+    // lead 是红桃对子（2 张），手牌只有 1 张红桃 → 必须出 H3 + 任意 1 张填
+    const ids = computePlayableIds(hand, [play([c('H', 7, 9), c('H', 8, 10)], Suit.Hearts)], cfg, GamePhase.Playing);
+    expect(ids).not.toBeNull();
+    expect(ids!.has('H-3-0')).toBe(true);   // 组牌必出
+    expect(ids!.has('D-3-1')).toBe(true);   // 填任意
+    expect(ids!.has('D-5-2')).toBe(true);   // 填任意
+  });
+
+  it('跟单张：手牌同花色数 == lead 张数 → 恰好出该组', () => {
+    const hand = [c('H', 3, 0), c('H', 4, 1), c('D', 3, 2)];
+    const ids = computePlayableIds(hand, [play([c('H', 7, 9)], Suit.Hearts)], cfg, GamePhase.Playing);
+    expect(ids!.has('H-3-0')).toBe(true);
+    expect(ids!.has('H-4-1')).toBe(true);
+    expect(ids!.has('D-3-2')).toBe(false);
+  });
+
+  it('跟对子：手牌同花色数 > lead 张数 → 只能出该组', () => {
+    const hand = [c('H', 3, 0), c('H', 4, 1), c('H', 5, 2), c('D', 3, 3)];
+    const ids = computePlayableIds(hand, [play([c('H', 7, 9), c('H', 8, 10)], Suit.Hearts)], cfg, GamePhase.Playing);
+    expect(ids!.has('H-3-0')).toBe(true);
+    expect(ids!.has('H-4-1')).toBe(true);
+    expect(ids!.has('H-5-2')).toBe(true);
+    expect(ids!.has('D-3-3')).toBe(false);
+  });
 });

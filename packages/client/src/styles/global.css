@@ -18,11 +18,46 @@ body {
   color: #e0e0e0;
 }
 
+/* 固定画布 1280×720：大屏绿色桌布铺满视口，内容只用中央画布 */
+.app-shell {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: linear-gradient(135deg, #0a3d24 0%, #1a5c3a 100%);
+}
+
+.game-frame {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 1280px;
+  height: 720px;
+  overflow: hidden;
+  background: linear-gradient(135deg, #0a3d24 0%, #0d5332 50%, #0a4f2a 100%);
+}
+
+/* 窗口过小警告（fixed 视口级，frame 裁切不影响可见性） */
+.window-warning {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  background: rgba(211, 47, 47, 0.9);
+  color: #fff;
+  padding: 6px 16px;
+  border-radius: 0 0 8px 8px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
 .app-container {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 100vh;
+  height: 100%;
   background: linear-gradient(135deg, #0a3d24 0%, #1a5c3a 100%);
 }
 

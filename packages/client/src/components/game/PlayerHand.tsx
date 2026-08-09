@@ -42,7 +42,7 @@ const PlayerHand: React.FC<PlayerHandProps> = ({
           <div
             key={card.id}
             className="hand-card-wrapper"
-            style={{ marginLeft: i > 0 ? '-28px' : '0', zIndex: i }}
+            style={{ marginLeft: i > 0 ? '-34px' : '0', zIndex: i }}
           >
             <CardFace
               card={card}

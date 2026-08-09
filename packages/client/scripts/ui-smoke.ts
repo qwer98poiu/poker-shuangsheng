@@ -19,7 +19,7 @@
  * Exit codes: 0 all green, 1 any assertion failed.
  */
 import type { Page } from 'playwright-core';
-import { collectSnapshot, ensureServer, killProcessTree, launchBrowser, buildUrl } from './lib/driver.js';
+import { collectSnapshot, ensureServer, killProcessTree, launchBrowser, buildUrl, listOutOfBounds } from './lib/driver.js';
 import type { UiSnapshot } from './lib/driver.js';
 
 // Optional engine helpers (available after P1) for round-transition prediction.
@@ -52,6 +52,13 @@ function check(name: string, ok: boolean, detail = ''): void {
 
 // ---------------------------------------------------------------------------
 // per-trick invariants (engine-side, always available)
+
+/** 所有可见元素必须完全在 1280×720 画布内（越界即用户无法点击）。 */
+function assertCanvasBounds(snap: UiSnapshot, round: number): void {
+  const fails = listOutOfBounds(snap.elements);
+  check(`r${round} all elements within canvas`, fails.length === 0,
+    fails.length > 0 ? `${fails.length} out of bounds: ${fails.map(f => `${f.selector}(${f.edge})`).join(', ')}` : '');
+}
 
 function assertTrickInvariants(snap: UiSnapshot, round: number): void {
   const gs = snap.store?.gameState;
@@ -163,6 +170,7 @@ async function runMatch(page: Page, opts: { maxRounds: number; timeoutMs: number
     if (gs.tricksPlayed > lastTrick) {
       lastTrick = gs.tricksPlayed;
       assertTrickInvariants(snap, st.roundNumber);
+      assertCanvasBounds(snap, st.roundNumber);
       assertDomConsistency(snap, st.roundNumber);
       const th = gs.trickHistory;
       if (th.length > 0) {
@@ -187,11 +195,40 @@ async function runMatch(page: Page, opts: { maxRounds: number; timeoutMs: number
 }
 
 // ---------------------------------------------------------------------------
+// small-viewport check — 窗口 <1280×720 时警告横幅必须出现
+
+async function runSmallViewportCheck(page: Page, url: string, timeoutMs: number): Promise<void> {
+  await page.goto(url, { waitUntil: 'domcontentloaded' });
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const snap = await collectSnapshot(page);
+    if (snap.store?.gameState) {
+      const warn = snap.elements.find(e => e.testid === 'window-warning');
+      check('small viewport: window-warning visible', !!warn && warn.visible,
+        warn ? `box=${warn.box.join('x')}@(${warn.box[0]},${warn.box[1]})` : 'window-warning not found');
+      check('small viewport: warning text mentions size', !!warn && warn.text.includes('窗口过小'),
+        warn ? `text="${warn.text}"` : 'no element');
+      // 小窗口下其他元素越界（被画布裁切）是预期的"功能受限"，不视为 bug；
+      // 只断言游戏未崩溃（无 errorMessage）
+      const others = snap.elements.filter(e => e.testid !== 'window-warning');
+      const fails = listOutOfBounds(others);
+      check('small viewport: game keeps running (no errorMessage)',
+        snap.store.errorMessage === null, `errorMessage="${snap.store.errorMessage}"`);
+      console.log(`  small viewport: warning=${!!warn} boundsExceeds=${fails.length}`);
+      return;
+    }
+    await page.waitForTimeout(100);
+  }
+  throw new Error(`small-viewport check: gameState did not appear within ${timeoutMs}ms`);
+}
+
+// ---------------------------------------------------------------------------
 // main
 
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   let seed = 42, maxRounds = 3, timeoutMs = 180000, noSpawn = false, noFingerprint = false, url = 'http://localhost:3000';
+  let smallViewport: [number, number] | null = null;
   for (let i = 0; i < argv.length; i++) {
     switch (argv[i]) {
       case '--seed': seed = Number(argv[++i]); break;
@@ -200,6 +237,12 @@ async function main(): Promise<void> {
       case '--no-spawn': noSpawn = true; break;
       case '--no-fingerprint': noFingerprint = true; break;
       case '--url': url = argv[++i]; break;
+      case '--small-viewport': {
+        const m = /^(\d+)x(\d+)$/.exec(argv[++i]);
+        if (!m) { console.error('--small-viewport expects WxH'); process.exit(2); }
+        smallViewport = [Number(m[1]), Number(m[2])];
+        break;
+      }
       default: console.error(`Unknown flag: ${argv[i]}`); process.exit(2);
     }
   }
@@ -211,11 +254,19 @@ async function main(): Promise<void> {
       const runs: Fingerprint[] = [];
       const runCount = noFingerprint ? 1 : 2;
       for (let r = 0; r < runCount; r++) {
-        const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+        const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
         await page.goto(buildUrl({ url, seed, auto: true, speed: null }), { waitUntil: 'domcontentloaded' });
-        console.log(`run ${r + 1}/${runCount}: seed=${seed}, max-rounds=${maxRounds}`);
+        console.log(`run ${r + 1}/${runCount}: seed=${seed}, max-rounds=${maxRounds}, viewport=1280x720`);
         const fp = await runMatch(page, { maxRounds, timeoutMs });
         runs.push(fp);
+        await page.close();
+      }
+
+      // 小视口警告横幅检查（独立 run，不参与确定性指纹）
+      if (smallViewport) {
+        const page = await browser.newPage({ viewport: { width: smallViewport[0], height: smallViewport[1] } });
+        console.log(`small-viewport run: ${smallViewport[0]}x${smallViewport[1]}`);
+        await runSmallViewportCheck(page, buildUrl({ url, seed, auto: true, speed: null }), timeoutMs);
         await page.close();
       }
       if (!noFingerprint) {

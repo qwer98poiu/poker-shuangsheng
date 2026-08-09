@@ -39,7 +39,7 @@ const PlayerSeat: React.FC<PlayerSeatProps> = ({
               key={i}
               className="seat-card-back"
               style={{
-                marginLeft: i > 0 ? '-28px' : '0',
+                marginLeft: i > 0 ? '-40px' : '0',
                 transform: `rotate(${(i - 3) * 3}deg)`,
               }}
             >

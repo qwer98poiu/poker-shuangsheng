@@ -117,11 +117,15 @@ export interface UiSnapshot {
     message: string;
     errorMessage: string | null;
     selectedCardIds: string[];
+    teamLevels: [number, number] | null;
+    matchOver: boolean;
     gameState: any;
   } | null;
   elements: Array<{
     tag: string; testid: string | null; cardId: string | null; cls: string;
     text: string; box: [number, number, number, number]; visible: boolean; z: number;
+    /** 被滚动/溢出祖先容器裁切时 = 该祖先的 class（元素在画布内但不可全见，滚动后可点，不算画布越界）。 */
+    clippedBy: string | null;
   }>;
 }
 
@@ -135,6 +139,22 @@ export async function collectSnapshot(page: Page): Promise<UiSnapshot> {
       const h = el as HTMLElement;
       const r = h.getBoundingClientRect();
       const cs = getComputedStyle(h);
+      // 被滚动/溢出祖先裁切？被裁元素在画布内（滚动后可点击），不算画布越界。
+      let clippedBy: string | null = null;
+      let p = h.parentElement;
+      while (p) {
+        const pcs = getComputedStyle(p);
+        if (pcs.overflowX === 'auto' || pcs.overflowX === 'scroll'
+            || pcs.overflowY === 'auto' || pcs.overflowY === 'scroll') {
+          const pr = p.getBoundingClientRect();
+          if (r.bottom > pr.bottom + 1 || r.right > pr.right + 1
+              || r.top < pr.top - 1 || r.left < pr.left - 1) {
+            clippedBy = typeof p.className === 'string' ? p.className : p.tagName;
+            break;
+          }
+        }
+        p = p.parentElement;
+      }
       elements.push({
         tag: el.tagName.toLowerCase(),
         testid: h.getAttribute('data-testid'),
@@ -144,6 +164,7 @@ export async function collectSnapshot(page: Page): Promise<UiSnapshot> {
         box: [Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height)],
         visible: (r.width > 0 || r.height > 0) && cs.display !== 'none' && cs.visibility !== 'hidden',
         z: parseInt(cs.zIndex, 10) || 0,
+        clippedBy,
       });
     });
     const gs = st?.gameState ?? null;
@@ -154,11 +175,65 @@ export async function collectSnapshot(page: Page): Promise<UiSnapshot> {
         ? {
             mode: st.mode, roundNumber: st.roundNumber, aiPlayers: st.aiPlayers,
             message: st.message, errorMessage: st.errorMessage,
-            selectedCardIds: st.selectedCardIds, gameState: gs,
+            selectedCardIds: st.selectedCardIds, teamLevels: st.teamLevels ?? null,
+            matchOver: !!st.matchOver, gameState: gs,
           }
         : null,
     };
   }) as Promise<UiSnapshot>;
+}
+
+// ---------------------------------------------------------------------------
+// canvas bounds — 固定画布 1280×720，越界即用户无法点击
+
+export const CANVAS_W = 1280;
+export const CANVAS_H = 720;
+
+export interface BoundsFail {
+  selector: string; // testid / cardId / tag.cls
+  box: [number, number, number, number];
+  edge: 'left' | 'right' | 'top' | 'bottom';
+}
+
+/** 元素 box 是否完全在画布内；越界返回首个越界详情。被滚动容器裁切的元素跳过（画布内可见，滚动后可点击）。 */
+export function assertInCanvas(elem: { testid: string | null; cardId: string | null; cls: string; tag: string; box: [number, number, number, number]; visible: boolean; clippedBy: string | null }): BoundsFail | null {
+  if (!elem.visible) return null;
+  if (elem.clippedBy) return null;
+  const [x, y, w, h] = elem.box;
+  if (x < 0) return { selector: elem.testid ?? elem.cardId ?? `${elem.tag}.${elem.cls}`, box: elem.box, edge: 'left' };
+  if (y < 0) return { selector: elem.testid ?? elem.cardId ?? `${elem.tag}.${elem.cls}`, box: elem.box, edge: 'top' };
+  if (x + w > CANVAS_W) return { selector: elem.testid ?? elem.cardId ?? `${elem.tag}.${elem.cls}`, box: elem.box, edge: 'right' };
+  if (y + h > CANVAS_H) return { selector: elem.testid ?? elem.cardId ?? `${elem.tag}.${elem.cls}`, box: elem.box, edge: 'bottom' };
+  return null;
+}
+
+/** 列出快照中所有越界元素。 */
+export function listOutOfBounds(elements: UiSnapshot['elements']): BoundsFail[] {
+  const fails: BoundsFail[] = [];
+  for (const e of elements) {
+    const f = assertInCanvas(e);
+    if (f) fails.push(f);
+  }
+  return fails;
+}
+
+/**
+ * 模拟点击只点画布内坐标：先滚动到元素（滚动容器内的元素滚动到可视），
+ * 再断言其滚动后 box 完全在 1280×720 内，最后点击。
+ * 滚动后仍越界 = 用户点不到，报错。
+ */
+export async function safeClick(page: Page, selector: string, opts: { timeout?: number } = {}): Promise<void> {
+  const el = page.locator(selector).first();
+  await el.waitFor({ state: 'visible', timeout: opts.timeout ?? 5000 });
+  await el.scrollIntoViewIfNeeded();
+  const bb = await el.boundingBox();
+  if (!bb) throw new Error(`safeClick: "${selector}" has no bounding box`);
+  const box: [number, number, number, number] = [Math.round(bb.x), Math.round(bb.y), Math.round(bb.width), Math.round(bb.height)];
+  const fail = assertInCanvas({ testid: null, cardId: null, cls: '', tag: 'locator', box, visible: true, clippedBy: null });
+  if (fail) {
+    throw new Error(`safeClick: "${selector}" OUT OF CANVAS (${box.join('x')}@(${box[0]},${box[1]}) → ${fail.edge})`);
+  }
+  await el.click();
 }
 
 // ---------------------------------------------------------------------------
