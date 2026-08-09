@@ -174,7 +174,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     set({
       gameState: afterReveal,
-      message: `发牌中... ${totalDealt + 1}/100`,
+      // 发牌进度按本地玩家手牌显示（分母 25）
+      message: `发牌中... ${newPlayers[get().localPlayerIndex].hand.length}/25`,
     });
 
     setTimeout(() => get().runDealStep(deck), tick(180));

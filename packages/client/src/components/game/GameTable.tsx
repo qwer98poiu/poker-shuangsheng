@@ -256,7 +256,7 @@ const GameTable: React.FC = () => {
               <div className="ai-log-content">
                 {[...gameState.aiReasons].reverse().map((r, i) => (
                   <div key={i} className="ai-log-entry">
-                    <strong>P{r.playerIndex + 1}</strong> [{r.phase}]
+                    <strong>{gameState.players[r.playerIndex].name}</strong> [{r.phase}]
                     <span className="ai-reason">{r.reason}</span>
                   </div>
                 ))}

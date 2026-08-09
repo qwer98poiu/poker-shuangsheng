@@ -25,17 +25,20 @@ const CenterArea: React.FC<CenterAreaProps> = ({ gameState, lastTrickReview, onC
       <div className="phase-banner" data-testid="phase-banner">{getPhaseText()}</div>
 
       {trumpDeclaration && (
-        <div className="trump-indicator">
+        <div className="trump-indicator" data-testid="trump-indicator">
           <span className="trump-label">主牌:</span>
           <span className="trump-value">
             {trumpDeclaration.trumpSuit
               ? `${suitLabel(trumpDeclaration.trumpSuit)} ${rankLabel(trumpDeclaration.level)}`
               : `无主 (${rankLabel(trumpDeclaration.level)})`}
           </span>
+          <span className="declarer-label" data-testid="declarer-label">
+            庄家: {gameState.players[trumpDeclaration.declarerIndex].name}
+          </span>
         </div>
       )}
 
-      <div className="score-display">
+      <div className="score-display" data-testid="score-display">
         <span className="score-item">级别: {rankLabel(currentLevel)}</span>
         <span className="score-item">闲家得分: {attackerPoints}</span>
         <span className="score-item">墩数: {gameState.tricksPlayed}/25</span>

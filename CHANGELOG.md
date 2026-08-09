@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-09 10:21
+
+### 修复：GUI 信息显示——AI 日志命名、庄家显示、发牌进度、得分左上角
+
+**问题**：AI 日志显示内部编号 P1-P4（应为 玩家1/AI-2/AI-3/AI-4）；主牌指示无庄家信息；发牌进度分母为 100（应为本地手牌 25）；闲家得分在中央、字号偏大挤压界面。
+
+**修复**：AI 日志改按 `players[i].name` 显示（玩家1/AI-2/AI-3/AI-4）；主牌指示新增"庄家: X"（data-testid=declarer-label）；发牌进度改 `发牌中... N/25`（本地玩家手牌数）；闲家得分固定左上角（absolute 12,8、12px、data-testid=score-display）；上轮回看字号小一号（12px）。
+
+**新增 0 项测试**，引擎 638 项 + arena 65 项 + CLI 80 项 + client 4 项 = 787 项通过。
+
+- **影响文件**：`packages/client/src/store/gameStore.ts`、`packages/client/src/components/game/GameTable.tsx`、`packages/client/src/components/game/CenterArea.tsx`、`packages/client/src/components/game/GameTable.css`
+
 ## 2026-08-09 09:37
 
 ### 新增：提取历史基线 ai-0808（133900d 快照）
