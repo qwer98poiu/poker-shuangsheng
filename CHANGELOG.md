@@ -320,14 +320,6 @@
 
 - **影响文件**：`packages/engine/src/ai-0707/`、`packages/engine/src/ai-0712/`、`packages/engine/src/ai-0726/`（删除）、`packages/engine/src/index.ts`、`packages/arena/src/strategies.ts`、`packages/arena/src/run.ts`、`packages/arena/src/__tests__/historical-strategies.test.ts`、`packages/arena/src/__tests__/progress.test.ts`、`README.md`
 
-## 2026-08-06 23:48
-
-### 文档：更新策略 Elo 表（当前 ai 实测 1009.1）
-
-**新增**：README 中英文"策略 Elo 评分"表更新——原 `ai` 行 1000.0 实为基准快照 `ai-0802`，改为独立行并保持 1000.0；当前演进后 `ai` 实测 1009.1（新竞技场场次测量），列于首行。注记改为"基准 `ai-0802` = 1000；当前 `ai` 实测 1009.1"。其余基线行不变。
-
-- **影响文件**：`README.md`
-
 ## 2026-08-06 23:26
 
 ### 新增：竞技场报告指标"胜出时对方平均等级"
@@ -380,7 +372,7 @@
 
 - **影响文件**：`packages/engine/src/ai/follow-trump.ts`、`packages/engine/src/__tests__/ai-follow.test.ts`
 
-## 2026-08-05 22:15
+## 2026-08-05 22:13
 
 ### 改进：亮主阶段交互——不可亮/反时不提示，可亮/反时只显示可用选项
 
@@ -457,17 +449,7 @@
 
 - **影响文件**：`packages/cli/src/parse.ts`、`packages/cli/src/index.ts`、`packages/cli/src/__tests__/parse.test.ts`
 
-## 2026-08-04 22:08
-
-### 文档：更新策略 Elo 表（全量 6 策略）
-
-**新增**：README 中英文"策略 Elo 评分"表更新为全量 6 策略——对竞技场全部 8 场对决做加权最小二乘拟合（每场对决 ΔR = 400·log10(p̂/(1−p̂))，p̂ 含平局按 0.5 计，权重 = 对局数，锚定 `ai` = 1000）：`ai-0801` = 992.2、`ai-0726` = 988.1、`ai-0719` = 895.3、`ai-0712` = 463.6、`ai-0707` = -528.5（替换原三策略表及交叉验证说明）。
-
-**新增**验证脚本 `packages/arena/scripts/elo-verify.ts`（`npx tsx` 运行）——复算全部 Elo 分并逐策略对比给定值（最大偏差 0.04，1 位小数舍入内一致），偏差超 0.051 时退出码 1。
-
-- **影响文件**：`README.md`、`packages/arena/scripts/elo-verify.ts`（新）
-
-## 2026-08-02 23:05
+## 2026-08-02 23:02
 
 ### 提取历史基线策略 ai-0712 与 ai-0719
 
@@ -480,14 +462,6 @@
 **新增 2 项测试**（historical-strategies.test.ts：2 项），引擎 580 项 + arena 66 项 + CLI 34 项 = 680 项通过。
 
 - **影响文件**：`packages/engine/src/ai-0712/`、`packages/engine/src/ai-0719/`、`packages/engine/src/index.ts`、`packages/arena/src/strategies.ts`、`packages/arena/src/__tests__/historical-strategies.test.ts`、`README.md`
-
-## 2026-08-02 21:32
-
-### 文档：README 增加策略 Elo 评分
-
-**新增**：README 中英文"策略 Elo 评分"表——以当前 `ai` = 1000 为基准，由三场竞技场镜像对决胜率反解（ΔR = 400·log10(p̂/(1−p̂))，p̂ 含平局按 0.5 计）：`ai-0801` = 992.1、`ai-0726` = 988.0；三场对决两两交叉验证一致（ai-0801 与 ai-0726 传递差约 4.0 vs 直接对决约 4.2）。
-
-- **影响文件**：`README.md`
 
 ## 2026-08-02 21:21
 
@@ -522,16 +496,6 @@
 **新增 1 项测试**（ai-follow.test.ts：1 项，level=12 下 S-55 为真副牌对子），引擎 520 项 + arena 63 项 + CLI 34 项 = 617 项通过。
 
 - **影响文件**：`packages/engine/src/ai/follow-offsuit.ts`、`packages/engine/src/__tests__/ai-follow.test.ts`
-
-## 2026-08-02 15:05
-
-### 文档：README 补充策略竞技场介绍与启动命令
-
-**修改**：README.md 中英文两部分同步更新——项目结构补充 `packages/arena`；新增"策略竞技场"章节（镜像对决、必打 K/A、显著性判定、动态进度基准、检查点与升级记录、历史基线策略）；快速开始补充 CLI 与竞技场的启动命令及完整参数表（--pairs/--max-matches/--step-matches/--seed/--workers/--strategy-a/--strategy-b/--benchmark/--detail-pair/--out/--no-json）；测试数更新为 616。
-
-无新增测试，总数 616 项通过。
-
-- **影响文件**：`README.md`
 
 ## 2026-08-02 14:37
 
@@ -668,16 +632,6 @@
 
 - **影响文件**：`packages/arena/`（package.json、tsconfig.json、vitest.config.ts、src/*、src/__tests__/*）、`packages/engine/src/model.ts`、`packages/engine/src/index.ts`、`packages/engine/src/ai-v2/*`、`packages/engine/src/__tests__/seeded-shuffle.test.ts`、`packages/engine/src/__tests__/ai-v2-differential.test.ts`、根 `package.json`、`.gitignore`
 
-## 2026-08-01 14:30
-
-### 文档：新增 strategy 提交前缀，更新开发原则
-
-**修改**：
-- 新增 `strategy:` 前缀专门用于 AI 策略修改，与 `fix:`（含策略 bug）和 `feat:`（非策略新功能）区分
-- 开发原则：用户反馈的 bug 先构造测试复现再修复，而非修完再补测试
-
-- **影响文件**：`CLAUDE.md`
-
 ## 2026-08-01 12:53
 
 ### 记牌器：自我亮主后剩余常主消失，亮主牌在他人视角丢失
@@ -714,8 +668,6 @@
 
 **新增 12 项测试**（parse-level.test.ts：12 项），CLI 26 项 + 引擎 506 项 = 532 项通过。
 
-> **注意**：自 2026-07-26 17:33（NT 记牌器重构）起提交信息中的「N项通过」实际只统计了引擎测试，漏计了 CLI 的 14 项。本提交恢复包含 CLI 的完整统计。之前 2026-07-30 19:50 的 506 项实际应为 506 + 14 = 520。
-
 - **影响文件**：`packages/cli/src/index.ts`、`packages/cli/src/parse-level.ts`（新增）、`packages/cli/src/__tests__/parse-level.test.ts`（新增）
 
 ## 2026-07-30 19:50
@@ -730,7 +682,7 @@
 - 毙牌 filler 加对子保护：分牌 filler 仅闲家跨台阶时拆对，非分 filler 永不拆对（有 fallback）
 - 理由判断：全主+牌型匹配+盖过队友才是盖毙，否则垫牌/垫主牌
 
-**新增 7 项测试**（ai-follow.test.ts：7 项），总数 506 项通过。
+**新增 7 项测试**（ai-follow.test.ts：7 项），总数 520 项通过。
 
 - **影响文件**：`packages/engine/src/ai/index.ts`、`packages/engine/src/ai/follow-trump.ts`、`packages/engine/src/__tests__/ai-follow.test.ts`
 
@@ -744,7 +696,7 @@
 - `index.ts` 缺门路径：第四家 + 队友大时，仅当分牌能盖过（加分优先）或最小主牌能盖过（免费超毙）才毙牌，否则 `垫主牌`。垫主牌时若手牌有分，标注 `（队友已大，加分）`
 - `killReason`：盖毙统一用 `beat_points` 意图（`用分牌盖`/`用最小牌盖`），`用主牌毙` 才按 tmWin 区分
 
-**新增 4 项测试**（ai-follow.test.ts：4 项），总数 499 项通过。
+**新增 4 项测试**（ai-follow.test.ts：4 项），总数 513 项通过。
 
 - **影响文件**：`packages/engine/src/ai/index.ts`、`packages/engine/src/ai/follow-trump.ts`、`packages/engine/src/__tests__/ai-follow.test.ts`
 
@@ -760,7 +712,7 @@
 - `followTrumpLead` 第二家留牌、无主垫牌 → `annotateReason(intent='none')`
 - `followNTTrumpLead` 无主垫牌 → `annotateReason(intent='none')`
 
-**新增 9 项测试**（ai-follow.test.ts：9 项），**更新 16 项已有测试期望**。总数 495 项通过。
+**新增 9 项测试**（ai-follow.test.ts：9 项），**更新 16 项已有测试期望**。总数 509 项通过。
 
 - **影响文件**：`packages/engine/src/ai/follow-trump.ts`、`packages/engine/src/__tests__/ai-follow.test.ts`
 
@@ -772,7 +724,7 @@
 
 **修复**：将 `shouldAvoid` 计算移到 `beating` 确定之后，第四家条件增加 `&& !beating`——能盖过就不应是 avoid 模式。
 
-**新增 3 项测试**（ai-follow.test.ts：3 项），总数 486 项通过。
+**新增 3 项测试**（ai-follow.test.ts：3 项），总数 500 项通过。
 
 - **影响文件**：`packages/engine/src/ai/follow-trump.ts`、`packages/engine/src/ai/follow-offsuit.ts`、`packages/engine/src/__tests__/ai-follow.test.ts`
 
@@ -788,7 +740,7 @@
 - `buildState` 添加 definite copies 时排除 void 玩家（`totalPossible(counts, p) === 0`）
 - 适配 4 个测试断言（`all 12 trumps`、`full scenario` P3 视角、`trick 2` P0/P1/P3 视角的 sumPossible 和 has 断言）
 
-**测试**：483 项全部通过（save-file 场景 P1 有大王断言通过）。
+**测试**：497 项全部通过（save-file 场景 P1 有大王断言通过）。
 
 - **影响文件**：`packages/engine/src/ai/nt-tracking.ts`、`packages/engine/src/__tests__/ai-nt-tracking.test.ts`
 
@@ -807,9 +759,9 @@
 - `packages/engine/src/__tests__/ai-follow.test.ts`：mock 适配
 - `packages/cli/src/index.ts`：显示逻辑适配
 
-**测试**：483 项通过，2 项待修正（`full scenario` 和 `trick 2` 断言需适配新规则）。
+**测试**：497 项通过，2 项待修正（`full scenario` 和 `trick 2` 断言需适配新规则）。
 
-## 2026-07-26 01:00
+## 2026-07-26 00:53
 
 ### NT 记牌器：新增对局复现测试，确认 pairDeduction 与 card removal 副本不一致 bug
 
@@ -870,7 +822,7 @@
 
 - **影响文件**：`packages/engine/src/ai/index.ts`、`helpers.ts`、`follow-offsuit.ts`、`utils.ts`、`__tests__/ai-follow.test.ts`
 
-## 2026-07-25 14:20
+## 2026-07-25 14:16
 
 ### 实现 3 项缺失的 AI 策略
 
@@ -922,16 +874,6 @@
 无循环依赖，向后兼容。
 
 - **影响文件**：`packages/engine/src/ai/`
-
-## 2026-07-25 00:24
-
-### 更新 CLAUDE.md：添加开发原则和命名约定
-
-**问题**：此前 CLAUDE.md 缺少对测试精度、Changelog 流程、内部编号约定的说明，导致反复出现模糊断言、遗漏 changelog、编号混淆等问题。
-
-**修复**：新增规则：精确断言优先、基础模块逐项穷举、Changelog 前置、时间对齐、P0-P3 内部编号约定、记牌器专项测试要求。
-
-- **影响文件**：`CLAUDE.md`
 
 ## 2026-07-25 00:07
 
@@ -1008,7 +950,7 @@ Trick 2 后关键变化：♦2 总数减 1（P0 打出），P1/P3 视角中 P0 �
 
 - **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
 
-## 2026-07-22 00:15
+## 2026-07-22 00:13
 
 ### 修复纯拖拉机被甩牌策略抢先标注为"甩牌"
 
@@ -1069,7 +1011,6 @@ Trick 2 后关键变化：♦2 总数减 1（P0 打出），P1/P3 视角中 P0 �
 
 - **影响文件**：`packages/engine/src/ai/index.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
-
 
 ## 2026-07-21 21:50
 
@@ -1202,14 +1143,6 @@ Trick 2 后关键变化：♦2 总数减 1（P0 打出），P1/P3 视角中 P0 �
 - **影响文件**：`packages/engine/src/ai/index.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
 
-## 2026-07-19 14:00
-
-### 新增 AI 策略文档 STRATEGY.md
-
-面向普通玩家的完整出牌策略文档，包含领出、跟牌、扣底、NT 模式的策略表格和理由速查表。
-
-- **新增文件**：`packages/engine/src/ai/STRATEGY.md`
-
 ## 2026-07-19 13:41
 
 ### 移动 isOnlyLegalPlay 测试从 ai-follow 到 following
@@ -1306,7 +1239,7 @@ AI 策略在 `_aiFollowPlay` 和 `followTrumpLead` 中先调用该判断：若�
 - **影响文件**：`packages/engine/src/ai/index.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
 
-## 2026-07-18 17:30
+## 2026-07-18 17:29
 
 ### 统一跟牌理由，消除硬编码标注和死代码
 
@@ -1336,7 +1269,7 @@ AI 策略在 `_aiFollowPlay` 和 `followTrumpLead` 中先调用该判断：若�
 - **影响文件**：`packages/engine/src/ai/index.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
 
-## 2026-07-18 16:55
+## 2026-07-18 16:54
 
 ### 修正 isOnlyLegalPlay + 对子跟牌分支缺少 shouldAvoid
 
@@ -1457,6 +1390,15 @@ AI 策略在 `_aiFollowPlay` 和 `followTrumpLead` 中先调用该判断：若�
 
 - **影响文件**：`packages/cli/src/index.ts`
 
+## 2026-07-17 21:03
+
+### 新增 exhaustive 逐卡验证：4 视角 × 3 玩家 × 12 常主逐卡归属检查
+
+**新增**：Post-trick 多视角测试补充 exhaustive 逐卡验证——4 视角 × 3 玩家 × 12 常主 = 144 次逐卡归属检查（含底牌共 180 次），出牌前后各一轮。
+
+**新增 3 项测试**（ai-nt-tracking.test.ts：41 项），415 项通过。
+
+- **影响文件**：`packages/engine/src/__tests__/ai-nt-tracking.test.ts`
 
 ## 2026-07-17 19:50
 
@@ -1476,9 +1418,7 @@ AI 策略在 `_aiFollowPlay` 和 `followTrumpLead` 中先调用该判断：若�
 
 **场景细节**：P0(4)→H-2-0,H-2-1,BJ-0,C-2-0 | P1(4)+S-2-0底→SJ-0,SJ-1,D-2-0,C-2-1 | P2(1)→D-2-1 | P3(2)→S-2-1,BJ-1
 
-**新增 exhaustive 逐卡验证**：4 视角 × 3 玩家 × 12 常主 = 144 次逐卡归属检查（含底牌共 180 次），出牌前后各一轮。
-
-**新增 3 项测试**（ai-nt-tracking.test.ts：41 项），415 项通过。
+**新增 1 项测试**（ai-nt-tracking.test.ts：39 项），413 项通过。
 
 - **影响文件**：`packages/engine/src/ai/nt-tracking.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-nt-tracking.test.ts`
@@ -1580,7 +1520,7 @@ AI 策略在 `_aiFollowPlay` 和 `followTrumpLead` 中先调用该判断：若�
 - **影响文件**：`packages/engine/src/ai/index.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-nt-tracking.test.ts`
 
-## 2026-07-15 20:30
+## 2026-07-15 20:29
 
 ### 取消"用拖拉机跟牌"理由，统一为同花色出大/出小
 
@@ -1642,7 +1582,7 @@ AI 策略在 `_aiFollowPlay` 和 `followTrumpLead` 中先调用该判断：若�
 - **影响文件**：`packages/engine/src/ai/index.ts`、`packages/engine/src/ai/utils.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
 
-## 2026-07-12 23:15
+## 2026-07-12 23:12
 
 ### 吊主单张跟牌：用 bestSoFar 而非 leadMax 判断能否盖过
 
@@ -1657,7 +1597,7 @@ AI 策略在 `_aiFollowPlay` 和 `followTrumpLead` 中先调用该判断：若�
 - **影响文件**：`packages/engine/src/ai/index.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
 
-## 2026-07-12 22:30
+## 2026-07-12 22:28
 
 ### 甩牌 void 毙牌修复 + 毙牌理由统一 + 对子跟牌理由区分同花色出大/出小
 
@@ -1687,7 +1627,7 @@ discardSort 签名新增可选 `config` 参数，各调用点传入 ctx。
 - **影响文件**：`packages/engine/src/ai/utils.ts`、`packages/engine/src/ai/index.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
 
-## 2026-07-12 18:46
+## 2026-07-12 18:44
 
 ### 主牌跟牌理由统一为副牌跟牌理由体系
 
@@ -1704,7 +1644,7 @@ NT 主牌跟牌同理统一。
 
 - **影响文件**：`packages/engine/src/ai/index.ts`
 
-## 2026-07-12 18:36
+## 2026-07-12 18:35
 
 ### 无拖拉机填对子时补充位置感知理由和排序
 
@@ -1719,7 +1659,7 @@ NT 主牌跟牌同理统一。
 - **影响文件**：`packages/engine/src/ai/index.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
 
-## 2026-07-12 18:30
+## 2026-07-12 18:29
 
 ### 第二/第四家跟牌最大牌型时应附加尽量不加分
 
@@ -1734,7 +1674,7 @@ NT 主牌跟牌同理统一。
 - **影响文件**：`packages/engine/src/ai/index.ts`
 - **影响文件**：`packages/engine/src/__tests__/ai-follow.test.ts`
 
-## 2026-07-12 17:12
+## 2026-07-12 17:11
 
 ### 甩牌检测：单张检查改为遍历全部最坏情况牌
 
@@ -1859,7 +1799,7 @@ NT 主牌跟牌同理统一。
 
 - **影响文件**：`packages/engine/src/ai/context.ts`
 
-## 2026-07-11 22:15
+## 2026-07-11 22:09
 
 ### AI 模块重构：模块拆分 + 策略全面重写 + 68 项新测试
 
@@ -1960,7 +1900,7 @@ NT 主牌跟牌同理统一。
 
 ### 输入校验 + 测试：拒绝无效手牌编号
 
-`parseCards` 重构为独立模块 `cli/src/parse.ts`，新增完整参数校验：所有编号必须为数字且在范围内。无效编号直接拒绝并提示。
+`parseCards` 重构为独立模块 `cli/src/parse.ts`，新增完整参数校验：所有编号必须为数字且在范围内。
 
 **新增 14 项 CLI 测试**（`cli/src/__tests__/parse.test.ts`）：
 - 3 项有效编号（单个、多个、最大号）
@@ -1971,6 +1911,18 @@ NT 主牌跟牌同理统一。
 - 扣底场景（33 张手牌，8 张选择）
 
 - **影响文件**：`packages/cli/src/parse.ts`（新增）、`packages/cli/src/__tests__/parse.test.ts`（新增）、`packages/cli/src/index.ts`
+
+## 2026-07-06 20:07
+
+### 修复 parseCards 接受无效编号：越界/非数字直接拒绝并提示重试
+
+**问题**：`parseCards` 对无效编号（越界、非数字）静默忽略，可能导致实际打出的牌与输入不符；扣底流程同样缺少校验。
+
+**修复**：`parseCards` 返回前验证全部编号——越界或非数字直接报错并要求重试；扣底（33 选 8）流程同步加校验。
+
+**无新增测试**，256 项测试通过。
+
+- **影响文件**：`packages/cli/src/index.ts`
 
 ## 2026-07-06 19:57
 
@@ -2019,21 +1971,15 @@ NT 主牌跟牌同理统一。
 
 - **影响文件**：`packages/cli/src/index.ts`
 
-## 2026-07-05 22:25
-
-### 非调试模式 UX 优化
-
-**提示文本**：出牌输入提示从「编号或 /debug 命令」改为「编号或/hint查看提示、/score查看目前得分」。
-
-**/score 不暴露底牌**：非调试模式下 `/score` 不再显示底牌内容和底牌分数（保留闲家得分和已拿分数牌）。
-
-- **影响文件**：`packages/cli/src/index.ts`
-
 ## 2026-07-05 22:15
 
 ### 非调试模式 UX 改进
 
 **命令限制**：非调试模式下只保留 `/score`（查看得分）和 `/hint`（出牌建议），其他 debug 命令（`/hand`、`/history`、`/bottom`、`/dump` 等）不再可用。
+
+**提示文本**：出牌输入提示从「编号或 /debug 命令」改为「编号或/hint查看提示、/score查看目前得分」。
+
+**/score 不暴露底牌**：非调试模式下 `/score` 不再显示底牌内容和底牌分数（保留闲家得分和已拿分数牌）。
 
 **甩牌失败提示**：人类玩家甩牌失败时，CLI 显示黄色提示和灰色罚分详情：
 - `甩牌失败！强制出: ♦8♦8♦7♦7`
@@ -2086,14 +2032,6 @@ NT 主牌跟牌同理统一。
 **修复**：`nextDealer` 始终从 `gameState.trumpDeclaration.declarerIndex` 计算，不再沿用旧 dealer 值。首局庄家由亮主结果确定后，后续局 dealer 均由此派生。
 
 - **影响文件**：`packages/cli/src/index.ts`
-
-## 2026-07-05 16:33
-
-### 修复甩牌验证：跨玩家幻影拖拉机
-
-- **修复**：`validateThrow` 和 `resolveThrowFailure` 将所有其他玩家的牌合并后检测，导致 ♦Q（AI-2）+ ♦Q（AI-4）+ ♦J♦J（AI-2）合并出 QQJJ 拖拉机，实际任何单个玩家都没有。改为逐个玩家独立检测。
-- **新增测试**：2 项——牌分散多玩家则通过、单个玩家有更高拖拉机则拦截。
-- **影响文件**：`packages/engine/src/leading/index.ts`、`packages/engine/src/__tests__/throw-validation.test.ts`
 
 ## 2026-07-05 16:33
 
@@ -2219,6 +2157,14 @@ NT 主牌跟牌同理统一。
 
 - **影响文件**：`packages/engine/src/types.ts`、`packages/engine/src/game/index.ts`、`packages/engine/src/scoring/index.ts`、`packages/cli/src/index.ts`
 
+## 2026-07-05 00:00
+
+### 新增测试：梅花主 K 级多拖拉机拦截强制出场景
+
+**新增 1 项测试**（leading.test.ts）：梅花主K级——领出小王+方块K+梅花AAQQ7766553322（全主），对方持 JJ10109988（4 对拖拉机）拦截 C-776655（3 对拖拉机），验证引擎强制出 776655（最长被拦截拖拉机）。
+
+- **影响文件**：`packages/engine/src/__tests__/leading.test.ts`
+
 ## 2026-07-04 22:55
 
 ### 甩牌失败强制出小规则
@@ -2250,7 +2196,6 @@ NT 主牌跟牌同理统一。
 - level=2 A+55 被 66 挡 → 强制出 55
 - 仅单牌被挡 → 强制出最小被挡单牌
 - 主牌拖拉机被挡 → 强制出拖拉机
-- 梅花主K级：领出小王+方块K+梅花AAQQ7766553322，被 JJ10109988（4对拖拉机）拦截 → 强制出 776655（3对）
 
 - **影响文件**：`packages/engine/src/leading/index.ts`、`packages/engine/src/game/index.ts`、`packages/cli/src/index.ts`、`packages/engine/src/__tests__/leading.test.ts`
 
@@ -2378,6 +2323,22 @@ NT 主牌跟牌同理统一。
 - 总计 34 项测试，100 项全部通过。
 - **影响文件**：`packages/engine/src/__tests__/following.test.ts`
 
+## 2026-07-02 23:19
+
+### 新增 26 项跟牌测试
+
+**新增 26 项测试**（following.test.ts），覆盖全部领出牌型 × 足够同花色/短花色/缺花色场景：
+- **对牌领出**（5）：足够同花色有对/无对、短花色有对/无对、缺花色
+- **拖拉机领出非主牌**（6）：精确匹配、长截取、无拖拉机有对、无对无对、短花色、短花色有对
+- **拖拉机领出主牌**（3）：短主牌、足够主牌精确匹配、无主牌
+- **甩牌纯单牌**（3）：足够、短花色、缺花色
+- **甩牌对+单**（4）：足够有对、足够无对、短有对、短无对
+- **甩牌拖拉机+单**（3）：足够有拖拉机、足够无拖拉机有对、短有拖拉机
+- **甩牌拖拉机+对**（2）：足够匹配拖拉机+对、无拖拉机全补对子
+- 原有 7 项保留至 basic 分组，总计 33 项测试
+
+- **影响文件**：`packages/engine/src/following/index.ts`、`packages/engine/src/__tests__/following.test.ts`
+
 ## 2026-07-02 22:18
 
 ### 跟牌规则全面重写
@@ -2398,17 +2359,7 @@ NT 主牌跟牌同理统一。
 
 **新增 `computeIdealFollow` / `pickBestTractor`**：计算手牌能达到的最佳跟牌结构（tractor 对数 + 最小总对数），然后与实际出牌比对验证。
 
-**影响文件**：`packages/engine/src/following/index.ts`、`__tests__/following.test.ts`
-
-### 新增 26 项跟牌测试
-- **对牌领出**（5）：足够同花色有对/无对、短花色有对/无对、缺花色
-- **拖拉机领出非主牌**（6）：精确匹配、长截取、无拖拉机有对、无对无对、短花色、短花色有对
-- **拖拉机领出主牌**（3）：短主牌、足够主牌精确匹配、无主牌
-- **甩牌纯单牌**（3）：足够、短花色、缺花色
-- **甩牌对+单**（4）：足够有对、足够无对、短有对、短无对
-- **甩牌拖拉机+单**（3）：足够有拖拉机、足够无拖拉机有对、短有拖拉机
-- **甩牌拖拉机+对**（2）：足够匹配拖拉机+对、无拖拉机全补对子
-- 原有 7 项保留至 basic 分组，总计 33 项测试
+**影响文件**：`packages/engine/src/following/index.ts`
 
 ## 2026-07-02 00:20
 
