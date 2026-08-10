@@ -56,7 +56,7 @@ Cards are played in patterns that must be **matched** by subsequent players:
 | ≥120 | Opponents advance 1 level (升级) |
 | ≥160 | Opponents advance 2 levels |
 
-## Overview
+## Repository Overview
 
 - **Engine** ([`packages/engine`](packages/engine/)) — Core game logic: card types, pattern classification, trick comparison, validation, AI strategies, and NT trump tracking (count-based deduction).
 - **CLI** ([`packages/cli`](packages/cli/)) — Terminal-based interactive play with full-color card display.
@@ -151,6 +151,7 @@ Run tests:
 npm run test -w packages/engine    # engine
 npm run test -w packages/arena     # arena
 npm run test -w packages/cli       # CLI
+npm run test -w packages/client    # client
 ```
 
 ## Tech Stack
@@ -162,7 +163,7 @@ npm run test -w packages/cli       # CLI
 | Engine | Pure logic, zero dependencies |
 | CLI | tsx (TypeScript execute) |
 | Client | React 18 + Vite + Zustand |
-| Testing | Vitest 2.x (616 tests) |
+| Testing | Vitest 2.x |
 
 ## AI Strategy
 
@@ -187,39 +188,32 @@ MIT — see [LICENSE](LICENSE).
 
 ---
 
-## <a id="中文">中文</a>
+<a id="中文"></a>
 
-### 项目简介
+**双升（拖拉机）**纸牌游戏的完整实现：确定性游戏引擎、无主模式常主记牌器与规则驱动的 AI 对手。
 
-**双升（拖拉机）**是中国流行的四人两副牌升级类扑克游戏。本项目包含三个子包：
+## 游戏规则
 
-- **[`packages/engine`](packages/engine/)** — 核心引擎：牌型分类、比较、验牌、AI 出牌策略、NT 记牌器（基于计数的常主追踪）。
-- **[`packages/cli`](packages/cli/)** — 终端交互版，支持全色彩牌面显示。
-- **[`packages/client`](packages/client/)** — React 网页前端（可玩：南座人类 vs 3 AI，或 4 AI 观战）。
-- **[`packages/arena`](packages/arena/)** — 策略竞技场：两套 AI 策略在完整对局（2→A，含必打 K/A）中镜像对决，99% 置信度显著性判定，输出 17+ 项技术指标。
+双升是中国流行的四人两副牌升级类扑克游戏：**4 人**参与，对家固定组队，使用 **两副标准 54 张扑克牌**（共 108 张，含 4 张王牌）。
 
-### 游戏规则
-
-双升由 **4 人** 参与，对家固定组队，使用 **两副标准 54 张扑克牌**（共 108 张，含 4 张王牌）。
-
-#### 发牌与叫主
+### 发牌与叫主
 
 - 每人发 25 张，**8 张**留作底牌。
 - 叫主阶段，玩家依次声明主牌花色和强度（单张级牌、级牌对子或王对无主）。最后叫牌者为**庄家**，获得底牌并换底。
 
-#### 主牌
+### 主牌
 
 - 当前打 **级牌**（如打 2 时所有 2）为主牌，外加全部 4 张王牌。
 - 主牌大小：**大王 > 小王 > 级牌**（有主时主花级牌最大，无主时四花色级牌同级）。
 - **无主模式**：没有主牌花色，仅 12 张常主为主——大王 × 2、小王 × 2、四花色级牌各 × 2。
 
-#### 出牌
+### 出牌
 
 - 逆时针出牌，必须**跟出**领出花色（有该花色时必须出）。
 - 缺门时可**毙牌**（出主牌）或垫其他花色。
 - 本轮最大主牌（或无主牌时领出花色最大者）赢得该墩，下一墩由其领出。
 
-#### 牌型
+### 牌型
 
 出牌需组成牌型，后续玩家必须**贴相同牌型**：
 
@@ -229,13 +223,13 @@ MIT — see [LICENSE](LICENSE).
 | 对子 | ♠5♠5 | 必须出对子 |
 | 拖拉机 | ♦10♦10♦J♦J | 同花色两组以上连续对子 |
 
-#### 计分
+### 计分
 
 - **5** 计 5 分，**10** 和 **K** 各计 10 分。
 - 庄家方阻止抓分方（闲家）得分。
 - 闲家得分决定升降级。
 
-#### 升级规则
+### 升级规则
 
 | 闲家得分 | 结果 |
 |---|---|
@@ -246,11 +240,18 @@ MIT — see [LICENSE](LICENSE).
 | ≥120 | 闲家升 1 级 |
 | ≥160 | 闲家升 2 级 |
 
+## 仓库结构
+
+- **[`packages/engine`](packages/engine/)** — 核心引擎：牌型分类、比较、验牌、AI 出牌策略、NT 记牌器（基于计数的常主追踪）。
+- **[`packages/cli`](packages/cli/)** — 终端交互版，支持全色彩牌面显示。
+- **[`packages/client`](packages/client/)** — React 网页前端（可玩：南座人类 vs 3 AI，或 4 AI 观战）。
+- **[`packages/arena`](packages/arena/)** — 策略竞技场：两套 AI 策略在完整对局（2→A，含必打 K/A）中镜像对决，99% 置信度显著性判定，输出 17+ 项技术指标。
+
 ### NT 记牌器
 
 无主模式下，12 张常主（大王 × 2、小王 × 2、级牌 × 8）通过基于计数的推理系统追踪可能分布。系统利用出牌记录、亮主信息和无对推断，在不查看其他玩家手牌的前提下推断常主归属。
 
-### 策略竞技场
+## 策略竞技场
 
 `packages/arena` 让两套 AI 策略在完整对局（2→A）中镜像对决，以 99% 置信度判定一方胜率是否显著优于另一方。
 
@@ -274,14 +275,14 @@ MIT — see [LICENSE](LICENSE).
   | `ai-0712` | 463.6 |
   | `ai-0707` | -528.5 |
 
-### 快速开始
+## 快速开始
 
-#### 环境要求
+### 环境要求
 
 - **Node.js** ≥ 18
 - **npm** ≥ 9
 
-#### 命令行（CLI）
+### 命令行（CLI）
 
 ```bash
 npm install
@@ -290,7 +291,7 @@ npx tsx packages/cli/src/index.ts    # 或 npm start -w packages/cli
 
 CLI 为交互式：启动后按提示输入玩家数、调试模式等。
 
-#### 图形界面（client）
+### 图形界面（client）
 
 ```bash
 npm run dev                          # Vite 开发服务器：http://localhost:3000
@@ -307,7 +308,7 @@ npx tsx packages/client/scripts/ui-smoke.ts --seed 42 --max-rounds 3            
 
 > **注意：** 界面细节仍待打磨。
 
-#### 策略竞技场
+### 策略竞技场
 
 ```bash
 npm run arena -w packages/arena -- --pairs 5000 --seed 42 --strategy-b ai-0801
@@ -334,17 +335,36 @@ npm run arena -w packages/arena -- --pairs 5000 --seed 42 --strategy-b ai-0801
 npm run test -w packages/engine    # 引擎
 npm run test -w packages/arena     # 竞技场
 npm run test -w packages/cli       # CLI
+npm run test -w packages/client    # client
 ```
 
-### AI 策略
+## 技术栈
 
-AI 采用规则驱动的出牌策略，覆盖四种出牌位置（领出、第二家、第三家、第四家），详见 [`packages/engine/src/ai/STRATEGY.md`](packages/engine/src/ai/STRATEGY.md)。
+| 层 | 技术 |
+|---|---|
+| 语言 | TypeScript 5.7 |
+| 运行时 | Node.js ≥ 18 |
+| 引擎 | 纯逻辑，零依赖 |
+| CLI | tsx（TypeScript 执行） |
+| 客户端 | React 18 + Vite + Zustand |
+| 测试 | Vitest 2.x |
 
-### 开源协议
+## AI 策略
+
+AI 采用规则驱动的出牌策略，覆盖四种出牌位置（领出、第二家、第三家、第四家），包括：
+
+- **NT 第二家抢占**——队友领出偏弱且对手无法管住更大主牌时抢控。
+- **加分优先级**——加分时按 10 > K > 5，最大化得分潜力。
+- **拆对纪律**——攻方仅当跨过 40 分阈值时才拆对；守方绝不拆对。
+- **缺门跟牌加分管理**——仅当队友已大时加分，并提防对手阈值。
+
+详见 [`packages/engine/src/ai/STRATEGY.md`](packages/engine/src/ai/STRATEGY.md)。
+
+## 开源协议
 
 MIT — 详见 [LICENSE](LICENSE)。
 
-### 关于 AI 生成
+## 关于 AI 生成
 
 > **本项目所有代码均由 AI（Claude Code / DeepSeek）生成，经人工逐项审核后提交。** 所有逻辑、测试和文档均为 AI 辅助迭代开发的产物，提交前均已通过人工验证。
 >
