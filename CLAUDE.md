@@ -41,20 +41,20 @@ Third position with tmWin should check canAddPoints before trumping.
 Adds nonTrump.length >= leadLen guard for safe filler selection.
 
 第三家队友已大时，缺门应先检查可加分再毙牌。
-新增 1 项测试，引擎 614 项 + arena 64 项 + CLI 80 项 = 758 项通过。
+新增 1 项测试（engine）。
 
 Co-Authored-By: DeepSeek V4 Pro <noreply@deepseek.com>
 ```
 
-测试数行格式（提交信息与 Changelog 一致）：
+测试数行格式（提交信息）：
 
 ```
-新增 N 项测试，引擎 X 项 + arena X 项 + CLI X 项 + client X 项 = X 项通过。
+新增/修改/删除 N 项测试（子包）。
 ```
 
-- 无新增测试写 `无新增测试`；删除测试写 `删除 N 项测试`。
-- client 无测试时省略 `client` 项。
-- 提交信息与 Changelog 中的测试数必须与实际测试结果一致（`npm run test` 各包之和）。
+- 只写测试变动本身，不列测试总数：`新增 12 项测试（engine）`、`修改 2 项测试（arena）`、`删除 3 项测试（cli）`；跨子包写 `新增 3 项测试（engine 1 + client 2）`。
+- 无测试改动写 `无新增测试`。
+- 提交信息与 Changelog 中的测试数必须与实际测试结果一致（`npm run test` 各包之和）；Changelog 的分项与总数格式见下节。
 
 ## Changelog 格式
 
@@ -71,6 +71,8 @@ Co-Authored-By: DeepSeek V4 Pro <noreply@deepseek.com>
 
 - **影响文件**：`path/to/file.ts`
 ```
+
+Changelog 测试数行与提交信息不同——列出子包分项与总数；无新增写 `无新增测试`；删除写 `删除 N 项测试`；client 无测试时省略 `client` 项。
 
 每项修改为一个独立的日期时间小节，按时间倒序排列。
 
