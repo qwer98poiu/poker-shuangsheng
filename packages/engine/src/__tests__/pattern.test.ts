@@ -79,4 +79,12 @@ describe('Pattern — tractors', () => {
     const t = detectTractors([c('H', 14, 0), c('H', 14, 1), c('H', 10, 2), c('H', 10, 3)], trump5);
     expect(t).toHaveLength(0);
   });
+  it('off-level pair + trump A/K merges into a 3-pair tractor', () => {
+    // 修复前：crossGroup 链（红桃5+黑桃AA）排在同花色链之后，无法吸收
+    // 共享 AA 的 AAKK（mergeChains 锚链尾部黑桃K 与红桃5 不同花色）
+    // → 以跨组为基底的 3 连对漏检
+    const t = detectTractors([c('H', 5, 0), c('H', 5, 1), c('S', 14, 2), c('S', 14, 3), c('S', 13, 4), c('S', 13, 5)], trump5);
+    const six = t.find(x => x.length === 6);
+    expect(six?.map(c => c.id).sort()).toEqual(['H-5-0', 'H-5-1', 'S-13-4', 'S-13-5', 'S-14-2', 'S-14-3']);
+  });
 });

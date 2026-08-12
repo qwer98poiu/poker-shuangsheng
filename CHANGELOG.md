@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-08-13 00:24
+
+### 新增：引擎部分必出跟牌计算——computeMandatoryFollow 返回锁定（必出）与不可选（置灰）牌 id
+
+**问题**：唯一可出之外，跟牌时部分牌必出（例 3：领出 3 连对、手牌只有一套 2 连对 + 两对 → 2 连对必出），同花色内部分牌不可选（领出无单牌时单牌不可选、对数小于 Ideal 最短对数的子牌型不可选），GUI 无法自动选中与置灰。
+
+**修复**：following 新增 `computeMandatoryFollow(hand, leadCards, config)` → `{ lockedIds, disabledIds }`。流程：组牌张数 ≤ 领出 → 同花色全锁；唯一可出（isOnlyLegalPlay）→ 锁唯一组合（qualifies 对子；单领出锁 1 张），其余同花色不可选；否则手牌总对数 == Ideal 总对数 → 所有对必出、单牌自由（理想降级时张数缺口由单牌填充）；手牌总对数 > Ideal → 循环 k=1..n 递增找首个 l1(k)==l2(k) 锁对数 ≥ k 的子牌型，领出含单牌 → 无不可选，否则单牌不可选 + 对数 < Ideal 最短对数的子牌型不可选。子牌型 = detectTractors 最大不重叠连续块 + 独立对牌。例 3（2 连对必出）、例 4（主牌红桃2+AAKK 3 连对必出、44 不可选）、例 5 修正版（4 连对 + 一对，无必出无不可选）均验证通过。
+
+**新增 14 项测试**（mandatory-follow.test.ts：14 项）
+
+- **影响文件**：`packages/engine/src/following/index.ts`、`packages/engine/src/__tests__/mandatory-follow.test.ts`
+
+### 修复：detectTractors 跨组链合并顺序致 3 连对漏检；isOnlyLegalPlay 理想降级误判唯一
+
+**问题**：① mergeChains 以先出现的链为锚，跨组链（副级牌 2 + 主花色 A）排在同花色链之后，无法吸收共享尾对的主花色链（副级牌2+A 与 A+K 共享 AA）→ 以跨组为基底的 3 连对（例 4 的红桃2+AA+KK）识别不出，computeIdealFollow 随之降级。② isOnlyLegalPlay Rule 3b 只比对子总数：理想跟牌降级（minTotalPairs < 领出对数）时，张数缺口由单牌自由填充 → 组合不唯一却判为唯一，会把不在组合中的对子误锁。
+
+**修复**：① detectTractors 将 crossGroup 链前置为合并锚链（先于同花色链 push）；② Rule 3b 唯一判定增加张数条件——2 × idealTotal == 领出张数（缺口由单牌填充即不唯一）。
+
+**新增 2 项测试**（pattern.test.ts：1 项 + following.test.ts：1 项），引擎 668 项 + arena 65 项 + CLI 80 项 + client 17 项 = 830 项通过。
+
+- **影响文件**：`packages/engine/src/pattern/index.ts`、`packages/engine/src/following/index.ts`、`packages/engine/src/__tests__/pattern.test.ts`、`packages/engine/src/__tests__/following.test.ts`
+
 ## 2026-08-09 21:20
 
 ### 新增：GUI 交互完善——NT 大王/小王区分、跟牌张数分母、分牌展示、调试菜单扩展（手牌/底牌/历史/记牌器）、唯一可出自动选中锁定、庄家查看底牌

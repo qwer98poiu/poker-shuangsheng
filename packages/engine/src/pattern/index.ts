@@ -71,7 +71,15 @@ export function detectTractors(cards: Card[], config: TrumpDeclaration): Card[][
   const pairs = findAllPairs(cards);
   const all: Card[][] = [];
 
-  // 1. Same-suit consecutive pairs
+  // 1. Cross-group chains first — they must lead the merge so a cross-group
+  //    chain (e.g. off-level 2 + trump Ace) can absorb the same-suit chain
+  //    that follows (trump Ace + King → 3+ chain). If same-suit chains came
+  //    first, they'd be consumed by their own iteration and the cross-group
+  //    chain could never merge with them (the merge only extends backwards
+  //    from the chain's tail, and the tail/first suits wouldn't match).
+  all.push(...crossGroupTractors(pairs, config));
+
+  // 2. Same-suit consecutive pairs
   for (let i = 0; i < pairs.length; i++) {
     for (let j = i + 1; j < pairs.length; j++) {
       if (areConsecutiveSameSuit(pairs[i][0], pairs[j][0], config)) {
@@ -80,12 +88,9 @@ export function detectTractors(cards: Card[], config: TrumpDeclaration): Card[][
     }
   }
 
-  // 2. Merge overlapping to get 3+ pair chains
+  // 3. Merge overlapping to get 3+ pair chains
   const merged = mergeChains(all, config);
   all.push(...merged);
-
-  // 3. Cross-group
-  all.push(...crossGroupTractors(pairs, config));
 
   return all.filter(t => t.length >= 4);
 }

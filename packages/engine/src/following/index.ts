@@ -228,6 +228,9 @@ export function isOnlyLegalPlay(
   }
 
   const idealTotal = allPairCounts.reduce((a, b) => a + b, 0);
+  // 理想降级（minTotalPairs < 领出对数）时，张数缺口由单牌填充，
+  // 单牌可自由选择 → 组合不唯一
+  if (idealTotal * 2 !== leadLen) return false;
   return idealTotal === handTotal;
 }
 
@@ -273,6 +276,153 @@ export function computeFollowableCards(
   const needPairs = leadPattern.pairCount + tractorPairCount;
   if (pairIds.size / 2 >= needPairs) return handInGroup.filter(c => pairIds.has(c.id));
   return handInGroup; // 对子不足：组内任意（可垫近似组合）
+}
+
+// ---- Mandatory follow (GUI lock / disable) ----
+
+export interface MandatoryFollow {
+  lockedIds: string[];   // 必出：自动选中且不可放下
+  disabledIds: string[]; // 不可选：置灰
+}
+
+/**
+ * 计算跟牌时"部分必出"（锁定）与"同花色内不可选"（置灰）的牌。
+ * 唯一可出（isOnlyLegalPlay）之外的扩展。流程：
+ * 1. 缺门 / 领出为空 → 全部自由
+ * 2. 手牌同花色张数 ≤ 领出张数 → 同花色全部必出（唯一可出 / 组牌必出+任意填）
+ * 3. 唯一可出 → 全部对子必出（组合唯一，张数恰好填满）
+ * 4. 部分必出：
+ *    - 手牌总对数 == Ideal 总对数 → 所有对必出，单牌自由选择
+ *    - 手牌总对数 > Ideal 总对数 → 循环 k=1..n 递增，首个 l1(k) == l2(k) 时
+ *      对数 ≥ k 的子牌型必出；领出含单 → 同花色无不可选；否则单牌不可选，
+ *      且对数 < Ideal 最短对数的子牌型不可选。
+ * 子牌型 = detectTractors 的最大不重叠连续块 + 独立对牌（块内不可再拆）。
+ */
+export function computeMandatoryFollow(
+  hand: Card[],
+  leadCards: Card[],
+  config: TrumpDeclaration,
+): MandatoryFollow {
+  if (leadCards.length === 0) return { lockedIds: [], disabledIds: [] };
+  const group = followGroup(leadCards, config);
+  const handInGroup = hand.filter(c => followGroup([c], config) === group);
+  const leadLen = leadCards.length;
+
+  // 缺门：可垫/毙任意
+  if (handInGroup.length === 0) return { lockedIds: [], disabledIds: [] };
+
+  // 张数不足或相等：组牌必出（不足时其余任意填；相等时唯一可出）
+  if (handInGroup.length <= leadLen) {
+    return { lockedIds: handInGroup.map(c => c.id), disabledIds: [] };
+  }
+
+  const leadPattern = classify(leadCards, config);
+  const allPairs = findAllPairs(handInGroup);
+
+  // 手牌子牌型：detectTractors 最大不重叠块 + 独立对牌（块内不可再拆）
+  const structures: { pairCount: number; cards: Card[] }[] = [];
+  {
+    const sorted = [...detectTractors(handInGroup, config)].sort((a, b) => b.length - a.length);
+    const usedIds = new Set<string>();
+    for (const t of sorted) {
+      if (new Set(t.map(c => c.id)).size !== t.length) continue; // 内部重复防御
+      if (t.some(c => usedIds.has(c.id))) continue;              // 与已取块重叠（子块）→ 跳过
+      structures.push({ pairCount: t.length / 2, cards: t });
+      t.forEach(c => usedIds.add(c.id));
+    }
+    for (const p of allPairs) {
+      if (!usedIds.has(p[0].id)) structures.push({ pairCount: 1, cards: p });
+    }
+  }
+
+  // 唯一可出：组合唯一 → 组合牌必出，其余同花色牌不可选
+  if (isOnlyLegalPlay(handInGroup, leadLen, leadPattern, config)) {
+    let lockedIds: string[];
+    if (leadLen === 1) {
+      // 单领出（Rule 1.5）：恰一对，等价组合 → 锁 1 张
+      lockedIds = [allPairs[0][0].id];
+    } else {
+      const idealU = computeIdealFollow(handInGroup, decomposeLead(leadPattern), config);
+      const playedU = idealU.tractorPairCounts.reduce((s, n) => s + n, 0);
+      const fillU = idealU.minTotalPairs - playedU;
+      const distU = [...idealU.tractorPairCounts];
+      for (let i = 0; i < fillU; i++) distU.push(1);
+      const minIdealU = distU.length === 0 ? 1 : Math.min(...distU);
+      const locked: string[] = [];
+      if (minIdealU <= 1) {
+        for (const p of allPairs) p.forEach(c => locked.push(c.id));
+      } else {
+        for (const s of structures) {
+          if (s.pairCount >= minIdealU) s.cards.forEach(c => locked.push(c.id));
+        }
+      }
+      lockedIds = locked;
+    }
+    const lockedSet = new Set(lockedIds);
+    const disabledIds = handInGroup.filter(c => !lockedSet.has(c.id)).map(c => c.id);
+    return { lockedIds, disabledIds };
+  }
+
+  // ---- 部分必出 ----
+  const tractorPairCount = leadPattern.tractors.reduce((s, t) => s + t.pairCount, 0);
+  const leadHasSingles = leadLen > (leadPattern.pairCount + tractorPairCount) * 2;
+
+  // 领出全单：跟牌自由
+  if (leadHasSingles && leadPattern.pairCount === 0 && tractorPairCount === 0) {
+    return { lockedIds: [], disabledIds: [] };
+  }
+
+  const ideal = computeIdealFollow(handInGroup, decomposeLead(leadPattern), config);
+  const played = ideal.tractorPairCounts.reduce((s, n) => s + n, 0);
+  const fillPairs = ideal.minTotalPairs - played;
+  const l2Dist = [...ideal.tractorPairCounts];
+  for (let i = 0; i < fillPairs; i++) l2Dist.push(1); // fill 对子（对数 1）
+
+  const handTotalPairs = allPairs.length;
+
+  const lockedIds: string[] = [];
+  const disabledIds: string[] = [];
+
+  if (handTotalPairs === ideal.minTotalPairs) {
+    // 3.1：所有对必出；单牌自由选择（理想降级时张数缺口由单牌填充）
+    for (const p of allPairs) p.forEach(c => lockedIds.push(c.id));
+  } else {
+    // 3.2：手牌总对数 > Ideal 总对数（恒成立）
+    const maxK = Math.max(1, ...structures.map(s => s.pairCount), ...l2Dist);
+    let kStar = 0;
+    let kStarL1 = 0;
+    for (let k = 1; k <= maxK; k++) {
+      const l1 = structures.filter(s => s.pairCount >= k).reduce((s, x) => s + x.pairCount, 0);
+      const l2 = l2Dist.filter(v => v >= k).reduce((s, x) => s + x, 0);
+      if (l1 === l2) { kStar = k; kStarL1 = l1; break; }
+    }
+    // 首个相等点（可能为空集 0==0 → 无必出）
+    if (kStar > 0 && kStarL1 > 0) {
+      for (const s of structures) {
+        if (s.pairCount >= kStar) s.cards.forEach(c => lockedIds.push(c.id));
+      }
+    }
+    if (!leadHasSingles) {
+      // 3.2.3：单牌不可选
+      const structIds = new Set(structures.flatMap(s => s.cards).map(c => c.id));
+      for (const c of handInGroup) if (!structIds.has(c.id)) disabledIds.push(c.id);
+      // 3.2.4：对数 < Ideal 最短对数的子牌型不可选
+      const minIdeal = Math.min(...l2Dist);
+      if (minIdeal > 1) {
+        for (const s of structures) {
+          if (s.pairCount < minIdeal) s.cards.forEach(c => disabledIds.push(c.id));
+        }
+      }
+    }
+    // 3.2.2：领出含单 → 同花色无不可选（disabled 保持空）
+  }
+
+  // 锁定优先：不可选集合排除已锁定牌（理论不重叠，防御）
+  const lockedSet = new Set(lockedIds);
+  return {
+    lockedIds,
+    disabledIds: disabledIds.filter(id => !lockedSet.has(id)),
+  };
 }
 
 export interface FollowSpec {

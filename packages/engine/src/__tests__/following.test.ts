@@ -1010,4 +1010,24 @@ describe('complex tractor follow (diamonds trump, ace level)', () => {
       expect(isOnlyLegalPlay(hand, lead.length, lp, cfg)).toBe(false);
     });
   });
+
+  describe('isOnlyLegalPlay — 理想降级时张数缺口由单牌填充 → 不唯一', () => {
+    it('degraded ideal follow: 10-card lead vs 4 pairs + 3 singles -> not unique', () => {
+      const lead = [
+        c('S', 14, 9), c('S', 14, 10), c('S', 13, 11), c('S', 13, 12), c('S', 12, 13), c('S', 12, 14),
+        c('S', 10, 15), c('S', 10, 16), c('S', 9, 17), c('S', 9, 18),
+      ];
+      // lead: 黑桃 AAKKQQ（3 连对）+ 101099（2 连对），10 张
+      const hand = [
+        c('S', 7, 0), c('S', 7, 1), c('S', 6, 2), c('S', 6, 3),
+        c('S', 4, 4), c('S', 4, 5), c('S', 3, 6), c('S', 3, 7),
+        c('S', 8, 8), c('S', 2, 9), c('S', 11, 10),
+      ];
+      // hand: 7766（2 连对）+ 4433（2 连对）+ 单 8、2、J（11 张）
+      const lp = classify(lead, cfg5);
+      // 修复前：ideal 降级 [2,2]（4 对）== 手牌 qualifies 对数 4 → 误判唯一；
+      // 实际张数缺口（10-8=2 张）由单牌自由填充 → 组合不唯一
+      expect(isOnlyLegalPlay(hand, lead.length, lp, cfg5)).toBe(false);
+    });
+  });
 });
