@@ -198,6 +198,19 @@ export function tryMatchTractorSlots(
     const available = myTractors.filter(t =>
       t.every(c => !usedIds.has(c.id)) && t.length / 2 >= req,
     );
+    if (available.length === 0) {
+      // 无 ≥req 的拖拉机：降级取最长的可用拖拉机（与 computeIdealFollow
+      // 的 closest-shorter 一致，validateFollow 接受更短拖拉机 + 对子填充；
+      // 拆开拖拉机成对子不合法）。手牌无可用拖拉机则跳过该需求。
+      const shorter = myTractors
+        .filter(t => t.every(c => !usedIds.has(c.id)))
+        .sort((a, b) => b.length - a.length);
+      if (shorter.length === 0) continue;
+      const sel = shorter[0];
+      picked.push(...sel);
+      sel.forEach(c => usedIds.add(c.id));
+      continue;
+    }
     if (available.length > 0) {
       available.sort((a, b) => {
         if (pointsStrategy === 'add') {

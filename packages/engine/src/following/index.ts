@@ -367,8 +367,10 @@ export function computeMandatoryFollow(
   const tractorPairCount = leadPattern.tractors.reduce((s, t) => s + t.pairCount, 0);
   const leadHasSingles = leadLen > (leadPattern.pairCount + tractorPairCount) * 2;
 
-  // 领出全单：跟牌自由
-  if (leadHasSingles && leadPattern.pairCount === 0 && tractorPairCount === 0) {
+  // 领出全单：跟牌自由。注意 classify 对 single 的约定 pairCount=1（占位），
+  // 不能按对数判断，须按牌型类型特判。
+  if (leadPattern.type === 'single'
+      || (leadHasSingles && leadPattern.pairCount === 0 && tractorPairCount === 0)) {
     return { lockedIds: [], disabledIds: [] };
   }
 

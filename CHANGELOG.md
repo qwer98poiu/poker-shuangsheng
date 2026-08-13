@@ -1,5 +1,37 @@
 # Changelog
 
+## 2026-08-13 20:04
+
+### 新增：GUI 跟牌必出牌自动选中锁定 + 同花色不可选置灰（computeMandatoryFollow 集成）
+
+**问题**：唯一可出之外，跟牌时部分牌必出（如领出 3 连对、手牌只有 2 连对 + 两对 → 2 连对必出），同花色内部分牌不可选（领出无单牌时单牌不可选、对数小于理想最短对数的子牌型不可选）——GUI 既不会自动选中必出牌，也不会把不可选牌置灰。
+
+**修复**：① playable.ts 的 computePlayableIds 叠加引擎不可选集合（可点 = computeFollowableCards 排除 disabledIds），新增 computeFollowPlan 返回必出牌 id；② gameStore 新增 lockCards（追加选中 + 锁定，不覆盖用户已选的牌）；③ GameTable 跟牌 effect 由"唯一可出"扩展为"必出牌自动选中锁定"（每墩一次、不因手动选牌跳过、deselect/clear 保留锁定、出牌后释放）；④ 引擎新增 AI 一致性测试——AI 建议出牌必含全部必出牌、不含任何不可选牌（例 3/4/5、理想降级、2 连对 + 独立对 + 单 五个场景）；⑤ 模拟器（seed 42）2 局 53 断言 0 失败验证交互不卡死。
+
+**新增 3 项测试**（playable.test.ts：3 项）
+
+- **影响文件**：`packages/client/src/components/game/playable.ts`、`packages/client/src/components/game/GameTable.tsx`、`packages/client/src/store/gameStore.ts`、`packages/client/src/components/game/playable.test.ts`、`packages/engine/src/__tests__/mandatory-follow.test.ts`
+
+### 修复：computeMandatoryFollow 单张领出误锁对子（classify single 的 pairCount 占位）
+
+**问题**：classify 对单张领出的约定 pairCount=1（占位），computeMandatoryFollow 的"领出含单牌"判断（leadLen > 2×对数）因此误判 false，单张领出被当作"全对领出"处理 → 理想跟牌把级牌对（如 S-2×2）锁为必出 → GUI 选中 3 张、出牌被拒（模拟器 r1 暴露：吊主单张 + 手牌一对级牌）。
+
+**修复**：按牌型类型特判——type === 'single' 时直接返回无必出无不可选（跟牌自由）。
+
+**新增 2 项测试**（mandatory-follow.test.ts：2 项）
+
+- **影响文件**：`packages/engine/src/following/index.ts`、`packages/engine/src/__tests__/mandatory-follow.test.ts`
+
+### 修复：AI 拖拉机跟牌匹配失败时拆开拖拉机出非法组合
+
+**问题**：AI 跟拖拉机领出（如 3 连对）而手牌只有更短拖拉机（如 2 连对）时，tryMatchTractorSlots 找不到足够长的拖拉机返回 null → 落入"垫对子"分支把拖拉机拆成对子出牌（1010+99+77 跟 3 连对）→ validateFollow 拒绝（"must play a tractor with 2 or more pairs"），AI 建议出牌不合法且缺必出的 2 连对（AI 一致性测试捕获）。
+
+**修复**：tryMatchTractorSlots 在无 ≥req 拖拉机时降级取最长的可用拖拉机（与 computeIdealFollow 的 closest-shorter 一致）+ 对子优先填充，组合恒合法；移除"拆拖拉机"路径。
+
+**新增 5 项测试**（mandatory-follow.test.ts：5 项），引擎 675 项 + arena 65 项 + CLI 80 项 + client 20 项 = 840 项通过。
+
+- **影响文件**：`packages/engine/src/ai/helpers.ts`、`packages/engine/src/__tests__/mandatory-follow.test.ts`
+
 ## 2026-08-13 00:24
 
 ### 新增：引擎部分必出跟牌计算——computeMandatoryFollow 返回锁定（必出）与不可选（置灰）牌 id

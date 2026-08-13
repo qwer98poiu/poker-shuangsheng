@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createCard, GamePhase, Suit } from '@poker/engine';
 import type { Card, TrumpDeclaration } from '@poker/engine';
-import { computePlayableIds } from './playable.js';
+import { computePlayableIds, computeFollowPlan } from './playable.js';
 
 const c = (s: string, r: number, i: number): Card => createCard(s as any, r as any, i);
 const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
@@ -66,5 +66,44 @@ describe('computePlayableIds — 不符合规则的牌灰色不可选', () => {
     expect(ids!.has('H-4-1')).toBe(true);
     expect(ids!.has('H-5-2')).toBe(true);
     expect(ids!.has('D-3-3')).toBe(false);
+  });
+
+  it('部分必出：必出的 2 连对可点，独立对与单牌不可选', () => {
+    const hand = [c('H', 10, 0), c('H', 10, 1), c('H', 9, 2), c('H', 9, 3), c('H', 7, 4), c('H', 7, 5), c('H', 3, 6)];
+    // lead: 红桃 AAKK（2 连对），手牌 101099（2 连对）+ 77 + 单 3
+    const lead = play([c('H', 14, 9), c('H', 14, 10), c('H', 13, 11), c('H', 13, 12)], Suit.Hearts);
+    const ids = computePlayableIds(hand, [lead], cfg, GamePhase.Playing);
+    expect(ids!.has('H-10-0')).toBe(true);  // 必出 2 连对
+    expect(ids!.has('H-9-2')).toBe(true);
+    expect(ids!.has('H-7-4')).toBe(false);  // 独立对不可选
+    expect(ids!.has('H-3-6')).toBe(false);  // 单牌不可选
+    const plan = computeFollowPlan(hand, [lead], cfg, GamePhase.Playing);
+    expect(plan.lockedIds.slice().sort()).toEqual(['H-10-0', 'H-10-1', 'H-9-2', 'H-9-3']);
+  });
+
+  it('主牌甩牌部分必出：3 连对必出，对牌不可选（例 4）', () => {
+    // lead: 对大王对小王对黑桃2（3 连对）+ 黑桃 QQJJ（2 连对），吊主 leadSuit null
+    const lead = play([
+      c('J', 16, 0), c('J', 16, 1), c('J', 15, 2), c('J', 15, 3), c('S', 2, 4), c('S', 2, 5),
+      c('S', 12, 6), c('S', 12, 7), c('S', 11, 8), c('S', 11, 9),
+    ], null);
+    const hand = [
+      c('H', 2, 0), c('H', 2, 1), c('S', 14, 2), c('S', 14, 3), c('S', 13, 4), c('S', 13, 5),
+      c('S', 10, 6), c('S', 10, 7), c('S', 9, 8), c('S', 9, 9),
+      c('S', 7, 10), c('S', 7, 11), c('S', 6, 12), c('S', 6, 13),
+      c('S', 4, 14), c('S', 4, 15),
+    ];
+    const ids = computePlayableIds(hand, [lead], cfg, GamePhase.Playing);
+    expect(ids!.has('H-2-0')).toBe(true);   // 3 连对必出
+    expect(ids!.has('S-14-2')).toBe(true);
+    expect(ids!.has('S-13-4')).toBe(true);
+    expect(ids!.has('S-4-14')).toBe(false); // 对牌不可选
+    const plan = computeFollowPlan(hand, [lead], cfg, GamePhase.Playing);
+    expect(plan.lockedIds.slice().sort()).toEqual(['H-2-0', 'H-2-1', 'S-13-4', 'S-13-5', 'S-14-2', 'S-14-3']);
+  });
+
+  it('computeFollowPlan：领出或非 Playing → 无必出', () => {
+    expect(computeFollowPlan([c('H', 3, 0)], [], cfg, GamePhase.Playing).lockedIds).toEqual([]);
+    expect(computeFollowPlan([c('H', 3, 0)], [play([c('S', 5, 9)], Suit.Spades)], cfg, GamePhase.BottomExchange).lockedIds).toEqual([]);
   });
 });

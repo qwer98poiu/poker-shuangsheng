@@ -49,6 +49,7 @@ interface StoreActions {
   deselectCard: (cardId: string) => void;
   clearSelection: () => void;
   autoSelectCards: (cardIds: string[]) => void;
+  lockCards: (cardIds: string[]) => void;
   clearLockedCards: () => void;
   submitPlay: () => void;
   submitBottomExchange: () => void;
@@ -281,6 +282,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
   /** 唯一可出自动选中：选中并锁定（不可放下）。 */
   autoSelectCards: (cardIds: string[]) => {
     set({ selectedCardIds: cardIds, lockedCardIds: cardIds });
+  },
+
+  /** 必出牌锁定：追加到选中并锁定（不可放下），不覆盖用户已选的其他牌。 */
+  lockCards: (cardIds: string[]) => {
+    set(s => ({
+      selectedCardIds: [...s.selectedCardIds, ...cardIds.filter(id => !s.selectedCardIds.includes(id))],
+      lockedCardIds: [...s.lockedCardIds, ...cardIds.filter(id => !s.lockedCardIds.includes(id))],
+    }));
   },
 
   /** 出牌/新墩后释放锁定。 */

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useGameStore } from '../../store/gameStore.js';
 import {
   GamePhase, sortHand, Suit, suitLabel, rankLabel, isTrump, getRevealOptions, canOverride,
-  computeRoundOutcome, advanceLevel, computeFollowableCards, isOnlyLegalPlay, classify, buildAIContext,
+  computeRoundOutcome, advanceLevel, buildAIContext,
 } from '@poker/engine';
 import type { GameState, Card } from '@poker/engine';
 import CardFace from '../cards/CardFace.js';
@@ -10,7 +10,7 @@ import PlayerHand from './PlayerHand.js';
 import PlayerSeat from './PlayerSeat.js';
 import CenterArea from './CenterArea.js';
 import ActionBar from './ActionBar.js';
-import { computePlayableIds } from './playable.js';
+import { computePlayableIds, computeFollowPlan } from './playable.js';
 import { formatGameExport } from './export-game.js';
 import './GameTable.css';
 
@@ -135,8 +135,10 @@ const GameTable: React.FC = () => {
     useGameStore.getState().clearLockedCards();
   }, [gameState?.tricksPlayed]);
 
-  // 非最后一墩且唯一可出 → 自动选中（不自动出牌；最后一墩仍由上方自动打处理）。
-  // 用户已手动选/清空后不再自动（每墩仅一次）。
+  // 跟牌必出牌 → 自动选中并锁定（不可放下，出牌后释放）。
+  // 覆盖唯一可出与部分必出（computeMandatoryFollow，见引擎）；
+  // 最后一墩仍由上方自动打处理；每墩仅一次。必出为强制约束，
+  // 不因用户已手动选牌而跳过。
   useEffect(() => {
     const gs = gameState;
     if (!gs || gs.phase !== GamePhase.Playing) return;
@@ -144,21 +146,14 @@ const GameTable: React.FC = () => {
     if (gs.trickPlays.length === 0) return; // 领出不自动
     const trump = gs.trumpDeclaration;
     if (!trump) return;
-    const lead = gs.trickPlays[0];
-    const leadLen = lead.cards.length;
     const hand = gs.players[localPlayerIndex].hand;
-    if (hand.length === leadLen) return; // 最后一墩（自动打分支处理）
+    if (hand.length === gs.trickPlays[0].cards.length) return; // 最后一墩（自动打分支处理）
     if (autoSelectedRef.current) return;
-    if (selectedCardIds.length > 0) return; // 已手动选
-    const groupIsTrump = isTrump(lead.cards[0], trump);
-    // 组判定与引擎 followGroup 一致：主组 = 全部主牌；花色组 = 同花色非主牌
-    const groupCards = hand.filter(c => (groupIsTrump ? isTrump(c, trump) : c.suit === lead.cards[0].suit && !isTrump(c, trump)));
-    if (!isOnlyLegalPlay(groupCards, leadLen, classify(lead.cards, trump), trump)) return; // 非唯一
-    const followable = computeFollowableCards(hand, lead.cards, trump);
-    if (!followable || followable.length === 0) return;
+    const plan = computeFollowPlan(hand, gs.trickPlays, trump, gs.phase);
+    if (plan.lockedIds.length === 0) return; // 无必出牌
     autoSelectedRef.current = true;
     // 自动选中并锁定（不可放下，出牌后释放）
-    useGameStore.getState().autoSelectCards(followable.map(c => c.id));
+    useGameStore.getState().lockCards(plan.lockedIds);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameState, localPlayerIndex, selectedCardIds.length]);
 
