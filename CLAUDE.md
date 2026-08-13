@@ -20,7 +20,7 @@ packages/arena/      - 策略竞技场（镜像对决、显著性判定）
 
 <中文简述（可选）>
 
-Co-Authored-By: DeepSeek V4 Pro <noreply@deepseek.com>
+Co-Authored-By: DeepSeek V4 Flash <noreply@deepseek.com>
 ```
 
 | 前缀 | 用途 |
@@ -43,7 +43,7 @@ Adds nonTrump.length >= leadLen guard for safe filler selection.
 第三家队友已大时，缺门应先检查可加分再毙牌。
 新增 1 项测试（engine）。
 
-Co-Authored-By: DeepSeek V4 Pro <noreply@deepseek.com>
+Co-Authored-By: DeepSeek V4 Flash <noreply@deepseek.com>
 ```
 
 测试数行格式（提交信息）：
