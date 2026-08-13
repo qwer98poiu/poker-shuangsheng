@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-13 21:46
+
+### 修复：移除中间区域重复的"闲家已得分牌"展示（左上角已有点数分牌行）
+
+**问题**：闲家得分分牌此前已移至左上角（score-display 内一行文字，10/K 在前、5 在后、按花色 SHCD），但中间区域仍保留旧版 point-collection 卡片列表（"闲家已得分牌 (N张):" + CardFace 小卡），两处重复显示。
+
+**修复**：删除 CenterArea 的 point-collection 渲染块及 GameTable.css 对应样式（.point-collection/.point-label/.point-cards），保留左上角唯一展示。
+
+**无新增测试**，引擎 675 项 + arena 65 项 + CLI 80 项 + client 20 项 = 840 项通过。
+
+- **影响文件**：`packages/client/src/components/game/CenterArea.tsx`、`packages/client/src/components/game/GameTable.css`
+
 ## 2026-08-13 20:04
 
 ### 新增：GUI 跟牌必出牌自动选中锁定 + 同花色不可选置灰（computeMandatoryFollow 集成）

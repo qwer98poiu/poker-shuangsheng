@@ -94,31 +94,6 @@ const CenterArea: React.FC<CenterAreaProps> = ({ gameState, lastTrickReview, onC
         })()}
       </div>
 
-      {/* played point cards collected by attacker */}
-      {trickHistory.length > 0 && (
-        <div className="point-collection">
-          {(() => {
-            const declarerIdx = gameState.trumpDeclaration?.declarerIndex ?? gameState.declarerIndex;
-            const attackerTeam = declarerIdx % 2 === 0 ? 1 : 0;
-            const allPointCards = trickHistory
-              .filter(t => t.points > 0 && t.winnerIndex % 2 === attackerTeam)
-              .flatMap(t => t.plays.flatMap(p => p.cards))
-              .filter(c => isPointRank(c.rank));
-            if (allPointCards.length === 0) return null;
-            return (
-              <>
-                <div className="point-label">闲家已得分牌 ({allPointCards.length}张):</div>
-                <div className="point-cards">
-                  {allPointCards.map((c, i) => (
-                    <CardFace key={`${c.id}-${i}`} card={c} size="small" />
-                  ))}
-                </div>
-              </>
-            );
-          })()}
-        </div>
-      )}
-
       {/* current trick — 按玩家方位布局（上/左/右/下），没出就空着；
           墩结算沿用同一方位（不新开框），中央显示赢家与得分 */}
       {phase === GamePhase.Playing && (() => {

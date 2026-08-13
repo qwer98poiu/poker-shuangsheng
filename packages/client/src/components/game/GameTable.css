@@ -792,28 +792,6 @@
   text-align: right;
 }
 
-/* point collection — 限高 90px，超长滚动 */
-.point-collection {
-  margin-top: 4px;
-  padding: 2px 8px;
-  background: rgba(76,175,80,0.08);
-  border-radius: 6px;
-  max-height: 90px;
-  overflow-y: auto;
-}
-
-.point-label {
-  font-size: 11px;
-  opacity: 0.7;
-}
-
-.point-cards {
-  display: flex;
-  gap: 2px;
-  flex-wrap: wrap;
-  margin-top: 2px;
-}
-
 /* setup debug checkbox */
 .setup-debug {
   margin: 16px 0;
