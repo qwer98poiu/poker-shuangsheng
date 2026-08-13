@@ -226,6 +226,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         phase: GamePhase.Playing,
         currentPlayerIndex: declarerIdx,
         leadPlayerIndex: declarerIdx,
+        initialHands: newPlayers.map(p => p.hand),
       };
 
       set({
@@ -351,6 +352,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       phase: GamePhase.Playing,
       currentPlayerIndex: declarerIdx,
       leadPlayerIndex: declarerIdx,
+      initialHands: newPlayers.map(p => p.hand),
     };
 
     set({

@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-13 23:54
+
+### 新增：GUI 对局导出增加初始手牌段（扣底后各家 25 张），当前手牌保留
+
+**问题**：调试"AI 建议某张牌"等场景需要开局手牌（如从第 1 墩驱动模拟），但导出只有当前手牌，开局手牌须从"当前手牌 + 已出牌"反推——反推依赖描述完整且易出错（曾出现小王 3 张超张、视角错位等）。
+
+**修复**：① GameState 新增可选字段 `initialHands`（扣底后各家初始手牌）；② 庄家扣底完成的两处（finalizeRevealAndBottom AI 庄 / submitBottomExchange 人类庄）在进入 Playing 时记录各玩家 25 张手牌；③ 导出在"底牌"与"出牌历史"之间增加 `--- 初始手牌 ---` 段（各家 25 张），当前手牌段保留。
+
+**修改 1 项测试**（export-game.test.ts），引擎 675 项 + arena 65 项 + CLI 80 项 + client 20 项 = 840 项通过。
+
+- **影响文件**：`packages/engine/src/types.ts`、`packages/client/src/store/gameStore.ts`、`packages/client/src/components/game/export-game.ts`、`packages/client/src/components/game/export-game.test.ts`
+
 ## 2026-08-13 21:46
 
 ### 修复：移除中间区域重复的"闲家已得分牌"展示（左上角已有点数分牌行）

@@ -39,12 +39,21 @@ describe('formatGameExport — 紧凑 CLI 格式', () => {
       trickPlays: [play([c('D', 7, 30)])],
       attackerPoints: 10,
       tricksPlayed: 1,
+      initialHands: [
+        [c('S', 14, 0), c('S', 13, 1), c('S', 2, 50)],
+        [c('H', 3, 2), c('H', 9, 51)],
+        [c('D', 5, 3)],
+        [c('C', 7, 4)],
+      ],
     };
     const out = formatGameExport({ gameState: gs, roundNumber: 2 });
 
     expect(out).toContain('第 3 局 | 级牌 2 | 主牌: ♠2 (♠主) | 庄家: AI-2');
     expect(out).toContain('闲家得分: 10 | 墩: 1/25');
     expect(out).toContain('底牌(2): ♠5 ♥K');
+    expect(out).toContain('--- 初始手牌 ---');
+    expect(out).toContain('玩家1(3): ♠A ♠K ♠2');
+    expect(out).toContain('AI-4(1): ♣7');
     expect(out).toContain('第 1 墩');
     expect(out).toContain('👑');
     expect(out).toContain('得分10');

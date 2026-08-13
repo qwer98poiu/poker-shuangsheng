@@ -164,6 +164,8 @@ export interface GameState {
   readonly aiReasons: AIReason[];
   /** Throw failure penalty counts: [declarerTeam, attackerTeam], max 3 each. */
   readonly throwPenalties: readonly [number, number];
+  /** 扣底后各家初始手牌（各 25 张），调试导出用（免反推开局）。 */
+  readonly initialHands?: Card[][];
 }
 
 export function createInitialState(

@@ -30,6 +30,15 @@ export function formatGameExport({ gameState: gs, roundNumber }: ExportInput): s
   const bottom = gs.bottomCards.map(cardName).join(' ');
   lines.push(`底牌(${gs.bottomCards.length}): ${bottom || '—'}`);
 
+  // 初始手牌（扣底后各 25 张，免反推开局）
+  if (gs.initialHands && gs.initialHands.length === 4) {
+    lines.push('--- 初始手牌 ---');
+    for (let i = 0; i < 4; i++) {
+      const init = gs.initialHands[i];
+      lines.push(`${gs.players[i].name}(${init.length}): ${init.map(cardName).join(' ') || '—'}`);
+    }
+  }
+
   // 历史出牌
   if (gs.trickHistory.length > 0) {
     lines.push('--- 出牌历史 ---');
