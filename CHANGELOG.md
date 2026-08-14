@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-14 21:28
+
+### 修复：拖拽框选按可见（露出）区域判定——非最后一张认左侧露出区，最右一张全露可选
+
+**问题**：手牌重叠摆放（下一张 marginLeft -34px 盖住本张右侧 34px），可见区域是左侧露出条（最右一张全露）；但拖拽判定把左 34px 当被盖、按右侧判定，导致：① 轨迹只划过右侧被盖区也误选中（应不选）；② 最右一张只覆盖左侧露出区反而选不中（应全露可选）。
+
+**修复**：提取 `isCardCoveredByDrag(x1,y1,x2,y2,rect,isLastCard,overlapPx)` 纯函数——非最后一张可见右缘 = `right - 34`（露出左侧），最后一张可见右缘 = `right`（全露），轨迹与可见区相交才选中；PlayerHand 的 handleMouseMove 改用该函数判定。
+
+**新增 12 项测试**（drag-select.test.ts：12 项），引擎 675 项 + arena 65 项 + CLI 80 项 + client 41 项 = 861 项通过。
+
+- **影响文件**：`packages/client/src/components/game/PlayerHand.tsx`、`packages/client/src/components/game/drag-select.test.ts`
+
 ## 2026-08-14 20:22
 
 ### 新增：出牌按钮灰色判定——跟牌张数/牌型不合法、领出不同花色时禁用

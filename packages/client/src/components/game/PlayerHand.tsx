@@ -2,6 +2,22 @@ import React, { useRef } from 'react';
 import type { Card } from '@poker/engine';
 import CardFace from '../cards/CardFace.js';
 
+/**
+ * 拖拽框选判定：轨迹矩形是否与本牌的可见（露出）区域相交。
+ * 手牌重叠摆放（下一张 marginLeft:-overlapPx 盖住本张右侧 overlapPx）：
+ * 非最后一张只露出左侧，最后一张无后续牌覆盖（全露）。
+ * 轨迹覆盖被盖住的部分不视为选中。x1<=x2、y1<=y2（调用方已归一化）。
+ */
+export function isCardCoveredByDrag(
+  x1: number, y1: number, x2: number, y2: number,
+  rect: { left: number; right: number; top: number; bottom: number },
+  isLastCard: boolean,
+  overlapPx = 34,
+): boolean {
+  const visibleRight = isLastCard ? rect.right : rect.right - overlapPx;
+  return rect.left < x2 && visibleRight > x1 && rect.top < y2 && rect.bottom > y1;
+}
+
 interface PlayerHandProps {
   cards: Card[];
   selectedIds: string[];
@@ -62,10 +78,9 @@ const PlayerHand: React.FC<PlayerHandProps> = ({
       if (selectedIds.includes(card.id)) return;
       if (playableIds && !playableIds.has(card.id)) return; // 灰色不可拖选
       const r = el.getBoundingClientRect();
-      // 只认露出部分：手牌重叠摆放（overlap -34px），左 34px 被前一张盖住，
-      // 轨迹覆盖被盖部分不视为选择 → 用可见的右 36px 判定
-      const visibleLeft = r.left + 34;
-      if (visibleLeft < x2 && r.right > x1 && r.top < y2 && r.bottom > y1) {
+      // 只认露出部分：手牌重叠摆放（下一张 marginLeft -34px 盖住本张右侧 34px），
+      // 非最后一张只露出左侧；最后一张全露，全部区域都可选中
+      if (isCardCoveredByDrag(x1, y1, x2, y2, r, i === cards.length - 1)) {
         onSelectCard(card.id);
       }
     });
