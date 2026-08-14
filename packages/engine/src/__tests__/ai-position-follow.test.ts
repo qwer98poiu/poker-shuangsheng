@@ -546,3 +546,85 @@ describe('第四家：加分优先盖过队友（盖毙）', () => {
     expect(r.reason).toContain('用分牌盖');
   });
 });
+
+describe('第二家：主牌双对领出填单张避分（>15 张）', () => {
+  const leadAAKK: Card[] = [cc('S', 14, 200), cc('S', 14, 201), cc('S', 13, 202), cc('S', 13, 203)];
+
+  it('>15 张：跟主对后填单张非分优先（分牌 S5 被 S8 替换）', () => {
+    // 还原用户牌局：庄家 AI-4 领出 SA SA SK SK（主牌双对，含 K 分），
+    // P1 主牌 S4-4（唯一主对，必跟）+ S5(分) + S6 S8(非分) + H2 级牌 + 2 王 + 12 张副牌（>15）
+    const hand = [
+      cc('S', 4, 0), cc('S', 4, 1), cc('S', 5, 2), cc('S', 6, 3), cc('S', 8, 4),
+      cc('H', 2, 5), cc('J', 16, 6), cc('J', 15, 7),
+      ...fillerClubs(12),
+    ];
+    const ctx = secondCtx(cfgS2, leadAAKK);
+    const r = aiFollowPlay(hand, leadAAKK, Suit.Spades, ctx);
+    checkFollow(r.cards, hand, leadAAKK, Suit.Spades as any, cfgS2);
+    expect(r.cards.length).toBe(4);
+    const ids = r.cards.map(c => c.id);
+    expect(ids).toEqual(expect.arrayContaining(['S-4-0', 'S-4-1'])); // 主对必跟
+    expect(ids).not.toContain('S-5-2'); // 分牌 S5 被避
+    expect(ids).toEqual(expect.arrayContaining(['S-6-3', 'S-8-4'])); // 非分单张填充
+  });
+
+  it('<=15 张：不避分，仍按大小升序填（S5 分牌保留）', () => {
+    const hand = [
+      cc('S', 4, 0), cc('S', 4, 1), cc('S', 5, 2), cc('S', 6, 3), cc('S', 8, 4),
+      ...fillerClubs(6),
+    ]; // 11 张
+    const ctx = secondCtx(cfgS2, leadAAKK);
+    const r = aiFollowPlay(hand, leadAAKK, Suit.Spades, ctx);
+    checkFollow(r.cards, hand, leadAAKK, Suit.Spades as any, cfgS2);
+    const ids = r.cards.map(c => c.id);
+    expect(ids).toContain('S-5-2'); // 大小升序填 S5 S6
+  });
+
+  it('>15 张：非分单张不足时垫分牌而不垫大王（A/王保底）', () => {
+    // 主牌 S4-4 + S5(分) + 大王 + 小王 + 14 张副牌（>15）
+    // 需填 2 张单张：S5 + 一张王；应垫 S5 保大王
+    const hand = [
+      cc('S', 4, 0), cc('S', 4, 1), cc('S', 5, 2), cc('J', 16, 3), cc('J', 15, 4),
+      ...fillerClubs(14),
+    ]; // 18 张
+    const ctx = secondCtx(cfgS2, leadAAKK);
+    const r = aiFollowPlay(hand, leadAAKK, Suit.Spades, ctx);
+    checkFollow(r.cards, hand, leadAAKK, Suit.Spades as any, cfgS2);
+    const ids = r.cards.map(c => c.id);
+    expect(ids).toEqual(expect.arrayContaining(['S-4-0', 'S-4-1']));
+    expect(ids).toContain('S-5-2'); // 被迫垫分牌
+    expect(ids).not.toContain('J-16-3'); // 大王保底
+  });
+});
+
+/** 无对、无 3 张同花色的副牌 filler（避免触发 hasStrongFollowUp 的"可甩副牌"）。 */
+function fillerNoThrow(): Card[] {
+  return [cc('H', 3, 300), cc('H', 8, 301), cc('C', 4, 302), cc('C', 6, 303), cc('D', 7, 304), cc('D', 9, 305)];
+}
+
+describe('第二家：主牌单张领出避分（>15 张）', () => {
+  const leadSA: Card[] = [cc('S', 14, 200)];
+
+  it('>15 张：出最小非分主牌（分牌 S5 被 S6 替换）', () => {
+    // 庄家领出 ♠A。P1 主牌最小是分牌 S5，S6+ 均非分；副牌 6 张无对/无可甩（hasStrongFollowUp=false）
+    // → 避分（>15 张）出 S6 而非 S5
+    const hand = [
+      cc('S', 5, 0), cc('S', 6, 1), cc('S', 7, 2), cc('S', 8, 3), cc('S', 9, 4),
+      cc('S', 10, 5), cc('S', 11, 6), cc('S', 12, 7), cc('H', 2, 8), cc('J', 15, 9), cc('J', 16, 10),
+      ...fillerNoThrow(),
+    ]; // 11 主 + 6 副 = 17 张
+    const ctx = secondCtx(cfgS2, leadSA);
+    const r = aiFollowPlay(hand, leadSA, Suit.Spades, ctx);
+    checkFollow(r.cards, hand, leadSA, Suit.Spades as any, cfgS2);
+    expect(r.cards[0].id).toBe('S-6-1'); // 非分最小主牌
+    expect(r.reason).toContain('同花色出小');
+  });
+
+  it('<=15 张：不避分，仍出最小主牌（S5）', () => {
+    const hand = [cc('S', 5, 0), cc('S', 8, 1), cc('S', 9, 2)];
+    const ctx = secondCtx(cfgS2, leadSA);
+    const r = aiFollowPlay(hand, leadSA, Suit.Spades, ctx);
+    checkFollow(r.cards, hand, leadSA, Suit.Spades as any, cfgS2);
+    expect(r.cards[0].id).toBe('S-5-0'); // 最小
+  });
+});

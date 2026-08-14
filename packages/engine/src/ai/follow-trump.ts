@@ -34,6 +34,14 @@ function aceEff(ctx: AIContext): number {
     { suit: ctx.trumpSuit ?? Suit.Spades, rank: Rank.Ace, isJoker: false, id: '' } as Card, ctx);
 }
 
+/** 第二家避分时主牌单张的垫出优先级：小非分(0) < 级牌常主(1) < 分牌(2) < 主A/王保底(3)。
+ *  垫分牌损失分，垫 A/王损失控制力——宁垫分牌保 A/王。 */
+function trumpDumpKey(c: Card, ctx: AIContext): number {
+  if (isPointRank(c.rank)) return 2;
+  if (getEffectiveRank(c, ctx) >= aceEff(ctx)) return 3;
+  return c.rank === ctx.level ? 1 : 0;
+}
+
 
 /** 毙牌选牌的分牌值：10>K>5（级牌除外——常主只在跨 40 分台阶时出）。 */
 function killPointVal(c: Card, ctx: AIContext): number {
@@ -114,7 +122,8 @@ export function followTrumpLead(
       const canBeatCards = myTrump.filter(c => getEffectiveRank(c, ctx) > currentMax);
 
       if (position === 'second') {
-        // 第3条：出最小主牌（不一定盖过）；有拖拉机或可甩副牌 → 出最大主牌
+        // 第3条：出最小主牌（不一定盖过）；有拖拉机或可甩副牌 → 出最大主牌；
+        // 避分（>15 张）：非分小牌优先，级牌次之，分牌再次，主 A/王保底
         if (hasStrongFollowUp(hand, ctx)) {
           myTrump.sort((a, b) => getEffectiveRank(b, ctx) - getEffectiveRank(a, ctx));
           const cards = [myTrump[0]];
@@ -122,10 +131,16 @@ export function followTrumpLead(
             leadCombo, 1, ctx, position, tmWin, false, 'none');
           return { cards, reason };
         }
-        myTrump.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+        if (secondShouldAvoid(hand)) {
+          myTrump.sort((a, b) => (trumpDumpKey(a, ctx) - trumpDumpKey(b, ctx))
+            || (getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx)));
+        } else {
+          myTrump.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+        }
         const cards = [myTrump[0]];
+        const intent = secondShouldAvoid(hand) ? 'avoid' : 'none';
         const reason = annotateReason('同花色出小', cards, myTrump, myTrump,
-          leadCombo, 1, ctx, position, tmWin, false, 'none');
+          leadCombo, 1, ctx, position, tmWin, false, intent);
         return { cards, reason };
       }
 
@@ -258,13 +273,13 @@ export function matchTrumpPattern(
 
   // Already fully covered: try to use smallest matching pattern
   if (leadCombo.hasTractor) {
+    const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
+    const shouldAvoidT = !addPoints
+      && ((position === 'fourth' && !tmWin)
+        || (position === 'second' && secondShouldAvoid(hand))
+        || (position === 'third' && !tmWin));
     const myTractors = detectTractors(myTrump, ctx);
     if (myTractors.length > 0) {
-      const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
-      const shouldAvoidT = !addPoints
-        && ((position === 'fourth' && !tmWin)
-          || (position === 'second' && secondShouldAvoid(hand))
-          || (position === 'third' && !tmWin));
       const ptsStrat = addPoints ? 'add' : (shouldAvoidT ? 'avoid' : undefined);
 
       myTractors.sort((a, b) => {
@@ -301,10 +316,16 @@ export function matchTrumpPattern(
     const chosen = pairs.flat();
     const used = new Set(chosen.map(c => c.id));
     const rest = myTrump.filter(c => !used.has(c.id));
-    const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
-    rest.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+    // 避分（第二家 >15 张等）：非分小牌优先、级牌次之、分牌再次、主 A/王保底；
+    // 否则按大小升序（保留大牌）
+    if (shouldAvoidT) {
+      rest.sort((a, b) => (trumpDumpKey(a, ctx) - trumpDumpKey(b, ctx))
+        || (getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx)));
+    } else {
+      rest.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+    }
     const cards = [...chosen, ...rest].slice(0, leadLen);
-    const intent = addPoints ? 'add' : 'none';
+    const intent = addPoints ? 'add' : (shouldAvoidT ? 'avoid' : 'none');
     const reason = annotateReason('垫同花色', cards, [], myTrump,
       leadCombo, leadLen, ctx, position, tmWin, false, intent);
     return { cards, reason };
@@ -353,7 +374,14 @@ export function matchTrumpPattern(
     if (chosen.length < leadLen) {
       const used = new Set(chosen.map(c => c.id));
       const rest = myTrump.filter(c => !used.has(c.id));
-      rest.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+      // 第二家避分（>15 张）：非分小牌优先，级牌常主次之，分牌再次，
+      // 主牌 A/王保底最后（不加分会导致垫 A/王时宁垫分牌）——与纯单张分支同策略
+      if (position === 'second' && secondShouldAvoid(hand)) {
+        rest.sort((a, b) => (trumpDumpKey(a, ctx) - trumpDumpKey(b, ctx))
+          || (getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx)));
+      } else {
+        rest.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+      }
       chosen.push(...rest.slice(0, leadLen - chosen.length));
     }
     const cards = chosen.slice(0, leadLen);
