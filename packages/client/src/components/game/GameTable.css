@@ -484,14 +484,16 @@
   transform: translateY(-2px);
 }
 
-.clear-btn {
-  background: rgba(255, 255, 255, 0.1);
-  color: #ccc;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+/* 回看上墩 — 出牌右侧的次要主按键 */
+.review-btn {
+  background: rgba(255, 215, 0, 0.15);
+  color: #ffd740;
+  border: 1px solid rgba(255, 215, 0, 0.4);
 }
 
-.clear-btn:not(:disabled):hover {
-  background: rgba(255, 255, 255, 0.2);
+.review-btn:not(:disabled):hover {
+  background: rgba(255, 215, 0, 0.25);
+  transform: translateY(-2px);
 }
 
 /* reveal panel — 固定行高 48px（与 action-bar/bottom-exchange 同一槽位） */
@@ -726,70 +728,32 @@
   margin-left: 8px;
 }
 
-/* last trick review */
-.last-trick-review {
-  margin-top: 8px;
-  padding: 8px;
-  background: rgba(255,215,0,0.08);
-  border: 1px solid rgba(255,215,0,0.2);
-  border-radius: 8px;
-  font-size: 12px; /* 小一号，避免挤压 */
+/* 回看上墩弹层 — 与查看底牌同风格（中央偏上 overlay，覆盖不挤压布局；
+   上移避免盖住底部出牌/回看按键）；
+   内容复用 .trick-position-layout 方位布局，各家出的牌在各家对应位置 */
+.review-overlay {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 50;
+  background: rgba(0, 0, 0, 0.85);
+  border: 1px solid rgba(255, 215, 0, 0.3);
+  border-radius: 12px;
+  padding: 12px 16px;
+  text-align: center;
+}
+
+.review-overlay-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
 }
 
 .review-label {
-  font-size: 11px;
-  opacity: 0.6;
-  margin-bottom: 4px;
-}
-
-.review-player {
-  font-size: 11px;
-  width: 80px;
-}
-
-.review-cards {
-  display: flex;
-  gap: 2px;
-}
-
-/* 回看上墩：文字一行，按出牌顺序从左到右 */
-.review-line {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-  font-size: 12px;
-  line-height: 1.6;
-}
-
-.review-seg {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.review-arrow {
-  opacity: 0.5;
-  margin-right: 4px;
-}
-
-.review-name {
-  color: #aaa;
-}
-
-.review-name.winner {
+  font-size: 13px;
   color: #ffd740;
-  font-weight: bold;
-}
-
-.review-cards-text {
-  color: #e0e0e0;
-}
-
-.review-points {
-  font-size: 11px;
-  opacity: 0.6;
-  text-align: right;
 }
 
 /* setup debug checkbox */
@@ -813,13 +777,6 @@
 }
 
 /* review close */
-.review-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 6px;
-}
-
 .review-close-btn {
   padding: 2px 10px;
   border: 1px solid rgba(255,255,255,0.2);

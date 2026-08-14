@@ -10,8 +10,9 @@ interface ActionBarProps {
   hand: Card[];
   trumpDeclaration: TrumpDeclaration | null;
   isHuman: boolean;
+  isReviewing: boolean;
   onSubmitPlay: () => void;
-  onClearSelection: () => void;
+  onToggleReview: () => void;
 }
 
 const ActionBar: React.FC<ActionBarProps> = ({
@@ -21,8 +22,9 @@ const ActionBar: React.FC<ActionBarProps> = ({
   hand,
   trumpDeclaration,
   isHuman,
+  isReviewing,
   onSubmitPlay,
-  onClearSelection,
+  onToggleReview,
 }) => {
   if (gameState.phase !== GamePhase.Playing) return null;
   if (gameState.currentPlayerIndex !== localPlayerIndex) return null;
@@ -30,6 +32,8 @@ const ActionBar: React.FC<ActionBarProps> = ({
 
   const isLeading = gameState.trickPlays.length === 0;
   const canSubmit = canSubmitPlay(selectedCards, hand, gameState.trickPlays, trumpDeclaration);
+  // 第 1 墩（本局尚无已出墩）不显示回看按钮
+  const canReview = gameState.trickHistory.length > 0;
 
   return (
     <div className="action-bar">
@@ -43,14 +47,15 @@ const ActionBar: React.FC<ActionBarProps> = ({
           ? `出牌 (${selectedCards.length} 张)`
           : `跟牌 (${selectedCards.length}/${gameState.trickPlays[0].cards.length} 张)`}
       </button>
-      <button
-        className="action-btn clear-btn"
-        data-testid="clear-btn"
-        disabled={selectedCards.length === 0}
-        onClick={onClearSelection}
-      >
-        重选
-      </button>
+      {canReview && (
+        <button
+          className="action-btn review-btn"
+          data-testid="review-btn"
+          onClick={onToggleReview}
+        >
+          {isReviewing ? '隐藏回看' : '回看上墩'}
+        </button>
+      )}
     </div>
   );
 };

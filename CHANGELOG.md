@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-14 22:12
+
+### 新增：回看上墩提升为主要按键（出牌右侧），改为弹层展示；移除重选按钮；查看底牌 5 秒自动消失
+
+**问题**：① 拖拽已支持反选，"重选"按钮失去意义；② 回看上墩藏在 debug-bar 次级按钮里，且是文字一行（按出牌顺序从左到右），与出牌时的方位展示不一致；③ 查看底牌弹层只能手动点按钮隐藏，不会自动消失。
+
+**修复**：① ActionBar 移除重选按钮，新增"回看上墩"主按键（出牌右侧，金色描边，第 1 墩无历史时隐藏）；② 回看改为弹层（与查看底牌同风格 overlay），各家出的牌放在各家对应方位（复用当前墩的 trick-position-layout 布局），中央标注赢家与得分，✕ 手动关闭、5 秒自动消失（store 已有）；③ 查看底牌弹层加 5 秒自动消失（手动按钮仍可隐藏）；④ debug-bar 仅在调试模式或人类庄家时渲染（原回看按钮移走后不再无条件占位）。
+
+**无新增测试**，引擎 675 项 + arena 65 项 + CLI 80 项 + client 47 项 = 867 项通过。
+
+- **影响文件**：`packages/client/src/components/game/ActionBar.tsx`、`packages/client/src/components/game/GameTable.tsx`、`packages/client/src/components/game/CenterArea.tsx`、`packages/client/src/components/game/GameTable.css`
+
 ## 2026-08-14 21:53
 
 ### 新增：拖拽框选反选——轨迹覆盖已选牌则放下（XOR 语义，与点击 toggle 一致）

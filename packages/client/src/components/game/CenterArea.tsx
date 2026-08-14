@@ -131,35 +131,38 @@ const CenterArea: React.FC<CenterAreaProps> = ({ gameState, lastTrickReview, onC
         );
       })()}
 
-      {/* last trick review — 文字一行，按出牌顺序从左到右 */}
+      {/* last trick review — 弹层（与查看底牌同风格）：各家出的牌放在各家对应方位，
+          与出牌展示（trick-position-layout）一致；5 秒后自动消失（store），也可点 ✕ 关闭 */}
       {lastTrickReview && trickHistory.length > 0 && (() => {
         const last = trickHistory[trickHistory.length - 1];
-        const cardText = (c: any) => c.isJoker
-          ? (c.rank === 16 ? '大王' : '小王')
-          : `${rankLabel(c.rank)}${suitLabel(c.suit)}`;
         return (
-          <div className="last-trick-review">
-            <div className="review-header">
+          <div className="review-overlay" data-testid="review-overlay">
+            <div className="review-overlay-title">
               <span className="review-label">上一墩回顾</span>
-              <button className="review-close-btn" onClick={onCloseReview}>✕ 关闭</button>
+              <button className="review-close-btn" onClick={onCloseReview}>✕</button>
             </div>
-            <div className="review-line" data-testid="review-line">
-              {last.plays.map((play, i) => {
-                const pi = (last.leadPlayerIndex + i) % 4;
+            <div className="trick-position-layout">
+              {([0, 1, 2, 3] as const).map(rel => {
+                const pi = (localPlayerIndex + rel) % 4;
+                const pos = ['bottom', 'right', 'top', 'left'][rel];
+                const play = last.plays.find((p, j) => (last.leadPlayerIndex + j) % 4 === pi);
                 const isWinner = pi === last.winnerIndex;
                 return (
-                  <span key={i} className="review-seg">
-                    {i > 0 && <span className="review-arrow">→</span>}
-                    <span className={`review-name ${isWinner ? 'winner' : ''}`}>
-                      {gameState.players[pi].name}{isWinner ? '👑' : ''}
-                    </span>
-                    <span className="review-cards-text">
-                      {play.cards.map(c => cardText(c)).join(' ')}
-                    </span>
-                  </span>
+                  <div key={rel} className={`trick-pos trick-pos-${pos}`}>
+                    <div className="trick-pos-player">
+                      {gameState.players[pi].name}{isWinner ? ' 👑' : ''}
+                    </div>
+                    <div className="trick-pos-cards">
+                      {play ? play.cards.map(card => (
+                        <CardFace key={card.id} card={card} size="small" />
+                      )) : null}
+                    </div>
+                  </div>
                 );
               })}
-              <span className="review-points">得分: {last.points}</span>
+              <div className="trick-pos-center">
+                {gameState.players[last.winnerIndex].name} 赢 · {last.points} 分
+              </div>
             </div>
           </div>
         );

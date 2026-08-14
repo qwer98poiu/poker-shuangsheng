@@ -75,7 +75,7 @@ const GameTable: React.FC = () => {
   const {
     gameState, localPlayerIndex, selectedCardIds, debug,
     message, errorMessage, lastTrickReview, highlightedCards,
-    selectCard, deselectCard, clearSelection,
+    selectCard, deselectCard,
     submitPlay, submitBottomExchange,
     humanReveal, humanPassReveal,
     toggleLastTrickReview, getHint,
@@ -85,6 +85,13 @@ const GameTable: React.FC = () => {
   const [trumpConfirm, setTrumpConfirm] = useState(false);
   const [exportCopied, setExportCopied] = useState(false);
   const [showBottomView, setShowBottomView] = useState(false);
+
+  // 查看底牌弹层 5 秒后自动消失（与回看上墩一致），也可手动点按钮隐藏
+  useEffect(() => {
+    if (!showBottomView) return;
+    const t = setTimeout(() => setShowBottomView(false), 5000);
+    return () => clearTimeout(t);
+  }, [showBottomView]);
   // 每墩重置：唯一可出自动选中只发生一次，用户清空后不再自动
   const autoSelectedRef = useRef(false);
 
@@ -324,8 +331,9 @@ const GameTable: React.FC = () => {
           hand={localPlayer.hand}
           trumpDeclaration={gameState.trumpDeclaration}
           isHuman={localPlayer.isHuman}
+          isReviewing={lastTrickReview}
           onSubmitPlay={submitPlay}
-          onClearSelection={clearSelection}
+          onToggleReview={toggleLastTrickReview}
         />
       )}
 
@@ -370,26 +378,25 @@ const GameTable: React.FC = () => {
         );
       })()}
 
-      {/* 建议出牌（调试）+ 回看上轮 + 查看底牌（人类庄家，非调试也可用）— 一行对齐跟牌/重选 */}
-      <div className="debug-bar">
-        {debug && (
-          <button className="debug-btn" onClick={getHint} data-testid="hint-btn">
-            🤖 建议出牌
-          </button>
-        )}
-        <button className="debug-btn" onClick={toggleLastTrickReview} data-testid="review-btn">
-          {lastTrickReview ? '隐藏上轮' : '回看上轮'}
-        </button>
-        {isDeclarer && localPlayer.isHuman && (
-          <button
-            className="debug-btn"
-            data-testid="bottom-view-btn"
-            onClick={() => setShowBottomView(v => !v)}
-          >
-            {showBottomView ? '隐藏底牌' : '查看底牌'}
-          </button>
-        )}
-      </div>
+      {/* 建议出牌（调试）+ 查看底牌（人类庄家，非调试也可用）— 回看上墩在 ActionBar 出牌按钮右侧 */}
+      {(debug || (isDeclarer && localPlayer.isHuman)) && (
+        <div className="debug-bar">
+          {debug && (
+            <button className="debug-btn" onClick={getHint} data-testid="hint-btn">
+              🤖 建议出牌
+            </button>
+          )}
+          {isDeclarer && localPlayer.isHuman && (
+            <button
+              className="debug-btn"
+              data-testid="bottom-view-btn"
+              onClick={() => setShowBottomView(v => !v)}
+            >
+              {showBottomView ? '隐藏底牌' : '查看底牌'}
+            </button>
+          )}
+        </div>
+      )}
 
       {/* 查看底牌弹层（人类庄家） */}
       {showBottomView && isDeclarer && localPlayer.isHuman && (
