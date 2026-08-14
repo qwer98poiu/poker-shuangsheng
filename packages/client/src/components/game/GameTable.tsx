@@ -320,7 +320,9 @@ const GameTable: React.FC = () => {
         <ActionBar
           gameState={gameState}
           localPlayerIndex={localPlayerIndex}
-          selectedCardCount={selectedCardIds.length}
+          selectedCards={localPlayer.hand.filter(c => selectedCardIds.includes(c.id))}
+          hand={localPlayer.hand}
+          trumpDeclaration={gameState.trumpDeclaration}
           isHuman={localPlayer.isHuman}
           onSubmitPlay={submitPlay}
           onClearSelection={clearSelection}

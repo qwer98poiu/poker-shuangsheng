@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-14 20:22
+
+### 新增：出牌按钮灰色判定——跟牌张数/牌型不合法、领出不同花色时禁用
+
+**问题**：出牌按钮仅在未选牌时灰色；跟牌张数不对或牌型不符合要求（如对子领出需跟对子）、领出选了不同花色时按钮仍可点，点击后被校验打回（errorMessage）。
+
+**修复**：playable 新增 `canSubmitPlay(selected, hand, trickPlays, trump)`：领出 = 单张或同组（同花色非主 / 全部主牌）；跟牌 = 张数与领出相等且 `validateFollow` 通过。ActionBar 出牌按钮 `disabled={!canSubmitPlay}`（与 0 张同样式），GameTable 传入所选牌/手牌/主牌声明。
+
+**新增 9 项测试**（playable.test.ts：9 项），引擎 675 项 + arena 65 项 + CLI 80 项 + client 29 项 = 849 项通过。
+
+- **影响文件**：`packages/client/src/components/game/playable.ts`、`packages/client/src/components/game/ActionBar.tsx`、`packages/client/src/components/game/GameTable.tsx`、`packages/client/src/components/game/playable.test.ts`
+
 ## 2026-08-13 23:54
 
 ### 新增：GUI 对局导出增加初始手牌段（扣底后各家 25 张），当前手牌保留

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createCard, GamePhase, Suit } from '@poker/engine';
 import type { Card, TrumpDeclaration } from '@poker/engine';
-import { computePlayableIds, computeFollowPlan } from './playable.js';
+import { computePlayableIds, computeFollowPlan, canSubmitPlay } from './playable.js';
 
 const c = (s: string, r: number, i: number): Card => createCard(s as any, r as any, i);
 const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
@@ -47,7 +47,7 @@ describe('computePlayableIds — 不符合规则的牌灰色不可选', () => {
   it('跟对子：手牌同花色牌数 < lead 张数 → 全可点 null（组牌必出 + 任意填）', () => {
     const hand = [c('H', 3, 0), c('D', 3, 1), c('D', 5, 2)];
     // lead 是红桃对子（2 张），手牌只有 1 张红桃 → 全可点（组牌必出由出牌校验）
-    const ids = computePlayableIds(hand, [play([c('H', 7, 9), c('H', 8, 10)], Suit.Hearts)], cfg, GamePhase.Playing);
+    const ids = computePlayableIds(hand, [play([c('H', 7, 9), c('H', 7, 10)], Suit.Hearts)], cfg, GamePhase.Playing);
     expect(ids).toBeNull();
   });
 
@@ -61,7 +61,7 @@ describe('computePlayableIds — 不符合规则的牌灰色不可选', () => {
 
   it('跟对子：手牌同花色数 > lead 张数 → 只能出该组', () => {
     const hand = [c('H', 3, 0), c('H', 4, 1), c('H', 5, 2), c('D', 3, 3)];
-    const ids = computePlayableIds(hand, [play([c('H', 7, 9), c('H', 8, 10)], Suit.Hearts)], cfg, GamePhase.Playing);
+    const ids = computePlayableIds(hand, [play([c('H', 7, 9), c('H', 7, 10)], Suit.Hearts)], cfg, GamePhase.Playing);
     expect(ids!.has('H-3-0')).toBe(true);
     expect(ids!.has('H-4-1')).toBe(true);
     expect(ids!.has('H-5-2')).toBe(true);
@@ -105,5 +105,53 @@ describe('computePlayableIds — 不符合规则的牌灰色不可选', () => {
   it('computeFollowPlan：领出或非 Playing → 无必出', () => {
     expect(computeFollowPlan([c('H', 3, 0)], [], cfg, GamePhase.Playing).lockedIds).toEqual([]);
     expect(computeFollowPlan([c('H', 3, 0)], [play([c('S', 5, 9)], Suit.Spades)], cfg, GamePhase.BottomExchange).lockedIds).toEqual([]);
+  });
+});
+
+describe('canSubmitPlay — 出牌按钮灰色判定', () => {
+  it('未选牌 → 不可提交（灰色）', () => {
+    expect(canSubmitPlay([], [c('S', 3, 0)], [], cfg)).toBe(false);
+  });
+
+  it('领出单张 → 可提交', () => {
+    expect(canSubmitPlay([c('S', 3, 0)], [c('S', 3, 0)], [], cfg)).toBe(true);
+  });
+
+  it('领出同花色多张 → 可提交', () => {
+    expect(canSubmitPlay([c('H', 3, 0), c('H', 4, 1)], [c('H', 3, 0), c('H', 4, 1)], [], cfg)).toBe(true);
+  });
+
+  it('领出不同花色多张 → 不可提交', () => {
+    expect(canSubmitPlay([c('H', 3, 0), c('D', 4, 1)], [c('H', 3, 0), c('D', 4, 1)], [], cfg)).toBe(false);
+  });
+
+  it('领出混主牌与非主 → 不可提交', () => {
+    // 黑桃主 level2：H3 非主 + S2 级牌主 → 不同组
+    expect(canSubmitPlay([c('H', 3, 0), c('S', 2, 1)], [c('H', 3, 0), c('S', 2, 1)], [], cfg)).toBe(false);
+  });
+
+  it('领出全主牌 → 可提交', () => {
+    // S2（级牌主）+ J-16（大王主）→ 同组
+    expect(canSubmitPlay([c('S', 2, 0), c('J', 16, 1)], [c('S', 2, 0), c('J', 16, 1)], [], cfg)).toBe(true);
+  });
+
+  it('跟牌张数与领出不符 → 不可提交', () => {
+    const hand = [c('H', 3, 0), c('H', 4, 1), c('D', 3, 2)];
+    const lead = play([c('H', 7, 9), c('H', 7, 10)], Suit.Hearts);
+    expect(canSubmitPlay([c('H', 3, 0)], hand, [lead], cfg)).toBe(false);
+    expect(canSubmitPlay([c('H', 3, 0), c('H', 4, 1), c('D', 3, 2)], hand, [lead], cfg)).toBe(false);
+  });
+
+  it('跟牌张数正确但牌型不符合（对子领出需跟对子）→ 不可提交', () => {
+    const hand = [c('H', 3, 0), c('H', 4, 1), c('H', 5, 2)];
+    const lead = play([c('H', 7, 9), c('H', 7, 10)], Suit.Hearts);
+    // 手牌有对子（33），跟两张不同 rank 单牌 → validateFollow 拒绝
+    expect(canSubmitPlay([c('H', 3, 0), c('H', 4, 2)], hand, [lead], cfg)).toBe(false);
+  });
+
+  it('跟牌张数与牌型都符合 → 可提交', () => {
+    const hand = [c('H', 3, 0), c('H', 3, 1), c('H', 4, 2)];
+    const lead = play([c('H', 7, 9), c('H', 7, 10)], Suit.Hearts);
+    expect(canSubmitPlay([c('H', 3, 0), c('H', 3, 1)], hand, [lead], cfg)).toBe(true);
   });
 });

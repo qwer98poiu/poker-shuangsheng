@@ -1,5 +1,5 @@
 import type { Card, GameState, TrumpDeclaration } from '@poker/engine';
-import { GamePhase, computeFollowableCards, computeMandatoryFollow } from '@poker/engine';
+import { GamePhase, computeFollowableCards, computeMandatoryFollow, validateFollow, classify, isTrump } from '@poker/engine';
 
 /**
  * 可出牌集合（不符合规则的牌灰色不可选）——委托引擎 computeFollowableCards
@@ -44,4 +44,31 @@ export function computeFollowPlan(
   if (trickPlays.length === 0 || phase !== GamePhase.Playing) return { lockedIds: [] };
   const lead = trickPlays[0];
   return { lockedIds: computeMandatoryFollow(hand, lead.cards, trump!).lockedIds };
+}
+
+/**
+ * 出牌按钮可否提交（灰色判定）：
+ * - 未选牌 → false（与 0 张样式一致）
+ * - 领出：单张或同组（同花色非主 / 全部主牌）→ true，不同花色 → false
+ * - 跟牌：张数与领出相等且 validateFollow 通过（牌型符合要求）→ true，否则 false
+ */
+export function canSubmitPlay(
+  selected: Card[],
+  hand: Card[],
+  trickPlays: GameState['trickPlays'],
+  trump: TrumpDeclaration | null,
+): boolean {
+  if (selected.length === 0) return false;
+  if (trickPlays.length === 0) {
+    // 领出：同组 = 同花色非主 或 全部主牌
+    if (selected.length <= 1) return true;
+    const groupOf = (c: Card) => (trump && isTrump(c, trump)) ? '_TRUMP_' : c.suit;
+    const g = groupOf(selected[0]);
+    return selected.every(c => groupOf(c) === g);
+  }
+  const lead = trickPlays[0];
+  if (selected.length !== lead.cards.length) return false;
+  if (!trump) return true;
+  const leadPattern = classify(lead.cards, trump);
+  return validateFollow(selected, hand, lead.cards, leadPattern, lead.leadSuit, trump).valid;
 }

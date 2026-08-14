@@ -1,11 +1,14 @@
 import React from 'react';
-import type { GameState } from '@poker/engine';
+import type { Card, GameState, TrumpDeclaration } from '@poker/engine';
 import { GamePhase } from '@poker/engine';
+import { canSubmitPlay } from './playable.js';
 
 interface ActionBarProps {
   gameState: GameState;
   localPlayerIndex: number;
-  selectedCardCount: number;
+  selectedCards: Card[];
+  hand: Card[];
+  trumpDeclaration: TrumpDeclaration | null;
   isHuman: boolean;
   onSubmitPlay: () => void;
   onClearSelection: () => void;
@@ -14,7 +17,9 @@ interface ActionBarProps {
 const ActionBar: React.FC<ActionBarProps> = ({
   gameState,
   localPlayerIndex,
-  selectedCardCount,
+  selectedCards,
+  hand,
+  trumpDeclaration,
   isHuman,
   onSubmitPlay,
   onClearSelection,
@@ -24,23 +29,24 @@ const ActionBar: React.FC<ActionBarProps> = ({
   if (!isHuman) return null;
 
   const isLeading = gameState.trickPlays.length === 0;
+  const canSubmit = canSubmitPlay(selectedCards, hand, gameState.trickPlays, trumpDeclaration);
 
   return (
     <div className="action-bar">
       <button
         className="action-btn play-btn"
         data-testid="play-btn"
-        disabled={selectedCardCount === 0}
+        disabled={!canSubmit}
         onClick={onSubmitPlay}
       >
         {isLeading
-          ? `出牌 (${selectedCardCount} 张)`
-          : `跟牌 (${selectedCardCount}/${gameState.trickPlays[0].cards.length} 张)`}
+          ? `出牌 (${selectedCards.length} 张)`
+          : `跟牌 (${selectedCards.length}/${gameState.trickPlays[0].cards.length} 张)`}
       </button>
       <button
         className="action-btn clear-btn"
         data-testid="clear-btn"
-        disabled={selectedCardCount === 0}
+        disabled={selectedCards.length === 0}
         onClick={onClearSelection}
       >
         重选
