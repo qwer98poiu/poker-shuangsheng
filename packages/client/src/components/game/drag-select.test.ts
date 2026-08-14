@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { isCardCoveredByDrag } from './PlayerHand.js';
+import { describe, expect, it, vi } from 'vitest';
+import { applyDragSelection, isCardCoveredByDrag } from './PlayerHand.js';
 
 /**
  * 拖拽框选判定：轨迹矩形是否与本牌"可见（露出）区域"相交。
@@ -45,5 +45,62 @@ describe('isCardCoveredByDrag 拖拽框选判定', () => {
   });
   it('轨迹完全在牌下方 → 不选中', () => {
     expect(isCardCoveredByDrag(105, 310, 125, 330, rect, false)).toBe(false);
+  });
+});
+
+describe('applyDragSelection 拖拽反选（XOR 语义）', () => {
+  const run = (initial: string[], covered: string[], current: string[]) => {
+    const onSelect = vi.fn();
+    const onDeselect = vi.fn();
+    const next = applyDragSelection(new Set(initial), new Set(covered), new Set(current), onSelect, onDeselect);
+    return { next: [...next].sort(), onSelect, onDeselect };
+  };
+
+  it('初始未选、覆盖 A → A 选中', () => {
+    const { next, onSelect, onDeselect } = run([], ['A'], []);
+    expect(next).toEqual(['A']);
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    expect(onSelect).toHaveBeenCalledWith('A');
+    expect(onDeselect).not.toHaveBeenCalled();
+  });
+
+  it('初始已选 {A,B}、覆盖 {B,C} → B 放下、C 选中、A 保持', () => {
+    const { next, onSelect, onDeselect } = run(['A', 'B'], ['B', 'C'], ['A', 'B']);
+    expect(next).toEqual(['A', 'C']);
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    expect(onSelect).toHaveBeenCalledWith('C');
+    expect(onDeselect).toHaveBeenCalledTimes(1);
+    expect(onDeselect).toHaveBeenCalledWith('B');
+  });
+
+  it('初始已选 {A,B}、覆盖 {A,B} → 全部放下', () => {
+    const { next, onDeselect } = run(['A', 'B'], ['A', 'B'], ['A', 'B']);
+    expect(next).toEqual([]);
+    expect(onDeselect).toHaveBeenCalledTimes(2);
+  });
+
+  it('初始已选 {A}、覆盖 ∅ → 无任何操作', () => {
+    const { next, onSelect, onDeselect } = run(['A'], [], ['A']);
+    expect(next).toEqual(['A']);
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(onDeselect).not.toHaveBeenCalled();
+  });
+
+  it('幂等：current 已等于期望（拖拽中第二次 mousemove）→ 不重复回调', () => {
+    const onSelect = vi.fn();
+    const onDeselect = vi.fn();
+    // 第一帧：初始 {A}、覆盖 {B} → B 选中
+    const s1 = applyDragSelection(new Set(['A']), new Set(['B']), new Set(['A']), onSelect, onDeselect);
+    // 第二帧：same 覆盖（current 已含 B）→ 无回调
+    const s2 = applyDragSelection(new Set(['A']), new Set(['B']), s1, onSelect, onDeselect);
+    expect([...s2].sort()).toEqual(['A', 'B']);
+    expect(onSelect).toHaveBeenCalledTimes(1); // 仅第一帧
+    expect(onDeselect).not.toHaveBeenCalled();
+  });
+
+  it('初始未选 {A} 覆盖 {A} 且 current 已含 A（拖拽前点击选中过）→ A 放下', () => {
+    const { next, onDeselect } = run(['A'], ['A'], ['A']);
+    expect(next).toEqual([]);
+    expect(onDeselect).toHaveBeenCalledTimes(1);
   });
 });

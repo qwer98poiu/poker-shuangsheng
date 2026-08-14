@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-14 21:53
+
+### 新增：拖拽框选反选——轨迹覆盖已选牌则放下（XOR 语义，与点击 toggle 一致）
+
+**问题**：拖拽框选只能"覆盖即选中"，已选中的牌被跳过；误选后须先点掉再拖，无法直接框住已选牌放下。
+
+**修复**：拖拽改为 XOR 语义——mousedown 快照初始选中集合，轨迹覆盖的牌取反（初始已选 → 放下、初始未选 → 选中），覆盖外保持初始状态。提取 `applyDragSelection` 纯函数：每帧重算期望状态，仅对实际变化的牌调用 select/deselect（幂等，mousemove 连续触发不会反复 toggle 抖动）。灰色不可选牌仍不参与。
+
+**新增 6 项测试**（drag-select.test.ts：6 项），引擎 675 项 + arena 65 项 + CLI 80 项 + client 47 项 = 867 项通过。
+
+- **影响文件**：`packages/client/src/components/game/PlayerHand.tsx`、`packages/client/src/components/game/drag-select.test.ts`
+
 ## 2026-08-14 21:28
 
 ### 修复：拖拽框选按可见（露出）区域判定——非最后一张认左侧露出区，最右一张全露可选

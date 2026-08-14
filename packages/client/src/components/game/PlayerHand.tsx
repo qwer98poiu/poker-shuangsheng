@@ -18,6 +18,28 @@ export function isCardCoveredByDrag(
   return rect.left < x2 && visibleRight > x1 && rect.top < y2 && rect.bottom > y1;
 }
 
+/**
+ * 拖拽框选状态应用（反选）：覆盖集合内的牌取反——初始已选 → 放下、初始未选 → 选中；
+ * 覆盖外的牌保持初始状态（XOR 语义，与点击 toggle 一致）。返回新的状态集合。
+ * 仅对 current 与期望状态不同的牌调用 onSelect/onDeselect——mousemove 每帧重算时幂等，不会反复 toggle 抖动。
+ */
+export function applyDragSelection(
+  initialSelected: ReadonlySet<string>,
+  coveredIds: ReadonlySet<string>,
+  current: ReadonlySet<string>,
+  onSelect: (id: string) => void,
+  onDeselect: (id: string) => void,
+): Set<string> {
+  const desired = new Set(initialSelected);
+  for (const id of coveredIds) {
+    if (desired.has(id)) desired.delete(id);
+    else desired.add(id);
+  }
+  for (const id of desired) if (!current.has(id)) onSelect(id);
+  for (const id of current) if (!desired.has(id)) onDeselect(id);
+  return desired;
+}
+
 interface PlayerHandProps {
   cards: Card[];
   selectedIds: string[];
@@ -43,7 +65,11 @@ const PlayerHand: React.FC<PlayerHandProps> = ({
   isHuman,
 }) => {
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const dragStartRef = useRef<{ x: number; y: number } | null>(null);
+  const dragStartRef = useRef<{
+    x: number; y: number;
+    initialSelected: Set<string>; // 拖拽开始时已选牌（mousedown 快照）
+    current: Set<string>;         // 拖拽中已应用的状态（防止 mousemove 重复回调）
+  } | null>(null);
   // 拖拽结束时吞掉随后的 click（防止 mouseup 在卡上触发 toggle）；
   // 只有真正位移（超过阈值）才算拖拽，单击（mousedown+mouseup 无位移）不吞
   const dragMovedRef = useRef(false);
@@ -56,9 +82,13 @@ const PlayerHand: React.FC<PlayerHandProps> = ({
     selectedIds.includes(id) ? onDeselectCard(id) : onSelectCard(id);
   };
 
-  /** 拖拽框选：轨迹矩形覆盖的牌全部选中 */
+  /** 拖拽框选：轨迹矩形覆盖的牌取反（未选 → 选中，已选 → 放下），快照初始选中集合作基准 */
   const handleMouseDown = (e: React.MouseEvent) => {
-    dragStartRef.current = { x: e.clientX, y: e.clientY };
+    dragStartRef.current = {
+      x: e.clientX, y: e.clientY,
+      initialSelected: new Set(selectedIds),
+      current: new Set(selectedIds),
+    };
     dragMovedRef.current = false;
   };
 
@@ -72,18 +102,19 @@ const PlayerHand: React.FC<PlayerHandProps> = ({
     if (!isActive || !isHuman) return;
     const x1 = Math.min(start.x, e.clientX), x2 = Math.max(start.x, e.clientX);
     const y1 = Math.min(start.y, e.clientY), y2 = Math.max(start.y, e.clientY);
+    const covered = new Set<string>();
     cardRefs.current.forEach((el, i) => {
       if (!el) return;
       const card = cards[i];
-      if (selectedIds.includes(card.id)) return;
       if (playableIds && !playableIds.has(card.id)) return; // 灰色不可拖选
       const r = el.getBoundingClientRect();
       // 只认露出部分：手牌重叠摆放（下一张 marginLeft -34px 盖住本张右侧 34px），
       // 非最后一张只露出左侧；最后一张全露，全部区域都可选中
       if (isCardCoveredByDrag(x1, y1, x2, y2, r, i === cards.length - 1)) {
-        onSelectCard(card.id);
+        covered.add(card.id);
       }
     });
+    start.current = applyDragSelection(start.initialSelected, covered, start.current, onSelectCard, onDeselectCard);
   };
 
   const handleMouseUp = () => {
