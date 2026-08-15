@@ -151,9 +151,11 @@ const CenterArea: React.FC<CenterAreaProps> = ({ gameState, lastTrickReview, onC
       )}
 
       <div className="score-display" data-testid="score-display">
-        <span className="score-item">级别: {rankLabel(currentLevel)}</span>
-        <span className="score-item">闲家得分: {attackerPoints}</span>
-        <span className="score-item">墩数: {gameState.tricksPlayed}</span>
+        <div className="score-line">
+          <span className="score-item">级别: {rankLabel(currentLevel)}</span>
+          <span className="score-item">闲家得分: {attackerPoints}</span>
+          <span className="score-item">墩数: {gameState.tricksPlayed}</span>
+        </div>
         {(() => {
           // 闲家已获得的分牌：一行 5 张，10/K 档在前、5 在后，同档按花色 SHCD
           const declarerIdx = gameState.trumpDeclaration?.declarerIndex ?? gameState.declarerIndex;
