@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-15 09:39
+
+### 修复：发牌/第 1 墩 UI——不显示建议出牌、手牌亮色、回看上墩第 1 墩灰色不可点
+
+**问题**：① 调试模式下建议出牌按钮在发牌/亮主/扣底阶段也显示，但该阶段无出牌可建议；② 发牌阶段手牌全部置灰（isActive 仅在出牌/扣底回合为 true），看牌不清晰；③ 回看上墩按钮第 1 墩（尚无历史墩）直接隐藏，应显示但置灰提示不可用。
+
+**修复**：① debug-bar 的建议出牌按钮加 `isPlaying` 条件——仅出牌阶段显示；② PlayerHand 新增 `dimInactive` prop 分离"视觉置灰"与"可点"——发牌阶段传 false（手牌亮色展示），点击/拖拽仍由 isActive 控制不可选（selectCard 无 phase 检查，误选会残留到 Playing 前才被清空）；③ ActionBar 回看上墩按钮改为第 1 墩也显示、`disabled={!canReview}` 灰色不可点（发牌阶段 ActionBar 不渲染，仍不显示）。
+
+**无新增测试**，引擎 680 项 + arena 65 项 + CLI 80 项 + client 47 项 = 872 项通过。
+
+- **影响文件**：`packages/client/src/components/game/GameTable.tsx`、`packages/client/src/components/game/PlayerHand.tsx`、`packages/client/src/components/game/ActionBar.tsx`
+
 ## 2026-08-14 22:58
 
 ### 修复：第二家跟牌避分补齐——主牌拖拉机/双对填单张与单张领出均改用 trumpDumpKey（主 A/王保底）

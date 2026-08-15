@@ -32,7 +32,7 @@ const ActionBar: React.FC<ActionBarProps> = ({
 
   const isLeading = gameState.trickPlays.length === 0;
   const canSubmit = canSubmitPlay(selectedCards, hand, gameState.trickPlays, trumpDeclaration);
-  // 第 1 墩（本局尚无已出墩）不显示回看按钮
+  // 第 1 墩（本局尚无已出墩）显示按钮但灰色不可点；发牌阶段 ActionBar 不渲染（仍不显示）
   const canReview = gameState.trickHistory.length > 0;
 
   return (
@@ -47,15 +47,14 @@ const ActionBar: React.FC<ActionBarProps> = ({
           ? `出牌 (${selectedCards.length} 张)`
           : `跟牌 (${selectedCards.length}/${gameState.trickPlays[0].cards.length} 张)`}
       </button>
-      {canReview && (
-        <button
-          className="action-btn review-btn"
-          data-testid="review-btn"
-          onClick={onToggleReview}
-        >
-          {isReviewing ? '隐藏回看' : '回看上墩'}
-        </button>
-      )}
+      <button
+        className="action-btn review-btn"
+        data-testid="review-btn"
+        disabled={!canReview}
+        onClick={onToggleReview}
+      >
+        {isReviewing ? '隐藏回看' : '回看上墩'}
+      </button>
     </div>
   );
 };

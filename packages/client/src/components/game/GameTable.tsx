@@ -378,10 +378,10 @@ const GameTable: React.FC = () => {
         );
       })()}
 
-      {/* 建议出牌（调试）+ 查看底牌（人类庄家，非调试也可用）— 回看上墩在 ActionBar 出牌按钮右侧 */}
+      {/* 建议出牌（调试，仅出牌阶段）+ 查看底牌（人类庄家，非调试也可用）— 回看上墩在 ActionBar 出牌按钮右侧 */}
       {(debug || (isDeclarer && localPlayer.isHuman)) && (
         <div className="debug-bar">
-          {debug && (
+          {debug && isPlaying && (
             <button className="debug-btn" onClick={getHint} data-testid="hint-btn">
               🤖 建议出牌
             </button>
@@ -512,6 +512,7 @@ const GameTable: React.FC = () => {
             onSelectCard={selectCard}
             onDeselectCard={deselectCard}
             isActive={isMyTurn && (isPlaying || isBottomExchange)}
+            dimInactive={gameState.phase !== GamePhase.Dealing} // 发牌阶段亮色展示（仍不可点）
             playerName={localPlayer.name}
             isHuman={localPlayer.isHuman}
           />
