@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-15 23:40
+
+### 桌布与手牌位置固定：座位单元格、中间行、按键槽位三级固定
+
+**问题**：① 桌布内部座位随出牌位移——网格行高 `auto 1fr auto` 随该行内容伸缩、挤压中间行，各座位在行内居中随之位移（实测 P1 出 1 张后右座位 y 248→238）；② 桌布整体随下方组件跳动——中间行 `flex: 1`，玩家1 回合有出牌按钮（48px）时 396px、出牌后膨胀到 444px，桌布下移 24px；③ 手牌随按钮槽位条件渲染跳动 48px（y 508 ↔ 556）。
+
+**修复**：① 网格三行等宽固定 + 座位单元格固定高度 86px（label 14 + 牌 70），内容变化只发生在单元格内部；② `.table-middle` 固定高度 396px（= 720 − top 58 − message 24 − action 48 − debug 30 − bottom 164），不再 `flex: 1`；③ 新增常驻 `.table-actions` 槽位（48px，内容可空），亮主面板与出牌/扣底按键统一放其中，扣底主牌警告行改绝对定位覆盖层（`pointer-events: none` 不挡点击）。实测三态（玩家1回合 / 出牌后 AI 回合 / 扣底含主牌警告）：桌布 y 恒 150、手牌 y 恒 556、debug-bar y 恒 526；注入三种出牌状态四座位 y 完全一致（bottom 324 / right 238 / top 152 / left 238）。
+
+**无新增测试**，引擎 696 项 + arena 65 项 + CLI 80 项 + client 71 项 = 912 项通过。
+
+- **影响文件**：`packages/client/src/components/game/GameTable.tsx`、`packages/client/src/components/game/GameTable.css`
+
 ## 2026-08-15 21:34
 
 ### 亮主规则：禁止自反，允许有主自保（同花色巩固）

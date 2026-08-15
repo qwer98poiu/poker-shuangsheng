@@ -34,11 +34,13 @@
   overflow: hidden;
 }
 
-/* middle section — 弹性高度，顶部对齐（子元素 y 不变） */
+/* middle section — 固定高度 396px（= 720 − top 58 − message 24 − action-bar 48 − debug 30 − bottom 164）：
+   桌布位置固定，不随下方组件（action bar/提示行等）出现或消失而重新计算；
+   下方组件缺席时多余高度留在底部（flex 列默认顶部对齐） */
 .table-middle {
   display: flex;
-  flex: 1;
-  min-height: 366px;
+  height: 396px;
+  flex-shrink: 0;
   align-items: center;
   justify-content: center;
   gap: 10px;
@@ -199,11 +201,13 @@
    三列等宽 minmax(0,1fr)：轨道宽 = 布局宽/3，不随内容（甩牌张数）伸缩——
    PlayedStack 按此轨道宽自适应叠放露出条，保证任何张数整叠在轨道内。
    高度固定 262px = 四家全出牌的自然高度（名字 14 + 叠放 70 = 86 × 3 行 + 内边距 4）：
-   发牌/亮主/扣底/出牌阶段桌布一样大，不随亮主/反主（亮主行出现/消失）变化 */
+   发牌/亮主/扣底/出牌阶段桌布一样大，不随亮主/反主（亮主行出现/消失）变化。
+   三行等宽固定（262/3 ≈ 87px，内容最大 86px 恰好放下）：座位在各自行内居中，
+   任何一家出牌只改变行内牌的内容，座位位置不变（auto 行会随内容伸缩挤压中间行） */
 .trick-position-layout {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: repeat(3, minmax(0, 1fr));
   grid-template-areas:
     ". top ."
     "left center right"
@@ -219,6 +223,9 @@
   flex-direction: column;
   align-items: center;
   gap: 2px;
+  /* 固定单元格高度（label 14 + 牌 70 = 86）：出牌前后座位位置不变，
+     牌只出现在 label 下方的固定位置（auto 高度会被内容撑开导致居中位移） */
+  height: 86px;
 }
 
 .trick-pos-top { grid-area: top; }
@@ -379,6 +386,17 @@
 
 /* ===== action bar ===== */
 
+/* 固定 48px 槽位（常驻，内容可空）：亮主面板/出牌·扣底按键放这里。
+   槽位高度恒定 → 手牌与桌布位置不随按钮出现/消失变化（下方 debug-bar 30 +
+   手牌 164 相对底部固定） */
+.table-actions {
+  height: 48px;
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
 .action-bar {
   display: flex;
   gap: 12px;
@@ -504,18 +522,25 @@
 }
 
 /* 扣底阶段主按键行 + 警告小字（wrap 可含第二行，出牌阶段 wrap 高度=action-bar） */
+/* 扣底阶段：主键行 48px（槽位内），主牌警告行绝对定位在按钮下方——
+   不占布局高度（槽位固定 48px，手牌/桌布位置不受警告出现/消失影响）；
+   pointer-events none：覆盖 debug-bar 时不挡点击 */
 .action-bar-wrap {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
+  position: relative;
+  height: 48px;
   flex-shrink: 0;
 }
 
 .action-warn {
+  position: absolute;
+  top: 50px;
+  left: 50%;
+  transform: translateX(-50%);
   font-size: 12px;
   color: #ff8a80;
   line-height: 1.4;
+  white-space: nowrap;
+  pointer-events: none;
 }
 
 /* debug bar — 建议出牌/回看上轮居中；固定 30px */

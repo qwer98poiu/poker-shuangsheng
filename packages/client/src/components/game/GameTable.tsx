@@ -256,6 +256,9 @@ const GameTable: React.FC = () => {
         {!errorMessage && <span className="info-msg">{message}</span>}
       </div>
 
+      {/* 固定 48px 槽位（常驻，内容可空）：亮主面板 / 出牌·扣底按键——
+          手牌与桌布位置不随槽位内容出现/消失而变化（按钮 bar 相对手牌位置固定） */}
+      <div className="table-actions">
       {/* reveal panel for humans — dealing & reveal phases; 亮主即确认 */}
       {(isRevealing || gameState.phase === GamePhase.Dealing) && !isSpectator && localPlayer.isHuman && (() => {
         const opts = getRevealOptions(localPlayer.hand, gameState.currentLevel)
@@ -306,6 +309,7 @@ const GameTable: React.FC = () => {
           onToggleReview={toggleLastTrickReview}
         />
       )}
+      </div>
 
       {/* round-end settlement panel — same wording as CLI showRoundResult */}
       {gameState.phase === GamePhase.RoundEnd && (() => {
