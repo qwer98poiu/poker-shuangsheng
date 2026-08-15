@@ -33,7 +33,7 @@ export const ai0802Strategy: Strategy = {
   follow: (hand, lead, suit, config) => ai0802.aiFollowPlay(hand, lead, suit, config),
 };
 
-/** 快照基线：ai/ 在 133900d（2026-08-08，第四家不盖/NT 垫牌修复前）时的版本，README 中 1012 Elo 的测量对象。 */
+/** 快照基线：ai/ 在 133900d（2026-08-08，第四家不盖/NT 垫牌修复前）时的版本，README 中 1014 Elo 的测量对象。 */
 export const ai0808Strategy: Strategy = {
   name: 'ai-0808',
   tryReveal: (hand, dealt, pi, level, cur) => ai0808.aiTryReveal(hand, dealt, pi, level, cur),
@@ -42,7 +42,7 @@ export const ai0808Strategy: Strategy = {
   follow: (hand, lead, suit, config) => ai0808.aiFollowPlay(hand, lead, suit, config),
 };
 
-/** 快照基线：ai/ 在 b77a7b1（2026-08-14，第二家避分修复前）时的版本，README 中 1035 Elo 的测量对象。 */
+/** 快照基线：ai/ 在 b77a7b1（2026-08-14，第二家避分修复前）时的版本，README 中 1037 Elo 的测量对象。 */
 export const ai0809Strategy: Strategy = {
   name: 'ai-0809',
   tryReveal: (hand, dealt, pi, level, cur) => ai0809.aiTryReveal(hand, dealt, pi, level, cur),
