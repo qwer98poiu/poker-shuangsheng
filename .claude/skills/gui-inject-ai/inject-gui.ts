@@ -79,7 +79,12 @@ const curState = {
   trumpDeclaration: cfg,
   declarerIndex: inj.declarerIndex ?? 0,
   attackerPoints: inj.attackerPoints ?? 0,
-  trickHistory: (inj.history ?? []).map((t: any) => ({ winnerIndex: t.winnerIndex, points: t.points, plays: mkPlays(t.plays) })),
+  trickHistory: (inj.history ?? []).map((t: any) => ({
+    winnerIndex: t.winnerIndex, points: t.points,
+    // 调试菜单历史渲染 players[(leadPlayerIndex+j)%4].name——缺 leadPlayerIndex 会渲染崩溃
+    leadPlayerIndex: t.leadPlayerIndex ?? t.plays?.[0]?.[0] ?? 0,
+    plays: mkPlays(t.plays),
+  })),
   reveals: inj.reveals ?? [],
   trickPlays: (inj.trickPlays ?? []).map((p: any) => ({ playerIndex: p.playerIndex, cards: p.cards.map(card), leadSuit: p.leadSuit ?? null })),
   leadPlayerIndex: inj.leadPlayerIndex ?? (inj.trickPlays?.[0]?.playerIndex ?? 0),
@@ -88,6 +93,8 @@ const curState = {
   phase: 'playing', currentLevel: inj.currentLevel ?? 2, tricksPlayed: inj.tricksPlayed ?? 0,
   currentPlayerIndex: 0, roundNumber: inj.roundNumber ?? 1,
   matchOver: false, settledTrick: null,
+  // 渲染必填（缺 aiReasons/trickPlays 等 → GameTable 渲染崩溃、页面空白）：
+  aiReasons: [], dealtCards: [[], [], [], []], dealingComplete: true,
 };
 
 // 开局状态（驱动模式）
@@ -105,6 +112,7 @@ const initState = {
   phase: 'playing', currentLevel: inj.currentLevel ?? 2, tricksPlayed: 0,
   currentPlayerIndex: inj.declarerIndex ?? 0, roundNumber: inj.roundNumber ?? 1,
   matchOver: false, settledTrick: null,
+  aiReasons: [], dealtCards: [[], [], [], []], dealingComplete: true,
 };
 
 // ---- Node 侧约束检查（AI 建议 ⊇ 必出、∩ 不可选 = ∅） ----

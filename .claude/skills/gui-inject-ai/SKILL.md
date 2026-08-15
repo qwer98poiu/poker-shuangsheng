@@ -30,7 +30,7 @@ description: 把任意牌局状态注入运行中的双升 GUI（window.__POKER_
        { "playerIndex": 3, "cards": ["C-10-2"], "leadSuit": "C" }
      ],
      "history": [
-       { "winnerIndex": 0, "points": 10, "plays": [[0, ["D-14-0"]], [1, ["D-3-1"]], [2, ["D-13-2"]], [3, ["D-3-3"]]] }
+       { "winnerIndex": 0, "points": 10, "leadPlayerIndex": 0, "plays": [[0, ["D-14-0"]], [1, ["D-3-1"]], [2, ["D-13-2"]], [3, ["D-3-3"]]] }
      ],
      "aiHands": { "1": ["S-9-0", "S-3-1"], "2": [], "3": [] },
      "attackerPoints": 35,
@@ -65,6 +65,8 @@ description: 把任意牌局状态注入运行中的双升 GUI（window.__POKER_
    ```
 
 4. **结论与用户描述比对**：若建议与用户看到的牌不一致 → 优先核对 `trickPlays` 的 playerIndex/leadSuit、`history` 的 winnerIndex（队友判断）、王/级牌的分配（全局唯一性校验会提示超张）。
+
+**注入后页面空白（.game-table 不存在、collectSnapshot 全 0）→ React 渲染崩溃**：注入状态缺字段会让 GameTable/CenterArea 抛错、整树卸载。必填字段：`trickPlays`（缺 → `computePlayableIds` 的 `trickPlays.length` 崩溃）、`aiReasons`、`dealtCards`、`dealingComplete`、`phase`（小写）；`history` 条目必须含 `leadPlayerIndex`（调试菜单历史渲染 `players[(t.leadPlayerIndex+j)%4].name`，缺 → undefined.name 崩溃）。诊断：浏览器 `page.on('pageerror')` 拿堆栈定位。
 
 ## 踩过的坑
 
