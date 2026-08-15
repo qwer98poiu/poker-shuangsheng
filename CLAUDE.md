@@ -32,6 +32,7 @@ Co-Authored-By: DeepSeek V4 Flash <noreply@deepseek.com>
 | `test:` | 新增或修改测试 |
 | `docs:` | 文档 |
 | `chore:` | 构建/依赖 |
+| `skill:` | 新增或修改 skill（`.claude/skills/` 下的技能；提交时用 `git add -f`，该目录在 .gitignore 中） |
 
 示例：
 ```
@@ -76,11 +77,13 @@ Changelog 测试数行与提交信息不同——列出子包分项与总数；�
 
 每项修改为一个独立的日期时间小节，按时间倒序排列。
 
+**多小节条目**：一个日期时间条目下可包含多个 `###` 小节（同一提交的多方面改动，如策略变更 + 其影响）。只有**最后**一个小节写测试总数（`引擎 X 项 + arena X 项 + CLI X 项 + client X 项 = X 项通过`），前面的小节只写 `**新增/修改/删除 N 项测试**（file.ts：M 项）`，不写总数。
+
 ## 开发原则
 
 - **用户反馈牌局时（无论要求修 bug 还是理论分析），先执行代码拿到结果，再思考**。应构造场景直接调用引擎 AI（`aiFollowPlay`/`aiLeadPlay` 等，可手写 AIContext 或写临时脚本实测）或写复现测试，先取得实测输出，再基于结果分析；不要先手推逻辑或凭规格推断。修 bug 时：先根据其输入的牌局构造测试用例，确认复现 bug 后再修复。测试应尽可能还原用户描述的场景（手牌、领出、位置等），确保回归测试能捕获同类问题。
 - **修改 Changelog 必须在代码提交之前**。每次提交前先写 Changelog，再 `git add` 一起提交。Changelog 时间与提交时间允许相差几分钟，无需强制对齐。
-- **Changelog 只在更新代码时写**（fix/feat/strategy/refactor/test 等）；纯文档提交（`docs:`）一律不写 Changelog。
+- **Changelog 只在更新代码时写**（fix/feat/strategy/refactor/test 等）；纯文档提交（`docs:` 和 `skill:`）一律不写 Changelog。
 - **测试断言优先用精确值**（`toBe(n)`），避免使用 `toBeGreaterThan`、`toBeGreaterThanOrEqual` 等模糊匹配，除非值本身因外部因素不确定。
 - **基础模块的测试必须逐项穷举**。对于记牌器这类高阶策略依赖的基础模块，测试覆盖所有视角 × 所有目标玩家 × 所有可能的牌（suit-rank）× 精确张数断言，不允许只验证部分卡牌。
 - **每次提交前必须跑类型检查并清理全部错误**：在 `packages/engine` 与 `packages/client` 下各跑一次 `npx tsc --noEmit`，须零错误后才提交。vitest 经 esbuild 转译不做类型检查，类型错误不会导致测试失败，因此必须显式检查。
