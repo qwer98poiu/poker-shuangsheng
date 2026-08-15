@@ -38,9 +38,18 @@ export function getRevealOptions(hand: Card[], level: number): RevealOption[] {
   return opts;
 }
 
-/** Can candidate override current? */
+/**
+ * Can candidate override current?
+ * 自己不能反自己：自保仅限有主同花色巩固（单张→同花色对子）；
+ * 无主不可自保（对小王→对大王视为自反，禁止）。其他人按力量反主。
+ */
 export function canOverride(current: Reveal | null, candidate: Reveal): boolean {
   if (!current) return true;
+  if (candidate.playerIndex === current.playerIndex) {
+    return candidate.suit !== null
+      && candidate.suit === current.suit
+      && candidate.strength > current.strength;
+  }
   return candidate.strength > current.strength;
 }
 

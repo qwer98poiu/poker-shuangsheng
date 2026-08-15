@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-15 21:34
+
+### 亮主规则：禁止自反，允许有主自保（同花色巩固）
+
+**问题**：`canOverride` 只比较 strength——同一玩家可以用更强的牌反自己的主（单张→对子、对小王→对大王），应禁止"自反"（换花色/换主）；但同花色的巩固（自保）是合理规则，应允许。
+
+**修复**：`canOverride` 同玩家时要求花色非空、与当前相同且力量更高才允许（自保仅限：单张→同花色对子）；换花色即拒绝，无主不可自保（对小王无主→对大王无主视为自反，禁止——无主没有花色概念，实际也无必要）。`aiTryReveal` 当前主是自己亮的时只提出有主自保（同花色对子），不再反自己的主。客户端亮主面板选项本就经 `canOverride` 过滤，自保选项出现、自反选项消失。规则改变 AI 亮主时机，竞技场 seed-42 冒烟对局走向变化（oppLevel 210 → 213 → 229，同步更新期望值）。
+
+**新增 10 项测试**（engine revealing.test.ts：10 项）、修改 1 项测试（arena），引擎 696 项 + arena 65 项 + CLI 80 项 + client 71 项 = 912 项通过。
+
+- **影响文件**：`packages/engine/src/revealing/index.ts`、`packages/engine/src/ai/index.ts`、`packages/engine/src/__tests__/revealing.test.ts`、`packages/arena/src/__tests__/arena-e2e.test.ts`
+
 ## 2026-08-15 20:05
 
 ### 桌布覆盖发牌/亮主/扣底/出牌四阶段（固定 262px）+ 亮主牌显示与收回

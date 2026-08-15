@@ -50,14 +50,27 @@ export { findThrowableOffSuitCombos } from './throw-detector.js';
 export function aiTryReveal(
   hand: Card[],
   _dealtCards: Card[],
-  _playerIndex: number,
+  playerIndex: number,
   level: number,
-  currentReveal: { suit: Suit | null; strength: number } | null,
+  currentReveal: { suit: Suit | null; strength: number; playerIndex?: number } | null,
 ): { suit: Suit | null; reason: string } | null {
   const allCards = hand;
 
   const bigJokers = allCards.filter(c => c.rank === Rank.BigJoker);
   const smallJokers = allCards.filter(c => c.rank === Rank.SmallJoker);
+  const levelCardsOf = (suit: Suit) => allCards.filter(c => c.suit === suit && c.rank === level);
+
+  // 自己亮的主：自保仅限有主同花色巩固（单张→同花色对子）；无主不可自保，禁止自反
+  if (currentReveal?.playerIndex === playerIndex) {
+    if (currentReveal.suit !== null
+      && currentReveal.strength === 1
+      && levelCardsOf(currentReveal.suit).length >= 2) {
+      return { suit: currentReveal.suit, reason: `同花色对${suitLabelCn(currentReveal.suit)}级牌自保` };
+    }
+    return null;
+  }
+
+  // 别人亮的主（或未亮）：按力量亮主/反主
   if (bigJokers.length >= 2 || smallJokers.length >= 2) {
     if (!currentReveal || currentReveal.strength < 3) {
       return { suit: null, reason: '有对王，亮无主' };
@@ -65,7 +78,7 @@ export function aiTryReveal(
   }
 
   for (const suit of SUIT_ORDER) {
-    const levelCards = allCards.filter(c => c.suit === suit && c.rank === level);
+    const levelCards = levelCardsOf(suit);
     if (levelCards.length >= 2) {
       if (!currentReveal || currentReveal.strength < 2) {
         return { suit, reason: `有${suitLabelCn(suit)}级牌对，亮主` };
@@ -74,8 +87,7 @@ export function aiTryReveal(
   }
 
   for (const suit of SUIT_ORDER) {
-    const levelCards = allCards.filter(c => c.suit === suit && c.rank === level);
-    if (levelCards.length >= 1) {
+    if (levelCardsOf(suit).length >= 1) {
       if (!currentReveal) {
         return { suit, reason: `有${suitLabelCn(suit)}级牌单张，亮主` };
       }
