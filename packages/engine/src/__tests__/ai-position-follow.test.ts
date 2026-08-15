@@ -628,3 +628,84 @@ describe('第二家：主牌单张领出避分（>15 张）', () => {
     expect(r.cards[0].id).toBe('S-5-0'); // 最小
   });
 });
+
+describe('第三/四家：加分垫牌含分花色断门优先（闲家跨 40 台阶例外）', () => {
+  // cfgS2：♠ 主 → 副牌花色为 ♥/♣/♦。领出 ♥ 单张（副牌无分），第四家缺 ♥；
+  // bestSoFar = 队友 P1 的 ♥A（队友大，tmWin）
+  const leadH3: Card[] = [cc('H', 3, 200)];
+  /** 第四家 ctx：缺门垫牌可加分（fourth 恒可加分）。isAttacker 由调用方指定。 */
+  function fourthVoidCtx(over: Partial<AIContext> = {}): AIContext {
+    return ctxOf(cfgS2, {
+      myIndex: 3, playCount: 3, leadPlayerIndex: 0,
+      bestSoFar: { cards: [cc('H', 14, 201)], playerIndex: 1 },
+      ...over,
+    });
+  }
+
+  it('闲家第四家：梅花单张 K 可出绝 → 断梅花门出 K（而非分散垫方块 10）', () => {
+    // 手牌：♣K（含分单张，1 张 <= 可垫 1 张 → 可出绝）+ ♦10 ♦3 ♦4（含分门）+ 主牌（能毙路径）
+    const hand = [cc('C', 13, 0), cc('D', 10, 1), cc('D', 3, 2), cc('D', 4, 3), cc('S', 2, 4), cc('S', 5, 5)];
+    const ctx = fourthVoidCtx({ isAttacker: true, attackerPoints: 0 });
+    const r = aiFollowPlay(hand, leadH3, Suit.Hearts, ctx);
+    checkFollow(r.cards, hand, leadH3, Suit.Hearts as any, cfgS2);
+    expect(r.cards.map(c => c.id)).toEqual(['C-13-0']); // 断门出 ♣K
+  });
+
+  it('庄家方第四家：同样断门优先（无闲家例外）', () => {
+    const hand = [cc('C', 13, 0), cc('D', 10, 1), cc('D', 3, 2), cc('D', 4, 3), cc('S', 2, 4), cc('S', 5, 5)];
+    const ctx = fourthVoidCtx({ isAttacker: false, attackerPoints: 0 });
+    const r = aiFollowPlay(hand, leadH3, Suit.Hearts, ctx);
+    checkFollow(r.cards, hand, leadH3, Suit.Hearts as any, cfgS2);
+    expect(r.cards.map(c => c.id)).toEqual(['C-13-0']);
+  });
+
+  it('闲家跨 40 台阶例外：出方块 10 而非断门梅花 5', () => {
+    // attackerPoints=31：♣5（断门 5 分，36 不跨 40）vs ♦10（10 分，41 跨 40）→ 出 ♦10
+    const hand = [cc('C', 5, 0), cc('D', 10, 1), cc('S', 2, 4), cc('S', 5, 5)];
+    const ctx = fourthVoidCtx({ isAttacker: true, attackerPoints: 31 });
+    const r = aiFollowPlay(hand, leadH3, Suit.Hearts, ctx);
+    checkFollow(r.cards, hand, leadH3, Suit.Hearts as any, cfgS2);
+    expect(r.cards.map(c => c.id)).toEqual(['D-10-1']); // 跨台阶全力加分
+  });
+
+  it('不能毙路径（无主牌缺门）：含分门优先于非分门——出 ♦10 而非非分单张 ♣3', () => {
+    // 领出 ♥3（缺 ♥、无主牌 → discardNonTrump）：♦10 ♦K 含分门 2 张 > 可垫 1 张（出不绝）
+    // → add 分散选分牌 ♦10；♣3 非分门不优先
+    const hand = [cc('C', 3, 0), cc('D', 10, 1), cc('D', 13, 2), cc('D', 4, 3)];
+    const ctx = fourthVoidCtx({ isAttacker: false, attackerPoints: 0 });
+    const r = aiFollowPlay(hand, leadH3, Suit.Hearts, ctx);
+    checkFollow(r.cards, hand, leadH3, Suit.Hearts as any, cfgS2);
+    expect(r.cards.map(c => c.id)).toEqual(['D-10-1']); // 分牌优先（♦ 出不绝，分散加分）
+  });
+
+  it('多含分门：取张数最少的含分门断门（♥K 1 张先于 ♦ 门 2 张），其余加分垫', () => {
+    // 缺 ♣、need=2：♥K（1 张含分可出绝）+ ♦10 ♦3（2 张含分，不可出绝）→ 断 ♥ 门 + 垫 ♦10
+    const hand = [cc('H', 13, 0), cc('D', 10, 1), cc('D', 3, 2), cc('S', 2, 4), cc('S', 5, 5)];
+    const ctx = fourthVoidCtx({ isAttacker: false, attackerPoints: 0 });
+    // 领出 2 张（甩牌 ♣3 ♣4）→ 垫 2 张
+    const lead2: Card[] = [cc('C', 3, 200), cc('C', 4, 201)];
+    const r = aiFollowPlay(hand, lead2, Suit.Clubs, ctx);
+    checkFollow(r.cards, hand, lead2, Suit.Clubs as any, cfgS2);
+    const ids = r.cards.map(c => c.id);
+    expect(ids).toContain('H-13-0'); // 断 ♥ 门
+    expect(ids).toContain('D-10-1'); // 其余加分垫（10 分）
+    expect(ids.length).toBe(2);
+  });
+});
+
+describe('第三/四家：不能毙路径跨 40 台阶例外（selectFillers full 分散加分）', () => {
+  it('闲家第四家无主牌：近 40 台阶时分散出 ♦10 而非断门 ♣5', () => {
+    // attackerPoints=31（距 40 台阶 9 分 <= 10 → full 模式）：♣5（断门 5 分）vs ♦10（10 分）
+    // full = 分散全力加分 → ♦10；断门不优先
+    const leadH3: Card[] = [cc('H', 3, 200)];
+    const hand = [cc('C', 5, 0), cc('D', 10, 1), cc('D', 3, 2), cc('D', 4, 3)]; // 无主牌
+    const ctx = ctxOf(cfgS2, {
+      myIndex: 3, playCount: 3, leadPlayerIndex: 0,
+      bestSoFar: { cards: [cc('H', 14, 201)], playerIndex: 1 },
+      isAttacker: true, attackerPoints: 31,
+    });
+    const r = aiFollowPlay(hand, leadH3, Suit.Hearts, ctx);
+    checkFollow(r.cards, hand, leadH3, Suit.Hearts as any, cfgS2);
+    expect(r.cards.map(c => c.id)).toEqual(['D-10-1']); // full 分散加分
+  });
+});

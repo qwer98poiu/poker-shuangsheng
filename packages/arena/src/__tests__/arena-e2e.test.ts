@@ -61,10 +61,10 @@ describe('arena e2e', () => {
     expect(statsB.matches.played).toBe(40);
     expect(statsB.matches.won).toBe(20);
     expect(statsB.matches.drawn).toBe(0);
-    // 镜像对称：双方各胜 20 场，胜时对方平均等级 206/20 = 10.3（A=14）
-    //（NT 垫牌保留王策略改变对局走向后的值；此前第四家不盖修复后为 221）
-    expect(statsA.matches.oppLevel).toEqual({ n: 206, d: 20 });
-    expect(statsB.matches.oppLevel).toEqual({ n: 206, d: 20 });
+    // 镜像对称：双方各胜 20 场，胜时对方平均等级 210/20 = 10.5（A=14）
+    //（断门策略 2026-08-15 改变对局走向后的值；此前 NT 垫牌保留王后为 206，第四家不盖修复后为 221）
+    expect(statsA.matches.oppLevel).toEqual({ n: 210, d: 20 });
+    expect(statsB.matches.oppLevel).toEqual({ n: 210, d: 20 });
     expect(statsA.handsPlayed).toBe(statsB.handsPlayed);
     expect(statsA.abortedHands).toBe(0);
     const sig = checkSignificance(statsA.matches.won, statsB.matches.won, statsA.matches.drawn, statsA.matches.played);

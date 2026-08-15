@@ -271,24 +271,39 @@ export function shouldBreakPairForPoints(ctx: AIContext, leadCombo: ComboClass):
   return false;
 }
 
+/** 断门组合：含分副牌花色张数 <= need（可整门垫出，这一墩后该花色出绝）→
+ *  该门全部垫出 + 其余按加分垫。多门可选时取张数最少者；无可出绝含分门 → null。 */
+function pickVoidSuitCards(hand: Card[], need: number, ctx: TrumpDeclaration): Card[] | null {
+  const nonTrump = hand.filter(c => !isTrump(c, ctx));
+  const suits = groupBySuit(nonTrump)
+    .filter(g => g.length <= need && g.some(c => isPointRank(c.rank)))
+    .sort((a, b) => a.length - b.length);
+  if (suits.length === 0) return null;
+  const g = suits[0];
+  const rest = hand.filter(c => !g.includes(c));
+  const fill = pickDiscards(rest, need - g.length, ctx, 'add');
+  return [...g, ...fill];
+}
+
 /**
- * 加分选牌：add 优先级与"全力加分"（full + 允许拆对）比较，
- * 后者跨入更高 40 台阶时采用（闲家全力冲分）。
+ * 加分选牌：优先含分花色整门垫出（断门，第三/四家加分场景）；
+ * 闲家时与"全力加分"（full + 允许拆对）比较，后者跨入更高 40 台阶时采用（闲家全力冲分）。
  */
 export function pickBestAddCards(
   hand: Card[], leadLen: number, leadCombo: ComboClass, ctx: AIContext,
 ): Card[] {
-  const addCards = pickDiscards(hand, leadLen, ctx, 'add');
-  if (!ctx.isAttacker) return addCards;
+  const base = pickVoidSuitCards(hand, leadLen, ctx)
+    ?? pickDiscards(hand, leadLen, ctx, 'add');
+  if (!ctx.isAttacker) return base;
   const fullCards = pickDiscards(hand, leadLen, ctx, 'full', { allowBreakPair: true });
   const vis = visibleTrickPoints(ctx, leadCombo.cards);
   const ptsOf = (cs: Card[]) => cs.reduce(
     (s, c) => s + (isPointRank(c.rank) ? (c.rank === Rank.Five ? 5 : 10) : 0), 0);
   const tier = (p: number) => Math.floor((ctx.attackerPoints + vis + p) / 40);
-  if (ptsOf(fullCards) > ptsOf(addCards) && tier(ptsOf(fullCards)) > tier(ptsOf(addCards))) {
+  if (ptsOf(fullCards) > ptsOf(base) && tier(ptsOf(fullCards)) > tier(ptsOf(base))) {
     return fullCards;
   }
-  return addCards;
+  return base;
 }
 
 /**
@@ -303,8 +318,24 @@ export function selectFillers(
   if (mode === 'avoid' || mode === 'forbid') {
     return pickDiscards(hand, need, ctx, mode, opts);
   }
+  if (mode === 'full') {
+    // 闲家全力加分（近/跨 40 台阶）：分散选分牌，不优先断门
+    return pickDiscards(hand, need, ctx, mode, opts);
+  }
   const nonTrump = hand.filter(c => !isTrump(c, ctx));
-  const suits = groupBySuit(nonTrump).sort((a, b) => a.length - b.length);
+  const suits = groupBySuit(nonTrump);
+  if (mode === 'add') {
+    // 第三/四家加分：含分花色优先整门垫出（断门，这一墩后该花色出绝）；
+    // 同含分按张数升序（垫最少牌断门）
+    suits.sort((a, b) => {
+      const aPts = a.some(c => isPointRank(c.rank)) ? 0 : 1;
+      const bPts = b.some(c => isPointRank(c.rank)) ? 0 : 1;
+      if (aPts !== bPts) return aPts - bPts;
+      return a.length - b.length;
+    });
+  } else {
+    suits.sort((a, b) => a.length - b.length);
+  }
   const chosen: Card[] = [];
   for (const g of suits) {
     if (chosen.length >= need) break;
