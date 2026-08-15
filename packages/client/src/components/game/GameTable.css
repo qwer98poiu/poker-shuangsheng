@@ -197,7 +197,9 @@
 
 /* 当前墩按玩家方位布局：牌放在对应玩家旁边，没出就空着。
    三列等宽 minmax(0,1fr)：轨道宽 = 布局宽/3，不随内容（甩牌张数）伸缩——
-   PlayedStack 按此轨道宽自适应叠放露出条，保证任何张数整叠在轨道内 */
+   PlayedStack 按此轨道宽自适应叠放露出条，保证任何张数整叠在轨道内。
+   高度固定 262px = 四家全出牌的自然高度（名字 14 + 叠放 70 = 86 × 3 行 + 内边距 4）：
+   发牌/亮主/扣底/出牌阶段桌布一样大，不随亮主/反主（亮主行出现/消失）变化 */
 .trick-position-layout {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -208,7 +210,7 @@
     ". bottom .";
   justify-items: center;
   align-items: center;
-  min-height: 100px;
+  height: 262px;
   padding: 2px;
 }
 
@@ -233,6 +235,24 @@
   display: flex;
   min-height: 50px;
   /* 叠放由 PlayedStack 负 margin 控制（露出条自适应轨道宽，整叠不越界） */
+}
+
+/* 亮主展示：亮出的主牌放在亮主者方位（单张 1 张、对牌 2 张并排）；
+   被反的主牌不收回，置灰保留在原位 */
+.trick-pos-reveal {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.reveal-pair {
+  display: flex;
+  gap: 2px;
+}
+
+.reveal-overridden .card {
+  filter: grayscale(1);
+  opacity: 0.45;
 }
 
 /* 墩结算中央标注（赢家 + 得分），沿用方位布局不新开框 */

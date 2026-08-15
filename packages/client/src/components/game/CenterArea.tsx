@@ -1,5 +1,5 @@
 import React, { useLayoutEffect, useRef, useState } from 'react';
-import type { GameState, Trick, Card } from '@poker/engine';
+import type { GameState, Trick, Card, Reveal } from '@poker/engine';
 import { GamePhase, suitLabel, rankLabel, suitName, isPointRank, cardPointsFromRank, computeRoundOutcome } from '@poker/engine';
 import CardFace from '../cards/CardFace.js';
 import { useGameStore } from '../../store/gameStore.js';
@@ -31,6 +31,42 @@ export function playedStackOverlap(
   cardWidth = 50,
 ): number {
   return cardWidth - playedStackStrip(count, containerWidth, cardWidth);
+}
+
+/**
+ * 亮主展示：只保留成功的亮/反主记录（引擎 attemptReveal 会把力量不足的失败
+ * 尝试也追加进 reveals 历史，且同力量重复亮不覆盖——需按 strength 严格递增过滤）。
+ * 返回按时间排序的成功记录；最后一条 = 当前主（正常色），其余 = 被反的主（置灰）。
+ */
+export function successfulReveals(reveals: readonly Reveal[]): Reveal[] {
+  const out: Reveal[] = [];
+  let maxStrength = 0;
+  for (const r of reveals) {
+    if (r.strength > maxStrength) { out.push(r); maxStrength = r.strength; }
+  }
+  return out;
+}
+
+/** r 是否为当前生效的主（未被反）。 */
+export function isCurrentReveal(r: Reveal, current: Reveal | null): boolean {
+  return !!current
+    && r.playerIndex === current.playerIndex
+    && r.suit === current.suit
+    && r.strength === current.strength;
+}
+
+/**
+ * 亮主展示牌：单张亮 1 张级牌，对级牌/对王亮 2 张（牌面相同）；
+ * 无主 = 对大王（strength 4）/ 对小王（strength 3），均 2 张王。
+ */
+export function revealDisplayCards(reveal: Reveal, level: number): Card[] {
+  const n = reveal.strength >= 2 ? 2 : 1;
+  const baseId = `R-${reveal.playerIndex}-${reveal.strength}`;
+  if (reveal.suit === null) {
+    const rank = reveal.strength >= 4 ? 16 : 15;
+    return Array.from({ length: n }, (_, i) => ({ id: `${baseId}-${i}`, suit: 'J', rank, isJoker: true }) as Card);
+  }
+  return Array.from({ length: n }, (_, i) => ({ id: `${baseId}-${i}`, suit: reveal.suit, rank: level, isJoker: false }) as Card);
 }
 
 /**
@@ -149,27 +185,54 @@ const CenterArea: React.FC<CenterAreaProps> = ({ gameState, lastTrickReview, onC
         })()}
       </div>
 
-      {/* current trick — 按玩家方位布局（上/左/右/下），没出就空着；
-          墩结算沿用同一方位（不新开框），中央显示赢家与得分 */}
-      {phase === GamePhase.Playing && (() => {
-        const isSettled = trickPlays.length === 0 && !!settledTrick;
-        const plays = trickPlays.length > 0 ? trickPlays : (settledTrick ? settledTrick.plays : []);
-        const leadIdx = trickPlays.length > 0
-          ? gameState.leadPlayerIndex
-          : (settledTrick?.leadPlayerIndex ?? gameState.leadPlayerIndex);
+      {/* 桌布 + 当前墩 — 按玩家方位布局（上/左/右/下）：
+          发牌/亮主/扣底/出牌阶段同尺寸（固定高度，不随亮主/反主变化）；
+          发牌/亮主阶段亮出的主牌放在亮主者方位（单张 1 张、对牌 2 张；
+          被反的主牌不收回、置灰；庄家拿底后全部收回不再显示），
+          出牌时各家出的牌叠放在同一方位；墩结算沿用同一方位（不新开框） */}
+      {(phase === GamePhase.Dealing || phase === GamePhase.Revealing
+        || phase === GamePhase.BottomExchange || phase === GamePhase.Playing) && (() => {
+        const isPlaying = phase === GamePhase.Playing;
+        const isSettled = isPlaying && trickPlays.length === 0 && !!settledTrick;
+        const plays = isPlaying
+          ? (trickPlays.length > 0 ? trickPlays : (settledTrick ? settledTrick.plays : []))
+          : [];
+        const leadIdx = isPlaying
+          ? (trickPlays.length > 0
+            ? gameState.leadPlayerIndex
+            : (settledTrick?.leadPlayerIndex ?? gameState.leadPlayerIndex))
+          : 0;
+        const goodReveals = successfulReveals(gameState.reveals);
+        // 亮主牌只在发牌/亮主阶段展示：庄家拿到底牌后全部收回（扣底/出牌阶段不再显示）
+        const showReveals = phase === GamePhase.Dealing || phase === GamePhase.Revealing;
         return (
           <div className="trick-position-layout" data-testid="trick-position-layout">
             {([0, 1, 2, 3] as const).map(rel => {
               const pi = (localPlayerIndex + rel) % 4;
               const pos = ['bottom', 'right', 'top', 'left'][rel];
               const play = plays.find((p, j) => (leadIdx + j) % 4 === pi);
+              const myReveals = goodReveals.filter(r => r.playerIndex === pi);
               return (
                 <div key={rel} className={`trick-pos trick-pos-${pos}`}>
                   <div className="trick-pos-player">
                     {gameState.players[pi].name}
                     {isSettled && pi === settledTrick!.winnerIndex ? ' 👑' : ''}
                   </div>
-                  <PlayedStack cards={play ? play.cards : []} />
+                  {showReveals && myReveals.length > 0 && (
+                    <div className="trick-pos-reveal" data-testid={`reveal-cards-${pi}`}>
+                      {myReveals.map(r => (
+                        <div
+                          key={`${pi}-${r.strength}`}
+                          className={`reveal-pair${isCurrentReveal(r, gameState.currentReveal) ? '' : ' reveal-overridden'}`}
+                        >
+                          {revealDisplayCards(r, currentLevel).map(c => (
+                            <CardFace key={c.id} card={c} size="small" />
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {isPlaying && <PlayedStack cards={play ? play.cards : []} />}
                 </div>
               );
             })}
