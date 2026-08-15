@@ -47,6 +47,21 @@ export function computeFollowPlan(
 }
 
 /**
+ * 扣底状态（庄家 BottomExchange 主按键判定）：
+ * - canSubmit：已选恰好 8 张（≠8 时扣底键灰色不可点）
+ * - trumpCount：所选底牌中的主牌数（>0 时扣底键变黄并显示警告小字，不设二次确认，点击直接扣）
+ */
+export function bottomExchangeStatus(
+  selected: Card[],
+  trump: TrumpDeclaration | null,
+): { canSubmit: boolean; trumpCount: number } {
+  return {
+    canSubmit: selected.length === 8,
+    trumpCount: trump ? selected.filter(c => isTrump(c, trump)).length : 0,
+  };
+}
+
+/**
  * 出牌按钮可否提交（灰色判定）：
  * - 未选牌 → false（与 0 张样式一致）
  * - 领出：单张或同组（同花色非主 / 全部主牌）→ true，不同花色 → false

@@ -86,7 +86,7 @@ describe('gameStore — human reveal flow', () => {
     expect(gs.trumpDeclaration?.declarerIndex).toBe(0); // 首局亮主者顶庄
     expect(gs.players[0].hand).toHaveLength(33); // 底牌并入
 
-    // 选 8 张扣底（含主牌 → store 层不拦截，UI 层有二次确认）
+    // 选 8 张扣底（store 层不拦截主牌；UI 层扣底键变黄 + 警告小字，无二次确认）
     const picks = gs.players[0].hand.slice(0, 8);
     for (const c of picks) useGameStore.getState().selectCard(c.id);
     expect(useGameStore.getState().selectedCardIds).toHaveLength(8);
@@ -98,6 +98,23 @@ describe('gameStore — human reveal flow', () => {
     expect(gs.players[0].hand).toHaveLength(25);
     expect(gs.bottomCards).toHaveLength(8);
     expect(gs.bottomCards.map(c => c.id).sort()).toEqual(picks.map(c => c.id).sort());
+  });
+
+  it('建议扣底：getBottomHint 直接选中 AI 推荐的 8 张（可立即点扣底）', async () => {
+    useGameStore.getState().startGame([false, true, true, true], false);
+    await waitFor(() => useGameStore.getState().gameState?.phase === 'revealing');
+    useGameStore.getState().humanReveal(null); // seed=42 人类对大王亮无主 → 顶庄扣底
+    const gs = useGameStore.getState().gameState!;
+    expect(gs.phase).toBe(GamePhase.BottomExchange);
+    expect(gs.players[0].hand).toHaveLength(33); // 底牌并入
+
+    useGameStore.getState().getBottomHint();
+    const sel = useGameStore.getState().selectedCardIds;
+    expect(sel).toHaveLength(8); // AI 推荐恰好 8 张
+    const hand = useGameStore.getState().gameState!.players[0].hand.map(c => c.id);
+    expect(sel.every(id => hand.includes(id))).toBe(true);
+    // 阶段不变（仅选中，不提交），可手动调整后扣底
+    expect(useGameStore.getState().gameState?.phase).toBe(GamePhase.BottomExchange);
   });
 });
 

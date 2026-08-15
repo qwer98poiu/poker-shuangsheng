@@ -372,81 +372,6 @@
   background: rgba(255, 255, 255, 0.1);
 }
 
-/* ===== bottom exchange panel ===== */
-
-.bottom-exchange-panel {
-  text-align: center;
-  padding: 10px 0;
-}
-
-.bottom-exchange-panel h3 {
-  font-size: 15px;
-  color: #ffd740;
-  margin-bottom: 6px;
-}
-
-.bottom-exchange-hint {
-  font-size: 12px;
-  opacity: 0.6;
-  margin-bottom: 10px;
-}
-
-.trump-warning {
-  background: rgba(255, 82, 82, 0.2);
-  border: 1px solid #ff5252;
-  border-radius: 8px;
-  padding: 10px 16px;
-  margin: 8px 0;
-}
-
-.trump-warning p {
-  margin-bottom: 10px;
-  color: #ff8a80;
-}
-
-.confirm-btn {
-  padding: 10px 30px;
-  border: none;
-  border-radius: 8px;
-  background: #ffd740;
-  color: #1a1a1a;
-  font-size: 15px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.confirm-btn:disabled {
-  background: #555;
-  color: #999;
-  cursor: not-allowed;
-}
-
-.confirm-btn:not(:disabled):hover {
-  background: #ffc107;
-  transform: translateY(-2px);
-}
-
-.confirm-btn.warning-btn {
-  background: #ff5252;
-  color: #fff;
-}
-
-.cancel-btn {
-  padding: 8px 24px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 8px;
-  background: transparent;
-  color: #ccc;
-  font-size: 14px;
-  cursor: pointer;
-  margin-left: 10px;
-}
-
-.cancel-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-
 /* ===== action bar ===== */
 
 .action-bar {
@@ -562,33 +487,30 @@
   cursor: pointer;
 }
 
-/* bottom exchange — 固定行高 48px */
-.bottom-exchange {
+/* 扣底含主牌：主按键变黄（不设二次确认，点击直接扣）+ 下方警告小字 */
+.play-btn.trump-warn-btn {
+  background: #ffb300;
+  color: #1a1a1a;
+}
+
+.play-btn.trump-warn-btn:not(:disabled):hover {
+  background: #ffa000;
+  transform: translateY(-2px);
+}
+
+/* 扣底阶段主按键行 + 警告小字（wrap 可含第二行，出牌阶段 wrap 高度=action-bar） */
+.action-bar-wrap {
   display: flex;
-  gap: 12px;
-  justify-content: center;
+  flex-direction: column;
   align-items: center;
-  height: 48px;
+  gap: 2px;
   flex-shrink: 0;
-  overflow: hidden;
-  white-space: nowrap;
 }
 
-.trump-warning {
-  background: rgba(255,82,82,0.15);
-  border: 1px solid #ff5252;
-  border-radius: 8px;
-  padding: 6px 12px;
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  font-size: 13px;
+.action-warn {
+  font-size: 12px;
   color: #ff8a80;
-}
-
-.cancel-btn {
-  background: rgba(255,255,255,0.1);
-  color: #ccc;
+  line-height: 1.4;
 }
 
 /* debug bar — 建议出牌/回看上轮居中；固定 30px */

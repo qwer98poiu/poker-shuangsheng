@@ -59,6 +59,7 @@ interface StoreActions {
   startNewRound: () => void;
   toggleLastTrickReview: () => void;
   getHint: () => void;
+  getBottomHint: () => void;
   runDealStep: (deck: Card[]) => void;
   finalizeRevealAndBottom: () => void;
 }
@@ -583,6 +584,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
       selectedCardIds: suggested.map(c => c.id),
       highlightedCards: [],
       message: `💡 建议: ${reason}`,
+    });
+  },
+
+  /** 建议扣底：AI 从 33 张手牌中选 8 张扣入底牌（与 AI 庄家同口径），直接选中，可立即点"扣底"。 */
+  getBottomHint: () => {
+    const { gameState, localPlayerIndex } = get();
+    if (!gameState || gameState.phase !== GamePhase.BottomExchange) return;
+    if (gameState.trumpDeclaration?.declarerIndex !== localPlayerIndex) return;
+    const hand = gameState.players[localPlayerIndex].hand;
+    const r = aiChooseBottomCards(hand, gameState.trumpDeclaration);
+    set({
+      selectedCardIds: r.discard.map(c => c.id),
+      highlightedCards: [],
+      message: `💡 建议: ${r.reason}`,
     });
   },
 }));

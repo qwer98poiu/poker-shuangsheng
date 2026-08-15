@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-15 15:43
+
+### 扣底阶段主要按键改造：扣底/回看上墩双键 + 含主牌黄色警告 + 建议扣底
+
+**问题**：扣底界面只有单个"确认扣底"按钮，含主牌时弹二次确认对话框，交互与出牌阶段不一致；无建议扣底，AI 扣底思路无从参考。
+
+**修复**：扣底阶段改用与出牌一致的 action-bar 槽位双主键——左边"扣底 (x/8)"（与出牌键同位同尺寸），右边"回看上墩"（灰色不可选）；未选满 8 张时扣底键灰色。所选底牌含主牌时扣底键变黄并在下方显示"⚠️ 选了 x 张主牌"小字（`bottomExchangeStatus` 判定），取消二次确认，点击直接扣。调试栏新增"建议扣底"（与建议出牌同位置同尺寸），`getBottomHint` 调 `aiChooseBottomCards` 从 33 张手牌选推荐 8 张直接选中。移除旧扣底面板与 trump-confirm 对话框及无用样式。
+
+**新增 7 项测试**（playable.test.ts：6 项，gameStore.test.ts：1 项），引擎 686 项 + arena 65 项 + CLI 80 项 + client 54 项 = 885 项通过。
+
+- **影响文件**：`packages/client/src/components/game/ActionBar.tsx`、`packages/client/src/components/game/GameTable.tsx`、`packages/client/src/components/game/GameTable.css`、`packages/client/src/components/game/playable.ts`、`packages/client/src/store/gameStore.ts`、`packages/client/src/__tests__/playable.test.ts`、`packages/client/src/__tests__/gameStore.test.ts`
+
 ## 2026-08-15 14:55
 
 ### 重构：client 测试文件移入 src/__tests__/ 目录，与其他包统一

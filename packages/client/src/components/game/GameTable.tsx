@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useGameStore } from '../../store/gameStore.js';
 import {
-  GamePhase, sortHand, Suit, suitLabel, rankLabel, isTrump, getRevealOptions, canOverride,
+  GamePhase, sortHand, Suit, suitLabel, rankLabel, getRevealOptions, canOverride,
   computeRoundOutcome, advanceLevel, buildAIContext,
 } from '@poker/engine';
 import type { GameState, Card } from '@poker/engine';
@@ -78,11 +78,10 @@ const GameTable: React.FC = () => {
     selectCard, deselectCard,
     submitPlay, submitBottomExchange,
     humanReveal, humanPassReveal,
-    toggleLastTrickReview, getHint,
+    toggleLastTrickReview, getHint, getBottomHint,
     aiPlayers, teamLevels, matchOver, settledTrick, roundNumber,
   } = useGameStore();
 
-  const [trumpConfirm, setTrumpConfirm] = useState(false);
   const [exportCopied, setExportCopied] = useState(false);
   const [showBottomView, setShowBottomView] = useState(false);
 
@@ -291,39 +290,8 @@ const GameTable: React.FC = () => {
         );
       })()}
 
-      {/* bottom exchange panel — human declarer, 33-card hand */}
-      {isBottomExchange && isDeclarer && localPlayer.isHuman && (
-        <div className="bottom-exchange" data-testid="bottom-exchange">
-          <span>扣底：选 8 张手牌放入底牌 (已选 {selectedCardIds.length}/8)</span>
-          {trumpConfirm ? (
-            <div className="trump-warning">
-              <span>⚠️ 含主牌，确定扣入？</span>
-              <button className="action-btn play-btn" data-testid="trump-confirm" onClick={() => { setTrumpConfirm(false); submitBottomExchange(); }}>确认扣主</button>
-              <button className="action-btn cancel-btn" onClick={() => setTrumpConfirm(false)}>取消</button>
-            </div>
-          ) : (
-            <button
-              className="action-btn play-btn"
-              data-testid="bottom-confirm"
-              disabled={selectedCardIds.length !== 8}
-              onClick={() => {
-                const declarer = gameState.players[localPlayerIndex];
-                const selCards = declarer.hand.filter(c => selectedCardIds.includes(c.id));
-                if (gameState.trumpDeclaration && selCards.some(c => isTrump(c, gameState.trumpDeclaration!))) {
-                  setTrumpConfirm(true);
-                } else {
-                  submitBottomExchange();
-                }
-              }}
-            >
-              确认扣底 ({selectedCardIds.length}/8)
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* action bar */}
-      {isPlaying && isMyTurn && localPlayer.isHuman && (
+      {/* action bar — 出牌/扣底主按键（ActionBar 内部按阶段决定渲染：Playing 当前玩家 / BottomExchange 庄家） */}
+      {localPlayer.isHuman && (
         <ActionBar
           gameState={gameState}
           localPlayerIndex={localPlayerIndex}
@@ -333,6 +301,7 @@ const GameTable: React.FC = () => {
           isHuman={localPlayer.isHuman}
           isReviewing={lastTrickReview}
           onSubmitPlay={submitPlay}
+          onSubmitBottomExchange={submitBottomExchange}
           onToggleReview={toggleLastTrickReview}
         />
       )}
@@ -384,6 +353,11 @@ const GameTable: React.FC = () => {
           {debug && isPlaying && (
             <button className="debug-btn" onClick={getHint} data-testid="hint-btn">
               🤖 建议出牌
+            </button>
+          )}
+          {debug && isBottomExchange && isDeclarer && localPlayer.isHuman && (
+            <button className="debug-btn" onClick={getBottomHint} data-testid="bottom-hint-btn">
+              🤖 建议扣底
             </button>
           )}
           {isDeclarer && localPlayer.isHuman && (

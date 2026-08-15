@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createCard, GamePhase, Suit } from '@poker/engine';
 import type { Card, TrumpDeclaration } from '@poker/engine';
-import { computePlayableIds, computeFollowPlan, canSubmitPlay } from '../components/game/playable.js';
+import { computePlayableIds, computeFollowPlan, canSubmitPlay, bottomExchangeStatus } from '../components/game/playable.js';
 
 const c = (s: string, r: number, i: number): Card => createCard(s as any, r as any, i);
 const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
@@ -153,5 +153,42 @@ describe('canSubmitPlay — 出牌按钮灰色判定', () => {
     const hand = [c('H', 3, 0), c('H', 3, 1), c('H', 4, 2)];
     const lead = play([c('H', 7, 9), c('H', 7, 10)], Suit.Hearts);
     expect(canSubmitPlay([c('H', 3, 0), c('H', 3, 1)], hand, [lead], cfg)).toBe(true);
+  });
+});
+
+describe('bottomExchangeStatus — 扣底主按键判定', () => {
+  const eight = (trumps: number): Card[] => {
+    // 8 张：前 trumps 张为主牌，其余为非主（红桃非级牌）
+    const cards: Card[] = [];
+    for (let i = 0; i < trumps; i++) cards.push(c('S', 3 + i, i)); // 黑桃主花色
+    for (let i = trumps; i < 8; i++) cards.push(c('H', 3 + i, i)); // 红桃非级牌（level2）
+    return cards;
+  };
+
+  it('选满 8 张且无主牌 → 可提交，无警告', () => {
+    expect(bottomExchangeStatus(eight(0), cfg)).toEqual({ canSubmit: true, trumpCount: 0 });
+  });
+
+  it('选满 8 张但含主牌 → 可提交 + 主牌计数（扣底键变黄）', () => {
+    expect(bottomExchangeStatus(eight(2), cfg)).toEqual({ canSubmit: true, trumpCount: 2 });
+  });
+
+  it('主牌含级牌（异花色 2）与小王 → 均计入', () => {
+    const sel = [c('H', 2, 0), c('J', 15, 1), c('J', 16, 2), c('S', 3, 3),
+                 c('H', 4, 4), c('H', 5, 5), c('H', 6, 6), c('H', 7, 7)];
+    expect(bottomExchangeStatus(sel, cfg)).toEqual({ canSubmit: true, trumpCount: 4 });
+  });
+
+  it('不足 8 张（含主牌）→ 不可提交，仍计数', () => {
+    expect(bottomExchangeStatus([c('S', 3, 0), c('H', 2, 1)], cfg)).toEqual({ canSubmit: false, trumpCount: 2 });
+  });
+
+  it('超过 8 张 → 不可提交（≠8 判定）', () => {
+    const sel = [...eight(0), c('H', 11, 10)];
+    expect(bottomExchangeStatus(sel, cfg)).toEqual({ canSubmit: false, trumpCount: 0 });
+  });
+
+  it('trumpDeclaration 为空 → 主牌数 0（防御）', () => {
+    expect(bottomExchangeStatus([c('S', 3, 0)], null)).toEqual({ canSubmit: false, trumpCount: 0 });
   });
 });
