@@ -8,7 +8,7 @@ vi.mock('../dev.js', () => ({
   seedFor: (seed: number, roundNumber: number) => (seed + roundNumber * 31) >>> 0,
 }));
 
-import { useGameStore, settledFrom } from './gameStore.js';
+import { useGameStore, settledFrom } from '../store/gameStore.js';
 
 const advance = (ms: number) => vi.advanceTimersByTimeAsync(ms);
 

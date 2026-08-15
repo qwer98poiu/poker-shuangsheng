@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-15 14:55
+
+### 重构：client 测试文件移入 src/__tests__/ 目录，与其他包统一
+
+**问题**：engine/cli 的测试集中在 `src/__tests__/`，client 的 4 个测试文件分散在源码树（`src/store/`、`src/components/game/`）——目录结构不统一，查找与统计不便。
+
+**修复**：`git mv` 将 4 个测试文件（gameStore/playable/export-game/drag-select）移入 `packages/client/src/__tests__/`，相对 import 同步修正（`./playable.js` → `../components/game/playable.js` 等）。`vitest.config.ts` 的 `src/**/*.test.ts` 收集模式天然覆盖，无需改动；顺带消除因 import 解析失败产生的 8 个 TS7006（implicit any）。
+
+**无新增测试**，引擎 686 项 + arena 65 项 + CLI 80 项 + client 47 项 = 878 项通过。
+
+- **影响文件**：`packages/client/src/__tests__/gameStore.test.ts`、`packages/client/src/__tests__/playable.test.ts`、`packages/client/src/__tests__/export-game.test.ts`、`packages/client/src/__tests__/drag-select.test.ts`（均自原路径移动）
+
 ## 2026-08-15 13:40
 
 ### 重构：elo-verify.ts 更名 elo-calc.ts——根据实测胜率计算一组策略的 Elo（WLS 锚定），非验证

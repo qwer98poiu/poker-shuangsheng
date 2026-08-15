@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { applyDragSelection, isCardCoveredByDrag } from './PlayerHand.js';
+import { applyDragSelection, isCardCoveredByDrag } from '../components/game/PlayerHand.js';
 
 /**
  * 拖拽框选判定：轨迹矩形是否与本牌"可见（露出）区域"相交。

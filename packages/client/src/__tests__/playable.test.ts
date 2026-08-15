@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createCard, GamePhase, Suit } from '@poker/engine';
 import type { Card, TrumpDeclaration } from '@poker/engine';
-import { computePlayableIds, computeFollowPlan, canSubmitPlay } from './playable.js';
+import { computePlayableIds, computeFollowPlan, canSubmitPlay } from '../components/game/playable.js';
 
 const c = (s: string, r: number, i: number): Card => createCard(s as any, r as any, i);
 const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
