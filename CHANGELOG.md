@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-15 10:37
+
+### 新增：提取 ai-0809 基线（b77a7b1, 08-14 第二家避分修复前），归档移除 ai-0801
+
+**问题**：README 中 1035 Elo 的测量对象是 08-14 时刻的 `ai`（此后第二家避分、断门策略等修复改变了策略），需要把该时刻策略冻结为基线供竞技场对比；`ai-0801`（08-01 重构前）已无对比价值。
+
+**修复**：① `git archive` 提取 b77a7b1 的 `ai/` 为 `packages/engine/src/ai-0809/`，引擎注册 `ai0809` 命名空间、竞技场注册 `ai0809Strategy`（pair 14/15 合法性测试：无中止、无验牌回退）；② 移除 `ai0801Strategy` 注册与对应测试（归档）；③ README：Elo 表 `ai-0809` 行 = 1035（原 `ai` 行），当前 `ai` 行标"待重测"，`ai-0801` 行保留 992.2 分数并移入归档列表，`--strategy-a/b` 可选列表与默认 B（`ai-0809`）同步更新。
+
+**新增 1 项测试、删除 1 项测试（arena）**，引擎 686 项 + arena 65 项 + CLI 80 项 + client 47 项 = 878 项通过。
+
+- **影响文件**：`packages/engine/src/ai-0809/`（新目录，14 文件）、`packages/engine/src/index.ts`、`packages/arena/src/strategies.ts`、`packages/arena/src/__tests__/historical-strategies.test.ts`、`README.md`
+
 ## 2026-08-15 10:01
 
 ### 调整策略：第三/四家加分垫牌优先断含分花色——整门垫出，这一墩后该花色出绝（闲家跨 40 台阶例外）
