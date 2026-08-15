@@ -1,10 +1,13 @@
 /**
  * ui-player — 人类模拟器（模拟点击驱动完整对局）。
  *
- * 单人 vs AI（人类南座）模式下，用真实 page.click 走完竞技场定义的一场的
- * 简化版（默认 2 局，完整一场 ~35 局不默认跑）：亮主 → 扣底 → 出牌 →
- * 结算 → 轮转。AI 决策复用引擎（与 gameStore 的 runAiTurns 同口径），
- * 交互全部真实点击，覆盖 hint（建议出牌）与手动选牌两条路径。
+ * 单人 vs AI（人类南座）模式下，用真实 page.click / mouse 事件走完竞技场
+ * 定义的一场的简化版（默认 2 局，完整一场 ~35 局不默认跑）：亮主 → 扣底 →
+ * 出牌 → 结算 → 轮转。AI 决策复用引擎（与 gameStore 的 runAiTurns 同口径），
+ * 交互全部真实输入，覆盖多条人类路径：
+ *   - 扣底：50% 点"建议扣底"直接扣；50% 按 AI 决策手动逐张选
+ *   - 出牌：目标牌在手牌中相邻时 50% 拖拽框选（真实 mouse 拖拽）；其余
+ *     50% 点"建议出牌"，50% 手动逐张选牌
  *
  * 每步断言：
  *   - 元素 box 完全在 1280×720 画布内（safeClick 前置 + 快照后验）
@@ -20,7 +23,7 @@
 import type { Page } from 'playwright-core';
 import type { Card } from '@poker/engine';
 import {
-  GamePhase, getRevealOptions, canOverride, buildAIContext, playCards,
+  GamePhase, getRevealOptions, canOverride, buildAIContext, playCards, sortHand,
   aiLeadPlay, aiFollowPlay, aiChooseBottomCards, computeRoundOutcome, advanceLevel,
 } from '@poker/engine';
 import {
@@ -97,6 +100,40 @@ function assertCanvasBounds(snap: UiSnapshot, round: number): void {
 }
 
 // ---------------------------------------------------------------------------
+// selection helpers — all real mouse events
+
+/**
+ * 清空已有选中（UI 无清空按钮：逐张点击已选牌 toggle 反选；
+ * 锁定牌点击为 no-op 自动保留，出牌后释放）。
+ */
+async function clearSelectionByClicks(page: Page): Promise<void> {
+  const sel = (await collectSnapshot(page)).store!.selectedCardIds;
+  for (const id of sel) {
+    await safeClick(page, `[data-card-id="${id}"]`);
+    await page.waitForTimeout(30);
+  }
+}
+
+/**
+ * 拖拽框选首→末张目标牌（真实 mouse 事件，走 PlayerHand 拖拽路径）：
+ * - 起始点 = 首牌露出区（左缘 +8px，露出条 [左, 左+36)），结束点 = 末牌露出区左缘内侧（+15px）
+ *   → 矩形恰好覆盖 [first..last] 的露出区，前后相邻牌不进矩形
+ * - 结束点纵向 +15px：纯水平矩形无高度，isCardCoveredByDrag 不命中
+ * 前置：目标牌未选中（XOR 反选语义——已选牌被矩形覆盖会反选）。
+ */
+async function dragSelectCards(page: Page, ids: string[]): Promise<void> {
+  const first = page.locator(`[data-card-id="${ids[0]}"]`).first();
+  const last = page.locator(`[data-card-id="${ids[ids.length - 1]}"]`).first();
+  const fb = await first.boundingBox();
+  const lb = await last.boundingBox();
+  if (!fb || !lb) throw new Error(`drag: card box missing (${ids[0]} / ${ids[ids.length - 1]})`);
+  await page.mouse.move(fb.x + 8, fb.y + fb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(lb.x + 15, lb.y + lb.height / 2 + 15, { steps: 12 });
+  await page.mouse.up();
+}
+
+// ---------------------------------------------------------------------------
 // stage actions — all real clicks
 
 async function doReveal(page: Page, timeoutMs: number): Promise<void> {
@@ -118,7 +155,7 @@ async function doReveal(page: Page, timeoutMs: number): Promise<void> {
   }
 }
 
-async function doBottomExchange(page: Page, timeoutMs: number): Promise<void> {
+async function doBottomExchange(page: Page, seed: number, timeoutMs: number): Promise<void> {
   const snap = await collectSnapshot(page);
   const st = snap.store!;
   const gs = st.gameState;
@@ -130,40 +167,44 @@ async function doBottomExchange(page: Page, timeoutMs: number): Promise<void> {
     return;
   }
 
-  // 人类庄家：从 33 张（手牌+底牌）选 8 张。引擎决策，非法则回退启发式。
-  const ctx = buildAIContext(gs, 0);
-  let discard: Card[] = ctx ? aiChooseBottomCards(gs.players[0].hand, ctx).discard : [];
-  const inHand = discard.filter(c => gs.players[0].hand.some(h => h.id === c.id));
-  if (inHand.length !== 8) {
-    // 回退：先无分副牌，后补任意（保证恰 8 张）
-    const trump = gs.trumpDeclaration;
-    const hand = [...gs.players[0].hand].sort((a, b) => {
-      const ka = (trump && (a.suit === trump.trumpSuit || a.isJoker) ? 1 : 0) * 2
-        + (a.rank === 5 || a.rank === 10 || a.rank === 13 ? 1 : 0);
-      const kb = (trump && (b.suit === trump.trumpSuit || b.isJoker) ? 1 : 0) * 2
-        + (b.rank === 5 || b.rank === 10 || b.rank === 13 ? 1 : 0);
-      return ka - kb;
-    });
-    discard = hand.slice(0, 8);
-    console.error(`  bottom: engine discard invalid (${inHand.length}), fell back to heuristic`);
+  // 人类庄家：从 33 张（手牌+底牌）选 8 张。
+  // 50% 点"建议扣底"（AI 决策直接选中）；50% 按 AI 决策手动逐张选（非法回退启发式）。
+  const rnd = mulberry32((seed + st.roundNumber * 7877 + 31) >>> 0)();
+  if (rnd < 0.5) {
+    await safeClick(page, '[data-testid="bottom-hint-btn"]');
+    await page.waitForTimeout(150);
+    const sel = (await collectSnapshot(page)).store!.selectedCardIds;
+    check(`r${st.roundNumber} bottom hint selects 8`, sel.length === 8, `selected=${sel.length}`);
+    console.error(`  bottom r${st.roundNumber}: hint ${[...sel].sort().join(',')}`);
+  } else {
+    // 手动：引擎决策（与 hint 同源），非法则回退启发式
+    const ctx = buildAIContext(gs, 0);
+    let discard: Card[] = ctx ? aiChooseBottomCards(gs.players[0].hand, ctx).discard : [];
+    const inHand = discard.filter(c => gs.players[0].hand.some(h => h.id === c.id));
+    if (inHand.length !== 8) {
+      // 回退：先无分副牌，后补任意（保证恰 8 张）
+      const trump = gs.trumpDeclaration;
+      const hand = [...gs.players[0].hand].sort((a, b) => {
+        const ka = (trump && (a.suit === trump.trumpSuit || a.isJoker) ? 1 : 0) * 2
+          + (a.rank === 5 || a.rank === 10 || a.rank === 13 ? 1 : 0);
+        const kb = (trump && (b.suit === trump.trumpSuit || b.isJoker) ? 1 : 0) * 2
+          + (b.rank === 5 || b.rank === 10 || b.rank === 13 ? 1 : 0);
+        return ka - kb;
+      });
+      discard = hand.slice(0, 8);
+      console.error(`  bottom: engine discard invalid (${inHand.length}), fell back to heuristic`);
+    }
+    console.error(`  bottom r${st.roundNumber}: click ${discard.map(c => c.id).join(',')}`);
+    for (const c of discard) {
+      await safeClick(page, `[data-card-id="${c.id}"]`);
+      await page.waitForTimeout(30);
+    }
+    await page.waitForTimeout(120);
+    const sel = (await collectSnapshot(page)).store!.selectedCardIds;
+    check(`r${st.roundNumber} bottom exchange selected 8`, sel.length === 8, `selected=${sel.length}`);
   }
-
-  console.error(`  bottom r${st.roundNumber}: click ${discard.map(c => c.id).join(',')}`);
-  for (const c of discard) {
-    await safeClick(page, `[data-card-id="${c.id}"]`);
-    await page.waitForTimeout(30);
-  }
-  await page.waitForTimeout(120);
-  const sel = (await collectSnapshot(page)).store!.selectedCardIds;
-  check(`r${st.roundNumber} bottom exchange selected 8`, sel.length === 8, `selected=${sel.length}`);
 
   await safeClick(page, '[data-testid="bottom-confirm"]');
-  await page.waitForTimeout(150);
-  const after = await collectSnapshot(page);
-  if (after.elements.some(e => e.testid === 'trump-confirm')) {
-    // 扣主警告 → 确认
-    await safeClick(page, '[data-testid="trump-confirm"]');
-  }
   await waitStateChange(page, sigOf(gs), 'bottom exchange done', timeoutMs);
 }
 
@@ -236,12 +277,38 @@ async function doPlay(page: Page, snap: UiSnapshot, seed: number, timeoutMs: num
   }
   const ids = finalCards.map(c => c.id);
 
-  // 每墩确定性地随机选交互路径：A = 点建议出牌；B = 手动逐张选牌
+  // 每墩确定性地随机选交互路径（独立 rng 流，seed 可复现）：
+  // - 目标牌在展示手牌中相邻（连续区间）且 rndDrag < 0.5 → 拖拽框选
+  // - 否则 rnd < 0.5 → 点建议出牌；rnd ≥ 0.5 → 手动逐张选牌
   const rnd = mulberry32((seed + st.roundNumber * 7919 + gs.tricksPlayed * 131) >>> 0)();
+  const rndDrag = mulberry32((seed + st.roundNumber * 7919 + gs.tricksPlayed * 131 + 17) >>> 0)();
+  const display = sortHand(player.hand, gs.trumpDeclaration);
+  const dispIdx = new Map(display.map((c, i) => [c.id, i] as const));
+  const idxs = ids.map(id => dispIdx.get(id) ?? -1).sort((a, b) => a - b);
+  const contiguous = idxs.length >= 2 && idxs[0] >= 0 && idxs[idxs.length - 1] - idxs[0] + 1 === idxs.length;
+  const useDrag = contiguous && rndDrag < 0.5;
   const sig = sigOf(gs);
-  console.error(`  play r${st.roundNumber} t${gs.tricksPlayed}: ${ids.join(',')} via ${rnd < 0.5 ? 'hint' : 'manual'}`);
+  console.error(`  play r${st.roundNumber} t${gs.tricksPlayed}: ${ids.join(',')} via ${useDrag ? 'drag' : rnd < 0.5 ? 'hint' : 'manual'}`);
 
-  if (rnd < 0.5) {
+  if (useDrag) {
+    // 拖拽前清空非锁定选中（XOR 反选：已选牌被拖到会反选；锁定牌点击 no-op 保留）
+    await clearSelectionByClicks(page);
+    // 拖拽矩形取展示序首末张（AI 决策顺序 ≠ 展示序时，首末端点会漏选/多选）
+    await dragSelectCards(page, idxs.map(i => display[i].id));
+    await page.waitForTimeout(120);
+    const sel = (await collectSnapshot(page)).store!.selectedCardIds;
+    const same = sel.length === ids.length && ids.every(id => sel.includes(id));
+    check(`r${st.roundNumber} drag selection matches AI decision`, same,
+      `selected=${[...sel].sort().join(',')} expected=${[...ids].sort().join(',')}`);
+    if (!same) {
+      // 拖拽失败不打断对局：清空重选走手动（check 已记录失败）
+      await clearSelectionByClicks(page);
+      for (const id of ids) {
+        await safeClick(page, `[data-card-id="${id}"]`);
+        await page.waitForTimeout(30);
+      }
+    }
+  } else if (rnd < 0.5) {
     await safeClick(page, '[data-testid="hint-btn"]');
     await page.waitForTimeout(150);
     const sel = (await collectSnapshot(page)).store!.selectedCardIds;
@@ -250,8 +317,7 @@ async function doPlay(page: Page, snap: UiSnapshot, seed: number, timeoutMs: num
       && !playCards(gs, 0, player.hand.filter(c => sel.includes(c.id))).error;
     if (!selLegal) {
       // hint 选中了灰色/非法组合（client getHint 无校验，与 runAiTurns 的 AI 回退不同）→ 重选走手动
-      await safeClick(page, '[data-testid="clear-btn"]');
-      await page.waitForTimeout(100);
+      await clearSelectionByClicks(page);
       for (const id of ids) {
         await safeClick(page, `[data-card-id="${id}"]`);
         await page.waitForTimeout(30);
@@ -263,11 +329,7 @@ async function doPlay(page: Page, snap: UiSnapshot, seed: number, timeoutMs: num
     }
   } else {
     // 先清空已有选中（可能与自动选中/上次选择冲突，重选避免 toggle）
-    const before = (await collectSnapshot(page)).store!.selectedCardIds;
-    if (before.length > 0) {
-      await safeClick(page, '[data-testid="clear-btn"]');
-      await page.waitForTimeout(80);
-    }
+    await clearSelectionByClicks(page);
     for (const id of ids) {
       await safeClick(page, `[data-card-id="${id}"]`);
       await page.waitForTimeout(30);
@@ -381,7 +443,7 @@ async function runMatch(page: Page, seed: number, maxRounds: number, timeoutMs: 
       switch (light.phase) {
         case GamePhase.Dealing: break; // 发牌中（speed=8 约 1.5s）
         case GamePhase.Revealing: await doReveal(page, timeoutMs); break;
-        case GamePhase.BottomExchange: await doBottomExchange(page, timeoutMs); break;
+        case GamePhase.BottomExchange: await doBottomExchange(page, seed, timeoutMs); break;
         case GamePhase.Playing:
           if (light.current === 0 && light.humanSeat) {
             const snap = await collectSnapshot(page);

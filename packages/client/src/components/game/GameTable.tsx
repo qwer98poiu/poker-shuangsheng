@@ -271,7 +271,8 @@ const GameTable: React.FC = () => {
             </span>
             {opts.map(o => (
               <button
-                key={o.suit ?? 'NT'}
+                // 大王NT/小王NT 同时可选时 suit 同为 null → key 需含 strength 区分（否则 React 重复 key 警告）
+                key={o.suit ?? `NT-${o.strength}`}
                 className={`reveal-btn ${o.suit === null ? (o.strength >= 4 ? 'reveal-nt nt-big' : 'reveal-nt nt-small') : ''}`}
                 data-testid={`reveal-btn-${o.suit ?? 'NT'}`}
                 onClick={() => humanReveal(o.suit)}

@@ -1,5 +1,37 @@
 # Changelog
 
+## 2026-08-15 17:07
+
+### 人类模拟器：扣底 50% 点建议/50% 手动，出牌目标相邻时 50% 拖拽框选
+
+**问题**：模拟器只覆盖"点建议出牌"与"手动逐张选"两条路径，扣底只有手动；且引用已移除的 clear-btn（重选按钮）与 trump-confirm 对话框——GUI 改造后运行即卡死。
+
+**修复**：① 扣底 50% 点"建议扣底"（AI 推荐 8 张直接选中）→ 扣底，50% 按 AI 决策手动逐张选（非法回退启发式），移除 trump-confirm 残留逻辑；② 出牌时目标牌在展示手牌中相邻（连续区间）且 50% 概率走真实 mouse 拖拽框选（起止点取展示序首末张的露出区，XOR 反选前先逐张点击清空非锁定选中），其余维持 hint/手动 50/50；③ clear-btn 引用改为逐张点击已选牌反选清空（锁定牌点击 no-op 自动保留）。实跑种子 42-48 全部 ALL GREEN，hint/手动/拖拽/建议扣底各路径均被覆盖。
+
+**无新增测试**（ui-player.ts：0 项）
+
+- **影响文件**：`packages/client/scripts/ui-player.ts`
+
+### 修复拖拽后首个真实点击被吞（PlayerHand suppressClick 限时失效）
+
+**问题**：拖拽 mouseup 后浏览器合成的 click 落在 mousedown/mouseup 目标的共同祖先（跨卡拖拽时是容器，无 onClick），不消费 suppressClickRef——该标记一直残留，吞掉之后第一次真实点牌（模拟器实测：拖拽后下一个手动选牌回合首张点击无效）。
+
+**修复**：mouseup 置标记后 150ms 自动失效——只吞 mouseup 同帧合成的 click（点同张牌结束拖拽时），之后的真实点击正常。
+
+**无新增测试**（PlayerHand.tsx：0 项）
+
+- **影响文件**：`packages/client/src/components/game/PlayerHand.tsx`
+
+### 修复亮主面板 大王NT/小王NT 同时可选时重复 key（React 警告）
+
+**问题**：两手都亮 NT 选项时 suit 同为 null，key 同为 'NT'——React 重复 key 警告（模拟器 console.error 检查捕获）。
+
+**修复**：key 含 strength 区分（`NT-${o.strength}`），testid 不变（`reveal-btn-NT`，模拟器点首个）。
+
+**无新增测试**（GameTable.tsx：0 项），引擎 686 项 + arena 65 项 + CLI 80 项 + client 54 项 = 885 项通过。
+
+- **影响文件**：`packages/client/src/components/game/GameTable.tsx`
+
 ## 2026-08-15 15:43
 
 ### 扣底阶段主要按键改造：扣底/回看上墩双键 + 含主牌黄色警告 + 建议扣底

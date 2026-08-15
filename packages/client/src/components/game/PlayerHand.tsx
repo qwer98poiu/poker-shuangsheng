@@ -121,7 +121,12 @@ const PlayerHand: React.FC<PlayerHandProps> = ({
   };
 
   const handleMouseUp = () => {
-    if (dragMovedRef.current) suppressClickRef.current = true; // 仅拖拽后吞 click
+    if (dragMovedRef.current) {
+      suppressClickRef.current = true; // 吞掉 mouseup 后同帧合成的 click
+      // 该 click 落在 mousedown/mouseup 目标的共同祖先上（跨卡拖拽时是容器，无
+      // onClick），不会消费本标记——限时自动失效，避免吞掉之后的真实点击
+      setTimeout(() => { suppressClickRef.current = false; }, 150);
+    }
     dragMovedRef.current = false;
     dragStartRef.current = null;
   };
