@@ -1,8 +1,63 @@
-import React from 'react';
-import type { GameState, Trick } from '@poker/engine';
+import React, { useLayoutEffect, useRef, useState } from 'react';
+import type { GameState, Trick, Card } from '@poker/engine';
 import { GamePhase, suitLabel, rankLabel, suitName, isPointRank, cardPointsFromRank, computeRoundOutcome } from '@poker/engine';
 import CardFace from '../cards/CardFace.js';
 import { useGameStore } from '../../store/gameStore.js';
+
+/**
+ * 打出牌叠放露出条（纯函数）：n 张牌在容器宽 containerWidth 内全部可见时的
+ * 负 margin 露出条（每张露出的左条宽度）。
+ * strip = clamp((containerWidth - cardWidth)/(n-1), minStrip, maxStrip)
+ * 叠放总宽 = cardWidth + (n-1)*strip ≤ containerWidth（minStrip 充足时恒成立）。
+ * 实际轨道宽 ~156px、maxStrip 18 → 25 张以内 strip ≥ 4，总宽 ≤ 152 恒放得下。
+ */
+export function playedStackStrip(
+  count: number,
+  containerWidth: number,
+  cardWidth = 50,
+  maxStrip = 18,
+  minStrip = 4,
+): number {
+  if (count <= 1) return 0;
+  const available = containerWidth - cardWidth;
+  const strip = Math.min(maxStrip, Math.max(minStrip, Math.floor(available / (count - 1))));
+  return strip;
+}
+
+/** 叠放负 margin = 牌宽 - 露出条。 */
+export function playedStackOverlap(
+  count: number,
+  containerWidth: number,
+  cardWidth = 50,
+): number {
+  return cardWidth - playedStackStrip(count, containerWidth, cardWidth);
+}
+
+/**
+ * 打出牌叠放：每张牌负 margin 露出左条（与手牌叠放同视觉），
+ * 露出条按容器轨道宽自适应——甩 10+ 张也能整叠完整显示在轨道内。
+ * 轨道宽 = 所在 .trick-position-layout 宽度 / 3（等宽三列，见 CSS）。
+ */
+const PlayedStack: React.FC<{ cards: Card[] }> = ({ cards }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const [strip, setStrip] = useState(() => playedStackStrip(cards.length, 156)); // 初始 1280 视口轨道宽，布局后修正
+  useLayoutEffect(() => {
+    const cell = ref.current?.parentElement;
+    const grid = cell?.parentElement;
+    if (!grid) return;
+    const track = Math.floor(grid.clientWidth / 3);
+    setStrip(playedStackStrip(cards.length, track));
+  }, [cards.length]);
+  return (
+    <div className="trick-pos-cards" ref={ref}>
+      {cards.map((card, i) => (
+        <div key={card.id} className="played-card-slot" style={{ marginLeft: i > 0 ? `-${50 - strip}px` : '0' }}>
+          <CardFace card={card} size="small" />
+        </div>
+      ))}
+    </div>
+  );
+};
 
 interface CenterAreaProps {
   gameState: GameState;
@@ -114,11 +169,7 @@ const CenterArea: React.FC<CenterAreaProps> = ({ gameState, lastTrickReview, onC
                     {gameState.players[pi].name}
                     {isSettled && pi === settledTrick!.winnerIndex ? ' 👑' : ''}
                   </div>
-                  <div className="trick-pos-cards">
-                    {play ? play.cards.map(card => (
-                      <CardFace key={card.id} card={card} size="small" />
-                    )) : null}
-                  </div>
+                  <PlayedStack cards={play ? play.cards : []} />
                 </div>
               );
             })}
@@ -152,11 +203,7 @@ const CenterArea: React.FC<CenterAreaProps> = ({ gameState, lastTrickReview, onC
                     <div className="trick-pos-player">
                       {gameState.players[pi].name}{isWinner ? ' 👑' : ''}
                     </div>
-                    <div className="trick-pos-cards">
-                      {play ? play.cards.map(card => (
-                        <CardFace key={card.id} card={card} size="small" />
-                      )) : null}
-                    </div>
+                    <PlayedStack cards={play ? play.cards : []} />
                   </div>
                 );
               })}

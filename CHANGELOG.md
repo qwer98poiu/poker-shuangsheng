@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-15 19:36
+
+### 出牌区布局改造：移除其他玩家手牌示意图，打出牌叠放（甩 10 张也整叠可见）
+
+**问题**：出牌区域太小——打出牌不叠放（每张完整 50px + 间隙），甩 10 张时牌行宽 500px+，远超中央方位轨道（实测 156px），牌被挤到框外不可见；其他玩家座位旁的手牌示意图（8 张牌背扇形）占用中间行垂直空间。
+
+**修复**：① 移除 `seat-hand-fan` 手牌示意图（座位只留名字/张数，已出牌统一在中央方位显示）；② 打出牌叠放（与手牌同视觉）：`playedStackStrip` 纯函数按轨道宽自适应计算露出条（`clamp(floor((W-50)/(n-1)), 4, 18)`），`PlayedStack` 组件测量 `.trick-position-layout` 宽度取轨道宽（布局改为三列等宽 `minmax(0,1fr)`，轨道宽不再随牌数伸缩）；25 张手牌上限内 strip ≥ 4px、整叠 ≤ 轨道宽恒成立。实测注入 P0 甩 10 张红桃：10 张全部在画布内、整叠 149px ≤ 轨道 156px、露出条 11px。
+
+**新增 6 项测试**（layout.test.ts：6 项），引擎 686 项 + arena 65 项 + CLI 80 项 + client 60 项 = 891 项通过。
+
+- **影响文件**：`packages/client/src/components/game/CenterArea.tsx`、`packages/client/src/components/game/GameTable.css`、`packages/client/src/components/game/PlayerSeat.tsx`、`packages/client/src/__tests__/layout.test.ts`
+
 ## 2026-08-15 17:07
 
 ### 人类模拟器：扣底 50% 点建议/50% 手动，出牌目标相邻时 50% 拖拽框选
