@@ -1,13 +1,23 @@
 /**
- * 验证竞技场报告中的策略 Elo 分是否准确。
+ * 根据竞技场报告的实测胜率计算一组策略的 Elo 分。
  *
- * 运行：npx tsx packages/arena/scripts/elo-verify.ts
+ * 运行：npx tsx packages/arena/scripts/elo-calc.ts
+ *
+ * 用法：
+ * 1. 编辑脚本顶部 `MATCHES`：每行 [策略A, 策略B, p̂(A), 对局数 n]——p̂ 为 A 对 B 的
+ *    含平局胜率（来自竞技场报告），n 为对局数。
+ * 2. 确认 `ANCHOR` 为锚点策略名（其 Elo 固定 = 1000，`GIVEN` 同步给出该值）。
+ * 3. 运行脚本：输出各边 ΔR、各策略 Elo（1 位小数）、拟合残差（自洽性检查）。
+ *
+ * 补充新数据：
+ * - 新对决：在 `MATCHES` 数组追加一行即可；新出现的策略名自动进入求解集合。
+ * - 更换锚点策略：修改 `ANCHOR` 与 `GIVEN` 两处。
  *
  * 方法（与报告口径一致）：
  * 1. 每场对决的 Elo 差 ΔR = 400·log10(p̂/(1−p̂))，p̂ 为含平局（按 0.5 计）的胜率。
- * 2. 图中有环（如 ai-0726 既可直测也可经 ai-0801 传递），各边的 ΔR 互相矛盾，
- *    因此对 ΔR 做以对局数 n 为权重的加权最小二乘（WLS），固定 ai = 1000 解出全体 Elo。
- * 3. 与给定值逐策略对比（1 位小数），任一偏差超过 0.051 则判定不一致。
+ * 2. 各边的 ΔR 互相矛盾（图中有环）时，对 ΔR 做以对局数 n 为权重的加权最小二乘
+ *    （WLS），固定锚点策略（ANCHOR 常量）＝ 1000 解出全体 Elo。
+ * 3. 输出拟合残差供自洽性检查（残差应远小于 100 量级的 Elo 差）。
  *
  * 已知近似：visibleTrickPoints 相关近似不涉及本脚本；p̂ 的统计误差（n 不同）由
  * 权重 n 自动体现。
@@ -15,27 +25,20 @@
 
 const MATCHES: ReadonlyArray<readonly [string, string, number, number]> = [
   // A           B           p̂(A)      n(对局数)
-  ['ai-0801', 'ai-0726', 0.506, 48000],
-  ['ai', 'ai-0801', 0.5114, 13000],
-  ['ai', 'ai-0726', 0.5172, 10000],
-  ['ai', 'ai-0719', 0.6363, 10000],
-  ['ai', 'ai-0712', 0.9581, 10000],
-  ['ai-0726', 'ai-0719', 0.631, 6300],
-  ['ai-0719', 'ai-0712', 0.9201, 10000],
-  ['ai-0712', 'ai-0707', 0.9967, 10000],
+  ['ai-0808', 'ai-0802', 0.5178, 10000],
+  ['ai-0809', 'ai-0802', 0.5532, 10000],
+  ['ai-0809', 'ai-0808', 0.5314, 10000],
+  ['ai', 'ai-0808', 0.5493, 10000],
+  ['ai', 'ai-0809', 0.5176, 10000],
+  ['ai', 'ai-0802', 0.5725, 10000],
 ];
 
-/** 用户给定值（ai 为基准 1000，其余为报告中的 Elo 分）。 */
+/** 用户给定值（仅锚点策略 = 1000；其余策略为求解对象，显示重算值本身）。 */
 const GIVEN: Record<string, number> = {
-  ai: 1000,
-  'ai-0801': 992.2,
-  'ai-0726': 988.1,
-  'ai-0719': 895.3,
-  'ai-0712': 463.6,
-  'ai-0707': -528.5,
+  'ai-0802': 1000,
 };
 
-const ANCHOR = 'ai';
+const ANCHOR = 'ai-0802';
 
 function log10(x: number): number {
   return Math.log(x) / Math.LN10;
@@ -76,7 +79,7 @@ function fitWls(names: string[]): Map<string, number> {
   const Atb = new Array<number>(N).fill(0);
   for (const [a, b, p, n] of MATCHES) {
     const d = deltaFromWinRate(p);
-    // 方程：R_a − R_b = d。锚点 ai 的 R 固定为 1000，折入右侧：
+    // 方程：R_a − R_b = d。锚点策略的 R 固定为 1000，折入右侧：
     // x_a − x_b = d − 1000·(anchor_a − anchor_b)，解出的 x 即绝对 Elo。
     const i = a === ANCHOR ? -1 : freeIdx.get(a)!;
     const j = b === ANCHOR ? -1 : freeIdx.get(b)!;
@@ -103,12 +106,12 @@ function main(): void {
     console.log(`  ${a} vs ${b}: p̂=${p} n=${n}  ΔR=${d.toFixed(2)}`);
   }
 
-  console.log('\n=== 2. 加权最小二乘解（锚定 ai = 1000，权重 = n） ===');
+  console.log('\n=== 2. 加权最小二乘解（锚定 ANCHOR = 1000，权重 = n） ===');
   console.log('\n  策略     给定值    重算值   偏差');
   let maxDiff = 0;
   for (const name of names) {
-    const given = GIVEN[name];
     const got = ratings.get(name)!;
+    const given = GIVEN[name] ?? got; // 未给定（求解模式）→ 显示重算值本身
     const diff = Math.abs(given - got);
     maxDiff = Math.max(maxDiff, diff);
     console.log(`  ${name.padEnd(8)} ${given.toFixed(1).padStart(7)} ${got.toFixed(1).padStart(7)}  ${diff.toFixed(2).padStart(6)}`);
@@ -125,7 +128,7 @@ function main(): void {
     console.log(`  ${a} vs ${b}: 实测 p̂=${p.toFixed(4)}  预测=${pred.toFixed(4)}  残差 ΔR=${resid.toFixed(2)}`);
   }
 
-  console.log(`\n结论: ${ok ? '✓ 给定 Elo 分与加权最小二乘解一致（1 位小数舍入误差内）' : '✗ 不一致（偏差超出舍入容差）'}`);
+  console.log(`\n结论: ${ok ? '✓ 拟合完成（残差自洽）' : '✗ 拟合偏差超出容差'}`);
   process.exit(ok ? 0 : 1);
 }
 
