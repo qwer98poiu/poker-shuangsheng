@@ -709,3 +709,107 @@ describe('第三/四家：不能毙路径跨 40 台阶例外（selectFillers ful
     expect(r.cards.map(c => c.id)).toEqual(['D-10-1']); // full 分散加分
   });
 });
+
+// ================================================================
+// 第四家吊主单张：能盖过对手（无分墩）——最小单张 / 对子按"加分不拆对"优先级
+// ================================================================
+
+describe('第四家吊主单张：能盖过对手（无分墩）', () => {
+  const fourthCtx = () => ctxOf(cfgS2, {
+    myIndex: 3, playCount: 3, leadPlayerIndex: 0,
+    bestSoFar: { cards: [cc('S', 8, 900)], playerIndex: 2 },
+  });
+  // 领出 = ♠7 吊主单张；当前最大 = ♠8（对手，无分墩）
+  const lead: Card[] = [cc('S', 7, 900)];
+
+  it('最小能盖过是单张 → 出最小单张（♠J 而非更大的 ♠A）', () => {
+    const hand = [cc('S', 14, 0), cc('S', 11, 1)];
+    const r = aiFollowPlay(hand, lead, null, fourthCtx());
+    expect(r.cards.map(c => c.rank)).toEqual([11]);
+  });
+
+  it('最小能盖过是对子、更大单张类别更小（非分单 < 非分对）→ 不拆对，出更大单张', () => {
+    // 原 bug 场景：♠Q♠Q 对（A 以下主非分对，类别 12）+ ♠J 单（类别 11）
+    // 12 > 11 → 保留 ♠Q 对，出 ♠J
+    const hand = [cc('S', 12, 0), cc('S', 12, 1), cc('S', 11, 2)];
+    const r = aiFollowPlay(hand, lead, null, fourthCtx());
+    expect(r.cards.map(c => c.rank)).toEqual([11]);
+    checkFollow(r.cards, hand, lead, null, cfgS2);
+  });
+
+  it('最小能盖过是对子且类别更小（分对 10 < 非分单 11）→ 拆对盖过', () => {
+    // ♠10♠10 分对（类别 10）+ ♠J 单（类别 11）→ 10 < 11 → 拆 ♠10
+    const hand = [cc('S', 10, 0), cc('S', 10, 1), cc('S', 11, 2)];
+    const r = aiFollowPlay(hand, lead, null, fourthCtx());
+    expect(r.cards.map(c => c.rank)).toEqual([10]);
+    checkFollow(r.cards, hand, lead, null, cfgS2);
+  });
+
+  it('只有对子能盖过 → 拆对盖过', () => {
+    const hand = [cc('S', 12, 0), cc('S', 12, 1), cc('S', 5, 2)];
+    const r = aiFollowPlay(hand, lead, null, fourthCtx());
+    expect(r.cards.map(c => c.rank)).toEqual([12]);
+    checkFollow(r.cards, hand, lead, null, cfgS2);
+  });
+
+  it('同等级单张优先于对子（常主 ♥2 单 vs ♣2 对，不拆对）', () => {
+    const hand = [cc('H', 2, 0), cc('C', 2, 1), cc('C', 2, 2)];
+    const r = aiFollowPlay(hand, lead, null, fourthCtx());
+    expect(r.cards.map(c => c.rank)).toEqual([2]);
+    expect(r.cards.map(c => c.suit)).toEqual([Suit.Hearts]);
+    checkFollow(r.cards, hand, lead, null, cfgS2);
+  });
+
+  it('墩上有分同样按新规则：最小能盖过是单张（♠J）→ 出 ♠J 不拆 ♠Q 对', () => {
+    const ctx = ctxOf(cfgS2, {
+      myIndex: 3, playCount: 3, leadPlayerIndex: 0,
+      bestSoFar: { cards: [cc('S', 5, 901)], playerIndex: 2 }, // ♠5 分牌
+    });
+    const lead5: Card[] = [cc('S', 3, 902)];
+    const hand = [cc('S', 12, 0), cc('S', 12, 1), cc('S', 11, 2)];
+    const r = aiFollowPlay(hand, lead5, null, ctx);
+    expect(r.cards.map(c => c.rank)).toEqual([11]); // 出 ♠J
+    checkFollow(r.cards, hand, lead5, null, cfgS2);
+  });
+});
+
+// ================================================================
+// 第四家对子领出：含分最多优先 → 最小能盖过；尽量不拆拖拉机
+// ================================================================
+
+describe('第四家对子领出：能盖过对手', () => {
+  const ctxFor = (lead: Card[]) => ctxOf(cfgS2, {
+    myIndex: 3, playCount: 3, leadPlayerIndex: 0,
+    bestSoFar: { cards: [...lead], playerIndex: 2 },
+  });
+  const lead8: Card[] = [cc('S', 8, 100), cc('S', 8, 101)];
+
+  it('含分对子优先（10 对 20 分 > K 对 10 分）→ 出 ♠10 对', () => {
+    const hand = [cc('S', 10, 0), cc('S', 10, 1), cc('S', 13, 2), cc('S', 13, 3)];
+    const r = aiFollowPlay(hand, lead8, null, ctxFor(lead8));
+    expect(r.cards.map(c => c.rank).sort()).toEqual([10, 10]);
+    checkFollow(r.cards, hand, lead8, null, cfgS2);
+  });
+
+  it('无分对子 → 最小能盖过（♠J 对 < ♠Q 对）', () => {
+    const hand = [cc('S', 11, 0), cc('S', 11, 1), cc('S', 12, 2), cc('S', 12, 3)];
+    const r = aiFollowPlay(hand, lead8, null, ctxFor(lead8));
+    expect(r.cards.map(c => c.rank).sort()).toEqual([11, 11]);
+    checkFollow(r.cards, hand, lead8, null, cfgS2);
+  });
+
+  it('尽量不拆拖拉机：有拖拉机外对子（♠K 对）→ 选它而非 9/10 对', () => {
+    const hand = [cc('S', 9, 0), cc('S', 9, 1), cc('S', 10, 2), cc('S', 10, 3),
+      cc('S', 13, 4), cc('S', 13, 5)];
+    const r = aiFollowPlay(hand, lead8, null, ctxFor(lead8));
+    expect(r.cards.map(c => c.rank).sort()).toEqual([13, 13]);
+    checkFollow(r.cards, hand, lead8, null, cfgS2);
+  });
+
+  it('没得选（只有拖拉机内对子能盖过）→ 拆拖拉机出最小（无分拖拉机 J-Q）', () => {
+    const hand = [cc('S', 11, 0), cc('S', 11, 1), cc('S', 12, 2), cc('S', 12, 3)];
+    const r = aiFollowPlay(hand, lead8, null, ctxFor(lead8));
+    expect(r.cards.map(c => c.rank).sort()).toEqual([11, 11]);
+    checkFollow(r.cards, hand, lead8, null, cfgS2);
+  });
+});

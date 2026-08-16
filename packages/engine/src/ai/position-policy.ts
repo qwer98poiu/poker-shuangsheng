@@ -65,7 +65,7 @@ export function leadHasPoints(leadCombo: ComboClass, ctx: AIContext): boolean {
 
 export type DiscardMode = 'avoid' | 'open' | 'add' | 'full' | 'forbid';
 
-interface Unit {
+export interface Unit {
   kind: 'single' | 'pair';
   cards: Card[];
   card: Card;
@@ -74,7 +74,7 @@ interface Unit {
 }
 
 /** 相同 suit+rank 分组为单元：偶数成对（整对垫出不拆），奇数余单。 */
-function unitize(cards: Card[], ctx?: TrumpDeclaration): Unit[] {
+export function unitize(cards: Card[], ctx?: TrumpDeclaration): Unit[] {
   const groups = new Map<string, Card[]>();
   for (const c of cards) {
     const key = `${c.suit}-${c.rank}`;
@@ -122,7 +122,7 @@ export function maxEff(cards: Card[], config: TrumpDeclaration): Card {
 }
 
 /** 单元类别编号（小 = 先垫）。 */
-function catOf(u: Unit, mode: DiscardMode, ctx: TrumpDeclaration): number {
+export function catOf(u: Unit, mode: DiscardMode, ctx: TrumpDeclaration): number {
   const c = u.card;
   const tr = isTrump(c, ctx);
   const pts = isPointRank(c.rank);
