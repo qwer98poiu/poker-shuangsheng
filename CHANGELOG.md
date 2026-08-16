@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-16 23:51
+
+### 修复：庄家扣底后桌布闪现上一局最后一墩
+
+**问题**：上一局最后一墩结算后 `settledTrick` 保留；`startNewRound` 开新局时未重置（`lastTrickReview` 重置了，它漏了）——新局扣底完成进入 Playing、第一墩首张牌出现前，桌布按 `isSettled`（Playing + 无 trickPlays + settledTrick）显示上一局最后一墩（四方位牌 + 「赢家 👑 · N 分」），直到第一张牌出现或轮到人类领出才消失。
+
+**修复**：`startNewRound` 的 `set()` 补 `settledTrick: null`。新增复现测试：4-AI 完整打到 RoundEnd（settledTrick 非空）→ 自动开新局 → 断言清零。
+
+**新增 1 项测试**（gameStore.test.ts：1 项），引擎 723 项 + arena 65 项 + CLI 80 项 + client 96 项 = 964 项通过。
+
+- **影响文件**：`packages/client/src/store/gameStore.ts`、`packages/client/src/__tests__/gameStore.test.ts`
+
 ## 2026-08-16 23:26
 
 ### 修复第四家吊主选牌：最小能盖过是单张→出最小单张；是对子→按「加分不拆对」优先级决定拆对或出更大单张

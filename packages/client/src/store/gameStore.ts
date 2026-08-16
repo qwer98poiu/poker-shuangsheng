@@ -530,6 +530,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
       roundNumber: nextRound,
       teamLevels: newTeamLevels,
       matchOver: false,
+      // 上一局最后一墩的结算显示必须在开新局时清零：
+      // 否则扣底后进入 Playing、第一墩首张牌出现前，桌布会闪现上一局最后一墩
+      settledTrick: null,
     });
 
     get().runDealStep(deck);

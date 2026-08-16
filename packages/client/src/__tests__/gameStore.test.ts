@@ -265,3 +265,21 @@ describe('gameStore — suggestion selects cards / review auto-close / settled t
     expect(settledFrom(prev, mkGs(0, 2, false))).toBeNull();
   });
 });
+
+describe('gameStore — 局间 settledTrick 清零', () => {
+  it('新局开始后 settledTrick 为 null（扣底后不闪现上一局最后一墩）', async () => {
+    useGameStore.getState().startGame([true, true, true, true], false);
+    await waitFor(() => useGameStore.getState().gameState?.phase === 'round_end');
+
+    // RoundEnd：settledTrick 保留最后一墩结算
+    expect(useGameStore.getState().settledTrick).not.toBeNull();
+
+    // 自动开新局 → Dealing
+    await waitFor(() => useGameStore.getState().gameState?.phase === 'dealing');
+    expect(useGameStore.getState().roundNumber).toBe(1);
+
+    // Bug：startNewRound 未重置 → 扣底后进入 Playing、第一墩首张牌出现前
+    // CenterArea isSettled = playing && 无 trickPlays && settledTrick → 桌布闪现上一局最后一墩
+    expect(useGameStore.getState().settledTrick).toBeNull();
+  });
+});
