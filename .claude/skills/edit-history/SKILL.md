@@ -9,7 +9,7 @@
 1. **reset 前保证工作区干净**：`git status` 有未提交改动时**提醒用户，不操作**（不自动 stash——reset --hard 会丢改动）。用户自行处理后确认干净再继续。
 2. **reset 前先记下当前提交的哈希**：`git rev-parse HEAD` 记下原始 HEAD，最后用它与 `git diff --stat` 对比验证。
 3. **每次 cherry-pick / amend 后跑全量测试**：`npx vitest run packages/engine`、`packages/arena`、`packages/cli`、`packages/client` + 双包 `tsc --noEmit`——每个重放提交后验证，出错即可定位到该提交。
-4. **全部处理完后用 `git diff --stat <原始HEAD>` 验证最终影响文件**：与操作前的原始 HEAD 对比，确认整个区间的净变化正确（合并既不应丢失也不应新增文件）。
+4. **全部处理完后用 `git diff --stat <原始HEAD>` 验证最终影响文件**：与操作前的原始 HEAD 对比，确认整个区间的净变化正确（合并既不应丢失也不应新增文件）。**tree diff 只比文件不比时间**——重放/合并后另用 `git log --format='%h | %ai | %s' -3` 逐条核对 author date 与原提交一致（2026-08-16 实测：author date 丢失时 tree diff 仍为空）。
 
 ## 操作步骤
 
@@ -28,7 +28,10 @@ git diff --cached --stat        # ⑦ 提交前确认暂存区只含预期文件
 GIT_AUTHOR_DATE="$(git show -s --format=%ai <Xm>)" git commit  # ⑧ 合并提交；用户指定时间时取该提交 author date
 # ⑨ 全量测试（规则 3）
 git cherry-pick <Z1> <Z2> …     # ⑩ 逐个重放范围之后的提交（reset --hard 已把它们移出分支，
-                                #    reflog 可恢复；漏放会体现在步骤 ⑫ 的 diff 里），每个之后全量测试
+                                #    reflog 可恢复；漏放会体现在步骤 ⑫ 的 diff 里），每个之后全量测试。
+                                #    重放后要改内容（如 Changelog 引用修正）时：先 git cherry-pick <Z>
+                                #    （保留 author date）再 git commit --amend 修改——不要 --no-commit 后
+                                #    裸 git commit（= 新建提交，author date 变当前时间，见注意事项）
 git diff --stat <原始HEAD>      # ⑪ 与原始 HEAD 对比，验证净变化（规则 4）——应只差折叠后的 CHANGELOG
 git log --oneline --stat        # ⑫ 逐个提交确认内容正确
 ```
@@ -40,6 +43,7 @@ git log --oneline --stat        # ⑫ 逐个提交确认内容正确
 - **多提交合并用 `reset --hard <范围父>` + `cherry-pick --no-commit` 逐个应用，不用 `reset --soft`**：soft reset 暂存的是"当前树 vs 目标"的全部差异——目标与 HEAD 之间其他提交的改动全会被暂存（2026-08-16 实测）。cherry-pick 每个提交只带它自己的 diff。
 - **reset 目标必须是合并范围首个提交的父**：先 `git log --oneline <目标>..HEAD` 确认中间没有别的提交（曾把中间隔着亮主规则/docs 提交的 e66becb 当父，若直接提交会卷进它们的改动）。用户口述的哈希可能笔误/重复（"a408667 7857f66 7857f66"实为三个提交）——先列出核对。
 - **范围之后的提交必须重放**：`reset --hard` 会把它们移出分支（reflog 可恢复，如 8258072 分牌修复）——`git cherry-pick <原哈希>` 重放，保留原提交信息与作者时间；`git diff --stat <原始HEAD>` 若出现非 CHANGELOG 差异即漏放。
+- **`--no-commit` 后裸 `git commit` = 重新提交，不是重放**：裸 commit 的 author date = 当前时间，原提交时间丢失（2026-08-16 实测：重放 88bf258 时用它改 Changelog，13:47:19 变成 14:00:01，用户手动修复）。重放后要改内容：`git cherry-pick <Z>`（保留 author date）→ `git commit --amend` 修改；或 `--no-commit` + `GIT_AUTHOR_DATE="$(git show -s --format=%ai <Z>)" git commit`。
 - **合并多个提交为一时可用 `GIT_AUTHOR_DATE` 指定作者时间**：`GIT_AUTHOR_DATE="$(git show -s --format=%ai <被合并提交>)" git commit`，Changelog 条目时间同步（规则：Changelog 时间 ≈ 提交 author date）。
 - **CHANGELOG 是跨提交共享文件**：改前面提交的条目会让后面提交的 diff 上下文失效 → 重放冲突。把 Changelog 改动限定在目标提交自己的小节（多小节规则：只有最后一个小节写测试总数）；冲突时手动解决。
 - **`reset --hard` 丢弃工作区未提交改动**：操作前必须确认工作区干净（规则 1）——不干净时提醒用户自行处理，不自动 stash、不操作。
