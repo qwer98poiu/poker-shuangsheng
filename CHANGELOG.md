@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-16 10:18
+
+### 结算面板移除重复底牌：底牌只在桌布中央展示
+
+**问题**：一局结束后底牌在两处同时显示——桌布中央的 `.bottom-reveal`（含底牌分×倍率/抠底标注）与结算面板（`.round-result` 的 `.round-bottom`）重复渲染同一份底牌。
+
+**修复**：删除结算面板的 `.round-bottom` 底牌块（含 `bottom-cards` 渲染），底牌统一由桌布中央展示；结算面板保留胜负判定与闲家得分。实测注入 round_end 状态：`.bottom-reveal` 存在、`.round-bottom` 不存在、底牌 8 张仅一处。
+
+**无新增测试**，引擎 696 项 + arena 65 项 + CLI 80 项 + client 77 项 = 918 项通过。
+
+- **影响文件**：`packages/client/src/components/game/GameTable.tsx`
+
 ## 2026-08-16 10:07
 
 ### 左上角信息区改造：等级框（数值列左对齐、当庄高亮）+ 闲家得分 + 分牌；墩数移到桌布左上角

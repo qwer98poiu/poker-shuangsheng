@@ -340,14 +340,7 @@ const GameTable: React.FC = () => {
               )}
               {matchOver && <span>胜方: {declarerIdx % 2 === 0 ? '玩家1/AI-3' : 'AI-2/AI-4'} 队</span>}
             </div>
-            <div className="round-bottom">
-              <span className="bottom-label">底牌 (8张)</span>
-              <div className="bottom-cards">
-                {gameState.bottomCards.map(card => (
-                  <CardFace key={card.id} card={card} size="small" />
-                ))}
-              </div>
-            </div>
+            {/* 底牌统一在桌布中央展示（CenterArea bottom-reveal 含分×倍率/抠底标注），结算面板不再重复 */}
           </div>
         );
       })()}
