@@ -8,6 +8,7 @@ import type { GameState, Card } from '@poker/engine';
 import CardFace from '../cards/CardFace.js';
 import PlayerHand from './PlayerHand.js';
 import PlayerSeat from './PlayerSeat.js';
+import { revealPills } from './revealPanel.js';
 import CenterArea from './CenterArea.js';
 import ActionBar from './ActionBar.js';
 import { computePlayableIds, computeFollowPlan } from './playable.js';
@@ -259,37 +260,28 @@ const GameTable: React.FC = () => {
       {/* 固定 48px 槽位（常驻，内容可空）：亮主面板 / 出牌·扣底按键——
           手牌与桌布位置不随槽位内容出现/消失而变化（按钮 bar 相对手牌位置固定） */}
       <div className="table-actions">
-      {/* reveal panel for humans — dealing & reveal phases; 亮主即确认 */}
+      {/* reveal panel for humans — dealing & reveal phases：6 个胶囊框（NT 红 / nt 黑 / ♠♥♣♦），
+          无文字描述；框宽固定容纳两图标；不可亮置灰；无人亮主时只能单张亮（图标 1 → 自保 2） */}
       {(isRevealing || gameState.phase === GamePhase.Dealing) && !isSpectator && localPlayer.isHuman && (() => {
-        const opts = getRevealOptions(localPlayer.hand, gameState.currentLevel)
-          .filter(o => canOverride(gameState.currentReveal, {
-            playerIndex: localPlayerIndex, suit: o.suit, strength: o.strength,
-          }));
+        const pills = revealPills(localPlayer.hand, gameState.currentLevel, gameState.currentReveal, localPlayerIndex);
         return (
           <div className="reveal-panel" data-testid="reveal-panel">
-            <span className="reveal-hint">
-              {gameState.currentReveal
-                ? `${gameState.players[gameState.currentReveal.playerIndex].name} 亮主: ${gameState.currentReveal.suit ? suitLabel(gameState.currentReveal.suit) + rankLabel(gameState.currentLevel) : '无主'}${opts.length > 0 ? '（可反主）' : '（不可反）'}`
-                : '亮主：点选花色（或选无主）'}
-            </span>
-            {opts.map(o => (
+            {pills.map(p => (
               <button
-                // 大王NT/小王NT 同时可选时 suit 同为 null → key 需含 strength 区分（否则 React 重复 key 警告）
-                key={o.suit ?? `NT-${o.strength}`}
-                className={`reveal-btn ${o.suit === null ? (o.strength >= 4 ? 'reveal-nt nt-big' : 'reveal-nt nt-small') : ''}`}
-                data-testid={`reveal-btn-${o.suit ?? 'NT'}`}
-                onClick={() => humanReveal(o.suit)}
+                key={p.suit ?? p.label}
+                className={`reveal-pill${p.available ? '' : ' reveal-pill-off'}`}
+                data-testid={`reveal-btn-${p.suit ?? p.label}`}
+                disabled={!p.available}
+                onClick={() => humanReveal(p.suit)}
               >
-                {o.suit === null
-                  ? (o.strength >= 4 ? '大王NT' : '小王NT')
-                  : `${suitLabel(o.suit)} ${rankLabel(gameState.currentLevel)}${o.strength >= 2 ? ' (对)' : ''}`}
+                {/* 胶囊即图标容器：花色符号直接显示在胶囊上（无内部圆圈） */}
+                {Array.from({ length: p.icons }, (_, i) => (
+                  <span key={i} className={`reveal-sym${p.red ? ' red' : ''}${p.suit === null ? ' nt-text' : ''}`}>
+                    {p.label}
+                  </span>
+                ))}
               </button>
             ))}
-            {opts.length === 0 && (
-              <span className="reveal-wait">
-                {isRevealing ? '（无可亮/反选项，即将开始）' : '（发牌中，可亮主/反主）'}
-              </span>
-            )}
           </div>
         );
       })()}

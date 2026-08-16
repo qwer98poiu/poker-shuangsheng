@@ -1,8 +1,8 @@
 {
   "meta": {
-    "commit": "bdd52c2",
+    "commit": "2203eb2",
     "viewport": "1280x720",
-    "generatedAt": "2026-08-16T05:18:22.676Z"
+    "generatedAt": "2026-08-16T11:45:58.432Z"
   },
   "states": {
     "dealing": {
@@ -211,9 +211,9 @@
       "reveal-panel": {
         "top": 478,
         "bottom": 526,
-        "left": 526,
-        "right": 754,
-        "width": 229,
+        "left": 452,
+        "right": 828,
+        "width": 376,
         "height": 48
       },
       "play-btn": null,
@@ -449,9 +449,9 @@
       "reveal-panel": {
         "top": 478,
         "bottom": 526,
-        "left": 526,
-        "right": 754,
-        "width": 229,
+        "left": 452,
+        "right": 828,
+        "width": 376,
         "height": 48
       },
       "play-btn": null,

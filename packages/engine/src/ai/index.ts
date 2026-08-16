@@ -77,11 +77,13 @@ export function aiTryReveal(
     }
   }
 
+  // 亮主过程：无人亮主时只能单张亮（不直接亮一对，见 revealStrength）——
+  // 对级牌只用于反主（他人已亮单张）；单张亮主由下方单张分支处理
   for (const suit of SUIT_ORDER) {
     const levelCards = levelCardsOf(suit);
     if (levelCards.length >= 2) {
-      if (!currentReveal || currentReveal.strength < 2) {
-        return { suit, reason: `有${suitLabelCn(suit)}级牌对，亮主` };
+      if (currentReveal && currentReveal.strength < 2) {
+        return { suit, reason: `有${suitLabelCn(suit)}级牌对，反主` };
       }
     }
   }

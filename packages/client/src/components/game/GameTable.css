@@ -217,6 +217,21 @@
   color: #ffd740;
 }
 
+/* 主牌指示器的无主标注：大王（红）/ 小王（黑） */
+.nt-big {
+  color: #ff5252;
+  background: rgba(255, 82, 82, 0.18);
+  border-radius: 4px;
+  padding: 0 4px;
+}
+
+.nt-small {
+  color: #e0e0e0;
+  background: #3a3a3a;
+  border-radius: 4px;
+  padding: 0 4px;
+}
+
 .score-item {
   opacity: 0.8;
 }
@@ -496,7 +511,8 @@
   transform: translateY(-2px);
 }
 
-/* reveal panel — 固定行高 48px（与 action-bar/bottom-exchange 同一槽位） */
+/* reveal panel — 6 个胶囊框（NT 红 / nt 黑 / ♠♥♣♦），固定行高 48px 槽位；
+   框宽固定（容纳 2 个图标），左右两端弧形；不可亮整体置灰 */
 .reveal-panel {
   display: flex;
   gap: 8px;
@@ -508,58 +524,50 @@
   white-space: nowrap;
 }
 
-.reveal-hint {
-  font-size: 13px;
-  opacity: 0.8;
-  margin-right: 4px;
-}
-
-.reveal-btn {
-  padding: 6px 14px;
-  border: 1px solid rgba(255,255,255,0.3);
-  border-radius: 6px;
-  background: rgba(0,0,0,0.3);
-  color: #ffd740;
-  font-size: 13px;
+/* 胶囊即图标容器：白底（原圆圈的背景色），花色符号直接显示在胶囊上 */
+.reveal-pill {
+  width: 56px; /* 固定宽：1 个或 2 个图标都放得下，位置不随张数变化 */
+  height: 34px;
+  border-radius: 999px; /* 左右两端弧形 */
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  background: #f5f5f5;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
-.reveal-btn:disabled {
-  opacity: 0.3;
+.reveal-pill:not(:disabled):hover {
+  background: #ffffff;
+  border-color: rgba(255, 215, 0, 0.8);
+  box-shadow: 0 0 8px rgba(255, 215, 0, 0.3);
+}
+
+/* 不可亮：整体置灰 */
+.reveal-pill-off {
+  opacity: 0.35;
   cursor: not-allowed;
 }
 
-.reveal-btn:not(:disabled):hover {
-  background: rgba(255,215,0,0.2);
+/* 胶囊上的花色符号：♥♦ 与大王 NT 红色，♠♣ 与小王 nt 黑色。
+   字号统一 24px（尽量大）：2 个花色符号并排 2×24 + gap 4 = 52 ≤ 胶囊内宽 54；高度 24 ≤ 32 */
+.reveal-sym {
+  color: #212121;
+  font-size: 24px;
+  font-weight: bold;
+  line-height: 1;
 }
 
-.reveal-nt {
-  color: #ff9800;
+.reveal-sym.red {
+  color: #d32f2f;
 }
 
-/* 无主：大王（红 NT）/ 小王（黑 NT）区分 */
-.nt-big {
-  color: #ff5252;
-  background: rgba(255, 82, 82, 0.18);
-  border-radius: 4px;
-  padding: 0 4px;
-}
-
-.nt-small {
-  color: #e0e0e0;
-  background: #3a3a3a;
-  border-radius: 4px;
-  padding: 0 4px;
-}
-
-.reveal-pass-btn {
-  padding: 6px 14px;
-  border: 1px solid rgba(255,255,255,0.15);
-  border-radius: 6px;
-  background: transparent;
-  color: #999;
-  font-size: 13px;
-  cursor: pointer;
+/* 无主符号：大王 NT（红）/ 小王 nt（黑），与花色符号同字号 */
+.reveal-sym.nt-text {
+  font-family: 'Georgia', 'Noto Sans SC', serif;
+  letter-spacing: 0.02em;
 }
 
 /* 扣底含主牌：主按键变黄（不设二次确认，点击直接扣）+ 下方警告小字 */

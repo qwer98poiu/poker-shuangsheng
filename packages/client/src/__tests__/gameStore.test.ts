@@ -3,8 +3,11 @@ import { createCard, createInitialState, GamePhase, Suit } from '@poker/engine';
 import type { Card, GameState, PlayerState } from '@poker/engine';
 
 // Deterministic dev params (same derivation as src/dev.ts).
+// mockDev.seed 可在单个测试内临时切换（如 seed=9：P0 有对♠2 且 AI 无可亮牌）。
+const mockDev = vi.hoisted(() => ({ seed: 42 }));
 vi.mock('../dev.js', () => ({
-  devParams: { seed: 42, auto: false, speed: 8 },
+  // seed 用 getter：mock 工厂只在模块加载时求值一次，测试内改 mockDev.seed 需延迟读取
+  devParams: { get seed() { return mockDev.seed; }, auto: false, speed: 8 },
   seedFor: (seed: number, roundNumber: number) => (seed + roundNumber * 31) >>> 0,
 }));
 
@@ -71,6 +74,34 @@ describe('gameStore — human reveal flow', () => {
       return p === 'playing' || p === 'bottom_exchange' || p === 'round_end';
     });
     expect(useGameStore.getState().gameState?.phase).toBe('playing');
+  });
+
+  it('人类亮单张（有对可自保）→ 停留亮主阶段；再点自保成对 → 进入扣底', async () => {
+    mockDev.seed = 880; // P0 第 21 步拿到对♦2（AI 第 36 步才有第一张级牌，且全程无级牌对/无对王）
+    try {
+      useGameStore.getState().startGame([false, true, true, true], false);
+
+      // 发牌中 P0 拿到第二张 ♦2 后立刻亮单张（AI 尚无级牌 → 无人抢先亮）
+      await waitFor(() => useGameStore.getState().gameState!.players[0].hand
+        .filter(c => c.suit === Suit.Diamonds && c.rank === 2).length >= 2);
+      useGameStore.getState().humanReveal(Suit.Diamonds);
+      let gs = useGameStore.getState().gameState!;
+      expect(gs.currentReveal).toEqual({ playerIndex: 0, suit: Suit.Diamonds, strength: 1 }); // 不直接亮一对
+      expect(gs.phase).toBe(GamePhase.Dealing); // 发牌中：等发完；AI 无对/无对王不会反
+
+      // 发牌完成 → 亮主阶段：单张主保持，可自保（面板显示 2 图标）
+      await waitFor(() => useGameStore.getState().gameState?.phase === 'revealing');
+      expect(useGameStore.getState().gameState!.currentReveal)
+        .toEqual({ playerIndex: 0, suit: Suit.Diamonds, strength: 1 });
+
+      // 再点同花色 → 自保成对 → 亮主即确认进入扣底
+      useGameStore.getState().humanReveal(Suit.Diamonds);
+      gs = useGameStore.getState().gameState!;
+      expect(gs.currentReveal).toEqual({ playerIndex: 0, suit: Suit.Diamonds, strength: 2 });
+      expect(gs.phase).toBe(GamePhase.BottomExchange);
+    } finally {
+      mockDev.seed = 42;
+    }
   });
 
   it('人类亮主（对大王无主）→ 顶庄 → 33 张选 8 扣底 → 25 张出牌（真实种子流程）', async () => {

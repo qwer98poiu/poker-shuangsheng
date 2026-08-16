@@ -2,8 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { Suit, Rank } from '../types.js';
 import type { CardSuit } from '../types.js';
 import { createCard } from '../model.js';
-import { getRevealOptions, canOverride, finalize } from '../revealing/index.js';
+import {
+  getRevealOptions, canOverride, finalize, revealStrength, canSelfReinforce,
+} from '../revealing/index.js';
 import { aiTryReveal } from '../ai/index.js';
+import { tryReveal } from '../game/index.js';
 
 describe('Revealing — getRevealOptions', () => {
   it('returns NT with strength 4 for pair of BigJokers', () => {
@@ -49,6 +52,57 @@ describe('Revealing — getRevealOptions', () => {
     ], 5);
     const h = opts.find(o => o.suit === Suit.Hearts);
     expect(h!.strength).toBe(1);
+  });
+});
+
+describe('Revealing — revealStrength 亮主过程（无人亮主不直接亮一对）', () => {
+  it('无人亮主 + 单张级牌 → strength 1', () => {
+    expect(revealStrength(null, { suit: Suit.Spades, strength: 1, reason: '' })).toBe(1);
+  });
+
+  it('无人亮主 + 级牌对 → 仍为 1（只能单张亮，不直接亮一对）', () => {
+    expect(revealStrength(null, { suit: Suit.Spades, strength: 2, reason: '' })).toBe(1);
+  });
+
+  it('无人亮主 + 对王无主 → 保持 3/4（无主本身即一对）', () => {
+    expect(revealStrength(null, { suit: null, strength: 3, reason: '' })).toBe(3);
+    expect(revealStrength(null, { suit: null, strength: 4, reason: '' })).toBe(4);
+  });
+
+  it('已有人亮主 → 按选项力量（自保/反主用对子）', () => {
+    const cur = { playerIndex: 0, suit: Suit.Spades, strength: 1 };
+    expect(revealStrength(cur, { suit: Suit.Hearts, strength: 2, reason: '' })).toBe(2);
+    expect(revealStrength(cur, { suit: null, strength: 4, reason: '' })).toBe(4);
+  });
+});
+
+describe('Revealing — canSelfReinforce', () => {
+  const hand = (ids: [CardSuit, number][]) => ids.map(([s, i]) => createCard(s, 2, i));
+
+  it('自己单张主 + 手里还有同花色级牌对 → 可自保', () => {
+    const cur = { playerIndex: 1, suit: Suit.Spades, strength: 1 };
+    expect(canSelfReinforce(cur, hand([[Suit.Spades, 0], [Suit.Spades, 1]]), 2, 1)).toBe(true);
+  });
+
+  it('自己单张主 + 手里只有 1 张该级牌 → 不可自保', () => {
+    const cur = { playerIndex: 1, suit: Suit.Spades, strength: 1 };
+    expect(canSelfReinforce(cur, hand([[Suit.Spades, 0]]), 2, 1)).toBe(false);
+  });
+
+  it('无主（strength 3/4）不可自保（禁止自反）', () => {
+    expect(canSelfReinforce(
+      { playerIndex: 1, suit: null, strength: 3 },
+      [createCard('J' as any, Rank.BigJoker, 0), createCard('J' as any, Rank.BigJoker, 1)], 2, 1,
+    )).toBe(false);
+  });
+
+  it('别人的单张主 → 不是自保', () => {
+    const cur = { playerIndex: 0, suit: Suit.Spades, strength: 1 };
+    expect(canSelfReinforce(cur, hand([[Suit.Spades, 0], [Suit.Spades, 1]]), 2, 1)).toBe(false);
+  });
+
+  it('无人亮主 → false', () => {
+    expect(canSelfReinforce(null, hand([[Suit.Spades, 0]]), 2, 1)).toBe(false);
   });
 });
 
@@ -131,6 +185,34 @@ describe('Revealing — canOverride', () => {
   });
 });
 
+describe('Revealing — aiTryReveal 亮主过程（无人亮主不直接亮一对）', () => {
+  const pair = (s: CardSuit) => [createCard(s, 5, 0), createCard(s, 5, 1)];
+
+  it('无人亮主 + 对级牌 → 单张亮（不直接亮一对）', () => {
+    const r = aiTryReveal(pair(Suit.Hearts), [], 1, 5, null);
+    expect(r?.suit).toBe(Suit.Hearts);
+    expect(r!.reason).toContain('单张');
+  });
+
+  it('无人亮主 + 单张级牌 → 单张亮', () => {
+    const r = aiTryReveal([createCard(Suit.Clubs, 5, 0)], [], 1, 5, null);
+    expect(r?.suit).toBe(Suit.Clubs);
+    expect(r!.reason).toContain('单张');
+  });
+
+  it('无人亮主 + 对王 → 亮无主（无主本身即一对，不受单张限制）', () => {
+    const r = aiTryReveal(
+      [createCard('J' as any, Rank.SmallJoker, 0), createCard('J' as any, Rank.SmallJoker, 1)], [], 1, 5, null,
+    );
+    expect(r?.suit).toBeNull();
+  });
+
+  it('无人亮主 + 单张王 → 不亮（无主需对王）', () => {
+    const r = aiTryReveal([createCard('J' as any, Rank.BigJoker, 0)], [], 1, 5, null);
+    expect(r).toBeNull();
+  });
+});
+
 describe('Revealing — aiTryReveal 对子反主', () => {
   const pair = (s: CardSuit) => [createCard(s, 5, 0), createCard(s, 5, 1)];
 
@@ -177,5 +259,40 @@ describe('Revealing — aiTryReveal 对子反主', () => {
   it('别人亮单张，自己对子反（不受玩家限制）', () => {
     const r = aiTryReveal(pair(Suit.Hearts), [], 1, 5, { suit: Suit.Diamonds, strength: 1, playerIndex: 0 });
     expect(r?.suit).toBe(Suit.Hearts);
+  });
+});
+
+describe('tryReveal — 亮主过程（单张 → 自保，不直接亮一对）', () => {
+  const pair = [createCard(Suit.Spades, 5, 0), createCard(Suit.Spades, 5, 1)];
+  const mkState = (hand: typeof pair, currentReveal: any = null) => ({
+    players: [{ hand }, {}, {}, {}],
+    currentReveal,
+    currentLevel: 5,
+    reveals: [],
+  }) as any;
+
+  it('无人亮主 + 对级牌 → 亮单张（strength 1，不直接亮一对）', () => {
+    const s = tryReveal(mkState(pair), 0, Suit.Spades);
+    expect(s.currentReveal).toEqual({ playerIndex: 0, suit: Suit.Spades, strength: 1 });
+  });
+
+  it('再亮同花色 → 自保成对（strength 2）', () => {
+    const s1 = tryReveal(mkState(pair), 0, Suit.Spades);
+    const s2 = tryReveal(s1, 0, Suit.Spades);
+    expect(s2.currentReveal).toEqual({ playerIndex: 0, suit: Suit.Spades, strength: 2 });
+  });
+
+  it('无人亮主 + 对王 → 亮无主保持 3/4', () => {
+    const s = tryReveal(
+      mkState([createCard('J' as any, Rank.BigJoker, 0), createCard('J' as any, Rank.BigJoker, 1)]),
+      0, null,
+    );
+    expect(s.currentReveal).toEqual({ playerIndex: 0, suit: null, strength: 4 });
+  });
+
+  it('他人亮单张 → 自己反主用对子（strength 2）', () => {
+    const cur = { playerIndex: 1, suit: Suit.Hearts, strength: 1 };
+    const s = tryReveal(mkState(pair, cur), 0, Suit.Spades);
+    expect(s.currentReveal).toEqual({ playerIndex: 0, suit: Suit.Spades, strength: 2 });
   });
 });

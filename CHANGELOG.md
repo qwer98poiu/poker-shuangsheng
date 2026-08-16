@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-16 22:01
+
+### 亮主面板改为 6 个固定宽白底胶囊框；亮主过程修复：无人亮主时只能单张亮，可自保成对
+
+**问题**：亮主面板用文字按钮（"♠ 2 (对)"、"大王NT"）加提示文字，且手里有对级牌时可以直接亮一对——不符合"先单张亮、再自保成对"的亮主过程；面板每个胶囊框内有独立白色小圆片（圆圈），胶囊与圆圈两层结构冗余；花色与 NT/nt 字号不一致（14px / 11px）。
+
+**修复**：① 面板改为 6 个固定宽胶囊框（左右弧形）：大王 NT（红）/ 小王 nt（黑）/ ♠♥♣♦，取消全部文字描述；不可亮置灰；图标数统一——没人亮过一律 1 个，有人亮过一律 2 个（亮单张后变 2 个，表示可自保）；无主框恒为 1 个（只有两个字母）；② 引擎 `tryReveal`（新增 `revealStrength`）与 AI（`aiTryReveal`）同步修复亮主过程：无人亮主时有主花色只能单张亮（不直接亮一对），对子仅用于自保（自己同花色巩固）或反主（他人已亮）；无主（对王）不受限；③ 人类亮单张后可自保：亮单张后停留亮主阶段（无自保可能时仍"亮主即确认"立即进入扣底；可自保时等 3s 自动确认兜底），再点同花色成对后进入扣底；④ 去掉内部圆圈——胶囊本身用原圆圈的背景色（#f5f5f5 白底），花色符号直接显示在胶囊上（2 个符号并排同胶囊），符号字号统一 24px（实测 2 符号并排最宽 36px、NT 两字母 38px，均 ≤ 胶囊内宽 54px，无溢出）。实测：浏览器注入 4 种状态图标数与可用性全部正确；ui-player 完整一场 32 局 685 断言全绿。
+
+**新增 30 项测试**（revealing.test.ts：17 项；reveal-panel.test.ts：12 项；gameStore.test.ts：1 项），引擎 713 项 + arena 65 项 + CLI 80 项 + client 95 项 = 953 项通过。
+
+- **影响文件**：`packages/engine/src/revealing/index.ts`、`packages/engine/src/game/index.ts`、`packages/engine/src/ai/index.ts`、`packages/client/src/components/game/revealPanel.ts`（新增）、`packages/client/src/components/game/GameTable.tsx`、`packages/client/src/components/game/GameTable.css`、`packages/client/src/store/gameStore.ts`、`packages/client/src/__tests__/reveal-panel.test.ts`（新增）、`packages/client/scripts/ui-player.ts`、`packages/client/scripts/layout-baseline.json`
+
 ## 2026-08-16 13:46
 
 ### 新增布局回归检查脚本：改组件位置后自动验证其他组件不变

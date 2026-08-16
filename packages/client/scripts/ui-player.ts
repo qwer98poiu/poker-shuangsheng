@@ -146,7 +146,7 @@ async function doReveal(page: Page, timeoutMs: number): Promise<void> {
     const pick = opts[0];
     check(`r${snap.store!.roundNumber} reveal buttons in canvas`, true);
     console.error(`  reveal r${snap.store!.roundNumber}: click ${pick.suit ?? 'NT'}`);
-    await safeClick(page, `[data-testid="reveal-btn-${pick.suit ?? 'NT'}"]`);
+    await safeClick(page, `[data-testid="reveal-btn-${pick.suit ?? (pick.strength >= 4 ? 'NT' : 'nt')}"]`);
     await waitStateChange(page, sigOf(gs), 'reveal click', timeoutMs);
   } else {
     // 无可亮/反选项 → 1s 自动确认（无按钮可点）

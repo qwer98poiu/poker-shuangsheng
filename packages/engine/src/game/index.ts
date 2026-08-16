@@ -12,7 +12,7 @@ import { isTrump } from '../model.js';
 import { classify } from '../pattern/index.js';
 import { validateLead, validateThrow, resolveThrowFailure } from '../leading/index.js';
 import { validateFollow } from '../following/index.js';
-import { attemptReveal, finalize, getRevealOptions } from '../revealing/index.js';
+import { attemptReveal, finalize, getRevealOptions, revealStrength } from '../revealing/index.js';
 import { determineWinner } from '../comparing/index.js';
 import { accumulateAttackerPoints } from '../scoring/index.js';
 
@@ -25,8 +25,10 @@ export function tryReveal(state: GameState, playerIndex: number, suit: Suit | nu
   const opt = opts.find(o => o.suit === suit);
   if (!opt) return state;
 
+  // 亮主过程：无人亮主时只能单张亮（不直接亮一对）；对子仅自保/反主
+  const strength = revealStrength(state.currentReveal, opt);
   const { currentReveal, reveals } = attemptReveal(
-    state.currentReveal, state.reveals, playerIndex, suit, opt.strength,
+    state.currentReveal, state.reveals, playerIndex, suit, strength,
   );
   return { ...state, currentReveal, reveals };
 }

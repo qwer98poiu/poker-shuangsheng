@@ -39,6 +39,31 @@ export function getRevealOptions(hand: Card[], level: number): RevealOption[] {
 }
 
 /**
+ * 亮主过程的实际力量：无人亮主时有主花色只能单张亮（不直接亮一对），
+ * 对子仅用于自保（自己同花色巩固）或反主（他人已亮）；无主（对王）不受限。
+ */
+export function revealStrength(current: Reveal | null, opt: RevealOption): number {
+  if (!current && opt.suit !== null) return 1;
+  return opt.strength;
+}
+
+/**
+ * 亮主后能否继续自保：自己同花色单张主（strength 1）且手里还有该花色级牌对。
+ * 无主（suit null）不可自保（对小王→对大王视为自反，禁止）。
+ */
+export function canSelfReinforce(
+  current: Reveal | null,
+  hand: readonly Card[],
+  level: number,
+  playerIndex: number,
+): boolean {
+  if (!current) return false;
+  if (current.playerIndex !== playerIndex) return false;
+  if (current.suit === null || current.strength !== 1) return false;
+  return hand.filter(c => c.suit === current.suit && c.rank === level).length >= 2;
+}
+
+/**
  * Can candidate override current?
  * 自己不能反自己：自保仅限有主同花色巩固（单张→同花色对子）；
  * 无主不可自保（对小王→对大王视为自反，禁止）。其他人按力量反主。

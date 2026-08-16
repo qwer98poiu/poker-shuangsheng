@@ -3,7 +3,7 @@ import type { Card, GameState, PlayerState, Reveal, AIReason, Trick } from '@pok
 import {
   createFullDeck, shuffle,
   createInitialState, GamePhase,
-  tryReveal, finalizeReveal, playCards,
+  tryReveal, finalizeReveal, playCards, canSelfReinforce,
   computeRoundOutcome, advanceLevel,
   aiTryReveal, aiChooseBottomCards, aiLeadPlay, aiFollowPlay,
   buildAIContext,
@@ -311,9 +311,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
       gameState: revealed,
       message: rev ? `已亮主: ${rev.suit ? suitLabel(rev.suit) + rankLabel(revealed.currentLevel) : '无主'}` : '亮主阶段',
     });
-    // 亮主/反主即确认：亮主阶段直接进入扣底；发牌中等待发牌完成（AI 可能反主）
+    // 亮主即确认：无可自保（无主/无对/已是上限）→ 直接进入扣底；
+    // 单张亮后同花色手里还有对 → 停留等自保（面板显示 2 图标；GameTable 自动确认 3s 兜底）
     if (revealed.phase === GamePhase.Revealing) {
-      get().finalizeRevealAndBottom();
+      const canReinforce = canSelfReinforce(
+        rev, revealed.players[localPlayerIndex].hand, revealed.currentLevel, localPlayerIndex,
+      );
+      if (!canReinforce) get().finalizeRevealAndBottom();
     }
   },
 
