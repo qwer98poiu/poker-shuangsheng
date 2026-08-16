@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-16 12:44
+
+### 桌布左上角显示"局数/墩数"（1 起计数），位置与横幅底部对齐；等级框位置不变
+
+**问题**：左上角只有"墩数: N"且从 0 开始（`tricksPlayed` 为已完成墩数）；位置在桌布布局顶部，低于阶段横幅。初版把定位基准放在 `.center-area` 上，`position: relative` 劫持了 `.score-display`（等级框，`top: 8px / left: 12px` 原本锚定 `.game-table`），等级框整体下移到 `.center-area` 内部（top ≈ 100px）压到桌布上；回看上墩/底牌弹层（`top: 40%/50%`）同样被劫持。
+
+**修复**：① 改为"局数: x 墩数: x"——局数 = `roundNumber + 1`、墩数 = `tricksPlayed + 1`（均从 1 开始计数）；② 局数/墩数挂在 `.phase-banner` 内（横幅设 `position: relative` 作为唯一新增定位祖先），`bottom: 0` 使文字底部与横幅底部精确对齐（`line-height: 1` 避免继承横幅行高 28 造成字形悬空），`left: 0` 对齐横幅左缘。等级框与各弹层恢复锚定 `.game-table`，位置不变。实测：等级框回到画布左上（top 8 / left 12），局数/墩数底部 128 == 横幅底部 128（出牌阶段）、139 == 139（发牌阶段，无主牌指示器），桌布 top 150/139 不变。
+
+**无新增测试**，引擎 696 项 + arena 65 项 + CLI 80 项 + client 82 项 = 923 项通过。
+
+- **影响文件**：`packages/client/src/components/game/CenterArea.tsx`、`packages/client/src/components/game/GameTable.css`
+
 ## 2026-08-16 11:44
 
 ### 自保直接替换：亮主展示不再保留自保的旧单张（灰色）

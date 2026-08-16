@@ -144,6 +144,7 @@ interface CenterAreaProps {
 const CenterArea: React.FC<CenterAreaProps> = ({ gameState, lastTrickReview, onCloseReview, settledTrick = null }) => {
   const localPlayerIndex = useGameStore(s => s.localPlayerIndex);
   const teamLevels = useGameStore(s => s.teamLevels);
+  const roundNumber = useGameStore(s => s.roundNumber);
   const { phase, trumpDeclaration, attackerPoints, currentLevel, trickPlays, bottomCards, trickHistory } = gameState;
 
   const getPhaseText = () => {
@@ -156,7 +157,15 @@ const CenterArea: React.FC<CenterAreaProps> = ({ gameState, lastTrickReview, onC
 
   return (
     <div className="center-area">
-      <div className="phase-banner" data-testid="phase-banner">{getPhaseText()}</div>
+      <div className="phase-banner" data-testid="phase-banner">
+        {getPhaseText()}
+        {/* 局数/墩数：挂在横幅底部（bottom: 0 = 与横幅底边对齐，1 起计数）。
+            锚定 .phase-banner 而非 .center-area——不给 center-area 设定位祖先，
+            等级框/回看弹层仍锚定 .game-table，位置不变 */}
+        <span className="trick-count" data-testid="trick-count">
+          局数: {roundNumber + 1} 墩数: {gameState.tricksPlayed + 1}
+        </span>
+      </div>
 
       {trumpDeclaration && (
         <div className="trump-indicator" data-testid="trump-indicator">
@@ -261,8 +270,6 @@ const CenterArea: React.FC<CenterAreaProps> = ({ gameState, lastTrickReview, onC
         const showReveals = phase === GamePhase.Dealing || phase === GamePhase.Revealing;
         return (
           <div className="trick-position-layout" data-testid="trick-position-layout">
-            {/* 墩数：桌布左上角 */}
-            <span className="trick-count" data-testid="trick-count">墩数: {gameState.tricksPlayed}</span>
             {([0, 1, 2, 3] as const).map(rel => {
               const pi = (localPlayerIndex + rel) % 4;
               const pos = ['bottom', 'right', 'top', 'left'][rel];

@@ -165,6 +165,8 @@
 /* ===== center area ===== */
 
 .center-area {
+  /* 不设 position：局数/墩数锚定 .phase-banner，等级框（.score-display top 8 / left 12）
+     与回看/底牌弹层仍以 .game-table 为定位祖先，位置不随中心区布局变化 */
   background: rgba(0, 0, 0, 0.3);
   border-radius: 16px;
   padding: 8px 16px;
@@ -173,7 +175,21 @@
   overflow-y: auto; /* 内容超预算时滚动兜底 */
 }
 
+/* 局数/墩数：挂在横幅底部左缘（bottom: 0 = 与横幅底边精确对齐，无需文本高度估算；
+   left: 0 = 横幅左缘即 center-area 内容区左缘，与等级框同列）。
+   定位基准为 .phase-banner（唯一新增定位祖先，不劫持等级框的 .game-table 锚点） */
+.trick-count {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  font-size: 11px;
+  line-height: 1; /* 不继承横幅 line-height 28：盒高=字形高，文字紧贴横幅底边 */
+  opacity: 0.7;
+  z-index: 5;
+}
+
 .phase-banner {
+  position: relative; /* 局数/墩数定位基准 */
   font-size: 20px;
   font-weight: bold;
   padding: 2px 0;
@@ -252,17 +268,6 @@
   align-items: center;
   height: 262px;
   padding: 2px;
-  position: relative; /* 墩数标签定位基准（桌布左上角） */
-}
-
-/* 墩数：桌布左上角 */
-.trick-count {
-  position: absolute;
-  top: 2px;
-  left: 4px;
-  font-size: 11px;
-  opacity: 0.7;
-  z-index: 5;
 }
 
 .trick-pos {
