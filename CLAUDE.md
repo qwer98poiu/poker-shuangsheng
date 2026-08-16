@@ -96,6 +96,14 @@ Changelog 测试数行与提交信息不同——列出子包分项与总数；�
 - **不要从仓库根用 `npx vitest run <包路径>` 统计测试数**——positional filter 在存在多个 vitest.config.ts 时会混入其他包的测试（实测 `npx vitest run packages/cli` 混入 client 测试，127 ≠ 真实 80）
 - **Changelog 的测试总数**：各分项 = 对应包目录内 `vitest run` 输出的 `Tests N passed` 中的 N（四包 = engine + arena + CLI + client），四者之和为总数；统计时必须逐包在各自目录内跑，不能从根目录一次过滤
 
+## 布局回归检查
+
+- **用途**：修改任意 GUI 组件的位置后，验证其他所有组件位置不变（历史教训：给 `.center-area` 加 `position: relative` 导致等级框掉到桌布上——定位祖先被劫持）。
+- **用法**（vite dev server 需运行在 5199，浏览器 = 系统 Chrome）：
+  - 检查：`cd packages/client && npx tsx scripts/layout-regression.ts`——注入 6 个代表性阶段（发牌/亮主/扣底/出牌/甩 10 张/局末），测量 40 个关键组件的矩形，与基线 `scripts/layout-baseline.json` 比对；任一组件位移 >1px 时列出该组件及精确 delta，退出码 1。
+  - 生成基线：`npx tsx scripts/layout-regression.ts --snapshot`——**仅当人工确认当前布局正确时**执行；基线随代码提交，视口固定 1280×720。
+- **有意移动组件时**：人工确认全布局正确后重新 `--snapshot` 更新基线，再提交。
+
 ## 命名约定
 
 - **内部编号 P0-P3**：代码和测试中统一使用，P0=玩家1、P1=AI-2、P2=AI-3、P3=AI-4。不存在 P4。

@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-16 13:46
+
+### 新增布局回归检查脚本：改组件位置后自动验证其他组件不变
+
+**问题**：修改某个组件的位置后可能无意影响其他组件（如此前给 `.center-area` 加 `position: relative` 导致等级框掉到桌布上），每次人工逐项测量易遗漏。
+
+**修复**：新增 `packages/client/scripts/layout-regression.ts`——向运行中的 GUI 注入 6 个代表性阶段（发牌/亮主/扣底/出牌/甩 10 张/局末），逐一测量 40 个关键组件的矩形，与基线 `layout-baseline.json` 比对，列出所有位移超过 1px 的组件及精确 delta（有位移时退出码 1）。基线在人工确认布局正确后 `--snapshot` 生成并随代码提交；此后每次 GUI 布局改动后跑一次检查即可。实测：将 `.score-display` top 8→28 后，检查在全部 6 个阶段报出 score-display/level-box/score-item/score-points 位移 +20（桌布/手牌/按键未误报）；还原后通过。
+
+**无新增测试**，引擎 696 项 + arena 65 项 + CLI 80 项 + client 82 项 = 923 项通过。
+
+- **影响文件**：`packages/client/scripts/layout-regression.ts`、`packages/client/scripts/layout-baseline.json`
+
 ## 2026-08-16 12:44
 
 ### 桌布左上角显示"局数/墩数"（1 起计数），位置与横幅底部对齐；等级框位置不变
