@@ -55,6 +55,19 @@ export function isCurrentReveal(r: Reveal, current: Reveal | null): boolean {
     && r.strength === current.strength;
 }
 
+/**
+ * 亮主展示列表（输入 = successfulReveals 的成功链，按时间排序）：
+ * 自保（同一玩家同花色巩固，如 单♠2 → 对♠2）的旧记录被**直接替换**，不显示；
+ * 其余被反记录（不同玩家 / 不同花色）保留原位置灰。当前主总是显示。
+ */
+export function displayReveals(reveals: readonly Reveal[]): Reveal[] {
+  return reveals.filter((r, i) => {
+    if (i === reveals.length - 1) return true;
+    const next = reveals[i + 1];
+    return !(next.playerIndex === r.playerIndex && next.suit === r.suit);
+  });
+}
+
 export interface LevelBoxState {
   myLevel: number;
   oppLevel: number;
@@ -243,7 +256,7 @@ const CenterArea: React.FC<CenterAreaProps> = ({ gameState, lastTrickReview, onC
             ? gameState.leadPlayerIndex
             : (settledTrick?.leadPlayerIndex ?? gameState.leadPlayerIndex))
           : 0;
-        const goodReveals = successfulReveals(gameState.reveals);
+        const goodReveals = displayReveals(successfulReveals(gameState.reveals));
         // 亮主牌只在发牌/亮主阶段展示：庄家拿到底牌后全部收回（扣底/出牌阶段不再显示）
         const showReveals = phase === GamePhase.Dealing || phase === GamePhase.Revealing;
         return (

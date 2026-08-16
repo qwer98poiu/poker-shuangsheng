@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { Reveal } from '@poker/engine';
-import { successfulReveals, isCurrentReveal, revealDisplayCards } from '../components/game/CenterArea.js';
+import { successfulReveals, displayReveals, isCurrentReveal, revealDisplayCards } from '../components/game/CenterArea.js';
 
 const rev = (playerIndex: number, suit: string | null, strength: number): Reveal =>
   ({ playerIndex, suit: suit as any, strength });
@@ -71,5 +71,33 @@ describe('revealDisplayCards — 亮主展示牌（单张 1 张、对牌 2 张�
     const cards = revealDisplayCards(rev(1, null, 4), 2);
     expect(cards).toHaveLength(2);
     expect(cards.every(c => c.isJoker && c.rank === 16)).toBe(true);
+  });
+});
+
+describe('displayReveals — 自保直接替换，其余被反保留', () => {
+  it('空/单条 → 原样', () => {
+    expect(displayReveals([])).toEqual([]);
+    const r = rev(0, 'S', 1);
+    expect(displayReveals([r])).toEqual([r]);
+  });
+
+  it('自保（单♠2 → 对♠2 同玩家同花色）→ 旧记录不显示，只留对子', () => {
+    const single = rev(0, 'S', 1), pair = rev(0, 'S', 2);
+    expect(displayReveals([single, pair])).toEqual([pair]);
+  });
+
+  it('反主（不同玩家不同花色）→ 两条都显示（旧记录置灰）', () => {
+    const a = rev(0, 'S', 1), b = rev(2, 'H', 2);
+    expect(displayReveals([a, b])).toEqual([a, b]);
+  });
+
+  it('同花色异玩家反主（P0 单♠2 → P2 对♠2）→ 非自保，单张保留置灰', () => {
+    const a = rev(0, 'S', 1), b = rev(2, 'S', 2);
+    expect(displayReveals([a, b])).toEqual([a, b]);
+  });
+
+  it('链：单♠2 自保成对 → 被 P2 反 → 只显示对♠2（灰）+ 当前主', () => {
+    const single = rev(0, 'S', 1), pair = rev(0, 'S', 2), nt = rev(2, null, 4);
+    expect(displayReveals([single, pair, nt])).toEqual([pair, nt]);
   });
 });
