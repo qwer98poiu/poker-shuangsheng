@@ -55,6 +55,31 @@ export function isCurrentReveal(r: Reveal, current: Reveal | null): boolean {
     && r.strength === current.strength;
 }
 
+export interface LevelBoxState {
+  myLevel: number;
+  oppLevel: number;
+  /** 我方当庄（本家所在队为庄家队）——等级框对应行高亮 */
+  myActive: boolean;
+  oppActive: boolean;
+}
+
+/** 左上角等级框状态：我方/对方等级 + 哪一方当庄（team = index % 2；declarerIndex null = 未定，不高亮）。 */
+export function levelBoxState(
+  teamLevels: readonly [number, number],
+  localPlayerIndex: number,
+  declarerIndex: number | null,
+): LevelBoxState {
+  const myTeam = localPlayerIndex % 2;
+  const oppTeam = 1 - myTeam;
+  const declarerTeam = declarerIndex === null ? null : declarerIndex % 2;
+  return {
+    myLevel: teamLevels[myTeam],
+    oppLevel: teamLevels[oppTeam],
+    myActive: declarerTeam === myTeam,
+    oppActive: declarerTeam === oppTeam,
+  };
+}
+
 /**
  * 亮主展示牌：单张亮 1 张级牌，对级牌/对王亮 2 张（牌面相同）；
  * 无主 = 对大王（strength 4）/ 对小王（strength 3），均 2 张王。
@@ -105,6 +130,7 @@ interface CenterAreaProps {
 
 const CenterArea: React.FC<CenterAreaProps> = ({ gameState, lastTrickReview, onCloseReview, settledTrick = null }) => {
   const localPlayerIndex = useGameStore(s => s.localPlayerIndex);
+  const teamLevels = useGameStore(s => s.teamLevels);
   const { phase, trumpDeclaration, attackerPoints, currentLevel, trickPlays, bottomCards, trickHistory } = gameState;
 
   const getPhaseText = () => {
@@ -151,11 +177,24 @@ const CenterArea: React.FC<CenterAreaProps> = ({ gameState, lastTrickReview, onC
       )}
 
       <div className="score-display" data-testid="score-display">
-        <div className="score-line">
-          <span className="score-item">级别: {rankLabel(currentLevel)}</span>
-          <span className="score-item">闲家得分: {attackerPoints}</span>
-          <span className="score-item">墩数: {gameState.tricksPlayed}</span>
-        </div>
+        {/* 等级框：我方/对方等级，当庄一方高亮 */}
+        {(() => {
+          const lb = levelBoxState(teamLevels, localPlayerIndex,
+            gameState.trumpDeclaration?.declarerIndex ?? gameState.declarerIndex);
+          return (
+            <div className="level-box" data-testid="level-box">
+              <div className={`level-row${lb.myActive ? ' level-active' : ''}`} data-testid="level-my">
+                <span className="level-label">我方等级</span>
+                <span className="level-value">{rankLabel(lb.myLevel)}</span>
+              </div>
+              <div className={`level-row${lb.oppActive ? ' level-active' : ''}`} data-testid="level-opp">
+                <span className="level-label">对方等级</span>
+                <span className="level-value">{rankLabel(lb.oppLevel)}</span>
+              </div>
+            </div>
+          );
+        })()}
+        <span className="score-item">闲家得分: {attackerPoints}</span>
         {(() => {
           // 闲家已获得的分牌：一行 5 张，10/K 档在前、5 在后，同档按花色 SHCD
           const declarerIdx = gameState.trumpDeclaration?.declarerIndex ?? gameState.declarerIndex;
@@ -209,6 +248,8 @@ const CenterArea: React.FC<CenterAreaProps> = ({ gameState, lastTrickReview, onC
         const showReveals = phase === GamePhase.Dealing || phase === GamePhase.Revealing;
         return (
           <div className="trick-position-layout" data-testid="trick-position-layout">
+            {/* 墩数：桌布左上角 */}
+            <span className="trick-count" data-testid="trick-count">墩数: {gameState.tricksPlayed}</span>
             {([0, 1, 2, 3] as const).map(rel => {
               const pi = (localPlayerIndex + rel) % 4;
               const pos = ['bottom', 'right', 'top', 'left'][rel];

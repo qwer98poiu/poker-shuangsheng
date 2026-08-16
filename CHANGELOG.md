@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-16 10:07
+
+### 左上角信息区改造：等级框（数值列左对齐、当庄高亮）+ 闲家得分 + 分牌；墩数移到桌布左上角
+
+**问题**：左上角只显示"级别: X 闲家得分: N 墩数: M"一行，看不出双方等级与当庄方；等级数值紧跟标签（"我方等级 5"）未显式成列。
+
+**修复**：① 新增等级框（`.level-box`）：两行"我方等级 5 / 对方等级 3"（team = index % 2，`levelBoxState` 纯函数计算），标签定宽（`.level-label` 56px）数值列左对齐，当前当庄一方高亮（金色加粗 + 淡金底；trumpDeclaration 未定时按预定庄家 declarerIndex 高亮，null 不高亮）；② 等级框下方"闲家得分: 35"（样式不变），再下方分牌展示（样式不变）；③ "墩数: N"移到桌布（`.trick-position-layout`）左上角（`.trick-count` 绝对定位）。实测注入 declarer 3（队 1）+ teamLevels [5,3]：对方等级高亮、闲家得分在框下、墩数: 7 在桌布左上角；等级 10 与 3 数值同列（x=89）。
+
+**新增 6 项测试**（level-box.test.ts：6 项），引擎 696 项 + arena 65 项 + CLI 80 项 + client 77 项 = 918 项通过。
+
+- **影响文件**：`packages/client/src/components/game/CenterArea.tsx`、`packages/client/src/components/game/GameTable.css`、`packages/client/src/__tests__/level-box.test.ts`
+
 ## 2026-08-16 00:29
 
 ### 闲家分牌移到分数行正下方，保持自然宽度

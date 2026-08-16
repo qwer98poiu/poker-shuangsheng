@@ -10,7 +10,7 @@
   overflow: hidden;
 }
 
-/* 闲家得分固定在左上角（小一号）；分牌在分数行正下方（独立行，自然宽度） */
+/* 左上角信息区：等级框 + 闲家得分 + 分牌（小一号） */
 .score-display {
   position: absolute;
   top: 8px;
@@ -26,10 +26,36 @@
   border-radius: 6px;
 }
 
-/* 分数行（级别/闲家得分/墩数）横向排列 */
-.score-line {
+/* 等级框：我方/对方等级两行，当庄一方高亮（金色加粗 + 淡金底） */
+.level-box {
   display: flex;
-  gap: 12px;
+  flex-direction: column;
+  gap: 2px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 4px 10px;
+  margin-bottom: 2px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.level-row {
+  display: flex;
+}
+
+/* 标签定宽（4 汉字 ≈ 52px）：等级数值在同一竖列左对齐 */
+.level-label {
+  width: 56px;
+}
+
+.level-row.level-active {
+  color: #ffd740;
+  font-weight: bold;
+  background: rgba(255, 215, 0, 0.15);
+  border-radius: 4px;
+  padding: 0 4px;
+  margin: 0 -4px;
 }
 
 /* top section — 固定 58px */
@@ -226,6 +252,17 @@
   align-items: center;
   height: 262px;
   padding: 2px;
+  position: relative; /* 墩数标签定位基准（桌布左上角） */
+}
+
+/* 墩数：桌布左上角 */
+.trick-count {
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  font-size: 11px;
+  opacity: 0.7;
+  z-index: 5;
 }
 
 .trick-pos {
