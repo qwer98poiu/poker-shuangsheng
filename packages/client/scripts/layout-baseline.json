@@ -1,8 +1,8 @@
 {
   "meta": {
-    "commit": "2203eb2",
+    "commit": "65ffa70",
     "viewport": "1280x720",
-    "generatedAt": "2026-08-16T11:45:58.432Z"
+    "generatedAt": "2026-08-17T12:43:22.125Z"
   },
   "states": {
     "dealing": {
@@ -232,12 +232,12 @@
         "height": 720
       },
       "center-area": {
-        "top": 92,
-        "bottom": 420,
+        "top": 103,
+        "bottom": 409,
         "left": 390,
         "right": 890,
         "width": 500,
-        "height": 328
+        "height": 306
       },
       "table-top": {
         "top": 0,
@@ -336,24 +336,17 @@
         "height": 110
       },
       "banner": {
-        "top": 100,
-        "bottom": 128,
+        "top": 111,
+        "bottom": 139,
         "left": 406,
         "right": 874,
         "width": 468,
         "height": 28
       },
-      "trump-indicator": {
-        "top": 128,
-        "bottom": 150,
-        "left": 406,
-        "right": 874,
-        "width": 468,
-        "height": 22
-      },
+      "trump-indicator": null,
       "trick-count": {
-        "top": 117,
-        "bottom": 128,
+        "top": 128,
+        "bottom": 139,
         "left": 406,
         "right": 476,
         "width": 70,
@@ -385,40 +378,40 @@
       },
       "score-points": null,
       "tablecloth": {
-        "top": 150,
-        "bottom": 412,
+        "top": 139,
+        "bottom": 401,
         "left": 406,
         "right": 874,
         "width": 468,
         "height": 262
       },
       "pos-bottom": {
-        "top": 324,
-        "bottom": 410,
+        "top": 313,
+        "bottom": 399,
         "left": 615,
         "right": 665,
         "width": 50,
         "height": 86
       },
       "pos-left": {
-        "top": 238,
-        "bottom": 324,
+        "top": 227,
+        "bottom": 313,
         "left": 475,
         "right": 496,
         "width": 21,
         "height": 86
       },
       "pos-top": {
-        "top": 152,
-        "bottom": 238,
+        "top": 141,
+        "bottom": 227,
         "left": 589,
         "right": 691,
         "width": 102,
         "height": 86
       },
       "pos-right": {
-        "top": 238,
-        "bottom": 324,
+        "top": 227,
+        "bottom": 313,
         "left": 784,
         "right": 805,
         "width": 21,
@@ -429,8 +422,8 @@
       "pos-top-cards": null,
       "pos-right-cards": null,
       "pos-bottom-reveal": {
-        "top": 340,
-        "bottom": 410,
+        "top": 329,
+        "bottom": 399,
         "left": 615,
         "right": 665,
         "width": 50,
@@ -438,8 +431,8 @@
       },
       "pos-left-reveal": null,
       "pos-top-reveal": {
-        "top": 168,
-        "bottom": 238,
+        "top": 157,
+        "bottom": 227,
         "left": 589,
         "right": 691,
         "width": 102,
@@ -470,12 +463,12 @@
         "height": 720
       },
       "center-area": {
-        "top": 92,
-        "bottom": 420,
+        "top": 103,
+        "bottom": 409,
         "left": 390,
         "right": 890,
         "width": 500,
-        "height": 328
+        "height": 306
       },
       "table-top": {
         "top": 0,
@@ -574,24 +567,17 @@
         "height": 110
       },
       "banner": {
-        "top": 100,
-        "bottom": 128,
+        "top": 111,
+        "bottom": 139,
         "left": 406,
         "right": 874,
         "width": 468,
         "height": 28
       },
-      "trump-indicator": {
-        "top": 128,
-        "bottom": 150,
-        "left": 406,
-        "right": 874,
-        "width": 468,
-        "height": 22
-      },
+      "trump-indicator": null,
       "trick-count": {
-        "top": 117,
-        "bottom": 128,
+        "top": 128,
+        "bottom": 139,
         "left": 406,
         "right": 476,
         "width": 70,
@@ -623,40 +609,40 @@
       },
       "score-points": null,
       "tablecloth": {
-        "top": 150,
-        "bottom": 412,
+        "top": 139,
+        "bottom": 401,
         "left": 406,
         "right": 874,
         "width": 468,
         "height": 262
       },
       "pos-bottom": {
-        "top": 324,
-        "bottom": 410,
+        "top": 313,
+        "bottom": 399,
         "left": 628,
         "right": 652,
         "width": 24,
         "height": 86
       },
       "pos-left": {
-        "top": 238,
-        "bottom": 324,
+        "top": 227,
+        "bottom": 313,
         "left": 475,
         "right": 496,
         "width": 21,
         "height": 86
       },
       "pos-top": {
-        "top": 152,
-        "bottom": 238,
+        "top": 141,
+        "bottom": 227,
         "left": 629,
         "right": 650,
         "width": 21,
         "height": 86
       },
       "pos-right": {
-        "top": 238,
-        "bottom": 324,
+        "top": 227,
+        "bottom": 313,
         "left": 784,
         "right": 805,
         "width": 21,
@@ -708,12 +694,12 @@
         "height": 720
       },
       "center-area": {
-        "top": 92,
-        "bottom": 420,
+        "top": 103,
+        "bottom": 409,
         "left": 390,
         "right": 890,
         "width": 500,
-        "height": 328
+        "height": 306
       },
       "table-top": {
         "top": 0,
@@ -812,24 +798,17 @@
         "height": 110
       },
       "banner": {
-        "top": 100,
-        "bottom": 128,
+        "top": 111,
+        "bottom": 139,
         "left": 406,
         "right": 874,
         "width": 468,
         "height": 28
       },
-      "trump-indicator": {
-        "top": 128,
-        "bottom": 150,
-        "left": 406,
-        "right": 874,
-        "width": 468,
-        "height": 22
-      },
+      "trump-indicator": null,
       "trick-count": {
-        "top": 117,
-        "bottom": 128,
+        "top": 128,
+        "bottom": 139,
         "left": 406,
         "right": 480,
         "width": 74,
@@ -861,72 +840,72 @@
       },
       "score-points": null,
       "tablecloth": {
-        "top": 150,
-        "bottom": 412,
+        "top": 139,
+        "bottom": 401,
         "left": 406,
         "right": 874,
         "width": 468,
         "height": 262
       },
       "pos-bottom": {
-        "top": 324,
-        "bottom": 410,
+        "top": 313,
+        "bottom": 399,
         "left": 628,
         "right": 652,
         "width": 24,
         "height": 86
       },
       "pos-left": {
-        "top": 238,
-        "bottom": 324,
+        "top": 227,
+        "bottom": 313,
         "left": 460,
         "right": 510,
         "width": 50,
         "height": 86
       },
       "pos-top": {
-        "top": 152,
-        "bottom": 238,
+        "top": 141,
+        "bottom": 227,
         "left": 615,
         "right": 665,
         "width": 50,
         "height": 86
       },
       "pos-right": {
-        "top": 238,
-        "bottom": 324,
+        "top": 227,
+        "bottom": 313,
         "left": 770,
         "right": 820,
         "width": 50,
         "height": 86
       },
       "pos-bottom-cards": {
-        "top": 340,
-        "bottom": 390,
+        "top": 329,
+        "bottom": 379,
         "left": 640,
         "right": 640,
         "width": 0,
         "height": 50
       },
       "pos-left-cards": {
-        "top": 254,
-        "bottom": 324,
+        "top": 243,
+        "bottom": 313,
         "left": 460,
         "right": 510,
         "width": 50,
         "height": 70
       },
       "pos-top-cards": {
-        "top": 168,
-        "bottom": 238,
+        "top": 157,
+        "bottom": 227,
         "left": 615,
         "right": 665,
         "width": 50,
         "height": 70
       },
       "pos-right-cards": {
-        "top": 254,
-        "bottom": 324,
+        "top": 243,
+        "bottom": 313,
         "left": 770,
         "right": 820,
         "width": 50,
@@ -967,12 +946,12 @@
         "height": 720
       },
       "center-area": {
-        "top": 92,
-        "bottom": 420,
+        "top": 103,
+        "bottom": 409,
         "left": 390,
         "right": 890,
         "width": 500,
-        "height": 328
+        "height": 306
       },
       "table-top": {
         "top": 0,
@@ -1071,24 +1050,17 @@
         "height": 110
       },
       "banner": {
-        "top": 100,
-        "bottom": 128,
+        "top": 111,
+        "bottom": 139,
         "left": 406,
         "right": 874,
         "width": 468,
         "height": 28
       },
-      "trump-indicator": {
-        "top": 128,
-        "bottom": 150,
-        "left": 406,
-        "right": 874,
-        "width": 468,
-        "height": 22
-      },
+      "trump-indicator": null,
       "trick-count": {
-        "top": 117,
-        "bottom": 128,
+        "top": 128,
+        "bottom": 139,
         "left": 406,
         "right": 480,
         "width": 74,
@@ -1120,72 +1092,72 @@
       },
       "score-points": null,
       "tablecloth": {
-        "top": 150,
-        "bottom": 412,
+        "top": 139,
+        "bottom": 401,
         "left": 406,
         "right": 874,
         "width": 468,
         "height": 262
       },
       "pos-bottom": {
-        "top": 324,
-        "bottom": 410,
+        "top": 313,
+        "bottom": 399,
         "left": 565,
         "right": 714,
         "width": 149,
         "height": 86
       },
       "pos-left": {
-        "top": 238,
-        "bottom": 324,
+        "top": 227,
+        "bottom": 313,
         "left": 475,
         "right": 496,
         "width": 21,
         "height": 86
       },
       "pos-top": {
-        "top": 152,
-        "bottom": 238,
+        "top": 141,
+        "bottom": 227,
         "left": 629,
         "right": 650,
         "width": 21,
         "height": 86
       },
       "pos-right": {
-        "top": 238,
-        "bottom": 324,
+        "top": 227,
+        "bottom": 313,
         "left": 784,
         "right": 805,
         "width": 21,
         "height": 86
       },
       "pos-bottom-cards": {
-        "top": 340,
-        "bottom": 410,
+        "top": 329,
+        "bottom": 399,
         "left": 565,
         "right": 714,
         "width": 149,
         "height": 70
       },
       "pos-left-cards": {
-        "top": 254,
-        "bottom": 304,
+        "top": 243,
+        "bottom": 293,
         "left": 485,
         "right": 485,
         "width": 0,
         "height": 50
       },
       "pos-top-cards": {
-        "top": 168,
-        "bottom": 218,
+        "top": 157,
+        "bottom": 207,
         "left": 640,
         "right": 640,
         "width": 0,
         "height": 50
       },
       "pos-right-cards": {
-        "top": 254,
-        "bottom": 304,
+        "top": 243,
+        "bottom": 293,
         "left": 795,
         "right": 795,
         "width": 0,
@@ -1212,12 +1184,12 @@
         "height": 720
       },
       "center-area": {
-        "top": 164,
-        "bottom": 349,
+        "top": 175,
+        "bottom": 338,
         "left": 390,
         "right": 890,
         "width": 500,
-        "height": 185
+        "height": 163
       },
       "table-top": {
         "top": 0,
@@ -1316,24 +1288,17 @@
         "height": 110
       },
       "banner": {
-        "top": 172,
-        "bottom": 200,
+        "top": 183,
+        "bottom": 211,
         "left": 406,
         "right": 874,
         "width": 468,
         "height": 28
       },
-      "trump-indicator": {
-        "top": 200,
-        "bottom": 222,
-        "left": 406,
-        "right": 874,
-        "width": 468,
-        "height": 22
-      },
+      "trump-indicator": null,
       "trick-count": {
-        "top": 189,
-        "bottom": 200,
+        "top": 200,
+        "bottom": 211,
         "left": 406,
         "right": 485,
         "width": 79,
@@ -1389,8 +1354,8 @@
       "review-btn": null,
       "action-warn": null,
       "bottom-reveal": {
-        "top": 234,
-        "bottom": 341,
+        "top": 223,
+        "bottom": 330,
         "left": 406,
         "right": 874,
         "width": 468,

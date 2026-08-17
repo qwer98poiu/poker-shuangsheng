@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Reveal } from '@poker/engine';
 import { successfulReveals, displayReveals, isCurrentReveal, revealDisplayCards } from '../components/game/CenterArea.js';
+import { finalRevealChip } from '../components/game/PlayerSeat.js';
 
 const rev = (playerIndex: number, suit: string | null, strength: number): Reveal =>
   ({ playerIndex, suit: suit as any, strength });
@@ -99,5 +100,23 @@ describe('displayReveals — 自保直接替换，其余被反保留', () => {
   it('链：单♠2 自保成对 → 被 P2 反 → 只显示对♠2（灰）+ 当前主', () => {
     const single = rev(0, 'S', 1), pair = rev(0, 'S', 2), nt = rev(2, null, 4);
     expect(displayReveals([single, pair, nt])).toEqual([pair, nt]);
+  });
+});
+
+describe('finalRevealChip — 最终亮主小牌（替代主牌指示器）', () => {
+  it('有主单张：级牌+花色（2♠ 黑），1 张', () => {
+    expect(finalRevealChip(rev(0, 'S', 1), 2)).toEqual({ label: '2♠', red: false, count: 1 });
+  });
+
+  it('有主对子：级牌+花色（5♥ 红），显示两张', () => {
+    expect(finalRevealChip(rev(2, 'H', 2), 5)).toEqual({ label: '5♥', red: true, count: 2 });
+  });
+
+  it('无主对大王（strength 4）→ JO 红，两张', () => {
+    expect(finalRevealChip(rev(1, null, 4), 2)).toEqual({ label: 'JO', red: true, count: 2 });
+  });
+
+  it('无主对小王（strength 3）→ jo 黑，两张', () => {
+    expect(finalRevealChip(rev(3, null, 3), 2)).toEqual({ label: 'jo', red: false, count: 2 });
   });
 });

@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-08-17 20:43
+
+### 主牌信息改为亮主玩家座位旁的小号最终亮主牌，移除"主牌:"指示器
+
+**问题**：桌布上方一直显示"主牌: ♠ 2 庄家: XXX"文字指示器；亮主过程展示（发牌/亮主阶段各亮主者位置的主牌、被反置灰）与最终主信息分离。
+
+**修复**：
+移除“主牌:”指示器（含庄家标签）；最终亮主（`currentReveal`）以 score-point 同款小号牌显示在亮主玩家座位卡内名字旁（PlayerSeat）：有主 = 级牌+花色（如 2♠，♥♦ 红字）；无主 = JO（大王，红）/ jo（小王，黑）；全阶段显示，只显示最终亮主（被反的不显示）；亮主过程展示保持不变；座位位置不变（小牌与名字同行，座位卡自适应宽度）。
+对子亮主（strength ≥ 2，含对王无主）显示两张（如 2♠ 2♠、JO JO），单张亮一张；显示时机改为扣底（BottomExchange）开始后（含出牌阶段），发牌/亮主阶段不显示，本局结束（RoundEnd）清除。
+小牌改为绝对定位在座位框外：AI-2/AI-4 → 框外右下（`top: 100%; right: 0`）；AI-3 → 框外右上（`left: 100%; top: 0`）；玩家1 → 消息 bar 上方居中（`bottom: 100%` + 水平居中）。
+消息 bar 外包一层 `.message-wrap`（relative，高度 24px 不变），小牌移到 wrap 内、bar 之外，避免被 `overflow` 裁剪；玩家1 亮对♠2 小牌可见、2 张、位于消息 bar 上方居中。
+新增 4 项测试（reveal.test.ts），引擎 723 项 + arena 65 项 + CLI 80 项 + client 100 项 = 968 项通过。
+
+**新增 4 项测试**（reveal.test.ts：4 项），引擎 723 项 + arena 65 项 + CLI 80 项 + client 100 项 = 968 项通过。
+
+- **影响文件**：`packages/client/src/components/game/GameTable.tsx`、`packages/client/src/components/game/GameTable.css`、`packages/client/src/components/game/PlayerSeat.tsx`、`packages/client/src/components/game/CenterArea.tsx`、`packages/client/src/__tests__/reveal.test.ts`、`packages/client/scripts/layout-baseline.json`
+
 ## 2026-08-16 23:51
 
 ### 修复：庄家扣底后桌布闪现上一局最后一墩

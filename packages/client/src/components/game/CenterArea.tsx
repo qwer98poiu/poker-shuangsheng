@@ -167,36 +167,8 @@ const CenterArea: React.FC<CenterAreaProps> = ({ gameState, lastTrickReview, onC
         </span>
       </div>
 
-      {trumpDeclaration && (
-        <div className="trump-indicator" data-testid="trump-indicator">
-          <span className="trump-label">主牌:</span>
-          <span className="trump-value">
-            {trumpDeclaration.trumpSuit
-              ? (() => {
-                  // 对子亮主显示两个花色符号（如 ♣♣ 2）
-                  const finalReveal = gameState.reveals[gameState.reveals.length - 1];
-                  const isPair = !!finalReveal
-                    && finalReveal.suit === trumpDeclaration.trumpSuit
-                    && finalReveal.strength >= 2;
-                  const s = suitLabel(trumpDeclaration.trumpSuit!);
-                  return `${isPair ? s + s : s} ${rankLabel(trumpDeclaration.level)}`;
-                })()
-              : (() => {
-                  // 无主区分大王/小王（strength 4=对大王、3=对小王）
-                  const finalReveal = gameState.reveals[gameState.reveals.length - 1];
-                  const bigJoker = !!finalReveal && finalReveal.suit === null && finalReveal.strength >= 4;
-                  return (
-                    <span className={bigJoker ? 'nt-big' : 'nt-small'}>
-                      {bigJoker ? '大王' : '小王'}无主 ({rankLabel(trumpDeclaration.level)})
-                    </span>
-                  );
-                })()}
-          </span>
-          <span className="declarer-label" data-testid="declarer-label">
-            庄家: {gameState.players[trumpDeclaration.declarerIndex].name}
-          </span>
-        </div>
-      )}
+      {/* 主牌信息改由亮主玩家座位旁的小号最终亮主牌展示（见 trick-pos-player）——
+          不再显示"主牌: X 庄家: Y"指示器 */}
 
       <div className="score-display" data-testid="score-display">
         {/* 等级框：我方/对方等级，当庄一方高亮 */}

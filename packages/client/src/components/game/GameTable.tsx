@@ -7,7 +7,7 @@ import {
 import type { GameState, Card } from '@poker/engine';
 import CardFace from '../cards/CardFace.js';
 import PlayerHand from './PlayerHand.js';
-import PlayerSeat from './PlayerSeat.js';
+import PlayerSeat, { finalRevealChip } from './PlayerSeat.js';
 import { revealPills } from './revealPanel.js';
 import CenterArea from './CenterArea.js';
 import ActionBar from './ActionBar.js';
@@ -176,6 +176,15 @@ const GameTable: React.FC = () => {
     }
   };
 
+  // 最终亮主小牌（桌布外座位卡）：扣底开始后（BottomExchange/Playing）显示，
+  // 发牌/亮主阶段不显示（最终主未定），本局结束（RoundEnd）清除
+  const chipVisible = gameState.phase === GamePhase.BottomExchange
+    || gameState.phase === GamePhase.Playing;
+  const finalChipOf = (gameIndex: number) =>
+    chipVisible && gameState.currentReveal?.playerIndex === gameIndex
+      ? finalRevealChip(gameState.currentReveal, gameState.currentLevel)
+      : null;
+
   const localPlayer = gameState.players[localPlayerIndex];
   const otherPlayers = [0, 1, 2, 3].filter(i => i !== localPlayerIndex);
 
@@ -206,6 +215,8 @@ const GameTable: React.FC = () => {
               player={gameState.players[idx]}
               position="top"
               isActive={gameState.currentPlayerIndex === idx}
+              finalChip={finalChipOf(idx)}
+              chipAlign="right-top"
             />
           );
         })}
@@ -222,6 +233,7 @@ const GameTable: React.FC = () => {
                 player={gameState.players[idx]}
                 position="left"
                 isActive={gameState.currentPlayerIndex === idx}
+                finalChip={finalChipOf(idx)}
                 />
             );
           })}
@@ -245,16 +257,32 @@ const GameTable: React.FC = () => {
                 player={gameState.players[idx]}
                 position="right"
                 isActive={gameState.currentPlayerIndex === idx}
+                finalChip={finalChipOf(idx)}
                 />
             );
           })}
         </div>
       </div>
 
-      {/* message */}
-      <div className="table-message">
-        {errorMessage && <span className="error-msg">❌ {errorMessage}</span>}
-        {!errorMessage && <span className="info-msg">{message}</span>}
+      {/* message — 玩家1 小牌在 bar 上方居中（bar 本身 overflow hidden 会裁剪框外内容，
+          故小牌放在外层 .message-wrap 容器内） */}
+      <div className="message-wrap">
+        <div className="table-message">
+          {errorMessage && <span className="error-msg">❌ {errorMessage}</span>}
+          {!errorMessage && <span className="info-msg">{message}</span>}
+        </div>
+        {finalChipOf(localPlayerIndex) && (
+          <div
+            className="final-reveal-chip align-above-message"
+            data-testid="seat-final-reveal-0"
+          >
+            {Array.from({ length: finalChipOf(localPlayerIndex)!.count }, (_, i) => (
+              <span key={i} className={`score-point${finalChipOf(localPlayerIndex)!.red ? ' red' : ''}`}>
+                {finalChipOf(localPlayerIndex)!.label}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* 固定 48px 槽位（常驻，内容可空）：亮主面板 / 出牌·扣底按键——
