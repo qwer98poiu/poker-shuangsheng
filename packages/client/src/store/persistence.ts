@@ -10,9 +10,31 @@ const SAVE_URL = '/__poker-game-state';
  * 纯 trailing 防抖会被持续变更无限顺延——整个发牌期间一次都存不出去。
  */
 export const SAVE_INTERVAL_MS = 400;
-const VERSION = 1;
+export const SNAPSHOT_VERSION = 2;
+const VERSION = SNAPSHOT_VERSION;
 
 type GameStoreApi = UseBoundStore<StoreApi<GameStore>>;
+
+/**
+ * 快照 JSON 的 base64 编解码。目的：URL/curl/F12 里看不到明文手牌——
+ * 防普通用户手滑剧透的混淆；base64 是编码不是加密，不防有意解码。
+ */
+export function encodeSnapshot(snapshot: Snapshot): string {
+  const bytes = new TextEncoder().encode(JSON.stringify(snapshot));
+  let bin = '';
+  const CHUNK = 0x8000; // 分块避免 String.fromCharCode 参数爆栈
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    bin += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(bin);
+}
+
+export function decodeSnapshot(data: string): Snapshot {
+  const bin = atob(data);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return JSON.parse(new TextDecoder().decode(bytes)) as Snapshot;
+}
 
 /** 快照白名单：恢复一局所需的全部持久化字段（瞬态 UI 字段一律不入快照）。 */
 export interface Snapshot {
@@ -29,10 +51,11 @@ export interface Snapshot {
   dealingDeck: Card[] | null;
 }
 
+/** 线格式：data 为快照 JSON 的 base64（非明文）。 */
 export interface Envelope {
   version: number;
   savedAt: number | null;
-  snapshot: Snapshot | null;
+  data: string;
 }
 
 /**
@@ -65,10 +88,15 @@ export function pickSnapshot(s: GameStore): Snapshot | null {
   };
 }
 
-async function loadSnapshot(fetchImpl: typeof fetch): Promise<Envelope> {
+/** GET 拉回线格式并解码为快照；版本不符/数据损坏抛错（调用方落回 setup）。 */
+async function loadSnapshot(fetchImpl: typeof fetch): Promise<Snapshot> {
   const res = await fetchImpl(SAVE_URL, { headers: { Accept: 'application/json' } });
   if (!res.ok) throw new Error(`GET ${SAVE_URL} -> ${res.status}`);
-  return res.json();
+  const env: Envelope = await res.json();
+  if (env?.version !== VERSION || typeof env?.data !== 'string') {
+    throw new Error('incompatible envelope');
+  }
+  return decodeSnapshot(env.data);
 }
 
 /**
@@ -93,7 +121,7 @@ export function attachPersistence(
     doFetch(SAVE_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ version: VERSION, snapshot: snap }),
+      body: JSON.stringify({ version: VERSION, data: encodeSnapshot(snap) }),
     }).catch(() => {});
   };
 
@@ -153,13 +181,12 @@ export async function restoreFromServer(
   if (restoreInFlight || store.getState().mode !== 'setup') return false;
   restoreInFlight = true;
   try {
-    let env: Envelope;
+    let snap: Snapshot;
     try {
-      env = await loadSnapshot(fetchImpl);
+      snap = await loadSnapshot(fetchImpl);
     } catch {
-      return false; // 无存档 / server 不在 → setup 界面
+      return false; // 无存档 / server 不在 / 数据损坏 → setup 界面
     }
-    const snap = env?.version === VERSION ? env.snapshot : null;
     if (!snap?.gameState || store.getState().mode !== 'setup') return false;
     // 结构校验：出牌相关阶段必有亮主结果（缺了 buildAIContext 返回 null，续链即崩）；
     // 发牌阶段必有完整洗牌堆（108 张），否则无法续发

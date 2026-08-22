@@ -16,7 +16,8 @@ vi.mock('../dev.js', () => ({
 
 import { useGameStore } from '../store/gameStore.js';
 import {
-  pickSnapshot, persistenceEnabled, attachPersistence, restoreFromServer, SAVE_INTERVAL_MS,
+  pickSnapshot, persistenceEnabled, attachPersistence, restoreFromServer,
+  SAVE_INTERVAL_MS, SNAPSHOT_VERSION, encodeSnapshot, decodeSnapshot,
   type Envelope, type Snapshot,
 } from '../store/persistence.js';
 
@@ -110,7 +111,12 @@ function stubFetch(getResponse: () => Envelope): { calls: RecordedCall[]; impl: 
   return { calls, impl };
 }
 
-const envelopeOf = (snapshot: Snapshot | null): Envelope => ({ version: 1, savedAt: 123, snapshot });
+/** 线格式信封：data 为 base64（与真实 POST/GET 相同编码路径）。 */
+const envelopeOf = (snapshot: Snapshot | null): Envelope => ({
+  version: SNAPSHOT_VERSION,
+  savedAt: 123,
+  data: snapshot ? encodeSnapshot(snapshot) : '',
+});
 
 let detach: (() => void) | null = null;
 let recorded: RecordedCall[] = [];
@@ -169,6 +175,20 @@ describe('pickSnapshot', () => {
     expect(snap!.dealingDeck!.length).toBe(108);
   });
 
+  it('线格式为 base64：不含明文手牌，可无损还原（含中文）', () => {
+    const snap = makeSnapshot(playingState(), {
+      message: '发牌中... ♠A 🃏JOKER',
+      settledTrick: null,
+    });
+    const wire = encodeSnapshot(snap);
+    // 明文字段/中文/花色符号均不可见
+    expect(wire).not.toContain('phase');
+    expect(wire).not.toContain('trumpSuit');
+    expect(wire).not.toContain('发牌');
+    expect(wire).not.toContain('♠');
+    expect(decodeSnapshot(wire)).toEqual(snap);
+  });
+
   it("mode='setup' 返回 null", () => {
     expect(pickSnapshot({ ...useGameStore.getState(), mode: 'setup', gameState: playingState() })).toBeNull();
   });
@@ -203,9 +223,11 @@ describe('attachPersistence — 防抖保存', () => {
     let posts = recorded.filter(r => r.init?.method === 'POST');
     expect(posts).toHaveLength(1);
     const body = JSON.parse(posts[0].init!.body as string);
-    expect(body.version).toBe(1);
-    expect(body.snapshot.gameState.phase).toBe(GamePhase.Playing);
-    expect(body.snapshot.localPlayerIndex).toBe(0);
+    expect(body.version).toBe(SNAPSHOT_VERSION);
+    expect(body.data).toEqual(expect.any(String));
+    const saved = decodeSnapshot(body.data);
+    expect(saved.gameState!.phase).toBe(GamePhase.Playing);
+    expect(saved.localPlayerIndex).toBe(0);
 
     // 冷却结束时 trailing 补发最新快照，此后不再增加
     await advance(SAVE_INTERVAL_MS);
@@ -224,15 +246,15 @@ describe('attachPersistence — 防抖保存', () => {
     let posts = recorded.filter(r => r.init?.method === 'POST');
     expect(posts.length).toBeGreaterThanOrEqual(1);
     const body = JSON.parse(posts[0].init!.body as string);
-    expect(body.snapshot.gameState.phase).toBe(GamePhase.Dealing);
-    expect(body.snapshot.dealingDeck).toHaveLength(108);
+    expect(decodeSnapshot(body.data).gameState!.phase).toBe(GamePhase.Dealing);
+    expect(decodeSnapshot(body.data).dealingDeck).toHaveLength(108);
 
     // 冷却结束后：发牌仍在继续 → checkpoint 续存
     await advance(SAVE_INTERVAL_MS + 50);
     posts = recorded.filter(r => r.init?.method === 'POST');
     expect(posts.length).toBeGreaterThanOrEqual(2);
     const lastBody = JSON.parse(posts[posts.length - 1].init!.body as string);
-    expect(lastBody.snapshot.gameState.phase).toBe(GamePhase.Dealing);
+    expect(decodeSnapshot(lastBody.data).gameState!.phase).toBe(GamePhase.Dealing);
   });
 
   it('gate 关闭（?seed=N 且未显式 enabled）→ 零请求', async () => {
@@ -352,7 +374,13 @@ describe('restoreFromServer — 恢复与续链', () => {
   });
 
   it('版本不匹配的快照忽略', async () => {
-    response = { version: 999, savedAt: 1, snapshot: makeSnapshot(playingState()) };
+    response = { version: 999, savedAt: 1, data: encodeSnapshot(makeSnapshot(playingState())) };
+    await expect(restoreFromServer(useGameStore)).resolves.toBe(false);
+    expect(useGameStore.getState().mode).toBe('setup');
+  });
+
+  it('data 非合法编码/JSON → 拒绝恢复', async () => {
+    response = { version: SNAPSHOT_VERSION, savedAt: 1, data: 'not-base64-json!!!' };
     await expect(restoreFromServer(useGameStore)).resolves.toBe(false);
     expect(useGameStore.getState().mode).toBe('setup');
   });

@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-22 11:03
+
+### 快照线格式改为 base64 编码，URL/F12 不再可见明文手牌
+
+**问题**：牌局快照以明文 JSON 存取——浏览器地址栏输入 `/__poker-game-state` 或 F12 看网络请求体，即可直接读出全部四家手牌与底牌，普通用户手滑就被剧透。
+
+**修复**：客户端 POST 前将快照 JSON 经 TextEncoder + base64 编码（分块 `String.fromCharCode` 避免大数组爆栈），线格式改为 `{version, data}`（版本号升至 2）；服务器解码做最小结构校验后原样存编码串（不理解内容）；GET 拉回后客户端解码恢复，损坏/版本不符落回 setup 界面。base64 是编码不是加密——只防普通用户误看，不防有意解码。
+
+**新增 2 项测试**（persistence.test.ts：2 项）、**修改 3 项测试**（persistence.test.ts：线格式断言适配），引擎 723 项 + arena 65 项 + CLI 80 项 + client 121 项 = 989 项通过。
+
+- **影响文件**：`packages/client/vite.config.ts`、`packages/client/src/store/persistence.ts`、`packages/client/src/__tests__/persistence.test.ts`
+
 ## 2026-08-22 09:34
 
 ### dev server 内存快照：刷新浏览器不丢当前牌局（进程存活期间）
