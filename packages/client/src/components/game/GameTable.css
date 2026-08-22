@@ -478,6 +478,27 @@
   display: flex;
   justify-content: center;
   align-items: center;
+  /* 亮主倒计时 chip 的定位锚点（无偏移，不改变自身与子元素的文档流布局） */
+  position: relative;
+}
+
+/* 亮主阶段倒计时：只显示剩余秒数，右缘与桌布（.table-center 内的
+   .center-area，max-width 500）对齐——
+   右偏移 = 侧边留白 (100%-840px)/2 + table-middle 右内边距 20
+           + table-right 140 + gap 10，即 calc((100% - 840px)/2 + 170px)。
+   绝对定位零布局影响；高度与原 chip 一致 */
+.reveal-countdown {
+  position: absolute;
+  right: calc((100% - 840px) / 2 + 170px);
+  top: 50%;
+  transform: translateY(-50%);
+  color: #ffd740;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 14px;
+  line-height: 20px;
+  white-space: nowrap;
 }
 
 .action-bar {

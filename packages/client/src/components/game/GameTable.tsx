@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useGameStore } from '../../store/gameStore.js';
 import {
-  GamePhase, sortHand, Suit, suitLabel, rankLabel, getRevealOptions, canOverride,
+  GamePhase, sortHand, Suit, suitLabel, rankLabel,
   computeRoundOutcome, advanceLevel, buildAIContext,
 } from '@poker/engine';
 import type { GameState, Card } from '@poker/engine';
@@ -85,6 +85,8 @@ const GameTable: React.FC = () => {
 
   const [exportCopied, setExportCopied] = useState(false);
   const [showBottomView, setShowBottomView] = useState(false);
+  /** 亮主阶段剩余秒数（null = 不显示）：3 秒静默倒计时，亮/反即重置。 */
+  const [revealLeft, setRevealLeft] = useState<number | null>(null);
 
   // 查看底牌弹层 5 秒后自动消失（与回看上墩一致），也可手动点按钮隐藏
   useEffect(() => {
@@ -95,18 +97,29 @@ const GameTable: React.FC = () => {
   // 每墩重置：唯一可出自动选中只发生一次，用户清空后不再自动
   const autoSelectedRef = useRef(false);
 
-  // 亮主自动确认：能亮/反主 → 3 秒后自动确认；不能亮/反 → 1 秒后自动（无需人类操作）。
-  // 人类点击亮主后 humanReveal 直接 finalize，phase 变化触发 cleanup。
+  // 亮主阶段倒计时：发牌结束进入亮主即开始 3 秒静默倒计时；任何人亮/反
+  // （currentReveal 变化触发 effect 重挂）即重置；走完仍无人动作才自动确认进扣底。
+  // 倒计时数字显示在"回看上墩"槽位（table-actions 右侧，绝对定位不影响布局）。
   useEffect(() => {
     const gs = gameState;
-    if (gs?.phase !== GamePhase.Revealing || aiPlayers.every(Boolean) || !gs.players[0].isHuman) return;
-    const opts = getRevealOptions(gs.players[0].hand, gs.currentLevel)
-      .filter(o => canOverride(gs.currentReveal, {
-        playerIndex: 0, suit: o.suit, strength: o.strength,
-      }));
-    const delay = opts.length > 0 ? 3000 : 1000;
-    const t = setTimeout(() => humanPassReveal(), delay);
-    return () => clearTimeout(t);
+    if (gs?.phase !== GamePhase.Revealing || aiPlayers.every(Boolean) || !gs.players[0].isHuman) {
+      setRevealLeft(null);
+      return;
+    }
+    const TOTAL_MS = 3000;
+    const start = Date.now();
+    setRevealLeft(3);
+    const ticker = setInterval(() => {
+      setRevealLeft(Math.max(0, Math.ceil((TOTAL_MS - (Date.now() - start)) / 1000)));
+    }, 250);
+    const t = setTimeout(() => {
+      setRevealLeft(null);
+      humanPassReveal();
+    }, TOTAL_MS);
+    return () => {
+      clearInterval(ticker);
+      clearTimeout(t);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameState?.phase, gameState?.currentReveal, gameState?.currentLevel, aiPlayers]);
 
@@ -314,6 +327,14 @@ const GameTable: React.FC = () => {
           </div>
         );
       })()}
+
+      {/* 亮主倒计时（"回看上墩"槽位右侧）：3s 静默倒计时，亮/反即重置；
+          绝对定位不参与文档流——任何阶段零布局影响 */}
+      {isRevealing && revealLeft !== null && (
+        <span className="reveal-countdown" data-testid="reveal-countdown">
+          {revealLeft}
+        </span>
+      )}
 
       {/* action bar — 出牌/扣底主按键（ActionBar 内部按阶段决定渲染：Playing 当前玩家 / BottomExchange 庄家） */}
       {localPlayer.isHuman && (

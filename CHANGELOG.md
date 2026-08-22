@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-08-22 17:00
+
+### 亮主阶段延长为 3 秒静默倒计时：数字倒计时显示于"回看上墩"槽位右侧，亮/反即重置
+
+**问题**：亮主阶段自动确认的延时按"能否亮/反"区分——能亮等 3 秒、不能亮仅 1 秒就进扣底；且 `humanReveal` 在亮/反成功后同步立即 finalize，绕过一切等待窗口。全程无任何倒计时提示。
+
+**修复**：
+① GameTable 自动确认 effect 改为统一的 **3 秒静默倒计时**：发牌结束进入亮主即开始计时；任何人亮/反（`currentReveal` 变化触发 effect 重挂）即重置回 3 秒；走完仍无人动作才 `humanPassReveal` 进扣底。
+② gameStore 的 `humanReveal` 删除同步 finalize 短路——亮/反成功只更新状态、停留亮主阶段，进扣底一律由倒计时接管（"倒计时内反主会刷新倒计时"的前提）；观战局（?auto）仍走 store 快速 finalize 不受影响。
+③ 剩余秒数以数字 chip（3/2/1）显示在 `.table-actions` 右侧（"回看上墩"按键所在槽位），右缘经 calc 由 table-middle 布局常量推出、与桌布右缘精确对齐（实测 890.0 == 890.0）；绝对定位不参与文档流，任何阶段零布局影响。E2E 实测：无可亮时旧逻辑 1s 即过、新逻辑走满 3019ms 且 3→2→1 递减；注入反主场景停留亮主、chip 重置、2948ms 后才顶庄进扣底。
+
+**修改 3 项测试**（gameStore.test.ts：humanReveal 断言适配倒计时流程），引擎 723 项 + arena 65 项 + CLI 80 项 + client 142 项 = 1010 项通过。
+
+- **影响文件**：`packages/client/src/components/game/GameTable.tsx`、`packages/client/src/components/game/GameTable.css`、`packages/client/src/store/gameStore.ts`、`packages/client/src/__tests__/gameStore.test.ts`
+
 ## 2026-08-22 15:26
 
 ### 左上角闲家分牌超过 3 排不再截断，全部展开显示

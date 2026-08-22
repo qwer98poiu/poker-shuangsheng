@@ -94,11 +94,13 @@ describe('gameStore — human reveal flow', () => {
       expect(useGameStore.getState().gameState!.currentReveal)
         .toEqual({ playerIndex: 0, suit: Suit.Diamonds, strength: 1 });
 
-      // 再点同花色 → 自保成对 → 亮主即确认进入扣底
+      // 再点同花色 → 自保成对 → 停留亮主（等倒计时）；humanPassReveal 模拟到期确认
       useGameStore.getState().humanReveal(Suit.Diamonds);
       gs = useGameStore.getState().gameState!;
       expect(gs.currentReveal).toEqual({ playerIndex: 0, suit: Suit.Diamonds, strength: 2 });
-      expect(gs.phase).toBe(GamePhase.BottomExchange);
+      expect(gs.phase).toBe(GamePhase.Revealing);
+      useGameStore.getState().humanPassReveal();
+      expect(useGameStore.getState().gameState!.phase).toBe(GamePhase.BottomExchange);
     } finally {
       mockDev.seed = 42;
     }
@@ -108,11 +110,15 @@ describe('gameStore — human reveal flow', () => {
     useGameStore.getState().startGame([false, true, true, true], false);
     await waitFor(() => useGameStore.getState().gameState?.phase === 'revealing');
 
-    // seed=42：人类手牌有对大王 → 亮无主（strength 4），亮主即确认直接进入扣底
+    // seed=42：人类手牌有对大王 → 亮无主（strength 4）→ 停留亮主（等倒计时）；
+    // humanPassReveal 模拟倒计时到期确认 → 进入扣底
     useGameStore.getState().humanReveal(null);
     let gs = useGameStore.getState().gameState!;
     expect(gs.currentReveal).toEqual({ playerIndex: 0, suit: null, strength: 4 });
-    expect(gs.phase).toBe(GamePhase.BottomExchange); // 亮主即确认，不再等待"确定"
+    expect(gs.phase).toBe(GamePhase.Revealing);
+    useGameStore.getState().humanPassReveal();
+    gs = useGameStore.getState().gameState!;
+    expect(gs.phase).toBe(GamePhase.BottomExchange);
     gs = useGameStore.getState().gameState!;
     expect(gs.trumpDeclaration?.declarerIndex).toBe(0); // 首局亮主者顶庄
     expect(gs.players[0].hand).toHaveLength(33); // 底牌并入
@@ -134,7 +140,8 @@ describe('gameStore — human reveal flow', () => {
   it('建议扣底：getBottomHint 直接选中 AI 推荐的 8 张（可立即点扣底）', async () => {
     useGameStore.getState().startGame([false, true, true, true], false);
     await waitFor(() => useGameStore.getState().gameState?.phase === 'revealing');
-    useGameStore.getState().humanReveal(null); // seed=42 人类对大王亮无主 → 顶庄扣底
+    useGameStore.getState().humanReveal(null); // seed=42 人类对大王亮无主 → 顶庄
+    useGameStore.getState().humanPassReveal(); // 模拟倒计时到期确认
     const gs = useGameStore.getState().gameState!;
     expect(gs.phase).toBe(GamePhase.BottomExchange);
     expect(gs.players[0].hand).toHaveLength(33); // 底牌并入
