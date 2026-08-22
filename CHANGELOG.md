@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-22 12:01
+
+### 发牌期间亮主绕过节流，快照立即落盘
+
+**问题**：发牌阶段快照按 400ms 节流保存，亮主事件可能落在冷却窗口内。AI 座位的亮主回退后可由重放确定性恢复（同一副牌触发同样的 `aiTryReveal`），但**人类玩家在发牌阶段的亮主不在重放逻辑里**（`runDealStep` 只重放 AI 座位的自动亮主）——刷新若回退掉该事件，人类亮主即丢失。
+
+**修复**：`attachPersistence` 订阅回调中跟踪 `reveals` 数量，变化即清除挂起的 trailing、重置节流冷却并立即 POST（新局开始时 reveals 归零同样触发，顺带让局边界即时落盘）。其余变更仍走原节流。
+
+**新增 1 项测试**（persistence.test.ts：1 项），引擎 723 项 + arena 65 项 + CLI 80 项 + client 122 项 = 990 项通过。
+
+- **影响文件**：`packages/client/src/store/persistence.ts`、`packages/client/src/__tests__/persistence.test.ts`
+
 ## 2026-08-22 11:50
 
 ### 启动体验：冷启动首开白屏改为绿底加载页；刷新恢复前不再闪现启动界面

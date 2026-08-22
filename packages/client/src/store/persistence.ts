@@ -103,6 +103,8 @@ async function loadSnapshot(fetchImpl: typeof fetch): Promise<Snapshot> {
  * 订阅 store，节流保存最新快照到 dev server 内存单槽：
  * 首次变更立即落盘（开局/发牌开始瞬间即有存档），持续变更期间每
  * SAVE_INTERVAL_MS 至多一次（冷却结束时补发 trailing），空闲后单次变更即时保存。
+ * 例外：亮主事件（reveals 数量变化）绕过冷却立即落盘——发牌中刷新若回退掉
+ * 人类玩家的亮主将无法通过重放恢复（runDealStep 只重放 AI 座位的自动亮主）。
  * pickSnapshot 为 null（未开局/无牌堆的发牌）时取消挂起保存并直接 return：
  * 绝不能 POST {snapshot:null} 清槽。返回退订函数。POST 失败静默——持久化永不干扰对局。
  */
@@ -116,6 +118,7 @@ export function attachPersistence(
   let latest: Snapshot | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let lastSaveAt = 0;
+  let lastRevealCount = -1; // -1 = 尚无基线
 
   const save = (snap: Snapshot) => {
     doFetch(SAVE_URL, {
@@ -129,6 +132,7 @@ export function attachPersistence(
     const snap = pickSnapshot(state);
     if (!snap) {
       latest = null;
+      lastRevealCount = -1;
       if (timer) {
         clearTimeout(timer);
         timer = null;
@@ -136,6 +140,21 @@ export function attachPersistence(
       return;
     }
     latest = snap;
+
+    // 亮主事件：绕过节流立即落盘
+    const revealCount = snap.gameState!.reveals.length;
+    const revealChanged = lastRevealCount >= 0 && revealCount !== lastRevealCount;
+    lastRevealCount = revealCount;
+    if (revealChanged) {
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      lastSaveAt = Date.now();
+      save(snap);
+      return;
+    }
+
     const remain = lastSaveAt + interval - Date.now();
     if (remain <= 0) {
       // 冷却已过：立即落盘（取消挂起的 trailing，它已包含在本次里）

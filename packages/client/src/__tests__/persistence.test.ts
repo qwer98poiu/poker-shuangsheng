@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { createCard, createInitialState, GamePhase } from '@poker/engine';
+import { createCard, createInitialState, GamePhase, Suit } from '@poker/engine';
 import type { Card, GameState, PlayerState } from '@poker/engine';
 
 // 可切换的 dev 参数（getter 延迟读取，测试内改 mockDev 生效）。
@@ -255,6 +255,38 @@ describe('attachPersistence — 防抖保存', () => {
     expect(posts.length).toBeGreaterThanOrEqual(2);
     const lastBody = JSON.parse(posts[posts.length - 1].init!.body as string);
     expect(decodeSnapshot(lastBody.data).gameState!.phase).toBe(GamePhase.Dealing);
+  });
+
+  it('冷却期内亮主：绕过节流立即落盘', async () => {
+    detach = attachPersistence(useGameStore, { enabled: true });
+
+    // 注入发牌态 → 首沿立即落盘 #1
+    const deck = Array.from({ length: 108 }, (_, i) => c('S', 2, i));
+    useGameStore.setState({
+      mode: 'playing',
+      gameState: { ...playingState(), phase: GamePhase.Dealing },
+      dealingDeck: deck,
+    });
+    expect(recorded.filter(r => r.init?.method === 'POST')).toHaveLength(1);
+    await advance(50);
+
+    // 冷却期内普通变更：被节流抑制
+    useGameStore.getState().selectCard('b');
+    expect(recorded.filter(r => r.init?.method === 'POST')).toHaveLength(1);
+
+    // 冷却期内亮主：立即落盘 #2（发牌中刷新若回退掉人类亮主，重放无法恢复）
+    const gs = useGameStore.getState().gameState!;
+    useGameStore.setState({
+      gameState: {
+        ...gs,
+        reveals: [...gs.reveals, { playerIndex: 1, suit: Suit.Spades, strength: 1 }],
+      },
+    });
+    expect(recorded.filter(r => r.init?.method === 'POST')).toHaveLength(2);
+
+    // 亮主落盘重置冷却：随后的普通变更仍被抑制
+    useGameStore.getState().selectCard('d');
+    expect(recorded.filter(r => r.init?.method === 'POST')).toHaveLength(2);
   });
 
   it('gate 关闭（?seed=N 且未显式 enabled）→ 零请求', async () => {
