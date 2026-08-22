@@ -220,17 +220,15 @@
   opacity: 0.8;
 }
 
-/* 闲家分牌：一行 5 张，10/K 前 5 后，同档按花色 SHCD */
+/* 闲家分牌：一行 5 张，10/K 前 5 后，同档按花色 SHCD。
+   不限高度：分牌超过 3 排时整块向下自然生长，全部可见（不滚动、不截断）；
+   score-display 为 absolute 定位，向下生长只覆盖桌布空区。 */
 .score-points {
   display: grid;
   grid-template-columns: repeat(5, auto);
   gap: 1px 8px;
   margin-top: 4px;
-  max-height: 64px;
-  overflow-y: auto;
   font-size: 12px;
-  /* 自然宽度换行到分数行正下方（score-display flex-wrap；不用 flex-basis:100%，
-     否则分数框被撑到分牌行宽度） */
 }
 
 .score-point {
