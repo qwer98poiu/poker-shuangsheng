@@ -1,5 +1,28 @@
 # Changelog
 
+## 2026-08-23 00:40
+
+### 跟牌分组选择：单张/对整组替换，拖拉机互斥窗整机点击共享窗按整窗分组，无单甩牌按对累加
+
+**问题**：跟牌选择只有逐张 toggle 与 XOR 框选——领出对子时点一张只选一张，需手动凑齐整对；拖拉机要逐张点四张；选多了也没有"点新自动放旧"。且初版实现与细化规则存在偏差（拖拉机一律整机组、未按必出后填对数分流、缺门闸门过宽）。
+
+**修复**：新增 `computeSelectionMode`（playable.ts）按领出牌型推导选择模式，组枚举复用引擎口径（`findAllPairs`/`detectTractors`，与 classify/validateFollow 同源）：
+① 单张/对子领出 → **replace 整组替换**：点击可选牌选中其所在整组并放旧组（再点同组放下；单张领出即"始终只选一张"）；对子仅一对（唯一可出）→ free 由自动锁定接管。
+② 拖拉机领出按同长窗口集合三分流：窗口互斥（不相邻多台整机、无共有牌）→ **点一张选整个拖拉机**；有共有必出时扣除后恰剩一对要填 → 视同对牌（replace 按对）；还需填更多 → 视同甩牌（accumulate 按对）。同长窗口由 `detectTractors` 整链按对滑窗切出；必出取全部窗口交集（该场景引擎 `computeMandatoryFollow` 返回保守空集，实测校准）。
+③ 不含单张的甩牌 → **accumulate 按对累加**，不自动放下；去掉必出后恰填一对 → 视同对牌（replace）。对子/甩牌的必出经引擎 `computeMandatoryFollow`——实测语义为"先跟足领出花色再填"：领出花色够数时其他花色不可用（唯一组合 → free），部分缺门时该门必出、余位由他花色填。
+④ 拖拽为终点拾取：替换式模式下轨迹经过可选牌动态切换候选组、起点前已选在首次经过可选牌时被替换、终点落灰牌清空（空白保留候选）；累加式终点所在对加选。领出、含单张甩牌、**完全缺门**（垫牌/毙牌局）或凑不出对应组 → 回退 free；部分缺门仍适用组语义。锁定牌任何操作下保留（复用 store 锁保护）。
+
+E2E 实测（♥ 主、P1 领红桃对、P0 持 ♥3 对 + ♠2 级牌对）：点一张全对亮、点另一对放旧、再点放下；拖拽途中未松开即切至终点对、落灰牌清空。布局回归通过。
+
+**修复增量**（细化为与引擎口径一致的三次修正）：
+① 部分缺门回退自由选择——领出多张而手牌同门只有一张（如主级牌黑桃2、领出方块 AA-10-10-9-9、手牌仅单张方块 J）时，该张锁定正确但其余垫牌只能逐张点选：原"无单甩牌 accumulate 按对"分支误组（拖拽只认终点一张/对、点对强制整对、其他花色对被误组），与引擎"组牌必出 + 余位任意填"口径（validateFollow 对拆对、混花色均合法）不符。缺门回退条件由 `ledCount === 0` 扩展为 `ledCount < lead.cards.length`（非单张领出），一律回退 free（XOR 框选拖拽）；必出锁定仍由 `computeFollowPlan` 接管。同步校正 3 处相悖断言（`♣4` 单张 / `♣33` 对填充原断 accumulate/replace → free）。
+② 领出全对（含拖拉机）且手牌足够多对时整对选牌——主拖拉机领出（C-5,5 C-6,6）、手牌恰 3 个主对（H-3,3 / D-3,3 / C-2,2）时，原"无同长整机"（`wins.length === 0`）直接回退 free，可选中单张梅花2（被引擎拒绝；引擎口径为散对填充 minTotalPairs=2，拆对即非法）。改为落入公共"对子/无单甩牌"分支按对分组；公共分支再判"可选域是否全为对牌"：含散牌（引擎允许近似组合）→ 回退 free（必出对由 computeFollowPlan 锁定接管），全对牌 → 按对分组（replace/accumulate，杜绝点选单张）。
+③ 拖拉机共享窗口改整窗分组 + ui-player 同步——同链多台同长窗口（♣55/66/77/99 领出 33/44）按"必出交集 + 按对填充"分组必死路（replace 只留一组凑不齐 4 张、accumulate 可点出 55+88 等非法组合）；wins > 1 一律按**完整窗口**分组（replace 整机，点专属牌整机进、同属多窗牌归先枚举窗），引擎口径每台窗口本身即一份合法跟出（4.1 提取同长/更长整机）。人类模拟器 ui-player 与 GameTable 同口径计算 `computeSelectionMode`/`computeFollowPlan`/`detectForcedPairSplit`（含 playableOverride），决策用 `applyGroupClick` 展开为逐组点击序列，可表达时按 group-click/group-drag 交互、表达不了才落 hint。
+
+**新增 24 项测试**（playable.test.ts：24 项），引擎 723 项 + arena 65 项 + CLI 80 项 + client 166 项 = 1034 项通过。ui-player 实测 seed 3/5/7/11/42 全部 ALL GREEN（路径分布含 drag/group-click/group-drag/hint/manual）。
+
+- **影响文件**：`packages/client/src/components/game/playable.ts`、`packages/client/src/components/game/PlayerHand.tsx`、`packages/client/src/components/game/GameTable.tsx`、`packages/client/src/__tests__/playable.test.ts`、`packages/client/scripts/ui-player.ts`
+
 ## 2026-08-22 20:40
 
 ### 非自己回合手牌不再置灰

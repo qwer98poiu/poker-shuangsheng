@@ -11,7 +11,7 @@ import PlayerSeat, { finalRevealChip } from './PlayerSeat.js';
 import { revealPills } from './revealPanel.js';
 import CenterArea from './CenterArea.js';
 import ActionBar from './ActionBar.js';
-import { computePlayableIds, computeFollowPlan } from './playable.js';
+import { computePlayableIds, computeFollowPlan, computeSelectionMode } from './playable.js';
 import { formatGameExport } from './export-game.js';
 import './GameTable.css';
 
@@ -75,7 +75,7 @@ function ntrackerText(gs: GameState, playerIndex: number): string {
 const GameTable: React.FC = () => {
   const {
     gameState, localPlayerIndex, selectedCardIds, debug,
-    message, errorMessage, failedThrow, lastTrickReview, highlightedCards,
+    message, errorMessage, failedThrow, lastTrickReview, highlightedCards, lockedCardIds,
     selectCard, deselectCard,
     submitPlay, submitBottomExchange,
     humanReveal, humanPassReveal,
@@ -220,6 +220,13 @@ const GameTable: React.FC = () => {
         localPlayer.hand, gameState.trickPlays, gameState.trumpDeclaration, gameState.phase,
       )
     : null;
+  // 跟牌分组选择：单张/对/拖拉机 → 整组替换；不含单张的甩牌 → 按对累加；
+  // 领出、含单甩牌或手牌凑不出对应组 → 自由选择（见 playable.ts）
+  const selectionMode = myTurnToPlay
+    ? computeSelectionMode(
+        localPlayer.hand, gameState.trickPlays, gameState.trumpDeclaration, gameState.phase,
+      )
+    : { kind: 'free' as const };
 
   return (
     <div className="game-table">
@@ -528,6 +535,8 @@ const GameTable: React.FC = () => {
             selectedIds={selectedCardIds}
             highlightedIds={highlightedCards}
             playableIds={playableIds}
+            selectionMode={selectionMode}
+            lockedCardIds={lockedCardIds}
             onSelectCard={selectCard}
             onDeselectCard={deselectCard}
             isActive={isMyTurn && (isPlaying || isBottomExchange)}

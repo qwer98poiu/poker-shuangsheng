@@ -1,6 +1,10 @@
 import React, { useRef } from 'react';
 import type { Card } from '@poker/engine';
 import CardFace from '../cards/CardFace.js';
+import {
+  applyGroupClick, applyGroupDragPick, clearSelectionKeepLocked,
+  type SelectionMode,
+} from './playable.js';
 
 /**
  * 拖拽框选判定：轨迹矩形是否与本牌的可见（露出）区域相交。
@@ -47,6 +51,10 @@ interface PlayerHandProps {
   /** null = 全部可选；非 null = 仅这些牌可出（其余灰色不可选）。
    *  仅在轮到自己出牌时传入——非自己回合手牌不置灰（交互由内部闸门拦截）。 */
   playableIds?: Set<string> | null;
+  /** 跟牌分组选择模式（null = 自由选择）。 */
+  selectionMode?: SelectionMode | null;
+  /** 锁定牌（必出/唯一可出自动选中）：任何放下操作都保留。 */
+  lockedCardIds?: string[];
   onSelectCard: (id: string) => void;
   onDeselectCard: (id: string) => void;
   isActive: boolean;
@@ -59,6 +67,8 @@ const PlayerHand: React.FC<PlayerHandProps> = ({
   selectedIds,
   highlightedIds,
   playableIds = null,
+  selectionMode = null,
+  lockedCardIds = [],
   onSelectCard,
   onDeselectCard,
   isActive,
@@ -75,11 +85,29 @@ const PlayerHand: React.FC<PlayerHandProps> = ({
   // 只有真正位移（超过阈值）才算拖拽，单击（mousedown+mouseup 无位移）不吞
   const dragMovedRef = useRef(false);
   const suppressClickRef = useRef(false);
+  // 替换式拖拽的当前候选牌（组粒度动态切换）
+  const dragCandidateRef = useRef<string | null>(null);
+
+  /** 把期望选中集同步进 store（差量调用，幂等）。 */
+  const syncSelection = (desired: string[]) => {
+    const des = new Set(desired);
+    desired.forEach(id => { if (!selectedIds.includes(id)) onSelectCard(id); });
+    selectedIds.forEach(id => { if (!des.has(id)) onDeselectCard(id); });
+  };
+
+  /** 指针位置下的手牌 id（不在任何牌上 → null）。 */
+  const cardIdAt = (x: number, y: number): string | null =>
+    (document.elementFromPoint(x, y) as HTMLElement | null)
+      ?.closest('.card')?.getAttribute('data-card-id') ?? null;
 
   const handleCardClick = (id: string) => {
     if (suppressClickRef.current) { suppressClickRef.current = false; return; }
     if (!isActive || !isHuman) return;
     if (playableIds && !playableIds.has(id)) return; // 灰色牌不可选
+    if (selectionMode && selectionMode.kind !== 'free') {
+      syncSelection(applyGroupClick(selectedIds, lockedCardIds, selectionMode, id));
+      return;
+    }
     selectedIds.includes(id) ? onDeselectCard(id) : onSelectCard(id);
   };
 
@@ -91,6 +119,7 @@ const PlayerHand: React.FC<PlayerHandProps> = ({
       current: new Set(selectedIds),
     };
     dragMovedRef.current = false;
+    dragCandidateRef.current = null;
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
@@ -101,6 +130,17 @@ const PlayerHand: React.FC<PlayerHandProps> = ({
     if (Math.abs(dx) < 4 && Math.abs(dy) < 4) return; // 误触阈值
     dragMovedRef.current = true; // 真正拖拽（单击的 mousedown+mouseup 无位移）
     if (!isActive || !isHuman) return;
+    if (selectionMode?.kind === 'replace') {
+      // 终点拾取：候选牌变化即整组切换；灰色/空白不算（保留原候选）
+      const cid = cardIdAt(e.clientX, e.clientY);
+      if (cid && cid !== dragCandidateRef.current
+        && (!playableIds || playableIds.has(cid))) {
+        dragCandidateRef.current = cid;
+        syncSelection(applyGroupDragPick(selectionMode, cid));
+      }
+      return;
+    }
+    if (selectionMode?.kind === 'accumulate') return; // 累加式在 mouseup 结算终点
     const x1 = Math.min(start.x, e.clientX), x2 = Math.max(start.x, e.clientX);
     const y1 = Math.min(start.y, e.clientY), y2 = Math.max(start.y, e.clientY);
     const covered = new Set<string>();
@@ -118,19 +158,33 @@ const PlayerHand: React.FC<PlayerHandProps> = ({
     start.current = applyDragSelection(start.initialSelected, covered, start.current, onSelectCard, onDeselectCard);
   };
 
-  const handleMouseUp = () => {
+  const handleMouseUp = (e?: React.MouseEvent) => {
     if (dragMovedRef.current) {
       suppressClickRef.current = true; // 吞掉 mouseup 后同帧合成的 click
       // 该 click 落在 mousedown/mouseup 目标的共同祖先上（跨卡拖拽时是容器，无
       // onClick），不会消费本标记——限时自动失效，避免吞掉之后的真实点击
       setTimeout(() => { suppressClickRef.current = false; }, 150);
+      if (selectionMode && selectionMode.kind !== 'free') {
+        const cid = e ? cardIdAt(e.clientX, e.clientY) : null;
+        const onPlayable = cid !== null && (!playableIds || playableIds.has(cid));
+        if (selectionMode.kind === 'replace') {
+          // 终点落在不可选的牌上 → 清空（保留锁定）；空白处 → 保留候选组
+          if (cid !== null && !onPlayable) {
+            syncSelection(clearSelectionKeepLocked(selectedIds, lockedCardIds));
+          }
+        } else if (onPlayable) {
+          // 累加式：终点所在对整组加选（不自动放下）
+          syncSelection([...new Set([...selectedIds, ...(selectionMode.groups[cid!] ?? [cid!])])]);
+        }
+      }
     }
     dragMovedRef.current = false;
     dragStartRef.current = null;
+    dragCandidateRef.current = null;
   };
 
   return (
-    <div className="player-hand-container" onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
+    <div className="player-hand-container" onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={() => handleMouseUp()}>
       <div className="player-hand-label">
         {playerName} {isActive ? '← 当前' : ''} ({cards.length} 张)
       </div>

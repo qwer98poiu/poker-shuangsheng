@@ -6,8 +6,10 @@
  * 出牌 → 结算 → 轮转。AI 决策复用引擎（与 gameStore 的 runAiTurns 同口径），
  * 交互全部真实输入，覆盖多条人类路径：
  *   - 扣底：50% 点"建议扣底"直接扣；50% 按 AI 决策手动逐张选
- *   - 出牌：目标牌在手牌中相邻时 50% 拖拽框选（真实 mouse 拖拽）；其余
- *     50% 点"建议出牌"，50% 手动逐张选牌
+ *   - 出牌：与 GameTable 同口径计算 selectionMode（free/replace/accumulate）——
+ *     free 走 XOR 拖框/逐张点选；组粒度（replace/accumulate，6bf3a20 引入）把 AI
+ *     决策经 applyGroupClick 模拟展开为"整组点击/整组拖拽"（点代表一张整组进、
+ *     拖拽终点拾取组），组语义表达不了才落 hint；另有 skipped 页弃竞态快照
  *
  * 每步断言：
  *   - 元素 box 完全在 1280×720 画布内（safeClick 前置 + 快照后验）
@@ -30,7 +32,10 @@ import {
   collectSnapshot, ensureServer, killProcessTree, launchBrowser, buildUrl,
   safeClick, listOutOfBounds, type UiSnapshot,
 } from './lib/driver.js';
-import { computePlayableIds } from '../src/components/game/playable.js';
+import {
+  computePlayableIds, computeSelectionMode, computeFollowPlan,
+  applyGroupClick, type SelectionMode,
+} from '../src/components/game/playable.js';
 
 // ---------------------------------------------------------------------------
 // deterministic rng for path choice (reproducible with the same seed)
@@ -105,12 +110,18 @@ function assertCanvasBounds(snap: UiSnapshot, round: number): void {
 /**
  * 清空已有选中（UI 无清空按钮：逐张点击已选牌 toggle 反选；
  * 锁定牌点击为 no-op 自动保留，出牌后释放）。
+ * 组粒度模式：点选是对粒度，同一组的对再点一次整对放下——逐张清会反复 toggle
+ * （点 A 把 A 对放下、点 B 把 A 对又拉回），按"组"只点其中一张即可整组清空。
  */
-async function clearSelectionByClicks(page: Page): Promise<void> {
+async function clearSelectionByClicks(page: Page, mode?: SelectionMode): Promise<void> {
   const sel = (await collectSnapshot(page)).store!.selectedCardIds;
+  const done = new Set<string>();
   for (const id of sel) {
+    if (done.has(id)) continue;
+    const g = mode && mode.kind !== 'free' ? (mode.groups[id] ?? [id]) : [id];
     await safeClick(page, `[data-card-id="${id}"]`);
     await page.waitForTimeout(30);
+    g.forEach(x => done.add(x));
   }
 }
 
@@ -209,6 +220,51 @@ async function doBottomExchange(page: Page, seed: number, timeoutMs: number): Pr
 }
 
 /**
+ * 组粒度下把 AI 决策分解为"逐组点击序列"（repCardId × N + 判定是否可点击）：
+ * - 逐张点 AI 组合会反复 toggle（点 A 整对进、点 B 整对又放下），必须按组点代表。
+ * - 候选组 = 决策每张牌所在组（去重）；只保留"整组都在决策内"的组——组拉出决策外的
+ *   牌（重叠窗口的错配映射，如点 8 整窗 789 进来）点击后终态必不符。
+ * - 代表牌必须是"自己的组映射 == 目标组"的牌（点击/拖拽终点都以 groups[牌] 为准）：
+ *   共享牌（如 66 同时进 5566/6677 窗口）映射到先枚举窗，不能当另一窗的代表。
+ * - 用 applyGroupClick 模拟整条点击序列：终态必须恰好等于 AI 决策（含锁定），
+ *   否则视为"组语义不可表达"（返回 null，调用方走 hint 兜底——getHint 直接 set store）。
+ *   replace 只留最后一组（+锁定），决策含两组的组合模拟终态=仅最后组 ≠ 决策 → null，
+ *   自动落到 hint——这正是"UI 组语义表达不了该组合"的信号。
+ */
+function groupClickPath(
+  ids: string[], locked: Set<string>, mode: Exclude<SelectionMode, { kind: 'free' }>,
+): { clicks: string[]; groups: string[][] } | null {
+  const idSet = new Set(ids);
+  const sameGroup = (a: string[], b: string[]): boolean =>
+    a.length === b.length && a.every(x => b.includes(x));
+  const cand: string[][] = [];
+  const seenKey = new Set<string>();
+  for (const id of ids) {
+    const g = mode.groups[id] ?? [id];
+    const key = [...g].sort().join(',');
+    if (seenKey.has(key)) continue;
+    seenKey.add(key);
+    cand.push(g);
+  }
+  const usable = cand.filter(g => g.every(x => idSet.has(x)));
+  if (usable.length === 0) return null;
+  // 代表：组内、非锁定、且自身组映射 == 目标组（共享牌映射到别的窗时不能当代表）
+  const reps: string[] = [];
+  for (const g of usable) {
+    const rep = g.find(x => !locked.has(x) && sameGroup(mode.groups[x] ?? [x], g));
+    if (!rep) return null; // 该组无可用代表（全部是共享牌）→ 组语义表达不了
+    reps.push(rep);
+  }
+  const sel: string[] = [...locked];
+  for (const rep of reps) {
+    const next = applyGroupClick(sel, [...locked], mode, rep);
+    sel.splice(0, sel.length, ...next);
+  }
+  const same = sel.length === ids.length && ids.every(x => sel.includes(x));
+  return same ? { clicks: reps, groups: usable } : null;
+}
+
+/**
  * 以一定概率（15%）展开调试菜单、随机点一个功能（导出/展开 AI 日志），
  * 然后关闭——验证菜单交互且展开不覆盖手牌（不影响后续出牌）。
  */
@@ -246,7 +302,28 @@ async function doPlay(page: Page, snap: UiSnapshot, seed: number, timeoutMs: num
   // AI 决策（记牌器推断）可能含 UI 灰色牌（UI playable 与引擎规则存在
   // 简化差，如缺门甩牌）→ 以 UI 可点集合为约束：优先 AI 决策 ∩ 可点集合，
   // 非法则在该集合内搜索"包含 AI 决策牌最多"的合法组合（leadCount ≤ 4，组合数可控）。
-  const playable = computePlayableIds(player.hand, gs.trickPlays, gs.trumpDeclaration, gs.phase);
+  // 可选域与组粒度模式必须与 GameTable 同口径（强制拆对收窄 + selectionMode），
+  // 否则模拟器按"错误模式"点击/断言（如把整对当单张逐点，点两次把对又放掉）。
+  let forcedSplit: { selectId: string } | null = null;
+  if (gs.trumpDeclaration && gs.phase === GamePhase.Playing
+    && gs.trickPlays.length > 0 && gs.trickPlays[0].cards.length === 1) {
+    const playableIds = computePlayableIds(player.hand, gs.trickPlays, gs.trumpDeclaration, gs.phase)
+      ?? new Set(player.hand.map(c => c.id));
+    if (playableIds.size === 2) {
+      const two = player.hand.filter(c => playableIds.has(c.id));
+      const [a, b] = two;
+      if (a.suit === b.suit && a.rank === b.rank && !a.isJoker) {
+        forcedSplit = { selectId: sortHand(two, gs.trumpDeclaration)[0].id };
+      }
+    }
+  }
+  const playableOverride = forcedSplit ? new Set([forcedSplit.selectId]) : undefined;
+  const playable = playableOverride
+    ?? computePlayableIds(player.hand, gs.trickPlays, gs.trumpDeclaration, gs.phase);
+  const selectionMode = computeSelectionMode(
+    player.hand, gs.trickPlays, gs.trumpDeclaration, gs.phase, playableOverride,
+  );
+  const lockedIds = new Set(computeFollowPlan(player.hand, gs.trickPlays, gs.trumpDeclaration, gs.phase).lockedIds);
   const pool = playable ? player.hand.filter(c => playable.has(c.id)) : player.hand;
 
   let cards: Card[];
@@ -272,43 +349,79 @@ async function doPlay(page: Page, snap: UiSnapshot, seed: number, timeoutMs: num
     }
   }
   if (finalCards.length < cards.length) {
-    const lead = gs.trickPlays[0];
-    console.error(`  play constrained (t${gs.tricksPlayed} lead=${lead ? lead.cards.map(c => c.id).join(',') : '-'} decision=${cards.map(c => c.id).join(',')} playable=${playable ? [...playable].join(',') : 'null'} inPool=${inPool.map(c => c.id).join(',')} final=${finalCards.map(c => c.id).join(',')} err=${playCards(gs, 0, inPool).error ?? '-'})`);
+    console.error(`  play constrained (t${gs.tricksPlayed} decision=${cards.map(c => c?.id ?? '?').join(',')} playable=${playable ? [...playable].join(',') : 'null'} inPool=${inPool.map(c => c?.id ?? '?').join(',')} final=${finalCards.map(c => c?.id ?? '?').join(',')} err=${playCards(gs, 0, inPool).error ?? '-'})`);
+  }
+  // 空决策（快照与页面推进竞态，预存在 flake：seed 3 稳定复现——AI 决策含 undefined
+  // 或手牌已空但 phase 未翻）——本墩跳过交互，主循环下一轮按新状态重试。
+  // （手牌非空但 finalCards 空 = 全灰牌的极端角：保留旧 hint 兜底，见下）
+  if (cards.some(c => !c) || player.hand.length === 0) {
+    console.error(`  play r${st.roundNumber} t${gs.tricksPlayed} skipped (degenerate decision, wait state settle)`);
+    return;
   }
   const ids = finalCards.map(c => c.id);
 
   // 每墩确定性地随机选交互路径（独立 rng 流，seed 可复现）：
-  // - 目标牌在展示手牌中相邻（连续区间）且 rndDrag < 0.5 → 拖拽框选
-  // - 否则 rnd < 0.5 → 点建议出牌；rnd ≥ 0.5 → 手动逐张选牌
+  // - free：目标在展示手牌中相邻（连续区间）且 rndDrag < 0.5 → XOR 拖框；否则
+  //   rnd < 0.5 → 点建议出牌；rnd ≥ 0.5 → 逐张手动（自由选择允许单张 toggle，原语义不变）
+  // - replace / accumulate（组粒度）：决策先用 applyGroupClick 模拟展开为整组点击序列；
+  //   可表达时 rndDrag < 0.5 → 按组拖拽（终点拾取整组，replace 落一组 / accumulate 逐组加）、
+  //   rnd < 0.5 → 建议；否则按组点选（每组点代表一张，整组进入）。组语义表达不了
+  //   （决策含散牌/跨窗口）→ 建议出牌兜底（getHint 直接 set store，绕过组粒度）。
   const rnd = mulberry32((seed + st.roundNumber * 7919 + gs.tricksPlayed * 131) >>> 0)();
   const rndDrag = mulberry32((seed + st.roundNumber * 7919 + gs.tricksPlayed * 131 + 17) >>> 0)();
   const display = sortHand(player.hand, gs.trumpDeclaration);
   const dispIdx = new Map(display.map((c, i) => [c.id, i] as const));
   const idxs = ids.map(id => dispIdx.get(id) ?? -1).sort((a, b) => a - b);
   const contiguous = idxs.length >= 2 && idxs[0] >= 0 && idxs[idxs.length - 1] - idxs[0] + 1 === idxs.length;
-  const useDrag = contiguous && rndDrag < 0.5;
+  const groupPath = selectionMode.kind !== 'free'
+    ? groupClickPath(ids, lockedIds, selectionMode)
+    : null;
+  const useFreeDrag = selectionMode.kind === 'free' && contiguous && rndDrag < 0.5;
+  const useGroupDrag = groupPath !== null && rndDrag < 0.5;
+  const useGroupManual = groupPath !== null && !useGroupDrag && rnd >= 0.5;
   const sig = sigOf(gs);
-  console.error(`  play r${st.roundNumber} t${gs.tricksPlayed}: ${ids.join(',')} via ${useDrag ? 'drag' : rnd < 0.5 ? 'hint' : 'manual'}`);
+  const via = groupPath !== null
+    ? (useGroupDrag ? 'group-drag' : useGroupManual ? 'group-click' : 'hint')
+    : (useFreeDrag ? 'drag' : rnd < 0.5 ? 'hint' : 'manual');
+  console.error(`  play r${st.roundNumber} t${gs.tricksPlayed}: ${ids.join(',')} via ${via}`);
 
-  if (useDrag) {
-    // 拖拽前清空非锁定选中（XOR 反选：已选牌被拖到会反选；锁定牌点击 no-op 保留）
-    await clearSelectionByClicks(page);
-    // 拖拽矩形取展示序首末张（AI 决策顺序 ≠ 展示序时，首末端点会漏选/多选）
-    await dragSelectCards(page, idxs.map(i => display[i].id));
+  // 断言当前选中 == AI 决策（组粒度下锁定牌已在选中列表中）
+  const assertSelection = async (label: string): Promise<void> => {
     await page.waitForTimeout(120);
     const sel = (await collectSnapshot(page)).store!.selectedCardIds;
     const same = sel.length === ids.length && ids.every(id => sel.includes(id));
-    check(`r${st.roundNumber} drag selection matches AI decision`, same,
+    check(`r${st.roundNumber} ${label} selection matches AI decision`, same,
       `selected=${[...sel].sort().join(',')} expected=${[...ids].sort().join(',')}`);
-    if (!same) {
-      // 拖拽失败不打断对局：清空重选走手动（check 已记录失败）
-      await clearSelectionByClicks(page);
-      for (const id of ids) {
-        await safeClick(page, `[data-card-id="${id}"]`);
-        await page.waitForTimeout(30);
-      }
+  };
+  /** 组粒度整组点选：每组点代表一张（调用前应已清空）。 */
+  const clickGroups = async (): Promise<void> => {
+    for (const rep of groupPath!.clicks) {
+      await safeClick(page, `[data-card-id="${rep}"]`);
+      await page.waitForTimeout(30);
     }
-  } else if (rnd < 0.5) {
+  };
+
+  if (useFreeDrag) {
+    // 拖拽前清空非锁定选中（XOR 反选：已选牌被拖到会反选；锁定牌点击 no-op 保留）
+    await clearSelectionByClicks(page, selectionMode);
+    // 拖拽矩形取展示序首末张（AI 决策顺序 ≠ 展示序时，首末端点会漏选/多选）
+    await dragSelectCards(page, idxs.map(i => display[i].id));
+    await assertSelection('drag');
+  } else if (useGroupDrag && groupPath) {
+    // 组粒度拖拽：拖过每组自己首→末张（终点拾取：replace 保留终点组、accumulate 加终点组）
+    await clearSelectionByClicks(page, selectionMode);
+    for (const g of groupPath.groups) {
+      const gIds = g.map(id => dispIdx.get(id) ?? -1).sort((a, b) => a - b)
+        .map(i => display[i].id);
+      await dragSelectCards(page, gIds);
+      await page.waitForTimeout(80);
+    }
+    await assertSelection('group drag');
+  } else if (useGroupManual && groupPath) {
+    await clearSelectionByClicks(page, selectionMode);
+    await clickGroups();
+    await assertSelection('group click');
+  } else if (rnd < 0.5 || (selectionMode.kind !== 'free' && groupPath === null)) {
     await safeClick(page, '[data-testid="hint-btn"]');
     await page.waitForTimeout(150);
     const sel = (await collectSnapshot(page)).store!.selectedCardIds;
@@ -317,10 +430,13 @@ async function doPlay(page: Page, snap: UiSnapshot, seed: number, timeoutMs: num
       && !playCards(gs, 0, player.hand.filter(c => sel.includes(c.id))).error;
     if (!selLegal) {
       // hint 选中了灰色/非法组合（client getHint 无校验，与 runAiTurns 的 AI 回退不同）→ 重选走手动
-      await clearSelectionByClicks(page);
-      for (const id of ids) {
-        await safeClick(page, `[data-card-id="${id}"]`);
-        await page.waitForTimeout(30);
+      await clearSelectionByClicks(page, selectionMode);
+      if (groupPath) await clickGroups();
+      else {
+        for (const id of ids) {
+          await safeClick(page, `[data-card-id="${id}"]`);
+          await page.waitForTimeout(30);
+        }
       }
     } else {
       const same = sel.length === ids.length && sel.every(id => ids.includes(id));
@@ -328,17 +444,13 @@ async function doPlay(page: Page, snap: UiSnapshot, seed: number, timeoutMs: num
         `hint=${[...sel].sort().join(',')} expected=${[...ids].sort().join(',')}`);
     }
   } else {
-    // 先清空已有选中（可能与自动选中/上次选择冲突，重选避免 toggle）
-    await clearSelectionByClicks(page);
+    // 自由模式手动：先清空已有选中（可能与自动选中/上次选择冲突，重选避免 toggle）
+    await clearSelectionByClicks(page, selectionMode);
     for (const id of ids) {
       await safeClick(page, `[data-card-id="${id}"]`);
       await page.waitForTimeout(30);
     }
-    await page.waitForTimeout(120);
-    const sel = (await collectSnapshot(page)).store!.selectedCardIds;
-    const same = sel.length === ids.length && ids.every(id => sel.includes(id));
-    check(`r${st.roundNumber} manual selection matches AI decision`, same,
-      `selected=${[...sel].sort().join(',')} expected=${[...ids].sort().join(',')}`);
+    await assertSelection('manual');
   }
 
   await safeClick(page, '[data-testid="play-btn"]');
@@ -518,7 +630,9 @@ async function main(): Promise<void> {
       });
 
       // setup：勾选调试模式（hint 按钮需要 debug）→ 开始游戏（默认人类南座）
-      await safeClick(page, '.setup-debug input');
+      // 注意：.setup-debug 有两个 （自动抢庄 + 调试），.first() 会点到抢庄——
+      // 调试必须点 [data-testid="setup-debug"]（8b9dab2 引入抢庄勾选框后此处曾错位）
+      await safeClick(page, '[data-testid="setup-debug"]');
       await safeClick(page, '[data-testid="setup-start"]');
 
       console.error(`ui-player: seed=${seed}, max-rounds=${maxRounds}, viewport=1280x720`);
@@ -538,6 +652,6 @@ async function main(): Promise<void> {
 }
 
 main().catch(err => {
-  console.error(err instanceof Error ? err.message : String(err));
+  console.error(err instanceof Error ? err.stack ?? err.message : String(err));
   process.exit(1);
 });
