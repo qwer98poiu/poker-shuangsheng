@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-22 09:34
+
+### dev server 内存快照：刷新浏览器不丢当前牌局（进程存活期间）
+
+**问题**：牌局状态全部存在浏览器内存（zustand store），刷新页面整局丢失；AI 出牌链靠 setTimeout 驱动，随页面一起销毁。需求语义：dev server 进程存活期间刷新可恢复，进程退出则不保留。
+
+**修复**：vite dev server 新增内存快照中间件 `/__poker-game-state`（单槽，进程退出即消失）：客户端订阅 store，节流保存快照白名单字段（gameState、aiPlayers、roundNumber、teamLevels、matchOver、message、settledTrick、dealingDeck 等；首次变更立即落盘，持续变更期间每 400ms 至多一次——纯 trailing 防抖会被发牌的连续 set 无限顺延，整个发牌期间一次都存不出去）；页面加载时 GET 拉回恢复并按阶段续链——dealing 用随快照保存的洗牌堆从断点续发（runDealStep 原以闭包持有洗牌堆、刷新即丢，现提升为 store 字段 `dealingDeck`，扣底开始后清空），playing/round_end 重挂 runAiTurns 重建 AI 链，全 AI revealing 重挂 finalize 定时器，bottom_exchange 等人类操作。瞬态 UI 字段（选中/锁定/高亮/回看/错误）复位；选中与必出锁定由 GameTable effect 在人类回合重新推导。自动化流（?auto=1 / ?seed=N）完全绕过持久化，脚本确定性与人的存档互不干扰；快照结构校验（出牌阶段必有 trumpDeclaration、发牌阶段必有 108 张洗牌堆）防损坏数据崩启动。已知限制：多标签页共享单槽后写覆盖。
+
+**新增 19 项测试**（persistence.test.ts：19 项），引擎 723 项 + arena 65 项 + CLI 80 项 + client 119 项 = 987 项通过。
+
+- **影响文件**：`packages/client/vite.config.ts`、`packages/client/src/store/persistence.ts`、`packages/client/src/main.tsx`、`packages/client/src/store/gameStore.ts`、`packages/client/src/__tests__/persistence.test.ts`
+
 ## 2026-08-17 20:43
 
 ### 主牌信息改为亮主玩家座位旁的小号最终亮主牌，移除"主牌:"指示器

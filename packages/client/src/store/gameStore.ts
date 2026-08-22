@@ -16,7 +16,8 @@ import type { Suit as SuitType } from '@poker/engine';
 import { devParams, seedFor } from '../dev.js';
 
 // Interval helper: divide by dev speed (?speed / auto mode) for fast automated runs.
-const tick = (ms: number) => Math.max(1, Math.round(ms / devParams.speed));
+// Exported for persistence.ts (restore resume delays use the same speed logic).
+export const tick = (ms: number) => Math.max(1, Math.round(ms / devParams.speed));
 
 export type GameMode = 'setup' | 'playing';
 
@@ -41,6 +42,9 @@ interface StoreState {
   matchOver: boolean;
   /** 唯一可出自动选中的牌：不可放下（deselect/clear 均保留，出牌后释放）。 */
   lockedCardIds: string[];
+  /** 当前局的洗牌结果（108 张）：发牌进度快照恢复所需（runDealStep 原以闭包持有，
+   *  刷新即丢）；扣底开始后清空。 */
+  dealingDeck: Card[] | null;
 }
 
 interface StoreActions {
@@ -64,7 +68,7 @@ interface StoreActions {
   finalizeRevealAndBottom: () => void;
 }
 
-type GameStore = StoreState & StoreActions;
+export type GameStore = StoreState & StoreActions;
 
 /** 墩结算显示：第四家出牌后 trickPlays 清空，把上一墩保留到下一墩第一张牌出现。 */
 export function settledFrom(prev: GameState, next: GameState): Trick | null {
@@ -98,6 +102,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   teamLevels: [2, 2],
   matchOver: false,
   lockedCardIds: [],
+  dealingDeck: null,
 
   startGame: (aiConfig: boolean[], debug: boolean) => {
     // ?seed=N: deterministic deck + initial dealer (seededShuffle/mulberry32
@@ -124,6 +129,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       roundNumber: 0,
       teamLevels: [2, 2],
       matchOver: false,
+      dealingDeck: deck,
     });
 
     get().runDealStep(deck);
@@ -233,6 +239,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       set({
         gameState: ready,
         message: `出牌开始！${ready.players[declarerIdx].name} 领出`,
+        dealingDeck: null, // 发牌结束，洗牌堆不再需要（快照随之瘦身）
       });
       setTimeout(() => get().runAiTurns(), tick(600));
     } else {
@@ -255,6 +262,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         selectedCardIds: [],
         lockedCardIds: [],
         message: '请选择8张手牌扣入底牌',
+        dealingDeck: null, // 发牌结束，洗牌堆不再需要（快照随之瘦身）
       });
     }
   },
@@ -533,6 +541,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       // 上一局最后一墩的结算显示必须在开新局时清零：
       // 否则扣底后进入 Playing、第一墩首张牌出现前，桌布会闪现上一局最后一墩
       settledTrick: null,
+      dealingDeck: deck,
     });
 
     get().runDealStep(deck);
