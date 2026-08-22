@@ -23,6 +23,8 @@ packages/arena/      - 策略竞技场（镜像对决、显著性判定）
 Co-Authored-By: DeepSeek V4 Flash <noreply@deepseek.com>
 ```
 
+英文正文（details）不超过 12 行；更长的解释写进 Changelog 对应小节，不堆在提交信息里。
+
 | 前缀 | 用途 |
 |---|---|
 | `fix:` | 修复 bug（含策略 bug） |
