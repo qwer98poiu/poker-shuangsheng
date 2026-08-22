@@ -3,6 +3,7 @@ import type { GameState, Trick, Card, Reveal } from '@poker/engine';
 import { GamePhase, suitLabel, rankLabel, suitName, isPointRank, cardPointsFromRank, computeRoundOutcome } from '@poker/engine';
 import CardFace from '../cards/CardFace.js';
 import { useGameStore } from '../../store/gameStore.js';
+import { mergeFailedThrow, formatAttackerScore, type ThrowEntry } from '../../store/throwFailure.js';
 
 /**
  * 打出牌叠放露出条（纯函数）：n 张牌在容器宽 containerWidth 内全部可见时的
@@ -112,21 +113,21 @@ export function revealDisplayCards(reveal: Reveal, level: number): Card[] {
  * 露出条按容器轨道宽自适应——甩 10+ 张也能整叠完整显示在轨道内。
  * 轨道宽 = 所在 .trick-position-layout 宽度 / 3（等宽三列，见 CSS）。
  */
-const PlayedStack: React.FC<{ cards: Card[] }> = ({ cards }) => {
+const PlayedStack: React.FC<{ entries: readonly ThrowEntry[] }> = ({ entries }) => {
   const ref = useRef<HTMLDivElement>(null);
-  const [strip, setStrip] = useState(() => playedStackStrip(cards.length, 156)); // 初始 1280 视口轨道宽，布局后修正
+  const [strip, setStrip] = useState(() => playedStackStrip(entries.length, 156)); // 初始 1280 视口轨道宽，布局后修正
   useLayoutEffect(() => {
     const cell = ref.current?.parentElement;
     const grid = cell?.parentElement;
     if (!grid) return;
     const track = Math.floor(grid.clientWidth / 3);
-    setStrip(playedStackStrip(cards.length, track));
-  }, [cards.length]);
+    setStrip(playedStackStrip(entries.length, track));
+  }, [entries.length]);
   return (
     <div className="trick-pos-cards" ref={ref}>
-      {cards.map((card, i) => (
-        <div key={card.id} className="played-card-slot" style={{ marginLeft: i > 0 ? `-${50 - strip}px` : '0' }}>
-          <CardFace card={card} size="small" />
+      {entries.map((entry, i) => (
+        <div key={entry.card.id} className="played-card-slot" style={{ marginLeft: i > 0 ? `-${50 - strip}px` : '0' }}>
+          <CardFace card={entry.card} size="small" dimmed={entry.dimmed} />
         </div>
       ))}
     </div>
@@ -145,6 +146,7 @@ const CenterArea: React.FC<CenterAreaProps> = ({ gameState, lastTrickReview, onC
   const localPlayerIndex = useGameStore(s => s.localPlayerIndex);
   const teamLevels = useGameStore(s => s.teamLevels);
   const roundNumber = useGameStore(s => s.roundNumber);
+  const failedThrow = useGameStore(s => s.failedThrow);
   const { phase, trumpDeclaration, attackerPoints, currentLevel, trickPlays, bottomCards, trickHistory } = gameState;
 
   const getPhaseText = () => {
@@ -188,7 +190,10 @@ const CenterArea: React.FC<CenterAreaProps> = ({ gameState, lastTrickReview, onC
             </div>
           );
         })()}
-        <span className="score-item">闲家得分: {attackerPoints}</span>
+        {/* 显示公式：实际得分-闲家罚分+庄家方罚分（无罚分时仅数字） */}
+        <span className="score-item">
+          闲家得分: {formatAttackerScore(attackerPoints, gameState.throwPenalties)}
+        </span>
         {(() => {
           // 闲家已获得的分牌：一行 5 张，10/K 档在前、5 在后，同档按花色 SHCD
           const declarerIdx = gameState.trumpDeclaration?.declarerIndex ?? gameState.declarerIndex;
@@ -267,7 +272,16 @@ const CenterArea: React.FC<CenterAreaProps> = ({ gameState, lastTrickReview, onC
                       ))}
                     </div>
                   )}
-                  {isPlaying && <PlayedStack cards={play ? play.cards : []} />}
+                  {isPlaying && (
+                    <PlayedStack
+                      entries={mergeFailedThrow(
+                        play?.cards ?? [],
+                        failedThrow && trickPlays.length > 0 && failedThrow.playerIndex === pi
+                          ? failedThrow
+                          : null,
+                      )}
+                    />
+                  )}
                 </div>
               );
             })}
@@ -301,7 +315,7 @@ const CenterArea: React.FC<CenterAreaProps> = ({ gameState, lastTrickReview, onC
                     <div className="trick-pos-player">
                       {gameState.players[pi].name}{isWinner ? ' 👑' : ''}
                     </div>
-                    <PlayedStack cards={play ? play.cards : []} />
+                    <PlayedStack entries={(play?.cards ?? []).map(card => ({ card, dimmed: false }))} />
                   </div>
                 );
               })}

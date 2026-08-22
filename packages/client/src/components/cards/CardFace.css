@@ -138,3 +138,23 @@
   justify-content: center;
   height: 100%;
 }
+
+/* 甩牌失败被退回的牌：桌面保留，视觉与手牌不可选牌（.disabled）一致——
+   牌面不透明、仅角标/花色淡化（不用灰度，红桃的红色不能被吃掉） */
+.card.dimmed {
+  opacity: 1;
+  filter: none;
+  cursor: default;
+}
+
+.card.dimmed .card-rank,
+.card.dimmed .card-suit,
+.card.dimmed .card-suit-large,
+.card.dimmed .card-joker-icon {
+  opacity: 0.3;
+}
+
+.card.dimmed:hover {
+  transform: none;
+  box-shadow: none;
+}

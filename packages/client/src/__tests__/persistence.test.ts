@@ -193,7 +193,7 @@ describe('pickSnapshot', () => {
     expect(pickSnapshot({ ...useGameStore.getState(), mode: 'setup', gameState: playingState() })).toBeNull();
   });
 
-  it('白名单字段精确：瞬态字段（选中/锁定/高亮/回看/错误）不入快照', () => {
+  it('白名单字段精确：瞬态字段（选中/锁定/高亮/回看/错误/失败回显）不入快照', () => {
     useGameStore.setState({
       mode: 'playing',
       gameState: playingState(),
@@ -202,6 +202,7 @@ describe('pickSnapshot', () => {
       highlightedCards: ['y'],
       lastTrickReview: true,
       errorMessage: 'e',
+      failedThrow: { playerIndex: 0, attempted: [], playedIds: [], notice: 'n' },
     });
     const snap = pickSnapshot(useGameStore.getState());
     expect(snap).not.toBeNull();
@@ -348,6 +349,7 @@ describe('restoreFromServer — 恢复与续链', () => {
     expect(st.highlightedCards).toEqual([]);
     expect(st.lastTrickReview).toBe(false);
     expect(st.errorMessage).toBeNull();
+    expect(st.failedThrow).toBeNull();
 
     // AI 链重建：续打到第 2 墩结束（种子局确定性）
     await waitFor(() => useGameStore.getState().gameState!.tricksPlayed === 2);

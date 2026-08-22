@@ -122,6 +122,14 @@
   border-radius: 4px;
 }
 
+/* 甩牌失败提示（与 CLI 同为黄色警示，区别于红色错误） */
+.fail-msg {
+  color: #ffb300;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 4px 12px;
+  border-radius: 4px;
+}
+
 .info-msg {
   color: #ffd740;
   background: rgba(0, 0, 0, 0.3);

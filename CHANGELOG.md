@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-08-22 13:17
+
+### 甩牌失败 UX：桌面全量展示尝试牌（退回置灰）+ 消息栏提示 + 罚分角标
+
+**问题**：非调试模式下甩牌失败完全静默——引擎已做罚分与强制出牌（`forcedPlay`/`forceReason`），但客户端从不读取：只见强制出的牌出现在桌面，不知道甩牌失败、哪些牌被退回、罚了多少分。
+
+**修复**：
+① 新增 `failedThrow` 瞬态 store 字段（`playerIndex` + 原始尝试牌 + 强制打出 id + 预渲染文案）：`submitPlay`/`runAiTurns` 检测 `result.forcedPlay` 时构造。清空唯一责任方 = store——本墩结算（tricksPlayed 增加）、新局、开局、快照恢复时置 null；**墩内跟牌保留回显**。
+② 桌面：领出座位展开为全部尝试牌，被退回的牌经 CardFace 新增 `dimmed` prop 弱化——视觉与手牌不可选样式（`.disabled`）一致：牌面不透明、无灰度（保留红桃红色），仅角标/花色淡化至 0.3；强制出的小牌排最右不被覆盖；结算横幅与回看只读 trickHistory 天然不含退回牌。
+③ 提示：消息栏三优先级 `failedThrow ⚠ > errorMessage ❌ > message`，琥珀黄文案如"玩家1 甩牌失败！强制出 ♠K（闲家罚 1/3，-10 分）"；失败后下一次续打延时 ~2s 保证可读。不用 errorMessage 承载（ui-smoke 断言整局 errorMessage===null，AI 甩牌失败是常态）。罚分达上限 3 次时文案标注"已达上限不扣分"。
+④ 左上角闲家得分改为**公式显示格式**：`闲家得分: 实际得分-闲家罚分+庄家方罚分`（如 `0-10`、`35+10`、`20-10+20`；无罚分仅数字）——由 `formatAttackerScore` 从引擎折算值反推实际分后拼接；不显示"庄家罚 n/3"角标。强制出的小牌在桌面牌叠中**排最右**（后画覆盖先画，灰牌在前保证永不遮盖强制出的牌）。
+⑤ 快照持久化不受影响：failedThrow 不入白名单快照，restore 复位。
+引擎零改动：普通模式甩牌失败的罚分（闲家 -10 / 庄家方 +10、上限各 3 次）与"最小被压子牌型强制出小"规则均为既有行为；被强制出的牌按定义是被压住的子牌型，大王/小王不可被压故永不为强制出牌。
+
+**新增 20 项测试**（throwFailure.test.ts：15 项、gameStore.test.ts：5 项）、**修改 2 项测试**（persistence.test.ts：白名单/恢复断言适配），引擎 723 项 + arena 65 项 + CLI 80 项 + client 142 项 = 1010 项通过。
+
+- **影响文件**：`packages/client/src/store/throwFailure.ts`、`packages/client/src/store/gameStore.ts`、`packages/client/src/store/persistence.ts`、`packages/client/src/components/cards/CardFace.tsx`、`packages/client/src/components/cards/CardFace.css`、`packages/client/src/components/game/CenterArea.tsx`、`packages/client/src/components/game/GameTable.tsx`、`packages/client/src/components/game/GameTable.css`、`packages/client/src/__tests__/throwFailure.test.ts`、`packages/client/src/__tests__/gameStore.test.ts`、`packages/client/src/__tests__/persistence.test.ts`
+
 ## 2026-08-22 12:01
 
 ### 发牌期间亮主绕过节流，快照立即落盘

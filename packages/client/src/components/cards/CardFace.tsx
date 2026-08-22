@@ -8,6 +8,8 @@ interface CardFaceProps {
   selected?: boolean;
   disabled?: boolean;
   highlighted?: boolean;
+  /** 桌面灰显（甩牌失败被退回的牌）：整体去饱和降透明，非交互禁用。 */
+  dimmed?: boolean;
   onClick?: () => void;
   size?: 'small' | 'medium' | 'large';
   faceDown?: boolean;
@@ -18,6 +20,7 @@ const CardFace: React.FC<CardFaceProps> = ({
   selected = false,
   disabled = false,
   highlighted = false,
+  dimmed = false,
   onClick,
   size = 'medium',
   faceDown = false,
@@ -46,6 +49,7 @@ const CardFace: React.FC<CardFaceProps> = ({
         selected ? 'selected' : '',
         disabled ? 'disabled' : '',
         highlighted ? 'highlighted' : '',
+        dimmed ? 'dimmed' : '',
         isJoker ? 'joker-card' : '',
       ].filter(Boolean).join(' ')}
       data-card-id={card.id}

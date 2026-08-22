@@ -283,3 +283,162 @@ describe('gameStore — 局间 settledTrick 清零', () => {
     expect(useGameStore.getState().settledTrick).toBeNull();
   });
 });
+
+describe('gameStore — 甩牌失败流程（非 debug）', () => {
+  // 双副牌场景：P0 持 ♠A#0 ♠K#0，P1 持另一张 ♠A#1 → ♠K 被压、♠A 压不住
+  // → 引擎强制出 ♠K、♠A 退回手牌。庄家=P1 → P0/P2 为闲家。
+  const craftThrowState = (debug: boolean, overrides: Partial<GameState> = {}): GameState => {
+    const mk = (name: string, i: number, hand: Card[]): PlayerState =>
+      ({ name, index: i, isHuman: i === 0, hand });
+    const players: [PlayerState, PlayerState, PlayerState, PlayerState] = [
+      mk('玩家1', 0, [c('S', 14, 0), c('S', 13, 0), c('C', 3, 0), c('C', 4, 0)]),
+      mk('AI-2', 1, [c('S', 14, 1), c('C', 3, 1), c('C', 4, 1)]),
+      mk('AI-3', 2, [c('C', 3, 2), c('C', 4, 2), c('C', 5, 2)]),
+      mk('AI-4', 3, [c('C', 3, 3), c('C', 4, 3), c('C', 5, 3)]),
+    ];
+    const base = createInitialState(
+      [mk('玩家1', 0, []), mk('AI-2', 1, []), mk('AI-3', 2, []), mk('AI-4', 3, [])],
+      1, 2, debug,
+    );
+    return {
+      ...base,
+      phase: GamePhase.Playing,
+      currentPlayerIndex: 0,
+      leadPlayerIndex: 0,
+      trickPlays: [],
+      trickHistory: [],
+      players,
+      initialHands: players.map(p => p.hand),
+      trumpDeclaration: { declarerIndex: 1, trumpSuit: Suit.Hearts, level: 2 },
+      ...overrides,
+    };
+  };
+
+  const setStateFor = (gs: GameState): void => {
+    useGameStore.setState({
+      mode: 'playing',
+      gameState: gs,
+      aiPlayers: [false, true, true, true],
+      localPlayerIndex: 0,
+      selectedCardIds: [],
+      lockedCardIds: [],
+      errorMessage: null,
+      failedThrow: null,
+      matchOver: false,
+      roundNumber: 0,
+      teamLevels: [2, 2],
+    });
+  };
+
+  it('人类甩牌失败：♠A 灰牌退回、强制出 ♠K、提示文案与罚分、延时续打', async () => {
+    const gs = craftThrowState(false);
+    setStateFor(gs);
+    useGameStore.setState({
+      selectedCardIds: ['S-14-0', 'S-13-0'],
+    });
+
+    useGameStore.getState().submitPlay();
+
+    const st = useGameStore.getState();
+    expect(st.gameState!.players[0].hand.map(x => x.id)).toContain('S-14-0');
+    expect(st.gameState!.players[0].hand.map(x => x.id)).not.toContain('S-13-0');
+    expect(st.gameState!.trickPlays[0].cards.map(x => x.id)).toEqual(['S-13-0']);
+    expect(st.failedThrow).not.toBeNull();
+    expect(st.failedThrow!.playerIndex).toBe(0);
+    expect(st.failedThrow!.playedIds).toEqual(['S-13-0']);
+    expect(st.failedThrow!.attempted.map(x => x.id)).toEqual(['S-14-0', 'S-13-0']);
+    expect(st.failedThrow!.notice).toBe('玩家1 甩牌失败！强制出 ♠K（闲家罚 1/3，-10 分）');
+    expect(st.gameState!.attackerPoints).toBe(-10);
+    expect(st.gameState!.throwPenalties).toEqual([0, 1]);
+    expect(st.errorMessage).toBeNull();
+
+    // 延时续打：100ms 时未续（tick(2000)=250ms @speed8）
+    await advance(100);
+    expect(useGameStore.getState().gameState!.trickPlays).toHaveLength(1);
+    // 续打后墩内跟牌不清失败回显
+    await advance(300);
+    expect(useGameStore.getState().failedThrow).not.toBeNull();
+    // 本墩结算（第 4 家出牌）→ 清零
+    await waitFor(() => useGameStore.getState().gameState!.tricksPlayed === 1);
+    expect(useGameStore.getState().failedThrow).toBeNull();
+  });
+
+  it('已达罚分上限：不再扣分，文案标注上限', () => {
+    const gs = craftThrowState(false, { throwPenalties: [0, 3], attackerPoints: 50 });
+    setStateFor(gs);
+    useGameStore.setState({ selectedCardIds: ['S-14-0', 'S-13-0'] });
+
+    useGameStore.getState().submitPlay();
+
+    const st = useGameStore.getState();
+    expect(st.gameState!.attackerPoints).toBe(50);
+    expect(st.gameState!.throwPenalties).toEqual([0, 3]);
+    expect(st.failedThrow!.notice).toBe('玩家1 甩牌失败！强制出 ♠K（已达 3 次上限，不扣分）');
+  });
+
+  it('墩内 AI 跟牌保留领出者的失败回显，结算时清零', async () => {
+    // 说明：AI 领出甩牌前有比 validateThrow 更严的预校验（worst-case 集中），
+    // 自然对局中 AI 甩牌失败几乎不可达；此处验证 store 的保留/清零责任：
+    // P0 甩牌失败后轮到 AI 跟牌 → 回显必须保留（不能被跟牌覆盖为 null）。
+    const gs = craftThrowState(false);
+    setStateFor(gs);
+    useGameStore.setState({ selectedCardIds: ['S-14-0', 'S-13-0'] });
+
+    useGameStore.getState().submitPlay();
+    expect(useGameStore.getState().failedThrow).not.toBeNull();
+
+    // AI 跟牌推进至本墩结算：结算前回显保留
+    await advance(400);
+    if (useGameStore.getState().gameState!.tricksPlayed === 0) {
+      expect(useGameStore.getState().failedThrow).not.toBeNull();
+    }
+    // 结算 → 清零
+    await waitFor(() => useGameStore.getState().gameState!.tricksPlayed === 1);
+    expect(useGameStore.getState().failedThrow).toBeNull();
+  });
+
+  it('debug 模式保持原样：报错重选、不上桌、不罚分', () => {
+    const gs = craftThrowState(true);
+    setStateFor(gs);
+    useGameStore.setState({ selectedCardIds: ['S-14-0', 'S-13-0'] });
+
+    useGameStore.getState().submitPlay();
+
+    const st = useGameStore.getState();
+    expect(st.errorMessage).not.toBeNull();
+    expect(st.gameState!.players[0].hand.map(x => x.id)).toEqual(['S-14-0', 'S-13-0', 'C-3-0', 'C-4-0']);
+    expect(st.gameState!.trickPlays).toHaveLength(0);
+    expect(st.failedThrow).toBeNull();
+    expect(st.gameState!.throwPenalties).toEqual([0, 0]);
+  });
+
+  it('新局开始清零 failedThrow', () => {
+    const players: [PlayerState, PlayerState, PlayerState, PlayerState] = [
+      emptyPlayer('玩家1', 0), emptyPlayer('AI-2', 1),
+      emptyPlayer('AI-3', 2), emptyPlayer('AI-4', 3),
+    ];
+    const base = createInitialState(players, 0, 2, false);
+    useGameStore.setState({
+      gameState: {
+        ...base,
+        phase: GamePhase.RoundEnd,
+        attackerPoints: 40,
+        trumpDeclaration: { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 },
+        bottomCards: [],
+        trickHistory: [],
+      },
+      aiPlayers: [true, true, true, true],
+      roundNumber: 5,
+      teamLevels: [2, 2],
+      matchOver: false,
+      failedThrow: {
+        playerIndex: 0, attempted: [], playedIds: [], notice: 'x',
+      },
+    });
+
+    useGameStore.getState().startNewRound();
+    expect(useGameStore.getState().gameState?.phase).toBe(GamePhase.Dealing);
+    expect(useGameStore.getState().roundNumber).toBe(6);
+    expect(useGameStore.getState().failedThrow).toBeNull();
+  });
+});

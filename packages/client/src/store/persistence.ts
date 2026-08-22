@@ -233,6 +233,7 @@ export async function restoreFromServer(
       highlightedCards: [],
       lastTrickReview: false,
       errorMessage: null,
+      failedThrow: null,
     });
 
     const st = store.getState();

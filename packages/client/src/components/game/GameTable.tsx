@@ -75,7 +75,7 @@ function ntrackerText(gs: GameState, playerIndex: number): string {
 const GameTable: React.FC = () => {
   const {
     gameState, localPlayerIndex, selectedCardIds, debug,
-    message, errorMessage, lastTrickReview, highlightedCards,
+    message, errorMessage, failedThrow, lastTrickReview, highlightedCards,
     selectCard, deselectCard,
     submitPlay, submitBottomExchange,
     humanReveal, humanPassReveal,
@@ -268,8 +268,9 @@ const GameTable: React.FC = () => {
           故小牌放在外层 .message-wrap 容器内） */}
       <div className="message-wrap">
         <div className="table-message">
-          {errorMessage && <span className="error-msg">❌ {errorMessage}</span>}
-          {!errorMessage && <span className="info-msg">{message}</span>}
+          {failedThrow ? <span className="fail-msg" data-testid="fail-msg">⚠ {failedThrow.notice}</span>
+            : errorMessage ? <span className="error-msg">❌ {errorMessage}</span>
+            : <span className="info-msg">{message}</span>}
         </div>
         {finalChipOf(localPlayerIndex) && (
           <div

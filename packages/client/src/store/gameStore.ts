@@ -14,6 +14,7 @@ import {
 } from '@poker/engine';
 import type { Suit as SuitType } from '@poker/engine';
 import { devParams, seedFor } from '../dev.js';
+import { buildFailedThrow, type FailedThrow } from './throwFailure.js';
 
 // Interval helper: divide by dev speed (?speed / auto mode) for fast automated runs.
 // Exported for persistence.ts (restore resume delays use the same speed logic).
@@ -34,6 +35,10 @@ interface StoreState {
   highlightedCards: string[];
   /** 上一墩结算显示（第四家出牌后保留到下一墩第一张牌出现）。 */
   settledTrick: Trick | null;
+  /** 甩牌失败桌面临时展示（原始尝试牌 + 强制打出 id + 文案）。
+   *  清空唯一责任方 = store：后续任何成功出牌使 tricksPlayed 增加（墩结算）、
+   *  新局、开局、快照恢复时置 null；墩内跟牌不清（灰牌持续到本墩结算）。 */
+  failedThrow: FailedThrow | null;
   /** 0-based round number (used for deterministic per-round seeds + first-round reveal). */
   roundNumber: number;
   /** Levels per team (team = declarerIndex % 2). */
@@ -98,6 +103,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   lastTrickReview: false,
   highlightedCards: [],
   settledTrick: null,
+  failedThrow: null,
   roundNumber: 0,
   teamLevels: [2, 2],
   matchOver: false,
@@ -130,6 +136,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       teamLevels: [2, 2],
       matchOver: false,
       dealingDeck: deck,
+      failedThrow: null,
     });
 
     get().runDealStep(deck);
@@ -391,6 +398,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const result = playCards(gameState, localPlayerIndex, cards);
     if (result.error) { set({ errorMessage: result.error }); return; }
 
+    // 甩牌失败（非 debug）：引擎已罚分并强制打出最小被压子牌型，
+    // 记录原始尝试牌用于桌面灰色回显与消息条提示
+    const failed = result.forcedPlay
+      ? buildFailedThrow({
+          playerIndex: localPlayerIndex,
+          playerName: player.name,
+          attempted: cards,
+          forcedPlay: result.forcedPlay,
+          penaltiesBefore: gameState.throwPenalties,
+          penaltiesAfter: result.state.throwPenalties,
+          declarerIndex: gameState.trumpDeclaration!.declarerIndex,
+        })
+      : null;
+
     set({
       gameState: result.state,
       selectedCardIds: [],
@@ -398,6 +419,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
       highlightedCards: [],
       errorMessage: null,
       settledTrick: settledFrom(gameState, result.state),
+      // 跟牌（含人类跟牌）保留领出者的失败回显；本墩结算才清零
+      failedThrow: result.state.tricksPlayed > gameState.tricksPlayed
+        ? null
+        : (failed ?? get().failedThrow),
     });
 
     if (result.state.phase === GamePhase.RoundEnd) {
@@ -407,7 +432,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
 
     set({ message: `${result.state.players[result.state.currentPlayerIndex].name} 出牌` });
-    setTimeout(() => get().runAiTurns(), tick(600));
+    // 甩牌失败：提示停留 ~2s 再续打，否则下一家出牌立刻覆盖文案
+    setTimeout(() => get().runAiTurns(), tick(result.forcedPlay ? 2000 : 600));
   },
 
   runAiTurns: () => {
@@ -449,6 +475,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }
 
       const result = playCards(gameState, cp, cards);
+      let hadThrowFailure = false;
       if (result.error) {
         // fallback: single-card legal play
         const fb = playCards(gameState, cp, [player.hand[0]]);
@@ -456,12 +483,31 @@ export const useGameStore = create<GameStore>((set, get) => ({
           gameState: fb.state,
           errorMessage: `${result.error}（${reason}）`,
           settledTrick: settledFrom(gameState, fb.state),
+          // fallback 可能直接结算本墩：结算即清失败回显（清空责任方仍归 store）
+          failedThrow: fb.state.tricksPlayed > gameState.tricksPlayed ? null : get().failedThrow,
         });
       } else {
+        // 甩牌失败（非 debug）：同人类路径，记录原始尝试牌供桌面回显与提示
+        hadThrowFailure = !!result.forcedPlay;
+        const failed = result.forcedPlay
+          ? buildFailedThrow({
+              playerIndex: cp,
+              playerName: player.name,
+              attempted: cards,
+              forcedPlay: result.forcedPlay,
+              penaltiesBefore: gameState.throwPenalties,
+              penaltiesAfter: result.state.throwPenalties,
+              declarerIndex: config.declarerIndex,
+            })
+          : null;
         set({
           gameState: result.state,
           errorMessage: null,
           settledTrick: settledFrom(gameState, result.state),
+          // 跟牌保留领出者的失败回显；本墩结算才清零
+          failedThrow: result.state.tricksPlayed > gameState.tricksPlayed
+            ? null
+            : (failed ?? get().failedThrow),
         });
       }
 
@@ -485,7 +531,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }
 
       set({ message: `${get().gameState?.players[get().gameState!.currentPlayerIndex].name} 出牌` });
-      setTimeout(() => get().runAiTurns(), tick(800));
+      // 甩牌失败：提示停留 ~2s 再续打
+      setTimeout(() => get().runAiTurns(), tick(hadThrowFailure ? 2000 : 800));
     }
   },
 
@@ -541,6 +588,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       // 上一局最后一墩的结算显示必须在开新局时清零：
       // 否则扣底后进入 Playing、第一墩首张牌出现前，桌布会闪现上一局最后一墩
       settledTrick: null,
+      failedThrow: null,
       dealingDeck: deck,
     });
 
