@@ -44,13 +44,12 @@ interface PlayerHandProps {
   cards: Card[];
   selectedIds: string[];
   highlightedIds: string[];
-  /** null = 全部可选；非 null = 仅这些牌可出（其余灰色不可选） */
+  /** null = 全部可选；非 null = 仅这些牌可出（其余灰色不可选）。
+   *  仅在轮到自己出牌时传入——非自己回合手牌不置灰（交互由内部闸门拦截）。 */
   playableIds?: Set<string> | null;
   onSelectCard: (id: string) => void;
   onDeselectCard: (id: string) => void;
   isActive: boolean;
-  /** 非激活回合时手牌是否置灰（发牌阶段 false = 亮色展示，仍不可点） */
-  dimInactive?: boolean;
   playerName: string;
   isHuman: boolean;
 }
@@ -63,7 +62,6 @@ const PlayerHand: React.FC<PlayerHandProps> = ({
   onSelectCard,
   onDeselectCard,
   isActive,
-  dimInactive = true,
   playerName,
   isHuman,
 }) => {
@@ -149,7 +147,7 @@ const PlayerHand: React.FC<PlayerHandProps> = ({
               size={isHuman ? 'medium' : 'small'}
               selected={selectedIds.includes(card.id)}
               highlighted={highlightedIds.includes(card.id)}
-              disabled={((!isActive || !isHuman) && dimInactive) || (playableIds !== null && !playableIds.has(card.id))}
+              disabled={isHuman && isActive && playableIds !== null && !playableIds.has(card.id)}
               onClick={() => handleCardClick(card.id)}
               faceDown={!isHuman}
             />

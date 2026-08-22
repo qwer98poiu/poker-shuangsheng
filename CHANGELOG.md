@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-08-22 20:40
+
+### 非自己回合手牌不再置灰
+
+**问题**：出牌阶段未轮到自己时，整手牌按 `dimInactive` 置灰（角标淡化），观感像"这些牌不能要"；且规则灰（`playableIds`）也未按回合门控，别人跟牌时自己的手牌同样被灰。
+
+**修复**：① 删除 `PlayerHand` 的 `dimInactive` prop——置灰不再有"非激活回合全手灰"来源；② GameTable 仅在轮到自己出牌（Playing 且 currentPlayerIndex === localPlayerIndex）时传入规则灰 `playableIds`，其余时候传 null。交互不变：非自己回合点击/拖选由 PlayerHand 内部既有闸门（`!isActive || !isHuman` 早退）拦截，只是没有灰显。
+
+E2E 实测：非自己回合手牌 0 张灰；轮到自己跟♠时 ♦4/♦6 规则灰、♠9 可选。
+
+无新增测试。
+
+- **影响文件**：`packages/client/src/components/game/PlayerHand.tsx`、`packages/client/src/components/game/GameTable.tsx`
+
 ## 2026-08-22 17:00
 
 ### 亮主阶段延长为 3 秒静默倒计时：数字倒计时显示于"回看上墩"槽位右侧，亮/反即重置

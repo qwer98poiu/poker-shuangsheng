@@ -211,10 +211,15 @@ const GameTable: React.FC = () => {
   // sorted hand for display
   const displayHand = sortHand(localPlayer.hand, gameState.trumpDeclaration);
 
-  // 可出牌集合：不符合规则的牌灰色不可选（见 playable.ts）
-  const playableIds = computePlayableIds(
-    localPlayer.hand, gameState.trickPlays, gameState.trumpDeclaration, gameState.phase,
-  );
+  // 可出牌集合：轮到自己出牌时，不符合规则的牌灰色不可选（见 playable.ts）；
+  // 非自己回合不传（手牌亮色展示，交互由 PlayerHand 内部闸门拦截）
+  const myTurnToPlay = gameState.phase === GamePhase.Playing
+    && gameState.currentPlayerIndex === localPlayerIndex;
+  const playableIds = myTurnToPlay
+    ? computePlayableIds(
+        localPlayer.hand, gameState.trickPlays, gameState.trumpDeclaration, gameState.phase,
+      )
+    : null;
 
   return (
     <div className="game-table">
@@ -526,7 +531,6 @@ const GameTable: React.FC = () => {
             onSelectCard={selectCard}
             onDeselectCard={deselectCard}
             isActive={isMyTurn && (isPlaying || isBottomExchange)}
-            dimInactive={gameState.phase !== GamePhase.Dealing} // 发牌阶段亮色展示（仍不可点）
             playerName={localPlayer.name}
             isHuman={localPlayer.isHuman}
           />
