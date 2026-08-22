@@ -18,6 +18,20 @@ body {
   color: #e0e0e0;
 }
 
+/* 启动引导（main.tsx bootstrap）：快照检测/恢复期间显示，避免闪现 setup 面板。
+   背景与 body 同色，视觉上是"应用正在打开"而非白屏。 */
+.boot-loading {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0a3d24;
+  color: #e0e0e0;
+  font-size: 16px;
+  letter-spacing: 2px;
+}
+
 /* 固定画布 1280×720：大屏绿色桌布铺满视口，内容只用中央画布 */
 .app-shell {
   position: relative;

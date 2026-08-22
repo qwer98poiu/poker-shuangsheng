@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-22 11:50
+
+### 启动体验：冷启动首开白屏改为绿底加载页；刷新恢复前不再闪现启动界面
+
+**问题**：① 启动进程后初次打开浏览器白屏数秒——index.html 原本不链接任何 CSS、`#root` 为空，样式与引导内容全靠 main.tsx 注入，而其静态 import 链拖着整个 `@poker/engine`，vite 冷启动现场转换数百模块期间纯白；② 页面加载时 React 立即以 `mode='setup'` 渲染启动面板，快照恢复（异步 GET）完成后再切回牌局——刷新时闪现启动界面。
+
+**修复**：① index.html `<head>` 直接 `<link>` global.css，`#root` 内预置 `.boot-loading`"加载中……"占位（React 首次 render 时整块替换），HTML+CSS 先行上色，模块在占位背后继续加载；main.tsx 移除重复 CSS import；补 🃏 data-URI favicon 消除 /favicon.ico 404；vite `server.warmup` 预转换客户端源码。实测（waitUntil:commit 起测）：冷启动响应后 ~347ms 出现绿底+加载文案，无纯白期。② main.tsx 改异步引导 bootstrap：先渲染加载页，`Promise.race` 800ms 兜底等待 restoreFromServer 后再渲染 App——有快照直接进牌局，无快照落 setup；restore 内部异常 catch 保证必然渲染；root 只创建一次、render 可重复调用。两阶段文案（加载中→恢复中）经评估放弃：恢复为同步操作撑不满一帧。?auto/?seed 自动化流不经引导页，行为不变。
+
+无新增测试。
+
+- **影响文件**：`packages/client/index.html`、`packages/client/src/main.tsx`、`packages/client/src/styles/global.css`、`packages/client/vite.config.ts`
+
 ## 2026-08-22 11:03
 
 ### 快照线格式改为 base64 编码，URL/F12 不再可见明文手牌

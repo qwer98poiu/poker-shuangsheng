@@ -3,10 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="/src/styles/global.css" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%83%8F%3C/text%3E%3C/svg%3E" />
   <title>双升 - 拖拉机</title>
 </head>
 <body>
-  <div id="root"></div>
+  <!-- 启动占位：dev server 冷启动时模块转换需数秒，先给绿底+加载文案，
+       避免 main.tsx（静态 import 整个 engine）就绪前的长时间纯白。
+       React 首次 render 时整块替换。 -->
+  <div id="root">
+    <div class="boot-loading">加载中……</div>
+  </div>
   <script type="module" src="/src/main.tsx"></script>
 </body>
 </html>

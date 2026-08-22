@@ -92,5 +92,9 @@ export default defineConfig({
   plugins: [react(), gameStatePersist()],
   server: {
     port: 3000,
+    // 启动时后台预转换客户端源码，缩短冷启动后首次打开的白屏等待
+    warmup: {
+      clientFiles: ['./src/main.tsx', './src/**/*.tsx', './src/**/*.ts', './src/**/*.css'],
+    },
   },
 });
