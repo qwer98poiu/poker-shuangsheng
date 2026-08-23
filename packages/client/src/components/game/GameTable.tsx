@@ -199,6 +199,22 @@ const GameTable: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameState, localPlayerIndex]);
 
+  // 领出只剩一张：自动选上并锁定（不可放下）但不自动打出——仍由玩家点出牌。
+  // 剩一对不算（hand.length !== 1）：两张仍可自由选择拆对或成对领出。
+  useEffect(() => {
+    const gs = gameState;
+    if (!gs || gs.phase !== GamePhase.Playing) return;
+    if (gs.currentPlayerIndex !== localPlayerIndex) return;
+    if (gs.trickPlays.length > 0) return; // 仅领出（跟单张末墩由自动打分支处理）
+    const hand = gs.players[localPlayerIndex].hand;
+    if (hand.length !== 1) return;
+    const st = useGameStore.getState();
+    if (st.selectedCardIds.length === 1 && st.selectedCardIds[0] === hand[0].id
+      && st.lockedCardIds.includes(hand[0].id)) return;
+    st.autoSelectCards([hand[0].id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState, localPlayerIndex]);
+
   if (!gameState) return null;
 
   const getUIPosition = (gameIndex: number): 'top' | 'left' | 'right' => {
