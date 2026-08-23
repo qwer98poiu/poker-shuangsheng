@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { Suit, Rank } from '../types.js';
+import { Suit, Rank, GamePhase } from '../types.js';
 import type { CardSuit } from '../types.js';
 import { createCard } from '../model.js';
 import {
   getRevealOptions, canOverride, finalize, revealStrength, canSelfReinforce,
 } from '../revealing/index.js';
-import { aiTryReveal } from '../ai/index.js';
-import { tryReveal } from '../game/index.js';
+import { aiTryReveal, buildAIContext } from '../ai/index.js';
+import { tryReveal, finalizeReveal } from '../game/index.js';
 
 describe('Revealing — getRevealOptions', () => {
   it('returns NT with strength 4 for pair of BigJokers', () => {
@@ -294,5 +294,64 @@ describe('tryReveal — 亮主过程（单张 → 自保，不直接亮一对）
     const cur = { playerIndex: 1, suit: Suit.Hearts, strength: 1 };
     const s = tryReveal(mkState(pair, cur), 0, Suit.Spades);
     expect(s.currentReveal).toEqual({ playerIndex: 0, suit: Suit.Spades, strength: 2 });
+  });
+});
+
+describe('finalizeReveal — 顶层 declarerIndex 与亮主者同步', () => {
+  const mkGameState = (defaultDeclarer: number, currentReveal: any) => ({
+    players: [0, 1, 2, 3].map(i => ({
+      name: `P${i}`, hand: [createCard(Suit.Hearts, 5, i)], isHuman: i === defaultDeclarer, index: i,
+    })),
+    phase: GamePhase.Revealing,
+    currentPlayerIndex: defaultDeclarer,
+    trumpDeclaration: null,
+    declarerIndex: defaultDeclarer,
+    attackerPoints: 0,
+    bottomCards: [],
+    trickHistory: [], trickPlays: [], leadPlayerIndex: defaultDeclarer,
+    tricksPlayed: 0, currentLevel: 2, roundNumber: 0,
+    reveals: currentReveal ? [currentReveal] : [], currentReveal,
+    aiReasons: [], dealtCards: [[], [], [], []], dealingComplete: true,
+    debug: false, matchOver: false, settledTrick: null, throwPenalties: [0, 0],
+  });
+
+  it('第 1 局默认庄家 P0，P2 反主 → 顶层 declarerIndex 同步为 P2（AI isDeclarer 判定依赖）', () => {
+    const state = mkGameState(0, { playerIndex: 2, suit: Suit.Spades, strength: 2 });
+    const out = finalizeReveal(state as any, true);
+    expect(out.trumpDeclaration!.declarerIndex).toBe(2); // 亮主者成为庄家
+    expect(out.declarerIndex).toBe(2); // 顶层必须同步，否则 AI 策略身份判定失效
+    const ctx = buildAIContext(out as any, 2)!;
+    expect(ctx.isDeclarer).toBe(true);
+    expect(ctx.isDeclarerPartner).toBe(false);
+    expect(buildAIContext(out as any, 0)!.isDeclarer).toBe(false);
+    expect(buildAIContext(out as any, 0)!.isDeclarerPartner).toBe(true); // (2+2)%4 = 0
+  });
+
+  it('无人亮主自动叫 → 庄家保持默认（顶层不变）', () => {
+    const state = mkGameState(1, null);
+    const out = finalizeReveal(state as any, true);
+    expect(out.trumpDeclaration!.declarerIndex).toBe(1);
+    expect(out.declarerIndex).toBe(1);
+    expect(buildAIContext(out as any, 1)!.isDeclarer).toBe(true);
+  });
+
+  it('默认庄家 P1、P2 反主（实战 bug 形态：P2 既非 isDeclarer 也非 isDeclarerPartner）', () => {
+    // 修复前：顶层停在 1 → AIContext 对 P2 两个身份标志全 false，
+    // "手牌 ≥20 不出 A 以上主拖拉机"等庄家限制被整体跳过
+    const state = mkGameState(1, { playerIndex: 2, suit: Suit.Spades, strength: 2 });
+    const out = finalizeReveal(state as any, true);
+    expect(out.trumpDeclaration!.declarerIndex).toBe(2);
+    expect(out.declarerIndex).toBe(2);
+    const ctx = buildAIContext(out as any, 2)!;
+    expect(ctx.isDeclarer).toBe(true);
+    expect(ctx.isDeclarerPartner).toBe(false);
+  });
+
+  it('后续局（isFirstRound=false）默认庄家即实际庄家 → 同步无副作用', () => {
+    const state = mkGameState(3, { playerIndex: 3, suit: Suit.Hearts, strength: 1 });
+    const out = finalizeReveal(state as any, false);
+    expect(out.trumpDeclaration!.declarerIndex).toBe(3);
+    expect(out.declarerIndex).toBe(3);
+    expect(buildAIContext(out as any, 3)!.isDeclarer).toBe(true);
   });
 });

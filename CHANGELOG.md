@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-08-23 16:50
+
+### 修复：亮主定庄后顶层 declarerIndex 未同步，AI 庄家身份判定失效
+
+**问题**（用户实战牌局：AI-3 庄家第 2 墩领出 ♠2♠2♦2♦2 主拖拉机，违反"手牌 ≥20 不出 A 以上主拖拉机"）：第 1 局默认庄家随机产生（gameStore `Math.random()*4`），实际亮主者成为庄家后，`finalizeReveal` 只把实际庄家写进 `trumpDeclaration`，顶层 `state.declarerIndex` 停留在随机默认值。而 `buildAIContext` 的 `isDeclarer/isDeclarerPartner` 只读顶层字段——亮主者与默认庄家不同且默认庄家≠对家位（差 2）时，真庄家的两个身份标志**全为 false**，所有庄家/对家策略限制被整体跳过。
+
+**修复**：`finalizeReveal` 把 `r.declarerIndex` 同步写入顶层 `state.declarerIndex`。无人亮主自动叫、后续局默认庄家即真庄家两种场景同步值与原值相同，无副作用。
+实测复现链：构造该局面调 `aiLeadPlay` → 返回 ♠2♠2♦2♦2「出主拖拉机(2对)」，与用户牌局完全一致；修复后同局面经 finalizeReveal 流程 isDeclarer=true，限制生效改出 ♥ 对。顶层=0 的过期值则误挂"对家"身份走"永不出主拖拉机"分支——同样错误但表现不同。
+
+**新增 4 项测试，修改 1 项测试**（revealing.test.ts：4 项；arena-e2e.test.ts：镜像冒烟锚点 210→221），引擎 727 项 + arena 65 项 + CLI 80 项 + client 181 项 = 1053 项通过。
+
+- **影响文件**：`packages/engine/src/game/index.ts`
+
 ## 2026-08-23 15:56
 
 ### 最后一墩末家出牌后停顿再结算底牌

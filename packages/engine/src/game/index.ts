@@ -44,7 +44,10 @@ export function finalizeReveal(state: GameState, isFirstRound = true): GameState
     trumpSuit: r.trumpSuit,
     level: r.level,
   };
-  return { ...state, trumpDeclaration: decl, phase: GamePhase.BottomExchange };
+  // 顶层 declarerIndex 必须与实际庄家（亮主者）同步：AIContext.isDeclarer/
+  // isDeclarerPartner 只读顶层字段，不同步会导致庄家策略限制失效
+  // （如"手牌 ≥20 不出 A 以上主拖拉机"被跳过）。
+  return { ...state, declarerIndex: r.declarerIndex, trumpDeclaration: decl, phase: GamePhase.BottomExchange };
 }
 
 // ---- Play cards ----

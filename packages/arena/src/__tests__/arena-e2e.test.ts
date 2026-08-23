@@ -61,11 +61,12 @@ describe('arena e2e', () => {
     expect(statsB.matches.played).toBe(40);
     expect(statsB.matches.won).toBe(20);
     expect(statsB.matches.drawn).toBe(0);
-    // 镜像对称：双方各胜 20 场，胜时对方平均等级 210/20 = 10.5（A=14）
-    //（2026-08-16 第四家吊主选牌修复后：最小能盖过出最小单张/拆对优先级改变对局走向；
-    //  此前自保规则后为 229，禁止自反为 213，断门策略为 210）
-    expect(statsA.matches.oppLevel).toEqual({ n: 210, d: 20 });
-    expect(statsB.matches.oppLevel).toEqual({ n: 210, d: 20 });
+    // 镜像对称：双方各胜 20 场，胜时对方平均等级 221/20 = 11.05（A=14）
+    //（2026-08-23 finalizeReveal 同步实际庄家后：第 1 局亮主者≠随机默认庄家时
+    //  AI 庄家身份真正生效，庄家限制策略改变对局走向；
+    //  此前第四家吊主选牌修复后为 210，自保规则后为 229，禁止自反为 213）
+    expect(statsA.matches.oppLevel).toEqual({ n: 221, d: 20 });
+    expect(statsB.matches.oppLevel).toEqual({ n: 221, d: 20 });
     expect(statsA.handsPlayed).toBe(statsB.handsPlayed);
     expect(statsA.abortedHands).toBe(0);
     const sig = checkSignificance(statsA.matches.won, statsB.matches.won, statsA.matches.drawn, statsA.matches.played);
