@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-08-23 09:40
+
+### 桌面出牌按力度归组显示：两对甩牌不再拆开（纯展示侧排序）
+
+**问题**：`submitPlay` 按**手牌数组原始顺序**（发牌序）过滤选中牌写入 `trickPlays`——人类手牌数组里 9955 两对交错存放时，桌布与回看面板按原样渲染成 9-5-9-5，两对被拆开，严重影响可读性。AI 出的牌由引擎按结构构造所以不踩中。
+
+**修复**：新增 `orderTrickCardsForDisplay`（playable.ts），CenterArea 当前墩与回看面板渲染前排序（**只改显示，不改 trickPlays 存储顺序/快照线格式**）：
+① 领出（同花色）：按单牌力度从大到小；主牌内部为 大王、小王、主级牌、副级牌（多张按 SHCD）、A、K……——直接复用引擎 `sortHand` 全局序。
+② 跟牌：最左为领出花色组，其后按 主牌、副牌 SHCD（不含领出花色）依次排列，各组内部同样大到小；领出花色中的级牌按主牌力度排在该组最前。实现 = sortHand 序 + 把领出花色提到最前。
+③ 吊主与无主局直接用 sortHand 序（无主：大王、小王、级牌 SHCD、其余按花色 SHCD 点数降序）。
+
+E2E 实测：注入交错序 `[9,5,9,5]` 的甩两对 → 桌面显示 `9,9,5,5` 归组。
+
+**新增 5 项测试**（playable.test.ts：显示序），引擎 723 项 + arena 65 项 + CLI 80 项 + client 171 项 = 1039 项通过。布局回归通过。
+
+- **影响文件**：`packages/client/src/components/game/playable.ts`、`packages/client/src/components/game/CenterArea.tsx`、`packages/client/src/__tests__/playable.test.ts`
+
 ## 2026-08-23 00:40
 
 ### 跟牌分组选择：单张/对整组替换，拖拉机互斥窗整机点击共享窗按整窗分组，无单甩牌按对累加

@@ -4,6 +4,7 @@ import type { Card, TrumpDeclaration } from '@poker/engine';
 import {
   computePlayableIds, computeFollowPlan, canSubmitPlay, bottomExchangeStatus,
   computeSelectionMode, applyGroupClick, applyGroupDragPick, clearSelectionKeepLocked,
+  orderTrickCardsForDisplay,
 } from '../components/game/playable.js';
 
 const c = (s: string, r: number, i: number): Card => createCard(s as any, r as any, i);
@@ -480,5 +481,44 @@ describe('computeSelectionMode — 跟牌分组选择模式', () => {
     expect(applyGroupDragPick(mode, 'C-7-4')).toEqual(['C-7-4', 'C-7-5', 'C-6-2', 'C-6-3']);
     expect(clearSelectionKeepLocked(['C-7-4', 'C-7-5'], [])).toEqual([]);
     expect(clearSelectionKeepLocked(['A', 'B'], ['B'])).toEqual(['B']);
+  });
+});
+
+describe('orderTrickCardsForDisplay — 桌面出牌显示顺序（纯展示）', () => {
+  const trumpH = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 2 };
+
+  it('领出两对 9955 乱序进入 → 归组为大到小 [99,55]', () => {
+    // 复现：手牌数组交错序提交，桌面曾拆成 9,5,9,5
+    const raw = [c('S', 9, 0), c('S', 5, 1), c('S', 9, 2), c('S', 5, 3)];
+    const out = orderTrickCardsForDisplay(raw, 'S', trumpH);
+    expect(out.map(x => x.id)).toEqual(['S-9-0', 'S-9-2', 'S-5-1', 'S-5-3']);
+  });
+
+  it('吊主领出 → 大王、小王、主级、副级(SHCD)、A……', () => {
+    // 黑桃为副级牌（level=2 非 H），红桃为主花色
+    const raw = [c('H', 14, 0), c('C', 2, 1), c('J', 15, 2), c('H', 5, 3), c('J', 16, 4), c('S', 2, 5), c('H', 2, 6)];
+    const out = orderTrickCardsForDisplay(raw, null, trumpH);
+    expect(out.map(x => x.id)).toEqual(['J-16-4', 'J-15-2', 'H-2-6', 'S-2-5', 'C-2-1', 'H-14-0', 'H-5-3']);
+  });
+
+  it('非主领出跟牌 → 领出花色最左，然后主牌，再副牌 SHCD，组内大到小', () => {
+    // 领 ♠；♥ 为主；梅花、方块为副牌
+    const raw = [c('D', 14, 0), c('S', 3, 1), c('H', 4, 2), c('S', 9, 3), c('C', 13, 4), c('S', 5, 5)];
+    const out = orderTrickCardsForDisplay(raw, 'S', trumpH);
+    expect(out.map(x => x.id)).toEqual(['S-9-3', 'S-5-5', 'S-3-1', 'H-4-2', 'C-13-4', 'D-14-0']);
+  });
+
+  it('跟牌含领出花色的级牌 → 级牌按主牌力度排在该花色组最前', () => {
+    // 领 ♠ 且 ♠2 是级牌：♠ 力度高于 ♠A
+    const raw = [c('S', 14, 0), c('S', 2, 1), c('S', 5, 2)];
+    const out = orderTrickCardsForDisplay(raw, 'S', trumpH);
+    expect(out.map(x => x.id)).toEqual(['S-2-1', 'S-14-0', 'S-5-2']);
+  });
+
+  it('无主局：大王、小王、级牌(SHCD)、其余按花色 SHCD 点数降序', () => {
+    const nt = { declarerIndex: 0, trumpSuit: null, level: 2 };
+    const raw = [c('H', 14, 0), c('C', 2, 1), c('S', 13, 2), c('J', 16, 3)];
+    const out = orderTrickCardsForDisplay(raw, null, nt);
+    expect(out.map(x => x.id)).toEqual(['J-16-3', 'C-2-1', 'S-13-2', 'H-14-0']);
   });
 });

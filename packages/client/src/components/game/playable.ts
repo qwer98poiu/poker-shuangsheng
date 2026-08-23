@@ -1,7 +1,7 @@
 import type { Card, GameState, TrumpDeclaration } from '@poker/engine';
 import {
   GamePhase, computeFollowableCards, computeMandatoryFollow, validateFollow,
-  classify, isTrump, findAllPairs, detectTractors,
+  classify, isTrump, findAllPairs, detectTractors, sortHand,
 } from '@poker/engine';
 
 /**
@@ -261,4 +261,31 @@ export function applyGroupDragPick(
 /** 拖拽终点落在不可选牌上：清空选择，仅保留锁定牌。 */
 export function clearSelectionKeepLocked(selected: string[], locked: string[]): string[] {
   return selected.filter(id => locked.includes(id));
+}
+
+// ==================== 桌面出牌显示顺序（纯展示，不改游戏状态） ====================
+
+/**
+ * 桌布/回看面板上单墩出牌的显示顺序（从左到右）：
+ * - 领出（同花色）：按单牌力度从大到小；主牌内部为 大王、小王、主级牌、
+ *   副级牌（多张按 SHCD）、A、K……（即引擎 sortHand 的全局序）
+ * - 跟牌：最左为领出花色组，其后按 主牌、副牌 SHCD（不含领出花色）依次排列，
+ *   各组内部同样从大到小
+ *
+ * 实现：sortHand 已给出"主牌力度序 + 副牌 SHCD 序"；非主领出的跟牌只需把
+ * 领出花色提到最前（其余保持相对顺序）。吊主（leadSuit null / =主花色）
+ * 与无主局直接用 sortHand 序。不修改 trickPlays 存储顺序。
+ */
+export function orderTrickCardsForDisplay(
+  cards: Card[],
+  leadSuit: string | null,
+  trump: TrumpDeclaration | null,
+): Card[] {
+  const sorted = sortHand(cards, trump);
+  if (!trump || trump.trumpSuit === null || leadSuit === null || leadSuit === trump.trumpSuit) {
+    return sorted;
+  }
+  const led = sorted.filter(c => c.suit === leadSuit);
+  if (led.length === sorted.length) return sorted; // 领出花色本身：保持力度序
+  return [...led, ...sorted.filter(c => c.suit !== leadSuit)];
 }

@@ -4,6 +4,7 @@ import { GamePhase, suitLabel, rankLabel, suitName, isPointRank, cardPointsFromR
 import CardFace from '../cards/CardFace.js';
 import { useGameStore } from '../../store/gameStore.js';
 import { mergeFailedThrow, formatAttackerScore, type ThrowEntry } from '../../store/throwFailure.js';
+import { orderTrickCardsForDisplay } from './playable.js';
 
 /**
  * 打出牌叠放露出条（纯函数）：n 张牌在容器宽 containerWidth 内全部可见时的
@@ -275,7 +276,11 @@ const CenterArea: React.FC<CenterAreaProps> = ({ gameState, lastTrickReview, onC
                   {isPlaying && (
                     <PlayedStack
                       entries={mergeFailedThrow(
-                        play?.cards ?? [],
+                        orderTrickCardsForDisplay(
+                          play?.cards ?? [],
+                          play?.leadSuit ?? null,
+                          gameState.trumpDeclaration,
+                        ),
                         failedThrow && trickPlays.length > 0 && failedThrow.playerIndex === pi
                           ? failedThrow
                           : null,
@@ -315,7 +320,13 @@ const CenterArea: React.FC<CenterAreaProps> = ({ gameState, lastTrickReview, onC
                     <div className="trick-pos-player">
                       {gameState.players[pi].name}{isWinner ? ' 👑' : ''}
                     </div>
-                    <PlayedStack entries={(play?.cards ?? []).map(card => ({ card, dimmed: false }))} />
+                    <PlayedStack
+                      entries={orderTrickCardsForDisplay(
+                        play?.cards ?? [],
+                        play?.leadSuit ?? null,
+                        gameState.trumpDeclaration,
+                      ).map(card => ({ card, dimmed: false }))}
+                    />
                   </div>
                 );
               })}
