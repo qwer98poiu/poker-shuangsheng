@@ -4,7 +4,7 @@ import { GamePhase, suitLabel, rankLabel, suitName, isPointRank, cardPointsFromR
 import CardFace from '../cards/CardFace.js';
 import { useGameStore } from '../../store/gameStore.js';
 import { mergeFailedThrow, formatAttackerScore, type ThrowEntry } from '../../store/throwFailure.js';
-import { orderTrickCardsForDisplay } from './playable.js';
+import { orderTrickCardsForDisplay, findLeadingCardIds, findWinningCardIds } from './playable.js';
 
 /**
  * 打出牌叠放露出条（纯函数）：n 张牌在容器宽 containerWidth 内全部可见时的
@@ -114,7 +114,11 @@ export function revealDisplayCards(reveal: Reveal, level: number): Card[] {
  * 露出条按容器轨道宽自适应——甩 10+ 张也能整叠完整显示在轨道内。
  * 轨道宽 = 所在 .trick-position-layout 宽度 / 3（等宽三列，见 CSS）。
  */
-const PlayedStack: React.FC<{ entries: readonly ThrowEntry[] }> = ({ entries }) => {
+const PlayedStack: React.FC<{
+  entries: readonly ThrowEntry[];
+  /** 当前墩最大牌组合（赢家/暂时领先者整组）：橙色描边。 */
+  bestIds?: ReadonlySet<string>;
+}> = ({ entries, bestIds }) => {
   const ref = useRef<HTMLDivElement>(null);
   const [strip, setStrip] = useState(() => playedStackStrip(entries.length, 156)); // 初始 1280 视口轨道宽，布局后修正
   useLayoutEffect(() => {
@@ -128,7 +132,12 @@ const PlayedStack: React.FC<{ entries: readonly ThrowEntry[] }> = ({ entries }) 
     <div className="trick-pos-cards" ref={ref}>
       {entries.map((entry, i) => (
         <div key={entry.card.id} className="played-card-slot" style={{ marginLeft: i > 0 ? `-${50 - strip}px` : '0' }}>
-          <CardFace card={entry.card} size="small" dimmed={entry.dimmed} />
+          <CardFace
+            card={entry.card}
+            size="small"
+            dimmed={entry.dimmed}
+            highlighted={!!bestIds?.has(entry.card.id) && !entry.dimmed}
+          />
         </div>
       ))}
     </div>
@@ -243,6 +252,13 @@ const CenterArea: React.FC<CenterAreaProps> = ({ gameState, lastTrickReview, onC
             ? gameState.leadPlayerIndex
             : (settledTrick?.leadPlayerIndex ?? gameState.leadPlayerIndex))
           : 0;
+        // 桌面最大牌组合（赢家/暂时领先者整组，橙描边实时更新）：
+        // 未结算用引擎 computeBestSoFar 部分墩比较；已结算取赢家组合
+        const liveBestIds = isPlaying && gameState.trumpDeclaration
+          ? (trickPlays.length > 0
+              ? findLeadingCardIds(trickPlays, gameState.leadPlayerIndex, gameState.trumpDeclaration)
+              : (settledTrick ? findWinningCardIds(settledTrick) : new Set<string>()))
+          : new Set<string>();
         const goodReveals = displayReveals(successfulReveals(gameState.reveals));
         // 亮主牌只在发牌/亮主阶段展示：庄家拿到底牌后全部收回（扣底/出牌阶段不再显示）
         const showReveals = phase === GamePhase.Dealing || phase === GamePhase.Revealing;
@@ -257,7 +273,6 @@ const CenterArea: React.FC<CenterAreaProps> = ({ gameState, lastTrickReview, onC
                 <div key={rel} className={`trick-pos trick-pos-${pos}`}>
                   <div className="trick-pos-player">
                     {gameState.players[pi].name}
-                    {isSettled && pi === settledTrick!.winnerIndex ? ' 👑' : ''}
                   </div>
                   {showReveals && myReveals.length > 0 && (
                     <div className="trick-pos-reveal" data-testid={`reveal-cards-${pi}`}>
@@ -275,6 +290,7 @@ const CenterArea: React.FC<CenterAreaProps> = ({ gameState, lastTrickReview, onC
                   )}
                   {isPlaying && (
                     <PlayedStack
+                      bestIds={liveBestIds}
                       entries={mergeFailedThrow(
                         orderTrickCardsForDisplay(
                           play?.cards ?? [],
@@ -303,6 +319,8 @@ const CenterArea: React.FC<CenterAreaProps> = ({ gameState, lastTrickReview, onC
           与出牌展示（trick-position-layout）一致；5 秒后自动消失（store），也可点 ✕ 关闭 */}
       {lastTrickReview && trickHistory.length > 0 && (() => {
         const last = trickHistory[trickHistory.length - 1];
+        // 赢家组合整组橙描边；领出以玩家名下划线标明
+        const lastBestIds = findWinningCardIds(last);
         return (
           <div className="review-overlay" data-testid="review-overlay">
             <div className="review-overlay-title">
@@ -314,13 +332,13 @@ const CenterArea: React.FC<CenterAreaProps> = ({ gameState, lastTrickReview, onC
                 const pi = (localPlayerIndex + rel) % 4;
                 const pos = ['bottom', 'right', 'top', 'left'][rel];
                 const play = last.plays.find((p, j) => (last.leadPlayerIndex + j) % 4 === pi);
-                const isWinner = pi === last.winnerIndex;
                 return (
                   <div key={rel} className={`trick-pos trick-pos-${pos}`}>
-                    <div className="trick-pos-player">
-                      {gameState.players[pi].name}{isWinner ? ' 👑' : ''}
+                    <div className={`trick-pos-player${pi === last.leadPlayerIndex ? ' lead-underline' : ''}`}>
+                      {gameState.players[pi].name}
                     </div>
                     <PlayedStack
+                      bestIds={lastBestIds}
                       entries={orderTrickCardsForDisplay(
                         play?.cards ?? [],
                         play?.leadSuit ?? null,

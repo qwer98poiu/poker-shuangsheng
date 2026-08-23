@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-08-23 20:41
+
+### 桌面当前最大牌整组橙描边实时标记；去皇冠
+
+**问题**：当前墩谁领先要靠玩家自己心算（尤其毙牌/反超瞬间）；赢家靠名字旁的 👑 emoji 标记，与"选中蓝描边"的视觉语言不统一；对子/拖拉机只标最大一张也无法表达"这是领先的组合"。
+
+**修复**：playable.ts 新增 `findLeadingCardIds`（未结算墩：引擎 `computeBestSoFar` 部分墩逐家比较取暂时领先者**组合的全部牌 id**，随每张落地实时更新）与 `findWinningCardIds`（已结算墩/回看：赢家组合全部牌）。CenterArea 经 PlayedStack 给组内每张加橙描边（复用既有 `.card.highlighted` 样式），甩牌失败被退回的灰牌不参与标记；移除当前墩与回看弹层的两处 👑。描边/阴影不影响布局。
+
+E2E 实测：两家局面 ♥A 领、♠5 毙 → 仅 ♠5 橙描边、👑 消失；♣1010 领出、♦33 跟牌 → 两张 ♣10 全部橙描边、♦33 无标记。
+
+**新增 6 项测试**（playable.test.ts：6 项）
+
+### 回看上墩领出以玩家名下划线标明（无灰描边）
+
+**问题**：回看上墩需同时辨明领出方与赢家组合——若给领出方整组加灰描边，与橙描边同形式叠加区分度差（两组合重叠时尤其混乱）。
+
+**修复**：回看弹层内领出玩家名加 `lead-underline` 类（`.review-overlay .trick-pos-player.lead-underline { text-decoration: underline }`），只在弹层生效、不影响桌面实时视图；最终代码不含任何灰描边标记。
+
+E2E 实测（seed=9 观战）：拦截"领出≠赢家"墩打开回看 → 领出 AI-4 名字恰好 1 处下划线（computed underline）、全页 0 张灰边牌、赢家 AI-1 整组 2 张橙描边不变。
+
+无新增测试。引擎 727 项 + arena 65 项 + CLI 80 项 + client 198 项 = 1070 项通过。布局回归通过。
+
+- **影响文件**：`packages/client/src/components/game/playable.ts`、`packages/client/src/components/game/CenterArea.tsx`、`packages/client/src/components/game/GameTable.css`
+
 ## 2026-08-23 20:37
 
 ### 启动面板新增"首局自动抢庄（无主除外）"勾选框（默认开），随发牌逐张评估与 AI 同节奏

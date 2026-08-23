@@ -4,7 +4,7 @@ import type { Card, TrumpDeclaration } from '@poker/engine';
 import {
   computePlayableIds, computeFollowPlan, canSubmitPlay, bottomExchangeStatus,
   computeSelectionMode, applyGroupClick, applyGroupDragPick, clearSelectionKeepLocked,
-  orderTrickCardsForDisplay, detectForcedPairSplit,
+  orderTrickCardsForDisplay, detectForcedPairSplit, findLeadingCardIds, findWinningCardIds,
 } from '../components/game/playable.js';
 
 const c = (s: string, r: number, i: number): Card => createCard(s as any, r as any, i);
@@ -596,5 +596,57 @@ describe('computeSelectionMode playableOverride — 强制拆对的收窄可选�
     const hand = [c('D', 5, 0), c('H', 9, 1), c('H', 9, 2)];
     const mode = computeSelectionMode(hand, [play([c('H', 4, 9)], Suit.Hearts)], cfg, GamePhase.Playing);
     expect(mode).toEqual({ kind: 'replace', groups: { 'H-9-1': ['H-9-1'] } });
+  });
+});
+
+describe('findLeadingCardIds / findWinningCardIds — 桌面最大牌整组标记', () => {
+  it('仅领出在桌上 → 领出组合整组（拖拉机 4 张全标）', () => {
+    const lead = play([c('H', 14, 0), c('H', 14, 1), c('H', 13, 2), c('H', 13, 3)], Suit.Hearts);
+    expect(findLeadingCardIds([lead], 0, cfg)).toEqual(
+      new Set(['H-14-0', 'H-14-1', 'H-13-2', 'H-13-3']),
+    );
+  });
+
+  it('两家：闲家主牌毙单张 → 实时切换为毙牌（跟牌张数必须等于领出）', () => {
+    // P0 领 ♥A 单张，P1 出单张 ♠5 主牌毙
+    const p0 = play([c('H', 14, 0)], Suit.Hearts);
+    const p1 = play([c('S', 5, 1)], Suit.Hearts);
+    expect(findLeadingCardIds([p0], 0, cfg)).toEqual(new Set(['H-14-0']));    // 一家时领出整组
+    expect(findLeadingCardIds([p0, p1], 0, cfg)).toEqual(new Set(['S-5-1'])); // 毙牌反超
+  });
+
+  it('两家：主牌对毙单张 → 毙牌对子整组两章全标', () => {
+    // 领出必须是 2 张才合法跟对——改用对子领出、对子毙：♥55 领，♠99 毙
+    const p0 = play([c('H', 5, 0), c('H', 5, 1)], Suit.Hearts);
+    const p1 = play([c('S', 9, 2), c('S', 9, 3)], Suit.Hearts);
+    expect(findLeadingCardIds([p0, p1], 0, cfg)).toEqual(new Set(['S-9-2', 'S-9-3']));
+  });
+
+  it('三家：垫牌不超领出 → 仍是领出整组', () => {
+    const p0 = play([c('H', 14, 0), c('H', 13, 1)], Suit.Hearts);
+    const p1 = play([c('C', 5, 2), c('C', 6, 3)], Suit.Hearts);
+    const p2 = play([c('D', 13, 4), c('D', 12, 5)], Suit.Hearts);
+    expect(findLeadingCardIds([p0, p1, p2], 0, cfg)).toEqual(new Set(['H-14-0', 'H-13-1']));
+  });
+
+  it('findWinningCardIds：已结算墩取赢家组合整组', () => {
+    const trick: any = {
+      plays: [
+        { playerIndex: 0, cards: [c('H', 14, 0), c('H', 13, 1)] },
+        { playerIndex: 1, cards: [c('S', 5, 2), c('S', 4, 3)] },
+        { playerIndex: 2, cards: [c('C', 3, 4), c('C', 6, 5)] },
+        { playerIndex: 3, cards: [c('D', 4, 6), c('D', 7, 7)] },
+      ],
+      winnerIndex: 1,
+      points: 20,
+      leadPlayerIndex: 0,
+    };
+    expect(findWinningCardIds(trick)).toEqual(new Set(['S-5-2', 'S-4-3']));
+  });
+
+  it('空 plays → 空集（防御）', () => {
+    expect(findLeadingCardIds([], 0, cfg)).toEqual(new Set());
+    const empty: any = { plays: [], winnerIndex: 0, points: 0, leadPlayerIndex: 0 };
+    expect(findWinningCardIds(empty)).toEqual(new Set());
   });
 });

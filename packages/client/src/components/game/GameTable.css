@@ -812,6 +812,11 @@
   color: #ffd740;
 }
 
+/* 回看上墩：领出玩家名下划线标明（替代原领出牌灰描边） */
+.review-overlay .trick-pos-player.lead-underline {
+  text-decoration: underline;
+}
+
 /* setup debug checkbox */
 .setup-debug {
   margin: 16px 0;

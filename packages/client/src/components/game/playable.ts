@@ -1,7 +1,7 @@
-import type { Card, GameState, TrumpDeclaration } from '@poker/engine';
+import type { Card, GameState, Trick, TrumpDeclaration } from '@poker/engine';
 import {
   GamePhase, computeFollowableCards, computeMandatoryFollow, validateFollow,
-  classify, isTrump, findAllPairs, detectTractors, sortHand,
+  classify, isTrump, findAllPairs, detectTractors, sortHand, computeBestSoFar,
 } from '@poker/engine';
 
 /**
@@ -296,6 +296,35 @@ export function detectForcedPairSplit(
   if (a.suit !== b.suit || a.rank !== b.rank || a.isJoker) return null;
   const ordered = sortHand(two, trump);
   return { selectId: ordered[0].id, pairIds: ordered.map(c => c.id) };
+}
+
+// ==================== 桌面最大牌标记（纯展示，不改游戏状态） ====================
+
+/**
+ * 当前墩**暂时领先者**所出组合的全部牌 id（整组橙色描边标记）。
+ * 部分墩（1-3 家已出）用引擎 computeBestSoFar 逐家比较，随每张落地实时更新；
+ * 领出单独在桌上时即领出组合整组。
+ */
+export function findLeadingCardIds(
+  trickPlays: GameState['trickPlays'],
+  leadPlayerIndex: number,
+  trump: TrumpDeclaration,
+): Set<string> {
+  if (trickPlays.length === 0) return new Set();
+  const best = computeBestSoFar(trickPlays, leadPlayerIndex, trump);
+  if (!best) return new Set();
+  return new Set(best.cards.map(c => c.id));
+}
+
+/**
+ * 已结算墩的**赢家**组合的全部牌 id（回看上墩 / 墩结算停留画面用，
+ * 与实时领先口径一致：赢家即最终领先者，整组橙描边）。
+ */
+export function findWinningCardIds(trick: Trick): Set<string> {
+  const off = (trick.winnerIndex - trick.leadPlayerIndex + 4) % 4;
+  const play = trick.plays[off];
+  if (!play) return new Set();
+  return new Set(play.cards.map(c => c.id));
 }
 
 // ==================== 桌面出牌显示顺序（纯展示，不改游戏状态） ====================
