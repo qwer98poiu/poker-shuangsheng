@@ -156,6 +156,24 @@
   transition: all 0.3s;
 }
 
+/* 庄家旗标 🚩：座位卡左上角（绝对定位，不影响座位卡尺寸） */
+.declarer-flag {
+  position: absolute;
+  top: -8px;
+  left: 6px;
+  font-size: 15px;
+  line-height: 1;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
+}
+
+/* 本地玩家无座位卡：旗标挂在消息条容器上（居中小牌左侧，绝对定位零布局影响） */
+.declarer-flag-local {
+  top: auto;
+  bottom: 100%;
+  left: calc(50% - 90px);
+  margin-bottom: 5px;
+}
+
 .player-seat.active-seat {
   background: rgba(255, 215, 0, 0.2);
   box-shadow: 0 0 15px rgba(255, 215, 0, 0.3);

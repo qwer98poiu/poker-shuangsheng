@@ -33,6 +33,8 @@ interface PlayerSeatProps {
   finalChip?: FinalRevealChip | null;
   /** 小牌相对座位框的位置：'below-right' = 框外右下（右对齐）；'right-top' = 框外右上（上对齐） */
   chipAlign?: 'below-right' | 'right-top';
+  /** 本局庄家旗标（🚩，座位卡左上角绝对定位，不影响座位卡尺寸） */
+  declarer?: boolean;
 }
 
 const PlayerSeat: React.FC<PlayerSeatProps> = ({
@@ -41,12 +43,16 @@ const PlayerSeat: React.FC<PlayerSeatProps> = ({
   isActive,
   finalChip = null,
   chipAlign = 'below-right',
+  declarer = false,
 }) => {
   return (
     <div
       className={`player-seat seat-${position} ${isActive ? 'active-seat' : ''}`}
       data-testid={`seat-${player.index}`}
     >
+      {declarer && (
+        <span className="declarer-flag" data-testid={`declarer-flag-${player.index}`}>🚩</span>
+      )}
       <div className="player-info">
         <span className="player-name">{player.name}</span>
         <span className="player-card-count">({player.hand.length} 张)</span>

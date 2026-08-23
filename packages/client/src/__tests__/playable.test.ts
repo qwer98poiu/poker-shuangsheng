@@ -5,6 +5,7 @@ import {
   computePlayableIds, computeFollowPlan, canSubmitPlay, bottomExchangeStatus,
   computeSelectionMode, applyGroupClick, applyGroupDragPick, clearSelectionKeepLocked,
   orderTrickCardsForDisplay, detectForcedPairSplit, findLeadingCardIds, findWinningCardIds,
+  declarerFlagSeat,
 } from '../components/game/playable.js';
 
 const c = (s: string, r: number, i: number): Card => createCard(s as any, r as any, i);
@@ -648,5 +649,23 @@ describe('findLeadingCardIds / findWinningCardIds — 桌面最大牌整组标�
     expect(findLeadingCardIds([], 0, cfg)).toEqual(new Set());
     const empty: any = { plays: [], winnerIndex: 0, points: 0, leadPlayerIndex: 0 };
     expect(findWinningCardIds(empty)).toEqual(new Set());
+  });
+});
+
+describe('declarerFlagSeat — 庄家旗标显示规则', () => {
+  it('首局发牌/亮主阶段（无 trumpDeclaration）→ 不显示', () => {
+    expect(declarerFlagSeat(0, null, 2)).toBeNull();
+  });
+
+  it('首局亮主定庄后 → 显示实际庄家（trumpDeclaration.declarerIndex）', () => {
+    // 顶层 declarerIndex 可能仍是随机默认值，以 trumpDeclaration 为准
+    const decl = { declarerIndex: 2, trumpSuit: Suit.Spades, level: 2 };
+    expect(declarerFlagSeat(0, decl, 0)).toBe(2);
+  });
+
+  it('非首局 → 始终显示轮转庄家（state.declarerIndex），trumpDeclaration 未定也显示', () => {
+    expect(declarerFlagSeat(3, null, 1)).toBe(1);
+    const decl = { declarerIndex: 1, trumpSuit: Suit.Hearts, level: 3 };
+    expect(declarerFlagSeat(3, decl, 1)).toBe(1);
   });
 });

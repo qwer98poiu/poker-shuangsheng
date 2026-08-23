@@ -298,6 +298,23 @@ export function detectForcedPairSplit(
   return { selectId: ordered[0].id, pairIds: ordered.map(c => c.id) };
 }
 
+// ==================== 庄家旗标（纯展示，不改游戏状态） ====================
+
+/**
+ * 本局庄家旗标（🚩）应显示的座位索引，null = 不显示：
+ * - 首局：发牌/亮主阶段庄家未定（trumpDeclaration 为 null）→ 不显示；
+ *   finalizeReveal 定庄后（扣底起）显示亮主者。
+ * - 非首局：轮转庄家开局即知（state.declarerIndex，经 finalizeReveal 同步修复
+ *   后该字段与实际庄家一致）→ 始终显示。
+ */
+export function declarerFlagSeat(
+  roundNumber: number,
+  trumpDeclaration: TrumpDeclaration | null,
+  stateDeclarerIndex: number,
+): number | null {
+  return roundNumber === 0 ? (trumpDeclaration?.declarerIndex ?? null) : stateDeclarerIndex;
+}
+
 // ==================== 桌面最大牌标记（纯展示，不改游戏状态） ====================
 
 /**

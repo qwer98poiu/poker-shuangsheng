@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-08-23 21:27
+
+### 座位卡 🚩 旗标显示本局庄家（首局定庄后出现，非首局常显）
+
+**问题**：桌面上看不出谁是本局庄家——等级框只高亮庄家**队伍**，具体是哪个人要靠记忆或点开信息。
+
+**修复**：playable.ts 新增 `declarerFlagSeat` 显示规则；PlayerSeat 座位卡左上角加绝对定位 🚩 旗标（不占布局，座位卡尺寸不变）；本地玩家无座位卡，旗标挂消息条容器左侧。显示规则：首局发牌/亮主阶段不显示（庄家未定），finalizeReveal 定庄后（扣底起）按 `trumpDeclaration.declarerIndex` 显示亮主者；非首局按轮转 `state.declarerIndex` 开局即显示。
+
+E2E 实测：首局发牌无旗标 → 定庄后仅庄家座位有 🚩 且同座位跨场景尺寸 ≤1px 变化；非首局开局即显示轮转庄家；本地为庄时消息条旁 local 旗标、座位无重复。
+
+**新增 3 项测试**（playable.test.ts：3 项），引擎 727 项 + arena 65 项 + CLI 80 项 + client 201 项 = 1073 项通过。布局回归通过。
+
+- **影响文件**：`packages/client/src/components/game/playable.ts`、`packages/client/src/components/game/PlayerSeat.tsx`、`packages/client/src/components/game/GameTable.tsx`、`packages/client/src/components/game/GameTable.css`
+
 ## 2026-08-23 20:41
 
 ### 桌面当前最大牌整组橙描边实时标记；去皇冠

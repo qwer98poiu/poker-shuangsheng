@@ -11,7 +11,7 @@ import PlayerSeat, { finalRevealChip } from './PlayerSeat.js';
 import { revealPills } from './revealPanel.js';
 import CenterArea from './CenterArea.js';
 import ActionBar from './ActionBar.js';
-import { computePlayableIds, computeFollowPlan, computeSelectionMode, detectForcedPairSplit } from './playable.js';
+import { computePlayableIds, computeFollowPlan, computeSelectionMode, detectForcedPairSplit, declarerFlagSeat } from './playable.js';
 import { decideAutoGrabDealer } from '../../store/autoGrabDealer.js';
 import { formatGameExport } from './export-game.js';
 import './GameTable.css';
@@ -265,6 +265,10 @@ const GameTable: React.FC = () => {
   const isMyTurn = gameState.currentPlayerIndex === localPlayerIndex;
   const isDeclarer = gameState.trumpDeclaration?.declarerIndex === localPlayerIndex;
   const isSpectator = aiPlayers.every(Boolean);
+  // 庄家旗标（🚩）：首局亮主定庄后显示，非首局开局即显示（见 playable.ts declarerFlagSeat）
+  const declarerIdx = declarerFlagSeat(
+    roundNumber, gameState.trumpDeclaration, gameState.declarerIndex,
+  );
 
   // sorted hand for display
   const displayHand = sortHand(localPlayer.hand, gameState.trumpDeclaration);
@@ -309,6 +313,7 @@ const GameTable: React.FC = () => {
               isActive={gameState.currentPlayerIndex === idx}
               finalChip={finalChipOf(idx)}
               chipAlign="right-top"
+              declarer={declarerIdx === idx}
             />
           );
         })}
@@ -326,6 +331,7 @@ const GameTable: React.FC = () => {
                 position="left"
                 isActive={gameState.currentPlayerIndex === idx}
                 finalChip={finalChipOf(idx)}
+                declarer={declarerIdx === idx}
                 />
             );
           })}
@@ -350,6 +356,7 @@ const GameTable: React.FC = () => {
                 position="right"
                 isActive={gameState.currentPlayerIndex === idx}
                 finalChip={finalChipOf(idx)}
+                declarer={declarerIdx === idx}
                 />
             );
           })}
@@ -359,6 +366,9 @@ const GameTable: React.FC = () => {
       {/* message — 玩家1 小牌在 bar 上方居中（bar 本身 overflow hidden 会裁剪框外内容，
           故小牌放在外层 .message-wrap 容器内） */}
       <div className="message-wrap">
+        {declarerIdx === localPlayerIndex && (
+          <span className="declarer-flag declarer-flag-local" data-testid="declarer-flag-local">🚩</span>
+        )}
         <div className="table-message">
           {failedThrow ? <span className="fail-msg" data-testid="fail-msg">⚠ {failedThrow.notice}</span>
             : errorMessage ? <span className="error-msg">❌ {errorMessage}</span>
