@@ -407,8 +407,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
         })
       : null;
 
+    // 最后一墩末家出牌：先以 Playing 相位应用中间态让出牌落桌（四张牌停留展示），
+    // 停顿 tick(800)（与前几家 AI 出牌节奏一致）后再应用 RoundEnd 终态结算底牌
+    const finished = result.state.phase === GamePhase.RoundEnd;
     set({
-      gameState: result.state,
+      gameState: finished ? { ...result.state, phase: GamePhase.Playing } : result.state,
       selectedCardIds: [],
       lockedCardIds: [],
       highlightedCards: [],
@@ -420,9 +423,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
         : (failed ?? get().failedThrow),
     });
 
-    if (result.state.phase === GamePhase.RoundEnd) {
-      set({ message: `本局结束！闲家得分: ${result.state.attackerPoints}` });
-      if (!get().matchOver) setTimeout(() => get().startNewRound(), tick(4000));
+    if (finished) {
+      setTimeout(() => {
+        set({ gameState: result.state, message: `本局结束！闲家得分: ${result.state.attackerPoints}` });
+        if (!get().matchOver) setTimeout(() => get().startNewRound(), tick(4000));
+      }, tick(800));
       return;
     }
 
@@ -471,11 +476,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
       const result = playCards(gameState, cp, cards);
       let hadThrowFailure = false;
+      let roundFinal: GameState | null = null; // 末墩终态：先展示出牌落桌，延迟 tick(800) 应用
       if (result.error) {
         // fallback: single-card legal play
         const fb = playCards(gameState, cp, [player.hand[0]]);
+        if (fb.state.phase === GamePhase.RoundEnd) roundFinal = fb.state;
         set({
-          gameState: fb.state,
+          gameState: roundFinal ? { ...fb.state, phase: GamePhase.Playing } : fb.state,
           errorMessage: `${result.error}（${reason}）`,
           settledTrick: settledFrom(gameState, fb.state),
           // fallback 可能直接结算本墩：结算即清失败回显（清空责任方仍归 store）
@@ -495,8 +502,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
               declarerIndex: config.declarerIndex,
             })
           : null;
+        if (result.state.phase === GamePhase.RoundEnd) roundFinal = result.state;
         set({
-          gameState: result.state,
+          gameState: roundFinal ? { ...result.state, phase: GamePhase.Playing } : result.state,
           errorMessage: null,
           settledTrick: settledFrom(gameState, result.state),
           // 跟牌保留领出者的失败回显；本墩结算才清零
@@ -519,9 +527,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
         set({ gameState: { ...ns, aiReasons: [...ns.aiReasons, aiReason] } });
       }
 
-      if (get().gameState?.phase === GamePhase.RoundEnd) {
-        set({ message: `本局结束！闲家得分: ${get().gameState!.attackerPoints}` });
-        if (!get().matchOver) setTimeout(() => get().startNewRound(), tick(4000));
+      if (roundFinal) {
+        // 末家出牌已落桌（中间态以 Playing 相位展示）；停留 tick(800)（与前几家
+        // AI 出牌节奏一致）再应用终态结算底牌。debug 的 aiReasons 附在中间态上，
+        // 此处并入终态避免丢失。
+        const finalState: GameState = { ...roundFinal, aiReasons: get().gameState!.aiReasons };
+        setTimeout(() => {
+          set({ gameState: finalState, message: `本局结束！闲家得分: ${finalState.attackerPoints}` });
+          if (!get().matchOver) setTimeout(() => get().startNewRound(), tick(4000));
+        }, tick(800));
         return;
       }
 
