@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-08-23 15:35
+
+### 跟单张强制拆对：可选恰为一对时自动选左张锁定，另一张灰显
+
+**问题**：缺门后整手恰剩一对（如仅剩主对毙单、副对垫单）时，引擎对缺门玩家无必出约束——两张同 rank 牌都亮色可选，玩家还得手点一张拆对；而出哪张对结果毫无区别（引擎对两张副本对称处理）。
+
+**修复**：playable.ts 新增 `detectForcedPairSplit`——跟**单张**领出且可选域（`computePlayableIds`，全可点 null 时回退整手）恰为两张同花色同点数的非王牌 → 返回显示序左边一张（sortHand 稳定序）。GameTable 接线：自动选中左张并锁定（不可放下），可选域收窄为该张使另一张灰显不可点；`computeSelectionMode` 新增 `playableOverride` 参数跳过引擎推导，选择模式与收窄后的可选域同源。
+非缺门场景（同门仅剩一对跟单张）引擎 Rule 1.5 已归一化为必出左张、另一张 disabled，由既有必出锁定接管，检测函数在该场景返回 null 不重复触发；大小王两张不等价，不代选。引擎实测：同门一对 99 跟单张 → `locked=['H-9-1']`、`disabled=['H-9-2']`。
+
+**新增 10 项测试**（playable.test.ts：10 项），引擎 723 项 + arena 65 项 + CLI 80 项 + client 181 项 = 1049 项通过。
+
+- **影响文件**：`packages/client/src/components/game/playable.ts`、`packages/client/src/components/game/GameTable.tsx`
+
 ## 2026-08-23 10:41
 
 ### 悬停可选牌时同组伙伴一齐上浮（组粒度联动）

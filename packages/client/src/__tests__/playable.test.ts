@@ -4,7 +4,7 @@ import type { Card, TrumpDeclaration } from '@poker/engine';
 import {
   computePlayableIds, computeFollowPlan, canSubmitPlay, bottomExchangeStatus,
   computeSelectionMode, applyGroupClick, applyGroupDragPick, clearSelectionKeepLocked,
-  orderTrickCardsForDisplay,
+  orderTrickCardsForDisplay, detectForcedPairSplit,
 } from '../components/game/playable.js';
 
 const c = (s: string, r: number, i: number): Card => createCard(s as any, r as any, i);
@@ -520,5 +520,81 @@ describe('orderTrickCardsForDisplay — 桌面出牌显示顺序（纯展示）'
     const raw = [c('H', 14, 0), c('C', 2, 1), c('S', 13, 2), c('J', 16, 3)];
     const out = orderTrickCardsForDisplay(raw, null, nt);
     expect(out.map(x => x.id)).toEqual(['J-16-3', 'C-2-1', 'S-13-2', 'H-14-0']);
+  });
+});
+
+describe('detectForcedPairSplit — 跟单张强制拆对（可选恰为一对）', () => {
+  it('同门仅剩一对跟单张：引擎 Rule 1.5 已归一化为必出左张，检测函数不重复触发', () => {
+    // 黑桃主：红桃为副牌；同门（红桃）恰为一对 99 —— 引擎锁手牌序第一张
+    // （sortHand 稳定序 = 显示序左边），另一张 disabled，由必出锁定接管
+    const hand = [c('D', 5, 0), c('H', 9, 1), c('H', 9, 2)];
+    const lead = [play([c('H', 4, 9)], Suit.Hearts)];
+    expect(computeFollowPlan(hand, lead, cfg, GamePhase.Playing).lockedIds).toEqual(['H-9-1']);
+    expect(computePlayableIds(hand, lead, cfg, GamePhase.Playing)).toEqual(new Set(['H-9-1']));
+    expect(detectForcedPairSplit(hand, lead, cfg, GamePhase.Playing)).toBeNull();
+  });
+
+  it('缺门后整手恰剩主对毙单 → 触发（引擎对缺门玩家无约束，此处兜底）', () => {
+    // 领方块单张，手牌只有黑桃主一对 → 必须拆对毙牌，两张等价
+    const hand = [c('S', 9, 0), c('S', 9, 1)];
+    const split = detectForcedPairSplit(hand, [play([c('D', 4, 9)], Suit.Diamonds)], cfg, GamePhase.Playing);
+    expect(split).not.toBeNull();
+    expect(split!.selectId).toBe('S-9-0');
+    expect(split!.pairIds).toEqual(['S-9-0', 'S-9-1']);
+  });
+
+  it('缺门后整手恰剩副对垫单 → 同样触发（垫哪张无区别）', () => {
+    const hand = [c('H', 9, 0), c('H', 9, 1)];
+    const split = detectForcedPairSplit(hand, [play([c('D', 4, 9)], Suit.Diamonds)], cfg, GamePhase.Playing);
+    expect(split).not.toBeNull();
+    expect(split!.selectId).toBe('H-9-0');
+    expect(split!.pairIds).toEqual(['H-9-0', 'H-9-1']);
+  });
+
+  it('可选两张但不成对 → null', () => {
+    const hand = [c('D', 5, 0), c('H', 9, 1), c('H', 13, 2)];
+    expect(detectForcedPairSplit(hand, [play([c('H', 4, 9)], Suit.Hearts)], cfg, GamePhase.Playing)).toBeNull();
+  });
+
+  it('可选三张（一对 + 单张同门）→ null', () => {
+    const hand = [c('D', 5, 0), c('H', 9, 1), c('H', 9, 2), c('H', 13, 3)];
+    expect(detectForcedPairSplit(hand, [play([c('H', 4, 9)], Suit.Hearts)], cfg, GamePhase.Playing)).toBeNull();
+  });
+
+  it('对子领出不拆（仅限跟单张）→ null', () => {
+    // 可选域同样恰为一对，但领出是对子 → 整对跟，不触发
+    const hand = [c('D', 5, 0), c('H', 9, 1), c('H', 9, 2)];
+    const lead = play([c('H', 4, 9), c('H', 4, 10)], Suit.Hearts);
+    expect(detectForcedPairSplit(hand, [lead], cfg, GamePhase.Playing)).toBeNull();
+  });
+
+  it('可选恰为大小王 → null（两张不等价，不自动代选）', () => {
+    // 吊主：手牌只剩大小王两张主 → 出哪张有区别，不强制拆
+    const hand = [c('J', 15, 0), c('J', 16, 1)];
+    expect(detectForcedPairSplit(hand, [play([c('S', 5, 9)], null)], cfg, GamePhase.Playing)).toBeNull();
+  });
+
+  it('非 Playing 阶段 / 领出阶段 / 无 trump → null', () => {
+    const hand = [c('H', 9, 1), c('H', 9, 2)];
+    const lead = [play([c('H', 4, 9)], Suit.Hearts)];
+    expect(detectForcedPairSplit(hand, lead, cfg, GamePhase.BottomExchange)).toBeNull();
+    expect(detectForcedPairSplit(hand, [], cfg, GamePhase.Playing)).toBeNull();
+    expect(detectForcedPairSplit(hand, lead, null, GamePhase.Playing)).toBeNull();
+  });
+});
+
+describe('computeSelectionMode playableOverride — 强制拆对的收窄可选域', () => {
+  it('只给一张 → replace 且组仅含该牌（跳过引擎推导）', () => {
+    const hand = [c('D', 5, 0), c('H', 9, 1), c('H', 9, 2)];
+    const mode = computeSelectionMode(
+      hand, [play([c('H', 4, 9)], Suit.Hearts)], cfg, GamePhase.Playing, new Set(['H-9-1']),
+    );
+    expect(mode).toEqual({ kind: 'replace', groups: { 'H-9-1': ['H-9-1'] } });
+  });
+
+  it('不传 override：引擎 Rule 1.5 已把可选域收窄为左张，组仅含该牌', () => {
+    const hand = [c('D', 5, 0), c('H', 9, 1), c('H', 9, 2)];
+    const mode = computeSelectionMode(hand, [play([c('H', 4, 9)], Suit.Hearts)], cfg, GamePhase.Playing);
+    expect(mode).toEqual({ kind: 'replace', groups: { 'H-9-1': ['H-9-1'] } });
   });
 });

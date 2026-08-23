@@ -33,7 +33,7 @@ import {
   safeClick, listOutOfBounds, type UiSnapshot,
 } from './lib/driver.js';
 import {
-  computePlayableIds, computeSelectionMode, computeFollowPlan,
+  computePlayableIds, computeSelectionMode, computeFollowPlan, detectForcedPairSplit,
   applyGroupClick, type SelectionMode,
 } from '../src/components/game/playable.js';
 
@@ -304,19 +304,7 @@ async function doPlay(page: Page, snap: UiSnapshot, seed: number, timeoutMs: num
   // 非法则在该集合内搜索"包含 AI 决策牌最多"的合法组合（leadCount ≤ 4，组合数可控）。
   // 可选域与组粒度模式必须与 GameTable 同口径（强制拆对收窄 + selectionMode），
   // 否则模拟器按"错误模式"点击/断言（如把整对当单张逐点，点两次把对又放掉）。
-  let forcedSplit: { selectId: string } | null = null;
-  if (gs.trumpDeclaration && gs.phase === GamePhase.Playing
-    && gs.trickPlays.length > 0 && gs.trickPlays[0].cards.length === 1) {
-    const playableIds = computePlayableIds(player.hand, gs.trickPlays, gs.trumpDeclaration, gs.phase)
-      ?? new Set(player.hand.map(c => c.id));
-    if (playableIds.size === 2) {
-      const two = player.hand.filter(c => playableIds.has(c.id));
-      const [a, b] = two;
-      if (a.suit === b.suit && a.rank === b.rank && !a.isJoker) {
-        forcedSplit = { selectId: sortHand(two, gs.trumpDeclaration)[0].id };
-      }
-    }
-  }
+  const forcedSplit = detectForcedPairSplit(player.hand, gs.trickPlays, gs.trumpDeclaration, gs.phase);
   const playableOverride = forcedSplit ? new Set([forcedSplit.selectId]) : undefined;
   const playable = playableOverride
     ?? computePlayableIds(player.hand, gs.trickPlays, gs.trumpDeclaration, gs.phase);

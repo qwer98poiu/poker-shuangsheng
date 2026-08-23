@@ -11,7 +11,7 @@ import PlayerSeat, { finalRevealChip } from './PlayerSeat.js';
 import { revealPills } from './revealPanel.js';
 import CenterArea from './CenterArea.js';
 import ActionBar from './ActionBar.js';
-import { computePlayableIds, computeFollowPlan, computeSelectionMode } from './playable.js';
+import { computePlayableIds, computeFollowPlan, computeSelectionMode, detectForcedPairSplit } from './playable.js';
 import { formatGameExport } from './export-game.js';
 import './GameTable.css';
 
@@ -177,6 +177,28 @@ const GameTable: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameState, localPlayerIndex, selectedCardIds.length]);
 
+  // 强制拆对：跟单张领出且可选牌恰为一对（同门仅剩一对 / 缺门后仅剩主对毙单）
+  // → 自动选中显示序左边一张并锁定（不可放下），另一张灰显不可点。
+  // 两张对玩家无区别（引擎对称处理，见 detectForcedPairSplit）；
+  // 与必出锁定互斥（可选域恰为一对时引擎无必出牌）；已处于目标状态不重复 set。
+  useEffect(() => {
+    const gs = gameState;
+    if (!gs || gs.phase !== GamePhase.Playing) return;
+    if (gs.currentPlayerIndex !== localPlayerIndex) return;
+    if (gs.trickPlays.length === 0 || gs.trickPlays[0].cards.length !== 1) return; // 仅跟单张
+    const trump = gs.trumpDeclaration;
+    if (!trump) return;
+    const hand = gs.players[localPlayerIndex].hand;
+    if (hand.length === gs.trickPlays[0].cards.length) return; // 最后一墩（自动打分支处理）
+    const split = detectForcedPairSplit(hand, gs.trickPlays, trump, gs.phase);
+    if (!split) return;
+    const st = useGameStore.getState();
+    if (st.selectedCardIds.length === 1 && st.selectedCardIds[0] === split.selectId
+      && st.lockedCardIds.includes(split.selectId)) return;
+    st.autoSelectCards([split.selectId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState, localPlayerIndex]);
+
   if (!gameState) return null;
 
   const getUIPosition = (gameIndex: number): 'top' | 'left' | 'right' => {
@@ -215,16 +237,25 @@ const GameTable: React.FC = () => {
   // 非自己回合不传（手牌亮色展示，交互由 PlayerHand 内部闸门拦截）
   const myTurnToPlay = gameState.phase === GamePhase.Playing
     && gameState.currentPlayerIndex === localPlayerIndex;
-  const playableIds = myTurnToPlay
-    ? computePlayableIds(
+  // 强制拆对：跟单张可选恰为一对 → 可选域收窄为左张（另一张灰显），选择模式同源收窄
+  const forcedSplit = myTurnToPlay
+    ? detectForcedPairSplit(
         localPlayer.hand, gameState.trickPlays, gameState.trumpDeclaration, gameState.phase,
       )
+    : null;
+  const playableIds = myTurnToPlay
+    ? (forcedSplit
+        ? new Set([forcedSplit.selectId])
+        : computePlayableIds(
+            localPlayer.hand, gameState.trickPlays, gameState.trumpDeclaration, gameState.phase,
+          ))
     : null;
   // 跟牌分组选择：单张/对/拖拉机 → 整组替换；不含单张的甩牌 → 按对累加；
   // 领出、含单甩牌或手牌凑不出对应组 → 自由选择（见 playable.ts）
   const selectionMode = myTurnToPlay
     ? computeSelectionMode(
         localPlayer.hand, gameState.trickPlays, gameState.trumpDeclaration, gameState.phase,
+        forcedSplit ? new Set([forcedSplit.selectId]) : undefined,
       )
     : { kind: 'free' as const };
 

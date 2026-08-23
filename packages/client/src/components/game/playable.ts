@@ -140,12 +140,14 @@ function inLeadSuitGroup(c: Card, leadSuit: string | null, trump: TrumpDeclarati
  * 依据领出牌型推导选择模式。组枚举复用引擎口径（findAllPairs/detectTractors，
  * 与 classify/validateFollow 同源）；扣除必出牌后按剩余要填的张数分流：
  * 恰剩 2 张（一对）→ replace 视同对牌，否则 accumulate 视同甩牌。
+ * playableOverride：外部给定的可选域（如强制拆对场景只留一张），跳过引擎推导。
  */
 export function computeSelectionMode(
   hand: Card[],
   trickPlays: GameState['trickPlays'],
   trump: TrumpDeclaration | null,
   phase: GamePhase,
+  playableOverride?: Set<string>,
 ): SelectionMode {
   if (!trump || trickPlays.length === 0 || phase !== GamePhase.Playing) return { kind: 'free' };
   const lead = trickPlays[0];
@@ -163,7 +165,8 @@ export function computeSelectionMode(
   if (pattern.type !== 'single' && ledCount < lead.cards.length) return { kind: 'free' };
 
   // 部分缺门时引擎给全可选 null → 以整手为可选域（合法性由 validateFollow 兜底）
-  const playable = computePlayableIds(hand, trickPlays, trump, phase)
+  const playable = playableOverride
+    ?? computePlayableIds(hand, trickPlays, trump, phase)
     ?? new Set(hand.map(c => c.id));
 
   if (pattern.type === 'single') {
@@ -261,6 +264,38 @@ export function applyGroupDragPick(
 /** 拖拽终点落在不可选牌上：清空选择，仅保留锁定牌。 */
 export function clearSelectionKeepLocked(selected: string[], locked: string[]): string[] {
   return selected.filter(id => locked.includes(id));
+}
+
+// ==================== 跟单张的强制拆对（可选牌恰为一对） ====================
+
+export interface ForcedPairSplit {
+  /** 应自动选中并锁定的那张（显示序左边一张） */
+  selectId: string;
+  /** 该对的全部 id（另一张据此灰显） */
+  pairIds: string[];
+}
+
+/**
+ * 跟单张领出时可选牌恰好只有一对（如同门只剩 ♥99，或缺门后仅剩主对毙单）：
+ * 必须拆对出一张，出哪张对玩家无区别（引擎对两张对称处理）→ 自动选中显示序
+ * 左边一张并锁定，另一张灰显不可点。非跟单张 / 可选数 ≠ 2 / 两张不成对 → null。
+ */
+export function detectForcedPairSplit(
+  hand: Card[],
+  trickPlays: GameState['trickPlays'],
+  trump: TrumpDeclaration | null,
+  phase: GamePhase,
+): ForcedPairSplit | null {
+  if (!trump || phase !== GamePhase.Playing) return null;
+  if (trickPlays.length === 0 || trickPlays[0].cards.length !== 1) return null;
+  const playable = computePlayableIds(hand, trickPlays, trump, phase)
+    ?? new Set(hand.map(c => c.id));
+  if (playable.size !== 2) return null;
+  const two = hand.filter(c => playable.has(c.id));
+  const [a, b] = two;
+  if (a.suit !== b.suit || a.rank !== b.rank || a.isJoker) return null;
+  const ordered = sortHand(two, trump);
+  return { selectId: ordered[0].id, pairIds: ordered.map(c => c.id) };
 }
 
 // ==================== 桌面出牌显示顺序（纯展示，不改游戏状态） ====================
