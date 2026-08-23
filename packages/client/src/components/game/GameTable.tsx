@@ -12,6 +12,7 @@ import { revealPills } from './revealPanel.js';
 import CenterArea from './CenterArea.js';
 import ActionBar from './ActionBar.js';
 import { computePlayableIds, computeFollowPlan, computeSelectionMode, detectForcedPairSplit } from './playable.js';
+import { decideAutoGrabDealer } from '../../store/autoGrabDealer.js';
 import { formatGameExport } from './export-game.js';
 import './GameTable.css';
 
@@ -80,7 +81,7 @@ const GameTable: React.FC = () => {
     submitPlay, submitBottomExchange,
     humanReveal, humanPassReveal,
     toggleLastTrickReview, getHint, getBottomHint,
-    aiPlayers, teamLevels, matchOver, settledTrick, roundNumber,
+    aiPlayers, teamLevels, matchOver, settledTrick, roundNumber, autoGrabDealer,
   } = useGameStore();
 
   const [exportCopied, setExportCopied] = useState(false);
@@ -122,6 +123,25 @@ const GameTable: React.FC = () => {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameState?.phase, gameState?.currentReveal, gameState?.currentLevel, aiPlayers]);
+
+  // 首局自动抢庄（设置面板勾选，默认开）：与 AI 同节奏——发牌期间每落一张牌
+  // 即评估一次（首亮单张/自保成对/能压则反；后亮须严格更高，抢先占坑才能赢下
+  // 平级局），相位切到亮主后再以完整手牌做终评。若等发完才决策，AI 发牌期抢
+  // 亮的单张已成平级死局（实测 400 局中 39 局因此丢庄）。手牌有对王（能亮/反
+  // 无主）时不做任何自动操作——无主够强，留给玩家自行决定。仅首局；后续局不适用。
+  useEffect(() => {
+    const gs = gameState;
+    if (!gs || (gs.phase !== GamePhase.Dealing && gs.phase !== GamePhase.Revealing)) return;
+    if (roundNumber !== 0 || !autoGrabDealer) return;
+    if (aiPlayers[localPlayerIndex]) return; // 本地为 AI / 观战不代操作
+    const hand = gs.players[localPlayerIndex].hand;
+    const d = decideAutoGrabDealer(hand, gs.currentReveal ?? null, localPlayerIndex, gs.currentLevel);
+    if (d.action !== 'reveal') return;
+    useGameStore.getState().humanReveal(d.suit);
+    // 手牌张数：发牌期间每张新牌都要重评；currentReveal：他人亮/反即重挂
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState?.phase, gameState?.currentReveal, gameState?.players[localPlayerIndex]?.hand.length,
+    roundNumber, autoGrabDealer, aiPlayers, localPlayerIndex]);
 
   // 最后一墩自动打出：跟出张数 == 出牌前手牌张数（这墩后手牌清零），
   // 且人类跟出（非领出）→ 停留 1 秒后自动出全部手牌，无需确认。

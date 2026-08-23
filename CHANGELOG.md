@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-08-23 20:37
+
+### 启动面板新增"首局自动抢庄（无主除外）"勾选框（默认开），随发牌逐张评估与 AI 同节奏
+
+**问题**：首局亮主全靠手动——有级牌要自己点亮、自保要点两次、他人亮主后想反也要盯紧 3 秒倒计时；而抓到对王（能亮无主）时又恰恰最该慢思考，不该被任何自动逻辑代劳。同时决策节奏必须与 AI 一致：规则是"后亮须严格更高"，若等 100 张发完、相位切到亮主后才评估一次，AI 发牌期用半截手牌抢先占的单张坑到发完时已是平级死局——满 25 张的"更全信息"换不来任何出手（离线复现 400 局：39 局旧节奏永远无法成庄；P0 成庄率旧 10% → 逐张节奏 19%）。
+
+**修复**：SetupPanel 新增勾选框（形式同调试模式，默认勾选，可取消，非调试模式可用）；store 增加 `autoGrabDealer` 字段经 `startGame` 传入。新纯函数 `decideAutoGrabDealer`：手牌能亮/反无主（对王）→ 一律不动；否则无人亮主即亮枚举序第一门级牌、已自亮单张且同门有成对即自保、他人已亮且有力量严格更高的花色选项即反主。GameTable 自动化 effect 的相位守卫覆盖 Dealing + Revealing、依赖数组加本地手牌张数——发牌期间每落一张牌即评估一次（首亮单张/自保成对/能压则反，与引擎 `aiTryReveal` 同节奏），进入亮主阶段后再以完整手牌终评收敛并调 `humanReveal` 执行；仅首局生效，对王（无主除外）不代劳的口径不变。倒计时机制不变：动作重置 3 秒静默，走完仍进扣底。
+
+E2E 实测（?seed 确定性）：seed=9 AI 亮单张 ♦ 后人类自动反 ♠ 并自保成对；seed=39 对王零动作；取消勾选零动作。逐张节奏实测（speed=50）：seed=10/66 为发完才决策必丢庄局，新节奏下发牌期 P0 首个亮主并成庄（[P0:H@1→P0:H@2] / [P0:D@1]）；seed=9 回归不变（P3:♦@1 → P0:♠@2 反主成庄）。布局回归：dealing 基线场景手牌含 ♠2，发牌期提前亮主使 `pos-bottom` 标签出现亮主徽记（宽 24→50px，居中对称展开），确认为新行为的预期呈现后重新 `--snapshot` 更新基线，其余 39 个组件 ≤1px。
+
+**新增 11 项测试**（autoGrabDealer.test.ts：11 项），引擎 727 项 + arena 65 项 + CLI 80 项 + client 192 项 = 1064 项通过。
+
+- **影响文件**：`packages/client/src/store/autoGrabDealer.ts`（新增）、`packages/client/src/store/gameStore.ts`、`packages/client/src/components/game/SetupPanel.tsx`、`packages/client/src/App.tsx`、`packages/client/src/components/game/GameTable.tsx`、`packages/client/scripts/layout-baseline.json`
+
 ## 2026-08-23 16:50
 
 ### 修复：亮主定庄后顶层 declarerIndex 未同步，AI 庄家身份判定失效

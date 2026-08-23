@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 
 interface SetupPanelProps {
-  onStart: (aiConfig: boolean[], debug: boolean) => void;
+  onStart: (aiConfig: boolean[], debug: boolean, autoGrabDealer: boolean) => void;
 }
 
 const SetupPanel: React.FC<SetupPanelProps> = ({ onStart }) => {
   const [aiConfig, setAiConfig] = useState<boolean[]>([false, true, true, true]);
   const [debug, setDebug] = useState(false);
+  const [autoGrabDealer, setAutoGrabDealer] = useState(true);
 
   const toggleAi = (index: number) => {
     // Only seat 0 (南, the human player) can toggle; seats 1-3 stay AI.
@@ -55,6 +56,18 @@ const SetupPanel: React.FC<SetupPanelProps> = ({ onStart }) => {
         <label className="debug-label">
           <input
             type="checkbox"
+            data-testid="setup-autograb"
+            checked={autoGrabDealer}
+            onChange={e => setAutoGrabDealer(e.target.checked)}
+          />
+          <span>首局自动抢庄（无主除外）</span>
+        </label>
+      </div>
+
+      <div className="setup-debug">
+        <label className="debug-label">
+          <input
+            type="checkbox"
             data-testid="setup-debug"
             checked={debug}
             onChange={e => setDebug(e.target.checked)}
@@ -66,7 +79,7 @@ const SetupPanel: React.FC<SetupPanelProps> = ({ onStart }) => {
       <button
         className="setup-start-btn"
         data-testid="setup-start"
-        onClick={() => onStart(aiConfig, debug)}
+        onClick={() => onStart(aiConfig, debug, autoGrabDealer)}
       >
         开始游戏
       </button>

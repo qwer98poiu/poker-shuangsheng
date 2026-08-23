@@ -15,7 +15,7 @@ const App: React.FC = () => {
       <div className="game-frame">
         {mode === 'setup' ? (
           <div className="app-container">
-            <SetupPanel onStart={(aiConfig: boolean[], debug: boolean) => startGame(aiConfig, debug)} />
+            <SetupPanel onStart={(aiConfig: boolean[], debug: boolean, autoGrabDealer: boolean) => startGame(aiConfig, debug, autoGrabDealer)} />
           </div>
         ) : (
           <GameTable />

@@ -25,6 +25,8 @@ export type GameMode = 'setup' | 'playing';
 interface StoreState {
   mode: GameMode;
   gameState: GameState | null;
+  /** 首局自动抢庄（亮主阶段自动亮/自保/反主；对王除外）。设置面板可关，默认开。 */
+  autoGrabDealer: boolean;
   localPlayerIndex: number;
   selectedCardIds: string[];
   aiPlayers: boolean[];
@@ -53,7 +55,7 @@ interface StoreState {
 }
 
 interface StoreActions {
-  startGame: (aiConfig: boolean[], debug: boolean) => void;
+  startGame: (aiConfig: boolean[], debug: boolean, autoGrabDealer?: boolean) => void;
   selectCard: (cardId: string) => void;
   deselectCard: (cardId: string) => void;
   clearSelection: () => void;
@@ -94,6 +96,7 @@ const emptyPlayersOf = (aiConfig: boolean[]): [PlayerState, PlayerState, PlayerS
 export const useGameStore = create<GameStore>((set, get) => ({
   mode: 'setup',
   gameState: null,
+  autoGrabDealer: true,
   localPlayerIndex: 0,
   selectedCardIds: [],
   aiPlayers: [false, true, true, true],
@@ -110,7 +113,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   lockedCardIds: [],
   dealingDeck: null,
 
-  startGame: (aiConfig: boolean[], debug: boolean) => {
+  startGame: (aiConfig: boolean[], debug: boolean, autoGrabDealer = true) => {
     // ?seed=N: deterministic deck + initial dealer (seededShuffle/mulberry32
     // from engine, so the same seed reproduces the same match).
     const seed = devParams.seed;
@@ -126,6 +129,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       mode: 'playing',
       gameState: { ...state, phase: GamePhase.Dealing },
       aiPlayers: aiConfig,
+      autoGrabDealer,
       selectedCardIds: [],
       message: '发牌中...',
       errorMessage: null,
