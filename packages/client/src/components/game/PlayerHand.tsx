@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import type { Card } from '@poker/engine';
 import CardFace from '../cards/CardFace.js';
 import {
@@ -87,6 +87,13 @@ const PlayerHand: React.FC<PlayerHandProps> = ({
   const suppressClickRef = useRef(false);
   // 替换式拖拽的当前候选牌（组粒度动态切换）
   const dragCandidateRef = useRef<string | null>(null);
+  // 组粒度悬停：悬停可选牌时其所在整组一并上浮（free 模式/非交互不生效）
+  const [hoverId, setHoverId] = useState<string | null>(null);
+  const hoverGroup = new Set<string>();
+  if (hoverId && isActive && isHuman && selectionMode && selectionMode.kind !== 'free'
+    && (!playableIds || playableIds.has(hoverId))) {
+    (selectionMode.groups[hoverId] ?? [hoverId]).forEach(id => hoverGroup.add(id));
+  }
 
   /** 把期望选中集同步进 store（差量调用，幂等）。 */
   const syncSelection = (desired: string[]) => {
@@ -120,6 +127,9 @@ const PlayerHand: React.FC<PlayerHandProps> = ({
     };
     dragMovedRef.current = false;
     dragCandidateRef.current = null;
+    // 不在此清 hoverId：普通点击也走 mousedown，清了会让组内伙伴牌先降后升
+    // （group-lift 掉向 0、选中后又拉回 -12），且松开后光标静止不再触发
+    // mouseenter，悬停就此失联——改为真正拖起来时（mousemove 越阈值）再清
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
@@ -129,6 +139,7 @@ const PlayerHand: React.FC<PlayerHandProps> = ({
     const dy = e.clientY - start.y;
     if (Math.abs(dx) < 4 && Math.abs(dy) < 4) return; // 误触阈值
     dragMovedRef.current = true; // 真正拖拽（单击的 mousedown+mouseup 无位移）
+    setHoverId(null); // 拖拽期间不做组粒度悬停（单击不清，见 handleMouseDown 注释）
     if (!isActive || !isHuman) return;
     if (selectionMode?.kind === 'replace') {
       // 终点拾取：候选牌变化即整组切换；灰色/空白不算（保留原候选）
@@ -181,6 +192,12 @@ const PlayerHand: React.FC<PlayerHandProps> = ({
     dragMovedRef.current = false;
     dragStartRef.current = null;
     dragCandidateRef.current = null;
+    // 恢复组粒度悬停：单击路径 hoverId 从未清空（此处幂等）；拖拽路径按光标下
+    // 的可选牌接回，避免结束后因光标静止而悬停失联
+    if (e) {
+      const cid = cardIdAt(e.clientX, e.clientY);
+      if (cid && (!playableIds || playableIds.has(cid))) setHoverId(cid);
+    }
   };
 
   return (
@@ -193,7 +210,9 @@ const PlayerHand: React.FC<PlayerHandProps> = ({
           <div
             key={card.id}
             ref={el => { cardRefs.current[i] = el; }}
-            className="hand-card-wrapper"
+            className={`hand-card-wrapper${hoverGroup.has(card.id) ? ' group-lift' : ''}`}
+            onMouseEnter={() => setHoverId(card.id)}
+            onMouseLeave={() => setHoverId(cur => (cur === card.id ? null : cur))}
             style={{ marginLeft: i > 0 ? '-34px' : '0', zIndex: i }}
           >
             <CardFace

@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-08-23 10:41
+
+### 悬停可选牌时同组伙伴一齐上浮（组粒度联动）
+
+**问题**：分组选择实现后，悬停仍只有单卡 CSS `:hover` 上浮——对/拖拉机领出时悬停一张，同组的另一张（或整台）毫无反馈，与"点一张选一对"的组粒度语义不匹配。
+
+**修复**：PlayerHand 记录悬停牌 id，交互生效（轮到自己 + 分组模式）时经 `selectionMode.groups` 取所在整组，伙伴 wrapper 加 `group-lift` 类；CSS 与 `.card:hover` 同幅度上浮（-4px + 阴影），`:not(:hover)` 排除悬停牌自身、`:not(.selected)` 保证已选中的 -12px 不被压低。free 模式、灰色牌、非自己回合、AI 手牌不生效。悬停清理挪到 handleMouseMove 真正超过拖拽阈值（4px）的时刻——普通点击不再让伙伴牌先降后升（-4px → -12px 平滑过渡），真拖拽仍然清；handleMouseUp 按光标下的可选牌恢复悬停，取消选择后悬停不失联。
+
+E2E 实测：悬停 ♥3 一张 → 整对上浮；移到 ♠2 → 组切换；移到灰牌 → 无联动。
+
+无新增测试。
+
+- **影响文件**：`packages/client/src/components/game/PlayerHand.tsx`、`packages/client/src/components/game/GameTable.css`
+
 ## 2026-08-23 09:40
 
 ### 桌面出牌按力度归组显示：两对甩牌不再拆开（纯展示侧排序）

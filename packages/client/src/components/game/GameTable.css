@@ -408,6 +408,13 @@
   transition: transform 0.15s;
 }
 
+/* 组粒度悬停：悬停可选牌时同组伙伴一齐上浮（与 .card:hover 同幅度）。
+   悬停牌自身走 .card:hover；已选中的保持 -12px 不被压低 */
+.hand-card-wrapper.group-lift .card:not(:hover):not(.selected) {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
 /* ===== bid panel ===== */
 
 .bid-panel {
