@@ -52,6 +52,10 @@ interface StoreState {
   /** 当前局的洗牌结果（108 张）：发牌进度快照恢复所需（runDealStep 原以闭包持有，
    *  刷新即丢）；扣底开始后清空。 */
   dealingDeck: Card[] | null;
+  /** 对局代际号：每次 startGame（开局/调试菜单"开始新游戏"）+1。旧代排期的
+   *  延迟回调（发牌链、出牌链、墩结算、局末开新局）一律作废——否则对局中重开，
+   *  旧局挂着的定时器会落进新局（出牌串局/连点两次两条发牌链互相穿插）。 */
+  generation: number;
 }
 
 interface StoreActions {
@@ -93,7 +97,13 @@ const emptyPlayersOf = (aiConfig: boolean[]): [PlayerState, PlayerState, PlayerS
     index: i,
   })) as [PlayerState, PlayerState, PlayerState, PlayerState];
 
-export const useGameStore = create<GameStore>((set, get) => ({
+export const useGameStore = create<GameStore>((set, get) => {
+  /** 代际守卫的延迟调度：ms 后执行 fn；期间若发生过重开（generation 变化）则作废。 */
+  const later = (gen: number, ms: number, fn: () => void): void => {
+    setTimeout(() => { if (get().generation === gen) fn(); }, tick(ms));
+  };
+
+  return ({
   mode: 'setup',
   gameState: null,
   autoGrabDealer: true,
@@ -112,6 +122,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   matchOver: false,
   lockedCardIds: [],
   dealingDeck: null,
+  generation: 0,
 
   startGame: (aiConfig: boolean[], debug: boolean, autoGrabDealer = true) => {
     // ?seed=N: deterministic deck (seededShuffle from engine, so the same
@@ -141,6 +152,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       matchOver: false,
       dealingDeck: deck,
       failedThrow: null,
+      generation: get().generation + 1, // 旧局挂起的延迟回调全部作废（见 later）
     });
 
     get().runDealStep(deck);
@@ -175,7 +187,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
       // spectator (all AI): finalize shortly; otherwise wait for the human.
       if (get().aiPlayers.every(Boolean)) {
-        setTimeout(() => get().finalizeRevealAndBottom(), tick(300));
+        later(get().generation, 300, () => get().finalizeRevealAndBottom());
       }
       return;
     }
@@ -213,11 +225,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
       message: `发牌中... ${newPlayers[get().localPlayerIndex].hand.length}/25`,
     });
 
-    setTimeout(() => get().runDealStep(deck), tick(120)); // 100 张 × 120ms ≈ 12 秒发完
+    later(get().generation, 120, () => get().runDealStep(deck)); // 100 张 × 120ms ≈ 12 秒发完
   },
 
   /** Finalize reveal (human "确定" or spectator auto) then run bottom exchange. */
   finalizeRevealAndBottom: () => {
+    const gen = get().generation;
     const gs = get().gameState;
     if (!gs || gs.phase !== GamePhase.Revealing) return;
 
@@ -253,7 +266,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         message: `出牌开始！${ready.players[declarerIdx].name} 领出`,
         dealingDeck: null, // 发牌结束，洗牌堆不再需要（快照随之瘦身）
       });
-      setTimeout(() => get().runAiTurns(), tick(600));
+      later(gen, 600, () => get().runAiTurns());
     } else {
       // Human declarer: merge bottom into hand (33 cards) and wait for selection.
       const withBottom = [...declarer.hand, ...finalized.bottomCards];
@@ -344,6 +357,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   submitBottomExchange: () => {
+    const gen = get().generation;
     const { gameState, selectedCardIds } = get();
     if (!gameState || gameState.phase !== GamePhase.BottomExchange) return;
     if (!gameState.trumpDeclaration) return;
@@ -383,10 +397,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
       errorMessage: null,
     });
 
-    setTimeout(() => get().runAiTurns(), tick(600));
+    later(gen, 600, () => get().runAiTurns());
   },
 
   submitPlay: () => {
+    const gen = get().generation;
     const { gameState, selectedCardIds, localPlayerIndex } = get();
     if (!gameState || gameState.phase !== GamePhase.Playing) return;
     if (gameState.currentPlayerIndex !== localPlayerIndex) return;
@@ -429,26 +444,27 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
 
     if (finished) {
-      setTimeout(() => {
+      later(gen, 800, () => {
         set({ gameState: result.state, message: `本局结束！闲家得分: ${result.state.attackerPoints}` });
-        if (!get().matchOver) setTimeout(() => get().startNewRound(), tick(4000));
-      }, tick(800));
+        if (!get().matchOver) later(gen, 4000, () => get().startNewRound());
+      });
       return;
     }
 
     set({ message: `${result.state.players[result.state.currentPlayerIndex].name} 出牌` });
     // 甩牌失败：提示停留 ~2s 再续打，否则下一家出牌立刻覆盖文案
-    setTimeout(() => get().runAiTurns(), tick(result.forcedPlay ? 2000 : 600));
+    later(gen, result.forcedPlay ? 2000 : 600, () => get().runAiTurns());
   },
 
   runAiTurns: () => {
+    const gen = get().generation;
     const { gameState, aiPlayers, debug } = get();
     if (!gameState) return;
     if (gameState.phase === GamePhase.Dealing || gameState.phase === GamePhase.Revealing
         || gameState.phase === GamePhase.BottomExchange) return;
 
     if (gameState.phase === GamePhase.RoundEnd) {
-      if (!get().matchOver) setTimeout(() => get().startNewRound(), tick(3000));
+      if (!get().matchOver) later(gen, 3000, () => get().startNewRound());
       return;
     }
 
@@ -537,16 +553,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
         // AI 出牌节奏一致）再应用终态结算底牌。debug 的 aiReasons 附在中间态上，
         // 此处并入终态避免丢失。
         const finalState: GameState = { ...roundFinal, aiReasons: get().gameState!.aiReasons };
-        setTimeout(() => {
+        later(gen, 800, () => {
           set({ gameState: finalState, message: `本局结束！闲家得分: ${finalState.attackerPoints}` });
-          if (!get().matchOver) setTimeout(() => get().startNewRound(), tick(4000));
-        }, tick(800));
+          if (!get().matchOver) later(gen, 4000, () => get().startNewRound());
+        });
         return;
       }
 
       set({ message: `${get().gameState?.players[get().gameState!.currentPlayerIndex].name} 出牌` });
       // 甩牌失败：提示停留 ~2s 再续打
-      setTimeout(() => get().runAiTurns(), tick(hadThrowFailure ? 2000 : 800));
+      later(gen, hadThrowFailure ? 2000 : 800, () => get().runAiTurns());
     }
   },
 
@@ -678,4 +694,5 @@ export const useGameStore = create<GameStore>((set, get) => ({
       message: `💡 建议: ${r.reason}`,
     });
   },
-}));
+  });
+});

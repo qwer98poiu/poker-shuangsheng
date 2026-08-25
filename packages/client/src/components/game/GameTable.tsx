@@ -79,7 +79,7 @@ const GameTable: React.FC = () => {
     message, errorMessage, failedThrow, lastTrickReview, highlightedCards, lockedCardIds,
     selectCard, deselectCard,
     submitPlay, submitBottomExchange,
-    humanReveal, humanPassReveal,
+    humanReveal, humanPassReveal, startGame,
     toggleLastTrickReview, getHint, getBottomHint,
     aiPlayers, teamLevels, matchOver, settledTrick, roundNumber, autoGrabDealer,
   } = useGameStore();
@@ -522,6 +522,15 @@ const GameTable: React.FC = () => {
         >
           <summary>🔧 调试</summary>
           <div className="debug-menu-content">
+            {/* 以启动面板当前设置（AI 配置/调试/自动抢庄）从等级 2 重开一局：
+                清空等级/局数/牌局数据，不回启动界面——供快速重复测试 */}
+            <button
+              className="debug-btn"
+              data-testid="restart-btn"
+              onClick={() => startGame(aiPlayers, debug, autoGrabDealer)}
+            >
+              🔄 开始新游戏
+            </button>
             <button
               className="debug-btn"
               data-testid="export-btn"

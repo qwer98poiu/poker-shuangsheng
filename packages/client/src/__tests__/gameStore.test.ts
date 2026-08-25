@@ -450,3 +450,39 @@ describe('gameStore — 甩牌失败流程（非 debug）', () => {
     expect(useGameStore.getState().failedThrow).toBeNull();
   });
 });
+
+describe('gameStore — 调试菜单"开始新游戏"（代际守卫）', () => {
+  afterEach(() => { mockDev.seed = 42; });
+
+  it('startGame 使 generation +1；对局中重开时旧代延迟回调作废，连点两次只有最新发牌链存活', async () => {
+    const gen0 = useGameStore.getState().generation;
+    useGameStore.getState().startGame([false, true, true, true], false);
+    expect(useGameStore.getState().generation).toBe(gen0 + 1);
+
+    // 模拟调试按钮被立即再点一次。换 seed 使两局牌堆不同——若旧发牌链未被
+    // 作废，两条链会按 totalDealt 交替发牌，P0 手牌混入旧堆的杂牌
+    useGameStore.getState().startGame([false, true, true, true], false);
+    mockDev.seed = 43;
+    useGameStore.getState().startGame([false, true, true, true], false);
+    expect(useGameStore.getState().generation).toBe(gen0 + 3);
+
+    await advance(16000); // 100 张 × 120ms ÷ speed 8 ≈ 1.5s 发完，留足余量
+    const gs = useGameStore.getState().gameState!;
+    expect(gs.phase).toBe(GamePhase.Revealing);
+
+    // 牌堆纯净：P0 手牌恰为当前局（seed=43）洗牌堆按座位轮转的份额
+    const deck = useGameStore.getState().dealingDeck!;
+    expect(gs.players[0].hand.map(c => c.id))
+      .toEqual(deck.slice(0, 100).filter((_, i) => i % 4 === 0).map(c => c.id));
+
+    // 恰好发出 100 张、全局无重复
+    const all = gs.players.flatMap(p => p.hand.map(c => c.id));
+    expect(all.length).toBe(100);
+    expect(new Set(all).size).toBe(100);
+
+    // 重开即初始状态
+    expect(useGameStore.getState().roundNumber).toBe(0);
+    expect(useGameStore.getState().teamLevels).toEqual([2, 2]);
+    expect(useGameStore.getState().matchOver).toBe(false);
+  });
+});
