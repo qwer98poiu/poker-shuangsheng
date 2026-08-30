@@ -94,9 +94,10 @@ Changelog 测试数行与提交信息不同——列出子包分项与总数；�
 ## 测试命令
 
 - **单包测试**：`npm run test -w packages/engine` / `-w packages/cli` / `-w packages/arena` / `-w packages/client`（等价于进入该包目录后 `vitest run`，读取各自的 vitest.config.ts）
+- **全量测试**：根目录 `npm run test:all`，依次执行四个单包测试命令（engine → arena → cli → client，任一失败即停止）
 - **根目录 `npm run test` 只跑引擎**（根 package.json 的 test 脚本指向 engine）
 - **不要从仓库根用 `npx vitest run <包路径>` 统计测试数**——positional filter 在存在多个 vitest.config.ts 时会混入其他包的测试（实测 `npx vitest run packages/cli` 混入 client 测试，127 ≠ 真实 80）
-- **Changelog 的测试总数**：各分项 = 对应包目录内 `vitest run` 输出的 `Tests N passed` 中的 N（四包 = engine + arena + CLI + client），四者之和为总数；统计时必须逐包在各自目录内跑，不能从根目录一次过滤
+- **Changelog 的测试总数**：运行 `npm run test:all 2>&1 | grep -E "^> @poker/.* test$|Tests +[0-9]+ passed"`，取输出中对应包的 `Tests N passed` 中的 N（四包顺序 = engine + arena + CLI + client），四者之和为总数
 
 ## 布局回归检查
 
