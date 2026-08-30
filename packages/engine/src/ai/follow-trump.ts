@@ -35,12 +35,14 @@ function aceEff(ctx: AIContext): number {
     { suit: ctx.trumpSuit ?? Suit.Spades, rank: Rank.Ace, isJoker: false, id: '' } as Card, ctx);
 }
 
-/** 第二家避分时主牌单张的垫出优先级：小非分(0) < 级牌常主(1) < 分牌(2) < 主A/王保底(3)。
- *  垫分牌损失分，垫 A/王损失控制力——宁垫分牌保 A/王。 */
-function trumpDumpKey(c: Card, ctx: AIContext): number {
-  if (isPointRank(c.rank)) return 2;
-  if (getEffectiveRank(c, ctx) >= aceEff(ctx)) return 3;
-  return c.rank === ctx.level ? 1 : 0;
+/** 避分时主牌的垫出优先级键（越小越先垫，对应规格第二家第 5 条主牌部分）：
+ *  非分单(0) < 分单(1，级牌归保底类) < 非分对成员(2) < 分对成员(3) < A/级牌/王保底(4)。
+ *  垫分牌损失分，垫 A/级牌/王损失控制力——宁垫分牌保 A/级牌/王；不拆对先于拆对。 */
+function trumpDumpKey(c: Card, pool: Card[], ctx: AIContext): number {
+  if (getEffectiveRank(c, ctx) >= aceEff(ctx)) return 4; // 主A、级牌、王保底
+  const inPair = pool.some(x => x.id !== c.id && x.suit === c.suit && x.rank === c.rank);
+  if (isPointRank(c.rank)) return inPair ? 3 : 1;
+  return inPair ? 2 : 0;
 }
 
 
@@ -133,7 +135,7 @@ export function followTrumpLead(
           return { cards, reason };
         }
         if (secondShouldAvoid(hand)) {
-          myTrump.sort((a, b) => (trumpDumpKey(a, ctx) - trumpDumpKey(b, ctx))
+          myTrump.sort((a, b) => (trumpDumpKey(a, myTrump, ctx) - trumpDumpKey(b, myTrump, ctx))
             || (getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx)));
         } else {
           myTrump.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
@@ -166,9 +168,10 @@ export function followTrumpLead(
             leadCombo, 1, ctx, position, tmWin, false, 'none');
           return { cards, reason };
         }
-        // 盖不过前两家 → 最小主牌且不加分（避分优先级：主牌A以下非分单先于分单，
-        // 级牌归"主牌A或更大"末类；分牌不优先）
-        myTrump.sort(discardSort(false, ctx));
+        // 盖不过前两家 → 最小主牌且不加分（垫牌原则与第二家相同：
+        // 非分单 < 分单(级牌归保底) < 非分对 < 分对 < A/级牌/王，从小到大）
+        myTrump.sort((a, b) => (trumpDumpKey(a, myTrump, ctx) - trumpDumpKey(b, myTrump, ctx))
+          || (getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx)));
         const cards = [myTrump[0]];
         const reason = annotateReason('同花色出小', cards, myTrump, myTrump,
           leadCombo, 1, ctx, position, tmWin, false, 'avoid');
@@ -368,10 +371,10 @@ export function matchTrumpPattern(
     const chosen = pairs.flat();
     const used = new Set(chosen.map(c => c.id));
     const rest = myTrump.filter(c => !used.has(c.id));
-    // 避分（第二家 >15 张等）：非分小牌优先、级牌次之、分牌再次、主 A/王保底；
+    // 避分（第二家 >15 张、第三/四家盖不过等）：非分单 < 分单 < 非分对 < 分对 < A/级牌/王；
     // 否则按大小升序（保留大牌）
     if (shouldAvoidT) {
-      rest.sort((a, b) => (trumpDumpKey(a, ctx) - trumpDumpKey(b, ctx))
+      rest.sort((a, b) => (trumpDumpKey(a, rest, ctx) - trumpDumpKey(b, rest, ctx))
         || (getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx)));
     } else {
       rest.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
@@ -410,6 +413,10 @@ export function matchTrumpPattern(
           });
           chosen = beatingPairs.slice(0, leadCombo.pairCount).flat();
         }
+      } else if (hasPoints) {
+        // 墩内有分但盖不过 → 出最小（恢复 pairKillSort 升序，规格：不能盖出最小）
+        pairKillSort(myPairs, myTrump, ctx);
+        chosen = myPairs.slice(0, leadCombo.pairCount).flat();
       }
     } else if (position === 'fourth' && !tmWin) {
       // Fourth can beat — prefer most points first, then smallest beating
@@ -431,10 +438,15 @@ export function matchTrumpPattern(
     if (chosen.length < leadLen) {
       const used = new Set(chosen.map(c => c.id));
       const rest = myTrump.filter(c => !used.has(c.id));
-      // 第二家避分（>15 张）：非分小牌优先，级牌常主次之，分牌再次，
-      // 主牌 A/王保底最后（不加分会导致垫 A/王时宁垫分牌）——与纯单张分支同策略
-      if (position === 'second' && secondShouldAvoid(hand)) {
-        rest.sort((a, b) => (trumpDumpKey(a, ctx) - trumpDumpKey(b, ctx))
+      // 避分时垫牌按第二家第 5 条主牌优先级（非分单 < 分单 < 非分对 < 分对 < A/级牌/王）：
+      // 第二家 >15 张避分；第三家第二家大不能盖时避分（尽量不加分，与拖拉机分支一致）；
+      // 第四家盖不过时避分
+      const avoidRest = !addPt
+        && ((position === 'fourth' && !tmWin)
+          || (position === 'second' && secondShouldAvoid(hand))
+          || (position === 'third' && !tmWin));
+      if (avoidRest) {
+        rest.sort((a, b) => (trumpDumpKey(a, rest, ctx) - trumpDumpKey(b, rest, ctx))
           || (getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx)));
       } else {
         rest.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));

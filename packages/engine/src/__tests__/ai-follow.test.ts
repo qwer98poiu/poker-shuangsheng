@@ -242,6 +242,115 @@ describe('AI follow play compliance', () => {
     });
   });
 
+  describe('third position, trump pair lead, cannot beat -> avoid points（第二家大不能盖）', () => {
+    const cfgS2: TrumpDeclaration = { declarerIndex: 1, trumpSuit: Suit.Spades, level: 2 };
+
+    it('用户场景：AI-4 第6墩垫 ♠6♠Q（非分单）而非 ♠6♠10（分单）', () => {
+      // 用户牌局：AI-2(P1) 领 ♠3♠3，AI-3(P2) 出 ♠9♠9（第二家大），AI-4(P3) 第三家无对可盖。
+      // 规格（第三家总原则1+8）：不能盖出小、尽量不加分 → 垫牌按第二家第5条避分优先级：
+      // 主牌 A 以下非分单（♠6♠Q）先于分单（♠10）→ 应出 ♠6♠Q，保留 ♠10♠K♠A♥2JOKER。
+      const lead: Card[] = [c('S', 3, 200), c('S', 3, 201)];
+      const ctx: AIContext = {
+        declarerIndex: 1, trumpSuit: Suit.Spades, level: 2,
+        myIndex: 3, isDeclarer: false, isDeclarerPartner: true,
+        isAttacker: false, attackerPoints: 15,
+        handCounts: [15, 15, 15, 15], trickHistory: [], reveals: [],
+        playCount: 2, leadPlayerIndex: 1,
+        bestSoFar: { cards: [c('S', 9, 300), c('S', 9, 301)], playerIndex: 2 },
+        ntState: null, bottomCards: [], debug: false,
+      };
+      // AI-4 第6墩决策时的真实手牌（前5墩后）
+      const hand = [
+        c('H', 2, 0), c('C', 12, 0), c('C', 8, 0), c('C', 6, 0),
+        c('S', 13, 0), c('S', 14, 0), c('C', 5, 0), c('S', 6, 0),
+        c('D', 7, 0), c('D', 6, 0), c('C', 4, 0), c('J', 16, 0),
+        c('C', 3, 0), c('S', 10, 0), c('S', 12, 0),
+      ];
+      const r = aiFollowPlay(hand, lead, Suit.Spades, ctx);
+      checkFollow(r.cards, hand, lead, null, cfgS2);
+      expect(r.cards.length).toBe(2);
+      // ♠6♠Q（主牌 A 以下非分单），不是 ♠6♠10
+      expect(r.cards.map(x => `${x.suit}${x.rank}`).sort()).toEqual(['S12', 'S6']);
+      expect(r.reason).toContain('垫同花色');
+    });
+
+    it('third, cannot beat trump pair, has level-point trump -> dumps point single not level', () => {
+      // level=10：♥10 是级牌（保底类），♠5/♠K 是主牌 A 以下分单 → 先垫 ♠6♠5，保留 ♥10。
+      const cfg10: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 10 };
+      const lead: Card[] = [c('S', 3, 200), c('S', 3, 201)];
+      const ctx: AIContext = {
+        declarerIndex: 0, trumpSuit: Suit.Spades, level: 10,
+        myIndex: 1, isDeclarer: false, isDeclarerPartner: false,
+        isAttacker: false, attackerPoints: 0,
+        handCounts: [6, 6, 6, 6], trickHistory: [], reveals: [],
+        playCount: 2, leadPlayerIndex: 3,
+        bestSoFar: { cards: [c('S', 9, 300), c('S', 9, 301)], playerIndex: 3 },
+        ntState: null, bottomCards: [], debug: false,
+      };
+      const hand = [c('S', 6, 0), c('S', 5, 0), c('S', 13, 0), c('H', 10, 0), c('C', 8, 0)];
+      const r = aiFollowPlay(hand, lead, Suit.Spades, ctx);
+      checkFollow(r.cards, hand, lead, null, cfg10);
+      expect(r.cards.length).toBe(2);
+      // ♠6(非分单) + ♠5(分单)，不垫级牌 ♥10（保底类）
+      expect(r.cards.map(x => `${x.suit}${x.rank}`).sort()).toEqual(['S5', 'S6']);
+      expect(r.reason).toContain('垫同花色');
+    });
+
+    it('third, cannot beat, trick has points -> dumps smallest pair, not biggest（不能盖出最小）', () => {
+      // 领出 ♠10♠10（含分），第二家 ♠A♠A 已盖过。AI-4 盖不过 → 出最小对 ♠Q♠Q，
+      // 不得因墩内有分而垫最大对 ♠K♠K。
+      const lead: Card[] = [c('S', 10, 200), c('S', 10, 201)];
+      const ctx: AIContext = {
+        declarerIndex: 1, trumpSuit: Suit.Spades, level: 2,
+        myIndex: 3, isDeclarer: false, isDeclarerPartner: true,
+        isAttacker: false, attackerPoints: 15,
+        handCounts: [15, 15, 15, 15], trickHistory: [], reveals: [],
+        playCount: 2, leadPlayerIndex: 1,
+        bestSoFar: { cards: [c('S', 14, 300), c('S', 14, 301)], playerIndex: 2 },
+        ntState: null, bottomCards: [], debug: false,
+      };
+      const hand = [
+        c('S', 13, 0), c('S', 13, 1), c('S', 12, 0), c('S', 12, 1),
+        c('S', 6, 0), c('H', 2, 0),
+        c('C', 12, 0), c('C', 8, 0), c('C', 6, 0), c('C', 5, 0),
+        c('D', 7, 0), c('D', 6, 0), c('C', 4, 0), c('J', 16, 0), c('C', 3, 0),
+      ];
+      const r = aiFollowPlay(hand, lead, Suit.Spades, ctx);
+      checkFollow(r.cards, hand, lead, null, cfgS2);
+      expect(r.cards.length).toBe(2);
+      expect(r.cards.map(x => `${x.suit}${x.rank}`).sort()).toEqual(['S12', 'S12']); // ♠Q♠Q
+      expect(r.reason).toContain('同花色出小');
+    });
+  });
+
+  describe('second position, single trump lead, avoid points (hand>15) -> 不拆对、非分单先于分单', () => {
+    it('hand>15: dumps non-point single before breaking a non-point pair', () => {
+      // 手牌 >15 张（第二家避分）：领出 ♥A，第二家只有 ♥6♥6 对 + ♥9 单。
+      // 规格第5条：非分单（♥9）先于非分对成员（♥6）→ 出 ♥9，不拆 ♥6♥6 对。
+      const lead: Card[] = [c('H', 14, 200)];
+      const ctx: AIContext = {
+        declarerIndex: 3, trumpSuit: Suit.Hearts, level: 5,
+        myIndex: 0, isDeclarer: false, isDeclarerPartner: false,
+        isAttacker: false, attackerPoints: 0,
+        handCounts: [16, 16, 16, 16], trickHistory: [], reveals: [],
+        playCount: 1, leadPlayerIndex: 3,
+        bestSoFar: { cards: [c('H', 14, 200)], playerIndex: 3 },
+        ntState: null, bottomCards: [], debug: false,
+      };
+      const hand = [
+        c('H', 6, 0), c('H', 6, 1), c('H', 9, 0),
+        c('S', 14, 0), c('S', 13, 0), c('S', 12, 0), c('S', 11, 0),
+        c('S', 10, 0), c('S', 9, 0), c('S', 8, 0), c('S', 7, 0),
+        c('S', 5, 0), c('S', 4, 0), c('S', 3, 0), c('S', 2, 0), c('C', 14, 0),
+      ];
+      const r = aiFollowPlay(hand, lead, Suit.Hearts, ctx);
+      checkFollow(r.cards, hand, lead, null, cfg5);
+      expect(r.cards.length).toBe(1);
+      expect(r.cards[0].rank).toBe(9); // ♥9，不是 ♥6（不拆对）
+      expect(r.reason).toContain('同花色出小');
+    });
+  });
+
   describe('trump throw (cfgDiamondA: diamonds, level=14)', () => {
 
     it('multi-tractor throw (12 cards), has tractors -> matches all slots', () => {
