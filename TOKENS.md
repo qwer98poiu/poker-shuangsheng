@@ -4,14 +4,14 @@ This project is entirely AI-generated. Below is the cumulative token usage throu
 
 ## DeepSeek V4 Series
 
-> Last updated: 2026-08-17
+> Last updated: 2026-08-30
 
 | Metric | Total |
 |---|---|
-| Requests | 11,277 |
-| Input tokens | 16,109,031 |
-| Output tokens | 8,588,942 |
-| Total tokens | **24,697,973** |
+| Requests | 11,835 |
+| Input tokens | 19,077,615 |
+| Output tokens | 9,660,231 |
+| Total tokens | **28,737,846** |
 
 ## Ox Alpha
 
