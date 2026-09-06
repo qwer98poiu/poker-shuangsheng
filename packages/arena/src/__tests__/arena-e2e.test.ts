@@ -61,13 +61,18 @@ describe('arena e2e', () => {
     expect(statsB.matches.played).toBe(40);
     expect(statsB.matches.won).toBe(20);
     expect(statsB.matches.drawn).toBe(0);
-    // 镜像对称：双方各胜 20 场，胜时对方平均等级 223/20 = 11.15（A=14）
+    // 镜像对称：双方各胜 20 场，胜时对方平均等级 236/20 = 11.80（A=14）
     //（2026-08-23 finalizeReveal 同步实际庄家后：第 1 局亮主者≠随机默认庄家时
     //  AI 庄家身份真正生效，庄家限制策略改变对局走向；
     //  此前第四家吊主选牌修复后为 210，自保规则后为 229，禁止自反为 213；
-    //  第三家垫牌避分修复（非分单<分单<非分对<分对<A/级牌/王）后为 223）
-    expect(statsA.matches.oppLevel).toEqual({ n: 223, d: 20 });
-    expect(statsB.matches.oppLevel).toEqual({ n: 223, d: 20 });
+    //  第三家垫牌避分修复（非分单<分单<非分对<分对<A/级牌/王）后为 223；
+    //  扣底策略重构（tier 控制张 + 留控扣绝 + 填充梯）后为 205；
+    //  跳桶进分单的奇数槽受加分限额约束（超限拆 0 分对）后为 209；
+    //  桶2 对排序（非tier2 先于 tier2、总对数少优先）后为 214；
+    //  填充梯新增非分对拆对桶（有主桶6/NT 桶4，保留对子优先于拆对）后为 236；
+    //  桶1 留保护牌（脆弱花色留一张非分单，不再抽成只剩分牌）后为 234）
+    expect(statsA.matches.oppLevel).toEqual({ n: 234, d: 20 });
+    expect(statsB.matches.oppLevel).toEqual({ n: 234, d: 20 });
     expect(statsA.handsPlayed).toBe(statsB.handsPlayed);
     expect(statsA.abortedHands).toBe(0);
     const sig = checkSignificance(statsA.matches.won, statsB.matches.won, statsA.matches.drawn, statsA.matches.played);
