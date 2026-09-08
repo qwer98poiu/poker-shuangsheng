@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-09-09 00:12
+
+### 提取 ai-0816 基线（2d56a13，08-16 扣底策略重构前）
+
+**问题**：扣底策略重构（7476904）后，重构前的 `ai/` 没有可对比的竞技场基线；README 中 1055 Elo 的测量对象（2026-08-17 实测，seed 43/44）正是 `ai/` 在 2d56a13 时的版本，尚未冻结为基线。
+
+**修复**：`git archive` 提取 2d56a13 的 `ai/` 为 `packages/engine/src/ai-0816/`（14 文件），引擎注册 `ai0816` 命名空间、竞技场注册 `ai0816Strategy`（pair 16/17 合法性测试：无中止、无验牌回退）；README：Elo 表新增 `ai-0816` 行 = 1055（原 `ai` 行分数归此——08-17 实测时 ai/ 最后一次改动即 2d56a13），当前 `ai` 行标「待重测」，历史基线列表与 `--strategy-a/b` 可选列表两处同步（中英）。
+
+**新增 1 项测试**（historical-strategies.test.ts：1 项）。
+
+- **影响文件**：`packages/engine/src/ai-0816/`（新目录，14 文件）、`packages/engine/src/index.ts`、`packages/arena/src/strategies.ts`、`packages/arena/src/__tests__/historical-strategies.test.ts`、`README.md`
+
+### 修复竞技场 --strategy-b 默认值指向已归档策略导致的崩溃
+
+**问题**：`--strategy-b` 默认值仍为 `ai-0801`（2026-08-15 归档移除 ai-0801 时漏改），无参数运行 `npm run arena` 直接抛「未知策略: ai-0801」；README 记载的默认值是 `ai-0809`，代码与文档不一致。
+
+**修复**：`run.ts` 默认值改为最新基线 `ai-0816`，usage 文本同步；README 默认值与示例命令（中英）同步。
+
+**无新增测试**，引擎 765 项 + arena 66 项 + CLI 80 项 + client 202 项 = 1113 项通过。
+
+- **影响文件**：`packages/arena/src/run.ts`、`README.md`
+
 ## 2026-09-07 00:45
 
 ### 扣底策略重构：控制张 tier 体系、留控扣绝、分档多门扣绝与双模式填充梯

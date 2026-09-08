@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { engineStrategy, ai0719Strategy, ai0802Strategy, ai0808Strategy, ai0809Strategy } from '../strategies.js';
+import { engineStrategy, ai0719Strategy, ai0802Strategy, ai0808Strategy, ai0809Strategy, ai0816Strategy } from '../strategies.js';
 import { playMatch } from '../match.js';
 
 /**
@@ -35,6 +35,14 @@ describe('historical strategies legality', () => {
   it('ai-0809（b77a7b1, 08-14 第二家避分修复前）：无中止、无验牌回退', () => {
     for (const pair of [14, 15]) {
       const m = playMatch({ seed: 42, pairIndex: pair, strategies: [ai0809Strategy, engineStrategy], captureEvents: true });
+      expect(m.abortedHands).toBe(0);
+      for (const ev of m.events) expect(ev.errors).toBe(0);
+    }
+  });
+
+  it('ai-0816（2d56a13, 08-16 扣底策略重构前）：无中止、无验牌回退', () => {
+    for (const pair of [16, 17]) {
+      const m = playMatch({ seed: 42, pairIndex: pair, strategies: [ai0816Strategy, engineStrategy], captureEvents: true });
       expect(m.abortedHands).toBe(0);
       for (const ev of m.events) expect(ev.errors).toBe(0);
     }
