@@ -3,7 +3,7 @@
  * One-line delegations; identical input → identical output (guarded by the
  * engine-side differential tests).
  */
-import { aiTryReveal, aiChooseBottomCards, aiLeadPlay, aiFollowPlay, ai0719, ai0802, ai0808, ai0809 } from '@poker/engine';
+import { aiTryReveal, aiChooseBottomCards, aiLeadPlay, aiFollowPlay, ai0719, ai0802, ai0808, ai0809, ai0816 } from '@poker/engine';
 import type { CardSuit } from '@poker/engine';
 import type { Strategy } from './types.js';
 
@@ -51,12 +51,22 @@ export const ai0809Strategy: Strategy = {
   follow: (hand, lead, suit, config) => ai0809.aiFollowPlay(hand, lead, suit, config),
 };
 
-/** Resolve a strategy by name ('ai' | 'ai-0719' | 'ai-0802' | 'ai-0808' | 'ai-0809'). */
+/** 快照基线：ai/ 在 2d56a13（2026-08-16，扣底策略重构前）时的版本，README 中 1055 Elo 的测量对象。 */
+export const ai0816Strategy: Strategy = {
+  name: 'ai-0816',
+  tryReveal: (hand, dealt, pi, level, cur) => ai0816.aiTryReveal(hand, dealt, pi, level, cur),
+  chooseBottom: (hand, config) => ai0816.aiChooseBottomCards(hand, config),
+  lead: (hand, config) => ai0816.aiLeadPlay(hand, config),
+  follow: (hand, lead, suit, config) => ai0816.aiFollowPlay(hand, lead, suit, config),
+};
+
+/** Resolve a strategy by name ('ai' | 'ai-0719' | 'ai-0802' | 'ai-0808' | 'ai-0809' | 'ai-0816'). */
 export function strategyByName(name: string): Strategy {
   if (name === 'ai') return engineStrategy;
   if (name === 'ai-0719') return ai0719Strategy;
   if (name === 'ai-0802') return ai0802Strategy;
   if (name === 'ai-0808') return ai0808Strategy;
   if (name === 'ai-0809') return ai0809Strategy;
-  throw new Error(`未知策略: ${name}（可选: ai, ai-0719, ai-0802, ai-0808, ai-0809）`);
+  if (name === 'ai-0816') return ai0816Strategy;
+  throw new Error(`未知策略: ${name}（可选: ai, ai-0719, ai-0802, ai-0808, ai-0809, ai-0816）`);
 }
