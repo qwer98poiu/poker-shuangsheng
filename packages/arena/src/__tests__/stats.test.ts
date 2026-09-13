@@ -8,7 +8,7 @@ const evBankerWin: HandEvent = {
   handIndex: 0, level: 12, attackerLevel: 10, declarerIdx: 0, teamBanker: 0,
   trumpSuit: Suit.Hearts, bottomPoints: 15, killSuitCount: 1,
   attackerWonLastTrick: false, kouDiAdd: 0, finalPts: 40, bankerWon: true,
-  tricksPlayed: 13, tricksWonByTeam0: 9, leadsByTeam0: 7,
+  tricksPlayed: 13, tricksWonByTeam0: 9, cardsWonByTeam0: 11, leadsByTeam0: 7,
   leadCardsByTeam0: 9, leadCardsTotal: 17, errors: 0, aborted: false,
 };
 
@@ -17,7 +17,7 @@ const evAttackerWin: HandEvent = {
   handIndex: 1, level: 5, attackerLevel: 14, declarerIdx: 1, teamBanker: 1,
   trumpSuit: null, bottomPoints: 20, killSuitCount: 0,
   attackerWonLastTrick: true, kouDiAdd: 40, finalPts: 120, bankerWon: false,
-  tricksPlayed: 11, tricksWonByTeam0: 3, leadsByTeam0: 5,
+  tricksPlayed: 11, tricksWonByTeam0: 3, cardsWonByTeam0: 4, leadsByTeam0: 5,
   leadCardsByTeam0: 6, leadCardsTotal: 14, errors: 0, aborted: false,
 };
 
@@ -148,7 +148,7 @@ describe('抠底频率与抠底成功频率', () => {
       handIndex: 5, level: 6, attackerLevel: 4, declarerIdx: 1, teamBanker: 1,
       trumpSuit: Suit.Hearts, bottomPoints: 0, killSuitCount: 0,
       attackerWonLastTrick: true, kouDiAdd: 0, finalPts: 85, bankerWon: false,
-      tricksPlayed: 10, tricksWonByTeam0: 4, leadsByTeam0: 5,
+      tricksPlayed: 10, tricksWonByTeam0: 4, cardsWonByTeam0: 5, leadsByTeam0: 5,
       leadCardsByTeam0: 6, leadCardsTotal: 13, errors: 0, aborted: false,
     };
     const s = createStats();

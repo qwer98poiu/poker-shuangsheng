@@ -42,6 +42,7 @@ export interface StrategyStats {
     won: CountPair;                        // 每墩胜率 = n/d (d = 总墩数)
     leads: CountPair;                      // 每局平均领出次数 = n/handsPlayed (d = 总墩数)
     leadCards: CountPair;                  // 每局平均每墩领出张数(仅我方领出) = n/d
+    cardsWon: CountPair;                   // 平均每局赢得张数 = Σ(我方赢下的墩的张数)/handsPlayed
   };
   abortedHands: number;
 }
@@ -75,6 +76,7 @@ export function createStats(): StrategyStats {
       won: { n: 0, d: 0 },
       leads: { n: 0, d: 0 },
       leadCards: { n: 0, d: 0 },
+      cardsWon: { n: 0, d: 0 },
     },
     abortedHands: 0,
   };
@@ -148,6 +150,9 @@ export function addHandStats(s: StrategyStats, ev: HandEvent, ourParity: 0 | 1):
   t.leads.n += ourParity === 0 ? ev.leadsByTeam0 : ev.tricksPlayed - ev.leadsByTeam0;
   t.leadCards.n += ourParity === 0 ? ev.leadCardsByTeam0 : ev.leadCardsTotal - ev.leadCardsByTeam0;
   t.leadCards.d += ourParity === 0 ? ev.leadsByTeam0 : ev.tricksPlayed - ev.leadsByTeam0;
+  // 每墩的张数 = 该墩领出张数；一局里全部墩的领出张数之和双方互补。
+  t.cardsWon.n += ourParity === 0 ? ev.cardsWonByTeam0 : ev.leadCardsTotal - ev.cardsWonByTeam0;
+  t.cardsWon.d += 1;
 }
 
 /** Record a match outcome (winnerTeam) for our strategy (ourParity). */
@@ -211,6 +216,7 @@ export function mergeStats(a: StrategyStats, b: StrategyStats): StrategyStats {
       won: sumPair(a.tricks.won, b.tricks.won),
       leads: sumPair(a.tricks.leads, b.tricks.leads),
       leadCards: sumPair(a.tricks.leadCards, b.tricks.leadCards),
+      cardsWon: sumPair(a.tricks.cardsWon, b.tricks.cardsWon),
     },
     abortedHands: a.abortedHands + b.abortedHands,
   };
@@ -246,6 +252,7 @@ export function fromJSON(j: Record<string, any>): StrategyStats {
   s.tricks.won = { ...j.tricks.won };
   s.tricks.leads = { ...j.tricks.leads };
   s.tricks.leadCards = { ...j.tricks.leadCards };
+  s.tricks.cardsWon = { ...j.tricks.cardsWon };
   s.abortedHands = j.abortedHands;
   return s;
 }
@@ -285,6 +292,7 @@ export function toJSON(s: StrategyStats): Record<string, unknown> {
       won: { ...s.tricks.won },
       leads: { ...s.tricks.leads },
       leadCards: { ...s.tricks.leadCards },
+      cardsWon: { ...s.tricks.cardsWon },
     },
     abortedHands: s.abortedHands,
   };

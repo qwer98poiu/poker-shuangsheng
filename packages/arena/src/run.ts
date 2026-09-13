@@ -8,14 +8,13 @@
  * 流程：至少跑 --pairs 对决（=2×pairs 场对局），随后每追加 --step-matches
  * 场检查一次 99% 显著性；显著即停，否则继续直到 --max-matches 上限（无法判定）。
  */
-import { spawn } from 'node:child_process';
-import type { ChildProcess } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
 import { runPairs } from './run-pairs.js';
 import { strategyByName } from './strategies.js';
+import { ChildPool, ARENA_ROOT } from './child-pool.js';
+import type { WorkerMessage } from './child-pool.js';
 import { createStats, mergeStats, fromJSON, toJSON } from './stats.js';
 import type { StrategyStats } from './stats.js';
 import { checkSignificance, requiredMatchesForSignificance, Z } from './significance.js';
@@ -26,7 +25,6 @@ import type { UpgradeLine } from './upgrade-log.js';
 import { playMatch } from './match.js';
 import type { MatchResult } from './types.js';
 
-const ARENA_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT_DIR = path.join(ARENA_ROOT, 'results');
 
 interface Args {
@@ -112,119 +110,7 @@ function parseArgs(argv: string[]): Args {
 }
 
 // ---- child-process pool ----
-// worker_threads + tsx 在 Node 17.5 下多种消息模式都会死锁（实测），
-// 改用子进程：每个子进程是独立的 tsx 主线程，loader 完全可靠。
-
-interface WorkerResult { id: number; statsA: Record<string, any>; statsB: Record<string, any> }
-
-interface Task { id: number; pairStart: number; pairCount: number }
-
-class ChildPool {
-  /** 全局子进程注册表：SIGINT 时即使池尚未完成创建也能全部终止。 */
-  private static all: ChildProcess[] = [];
-  private idle: ChildProcess[] = [];
-  private queue: { task: Task; resolve: (m: WorkerResult) => void }[] = [];
-  /** 在途任务（已派发、等待响应）：id → resolve。 */
-  private pending = new Map<number, (m: WorkerResult) => void>();
-  private nextId = 1;
-
-  static killAll(): void {
-    for (const c of ChildPool.all) c.kill();
-  }
-
-  static async create(count: number, seed: number, strategyA: string, strategyB: string): Promise<ChildPool> {
-    const pool = new ChildPool();
-    for (let i = 0; i < count; i++) {
-      pool.spawnOne(seed, strategyA, strategyB);
-    }
-    await pool.waitAllReady(count);
-    return pool;
-  }
-
-  private spawnOne(seed: number, strategyA: string, strategyB: string): void {
-    const child = spawn('npx', ['tsx', path.join(ARENA_ROOT, 'src/child-run.ts'), String(seed), strategyA, strategyB], {
-      cwd: ARENA_ROOT,
-      stdio: ['pipe', 'pipe', 'inherit'],
-    });
-    ChildPool.all.push(child);
-    let buffer = '';
-    child.stdout!.on('data', (chunk: Buffer) => {
-      buffer += chunk.toString();
-      const lines = buffer.split('\n');
-      buffer = lines.pop() ?? '';
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        let m: WorkerResult & { type?: string };
-        try {
-          m = JSON.parse(line);
-        } catch {
-          console.error(`子进程输出异常: ${line}`);
-          continue;
-        }
-        if (m.type === 'ready') {
-          this.idle.push(child);
-          this.onReady?.();
-          continue;
-        }
-        const resolve = this.pending.get(m.id);
-        if (resolve) {
-          this.pending.delete(m.id);
-          resolve(m);
-        } else {
-          console.error(`子进程返回未知任务 id=${m.id}`);
-        }
-        this.idle.push(child);
-        this.dispatch();
-      }
-    });
-    child.on('error', (e: Error) => {
-      console.error(`子进程错误: ${e.message}`);
-      process.exitCode = 1;
-    });
-    child.on('exit', code => {
-      if (code !== 0 && !this.closed) {
-        console.error(`子进程异常退出: code=${code}`);
-        process.exitCode = 1;
-      }
-    });
-  }
-
-  private onReady: (() => void) | null = null;
-  private readyCount = 0;
-
-  private waitAllReady(count: number): Promise<void> {
-    return new Promise(resolve => {
-      this.onReady = () => {
-        this.readyCount += 1;
-        if (this.readyCount >= count) resolve();
-      };
-    });
-  }
-
-  private dispatch(): void {
-    while (this.idle.length > 0 && this.queue.length > 0) {
-      const c = this.idle.pop()!;
-      const q = this.queue.shift()!;
-      this.pending.set(q.task.id, q.resolve);
-      c.stdin!.write(JSON.stringify(q.task) + '\n');
-    }
-  }
-
-  submit(pairStart: number, pairCount: number): Promise<WorkerResult> {
-    const task: Task = { id: this.nextId++, pairStart, pairCount };
-    return new Promise(resolve => {
-      this.queue.push({ task, resolve });
-      this.dispatch();
-    });
-  }
-
-  private closed = false;
-
-  close(): void {
-    this.closed = true;
-    ChildPool.killAll();
-  }
-}
+// 通用子进程池在 child-pool.ts（NT 竞技场复用同一实现）。
 
 // ---- reporting ----
 
@@ -251,11 +137,17 @@ function printUpgradeTable(
   console.log(`中止小局: 对局1=${m1.abortedHands}  对局2=${m2.abortedHands}`);
 }
 
+/** Level labels: ranks above 10 use their card letter (L10 / LJ / LQ / LK / LA). */
+const LEVEL_LABELS: Record<number, string> = {
+  2: '2', 3: '3', 4: '4', 5: '5', 6: '6', 7: '7', 8: '8', 9: '9',
+  10: '10', 11: 'J', 12: 'Q', 13: 'K', 14: 'A',
+};
+
 function perLevelTable(title: string, m: Map<number, { n: number; d: number }>): string {
   const lines: string[] = [];
   for (let lv = 2; lv <= 14; lv++) {
     const p = m.get(lv);
-    lines.push(`    L${lv}: ${p ? ratio(p) : '—'}`);
+    lines.push(`    L${LEVEL_LABELS[lv]}: ${p ? ratio(p) : '—'}`);
   }
   return `${title}:\n${lines.join('\n')}`;
 }
@@ -433,20 +325,20 @@ async function main(): Promise<void> {
   process.on('SIGINT', onInterrupt);
 
   pool = args.workers > 1
-    ? await ChildPool.create(args.workers, args.seed, args.strategyA, args.strategyB)
+    ? await ChildPool.create(args.workers, 'child-run.ts', [String(args.seed), args.strategyA, args.strategyB])
     : null;
 
   while (pairsDone < maxPairs && !interrupted) {
     const batch = Math.min(PROGRESS_MATCHES / 2, maxPairs - pairsDone);
     const W = args.workers;
     const chunkLen = Math.ceil(batch / W);
-    const tasks: Promise<WorkerResult>[] = [];
+    const tasks: Promise<WorkerMessage>[] = [];
     for (let i = 0; i < W; i++) {
       const start = pairsDone + i * chunkLen;
       const count = Math.min(chunkLen, batch - i * chunkLen);
       if (count <= 0) break;
       if (pool) {
-        tasks.push(pool.submit(start, count));
+        tasks.push(pool.submit({ pairStart: start, pairCount: count }));
       } else {
         const { statsA, statsB } = runPairs(args.seed, start, count, stratA, stratB);
         tasks.push(Promise.resolve({ id: 0, statsA: toJSON(statsA) as Record<string, any>, statsB: toJSON(statsB) as Record<string, any> }));
@@ -454,8 +346,8 @@ async function main(): Promise<void> {
     }
     const results = await Promise.all(tasks);
     for (const r of results) {
-      accA = mergeStats(accA, fromJSON(r.statsA));
-      accB = mergeStats(accB, fromJSON(r.statsB));
+      accA = mergeStats(accA, fromJSON(r.statsA as Record<string, any>));
+      accB = mergeStats(accB, fromJSON(r.statsB as Record<string, any>));
     }
     pairsDone += batch;
     const matches = pairsDone * 2;
