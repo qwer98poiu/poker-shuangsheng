@@ -29,6 +29,7 @@ export * as ai0802 from './ai-0802/index.js'; // ai/ as of the position-based fo
 export * as ai0808 from './ai-0808/index.js'; // ai/ as of 133900d (2026-08-08), before fourth-no-overkill & NT-discard fixes
 export * as ai0809 from './ai-0809/index.js'; // ai/ as of b77a7b1 (2026-08-14), README 1035 Elo measurement target
 export * as ai0816 from './ai-0816/index.js'; // ai/ as of 2d56a13 (2026-08-16), README 1055 Elo measurement target
+export * as ai0907 from './ai-0907/index.js'; // ai/ as of 7476904 (2026-09-07), before the NT long-suit lead layer
 
 // Serialization (reusing old model/serialize.ts)
 export * from './model/serialize.js';
