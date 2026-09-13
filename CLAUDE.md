@@ -31,10 +31,21 @@ Co-Authored-By: DeepSeek V4 Flash <noreply@deepseek.com>
 | `feat:` | 新功能（非策略） |
 | `strategy:` | 修改 AI 策略 |
 | `refactor:` | 重构（无行为变更） |
-| `test:` | 新增或修改测试 |
+| `test:` | 新增或修改测试（含产物为测试数据/断言的生成器脚本，见下） |
 | `docs:` | 文档 |
 | `chore:` | 构建/依赖 |
 | `skill:` | 新增或修改 skill（`.claude/skills/` 下的技能；提交时用 `git add -f`，该目录在 .gitignore 中） |
+
+**开发脚本（`packages/*/scripts/`）按用途归类**：
+
+| 脚本性质 | 前缀 | 例 |
+|---|---|---|
+| 产物是测试断言或测试场景数据 | `test:` | `gen-bottom-tests.ts` |
+| 通用调试基建，供人工手动运行 | `chore:` | `ui-dump.ts`、`ui-smoke.ts` |
+| 本身构成一项可用的检查能力（接入流程） | `feat:` | `layout-regression.ts` |
+| 仅挪位置/改名/重构 | `refactor:` | `elo-verify.ts → elo-calc.ts` |
+
+`test:` 类脚本不改变测试套件本身，提交信息与 Changelog 的测试数行均写「无新增测试」。
 
 示例：
 ```
