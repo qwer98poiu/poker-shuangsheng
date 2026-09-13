@@ -71,9 +71,10 @@ describe('arena e2e', () => {
     //  桶2 对排序（非tier2 先于 tier2、总对数少优先）后为 214；
     //  填充梯新增非分对拆对桶（有主桶6/NT 桶4，保留对子优先于拆对）后为 236；
     //  桶1 留保护牌（脆弱花色留一张非分单，不再抽成只剩分牌）后为 234；
-    //  AI 庄家扣底改为 33 张口径（拿进底牌后再扣）后为 203）
-    expect(statsA.matches.oppLevel).toEqual({ n: 203, d: 20 });
-    expect(statsB.matches.oppLevel).toEqual({ n: 203, d: 20 });
+    //  AI 庄家扣底改为 33 张口径（拿进底牌后再扣）后为 203；
+    //  NT 长花色领出层（控制张分阶段兑现 + 甩牌把关，长花色记忆按出牌顺序读牌）后为 207）
+    expect(statsA.matches.oppLevel).toEqual({ n: 207, d: 20 });
+    expect(statsB.matches.oppLevel).toEqual({ n: 207, d: 20 });
     expect(statsA.handsPlayed).toBe(statsB.handsPlayed);
     expect(statsA.abortedHands).toBe(0);
     const sig = checkSignificance(statsA.matches.won, statsB.matches.won, statsA.matches.drawn, statsA.matches.played);

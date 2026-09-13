@@ -58,28 +58,19 @@ export function findThrowableOffSuitCombos(
  * could still be thrown together if all remaining same-suit cards were
  * concentrated in one opponent. Returns the flat list of throwable cards.
  * `suitCards` must contain only non-trump cards of one off-suit.
+ *
+ * `exclude` lists cards known to be out of play (already played, or sitting
+ * in the bottom). They can never block a throw, so dropping them from the
+ * worst-case hand tightens the analysis without ever weakening the guarantee
+ * — this is what makes the "top" rank dynamic (both Aces gone => K is top).
  */
 export function findThrowableSuitCards(
   suitCards: Card[],
   suit: Suit,
   config: TrumpDeclaration,
+  exclude: readonly Card[] = [],
 ): Card[] {
-  // Build the worst-case testing hand: all cards of this suit minus mine.
-  // Use rank counting instead of ID matching because test cards and
-  // getAllSuitCards may produce different IDs for the same logical card.
-  const allSuitCards = getAllSuitCards(suit, config.level);
-  const myRankCounts = new Map<number, number>();
-  for (const c of suitCards) {
-    myRankCounts.set(c.rank, (myRankCounts.get(c.rank) || 0) + 1);
-  }
-  const worstCase = allSuitCards.filter(c => {
-    const remaining = myRankCounts.get(c.rank) || 0;
-    if (remaining > 0) {
-      myRankCounts.set(c.rank, remaining - 1);
-      return false; // exclude this copy
-    }
-    return true;
-  });
+  const worstCase = worstCaseSuitHand(suitCards, suit, config, exclude);
 
   // Extract components from both my cards and worst case
   const myComps = extractComponents(suitCards, config);
@@ -87,6 +78,45 @@ export function findThrowableSuitCards(
 
   // Find which of my components can beat the worst case
   return findThrowableInSuit(suitCards, myComps, worstComps, worstCase, config);
+}
+
+/**
+ * Every card of this off-suit that is neither mine nor known to be out of
+ * play, lumped into a single hand — the most hostile legal-ish distribution.
+ * If a lead survives this hand it survives every real one.
+ *
+ * Rank counting is used instead of ID matching because test cards and
+ * getAllSuitCards may produce different IDs for the same logical card.
+ */
+export function worstCaseSuitHand(
+  suitCards: Card[],
+  suit: Suit,
+  config: TrumpDeclaration,
+  exclude: readonly Card[] = [],
+): Card[] {
+  const allSuitCards = getAllSuitCards(suit, config.level);
+  const myRankCounts = new Map<number, number>();
+  for (const c of suitCards) {
+    myRankCounts.set(c.rank, (myRankCounts.get(c.rank) || 0) + 1);
+  }
+  const excludedRankCounts = new Map<number, number>();
+  for (const c of exclude) {
+    if (c.suit !== suit) continue;
+    excludedRankCounts.set(c.rank, (excludedRankCounts.get(c.rank) || 0) + 1);
+  }
+  return allSuitCards.filter(c => {
+    const remaining = myRankCounts.get(c.rank) || 0;
+    if (remaining > 0) {
+      myRankCounts.set(c.rank, remaining - 1);
+      return false; // exclude this copy
+    }
+    const known = excludedRankCounts.get(c.rank) || 0;
+    if (known > 0) {
+      excludedRankCounts.set(c.rank, known - 1);
+      return false; // known out of play
+    }
+    return true;
+  });
 }
 
 /**

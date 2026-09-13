@@ -1,11 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { Suit, SpecialSuit } from '../types.js';
+import { isPointRank, SpecialSuit, Suit } from '../types.js';
 import { createCard, isTrump } from '../model.js';
 import { classify } from '../pattern/index.js';
 import { compareTwo } from '../comparing/index.js';
 import { validateFollow } from '../following/index.js';
 import { aiFollowPlay } from '../ai/index.js';
-import type { Card, CardSuit, TrumpDeclaration } from '../types.js';
+import { sideHasBigJoker } from '../ai/helpers.js';
+import type { Card, CardSuit, Trick, TrumpDeclaration } from '../types.js';
 import type { AIContext, NTTrumpState } from '../ai/types.js';
 
 const cfg5: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 5 };
@@ -3395,5 +3396,120 @@ describe('void discard with all-trump hand says 垫主牌', () => {
     const r = aiFollowPlay(hand, lead, Suit.Hearts, ctx);
     checkFollow(r.cards, hand, lead, 'H', cfg);
     expect(r.reason).toBe('垫主牌');
+  });
+});
+
+// ---- §8 庄家连出同门 / §10.2 队友不盖单小王 ----
+
+describe('NT 跟牌补充规则', () => {
+  const c6 = (s: CardSuit, r: number, i: number): Card => createCard(s, r, i);
+
+  /** 出牌顺序存放（slot 0 = 领出者），每一手都带领出花色——与 playFollow 一致。 */
+  function pastTrick(plays: Card[][], leadIdx: number): Trick {
+    const ordered = plays.map((_, i) => plays[(leadIdx + i) % 4]);
+    return {
+      plays: ordered.map(cards => ({
+        cards,
+        pattern: classify(cards, cfg5),
+        leadSuit: Suit.Spades,
+      })) as unknown as Trick['plays'],
+      leadPlayerIndex: leadIdx,
+      winnerIndex: leadIdx,
+      points: 0,
+    };
+  }
+
+  /** §8：庄家连续两墩出 ♠ 且都 ≥3 张，队友缺门垫牌 → 先分后大。 */
+  it('§8 庄家连出同门时，队友优先垫分牌', () => {
+    const prevLead = [c6('S', 7, 0), c6('S', 7, 1), c6('S', 8, 0), c6('S', 8, 1)];
+    const prev = pastTrick([
+      prevLead,
+      [c6('H', 3, 0), c6('H', 3, 1), c6('H', 4, 0), c6('H', 4, 1)],
+      [c6('C', 3, 0), c6('C', 3, 1), c6('C', 4, 0), c6('C', 4, 1)],
+      [c6('D', 3, 0), c6('D', 3, 1), c6('D', 4, 0), c6('D', 4, 1)],
+    ], 0);
+
+    const lead = [c6('S', 14, 200), c6('S', 13, 200), c6('S', 12, 200)];
+    // 手上无主不足以毙 3 张，走垫牌路径（cfg5 的级牌 5 是主，不能当副牌垫）
+    const hand = [c6('C', 13, 0), c6('C', 10, 0), c6('D', 10, 0), c6('D', 3, 0), c6('D', 2, 0)];
+    const ctx: AIContext = {
+      declarerIndex: 0, trumpSuit: Suit.Hearts, level: 5,
+      myIndex: 2, isDeclarer: false, isDeclarerPartner: true,
+      isAttacker: false, attackerPoints: 0,
+      handCounts: [7, 7, 5, 7], trickHistory: [prev], reveals: [],
+      playCount: 3, leadPlayerIndex: 0,                 // 第四家，庄家领出
+      bestSoFar: { cards: [c6('S', 14, 201)], playerIndex: 1 },
+      ntState: null, bottomCards: [], debug: false,
+    };
+    const r = aiFollowPlay(hand, lead, Suit.Spades, ctx);
+    checkFollow(r.cards, hand, lead, 'S', cfg5);
+    expect(r.cards.length).toBe(3);
+    // 三张全是分牌（K/10/10），非分的 ♦3♦2 留住 —— 默认避分路径会先垫它们
+    expect(r.cards.every(x => isPointRank(x.rank))).toBe(true);
+    expect(r.cards.map(x => x.rank).sort((a, b) => a - b)).toEqual([10, 10, 13]);
+    expect(r.reason).toContain('先分后大');
+  });
+
+  /**
+   * plays 按出牌顺序存放：我方玩家在**非0槽位**打出大王，也算"我方见过大王"。
+   * 修复前按下标当座位读，只有大王恰好落在 slot 0/2 时才认得出。
+   */
+  it('sideHasBigJoker：我方在非0槽位打出大王时认得出来', () => {
+    const playedByP0 = pastTrick([
+      [c6('J', 16, 0)],                       // 座位序：P0（我方）打出大王
+      [c6('H', 6, 1)],                        // P1 领出
+      [c6('C', 6, 2)],
+      [c6('D', 6, 3)],
+    ], 1);
+    const ctx: AIContext = {
+      declarerIndex: 0, trumpSuit: Suit.Hearts, level: 5,
+      myIndex: 0, isDeclarer: true, isDeclarerPartner: false,
+      isAttacker: false, attackerPoints: 0,
+      handCounts: [6, 6, 6, 6], trickHistory: [playedByP0], reveals: [],
+      playCount: 1, leadPlayerIndex: 1,
+      bestSoFar: null,
+      ntState: null, bottomCards: [], debug: false,
+    };
+    expect(sideHasBigJoker(ctx)).toBe(true);
+  });
+
+  /** §10.2：庄家吊单张小王，队友有对大王+级牌 → 出级牌，不拆大王对。 */
+  it('§10.2 队友不盖庄家的单张小王，改出级牌', () => {
+    const cfgNT: TrumpDeclaration = { declarerIndex: 0, trumpSuit: null, level: 2 };
+    const lead = [c6('J', 15, 200)];                    // 庄家吊单张小王
+    const hand = [c6('J', 16, 0), c6('J', 16, 1), c6('H', 2, 0), c6('C', 2, 0)];
+    const ctx: AIContext = {
+      declarerIndex: 0, trumpSuit: null, level: 2,
+      myIndex: 2, isDeclarer: false, isDeclarerPartner: true,
+      isAttacker: false, attackerPoints: 0,
+      handCounts: [10, 10, 4, 10], trickHistory: [], reveals: [],
+      playCount: 1, leadPlayerIndex: 0,
+      bestSoFar: { cards: lead, playerIndex: 0 },
+      ntState: null, bottomCards: [], debug: false,
+    };
+    const r = aiFollowPlay(hand, lead, null, ctx);
+    checkFollow(r.cards, hand, lead, null, cfgNT);
+    expect(r.cards.length).toBe(1);
+    // 出的是级牌（点数为 level=2），不是大王
+    expect(r.cards[0].rank).toBe(2);
+    expect(r.cards[0].isJoker).toBe(false);
+  });
+
+  it('§10.2 无对大王时保持原行为（可以盖）', () => {
+    const cfgNT: TrumpDeclaration = { declarerIndex: 0, trumpSuit: null, level: 2 };
+    const lead = [c6('J', 15, 200)];
+    const hand = [c6('J', 16, 0), c6('H', 2, 0), c6('C', 2, 0)];
+    const ctx: AIContext = {
+      declarerIndex: 0, trumpSuit: null, level: 2,
+      myIndex: 2, isDeclarer: false, isDeclarerPartner: true,
+      isAttacker: false, attackerPoints: 0,
+      handCounts: [10, 10, 3, 10], trickHistory: [], reveals: [],
+      playCount: 1, leadPlayerIndex: 0,
+      bestSoFar: { cards: lead, playerIndex: 0 },
+      ntState: null, bottomCards: [], debug: false,
+    };
+    const r = aiFollowPlay(hand, lead, null, ctx);
+    checkFollow(r.cards, hand, lead, null, cfgNT);
+    expect(r.cards.length).toBe(1);
   });
 });

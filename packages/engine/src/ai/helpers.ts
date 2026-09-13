@@ -35,6 +35,44 @@ export function pairKillSort(pairs: Card[][], cards: Card[], ctx: AIContext): vo
 
 // ---- Discard / Pad helpers ----
 
+/**
+ * §8 — the declarer has now led the same suit twice in a row, three or more
+ * cards each time, and I am his partner. `leadCards` is the current (still
+ * unfinished) trick's lead.
+ */
+export function isDeclarerRepeatBigLead(
+  leadCards: readonly Card[],
+  ctx: AIContext,
+): boolean {
+  if (!ctx.isDeclarerPartner || ctx.myIndex < 0) return false;
+  if (ctx.leadPlayerIndex !== ctx.declarerIndex) return false;
+  if (leadCards.length < 3) return false;
+  const prev = ctx.trickHistory[ctx.trickHistory.length - 1];
+  if (!prev || prev.leadPlayerIndex !== ctx.declarerIndex) return false;
+  const prevLead = prev.plays[0];
+  return prevLead.leadSuit !== null
+    && prevLead.leadSuit === leadCards[0].suit
+    && prevLead.cards.length >= 3;
+}
+
+/** §8 discard order: point cards first, then the biggest cards. */
+function selectRepeatLeadDiscards(hand: Card[], need: number, ctx: AIContext): Card[] {
+  const nonTrump = hand.filter(c => !isTrump(c, ctx));
+  nonTrump.sort((a, b) => {
+    const aPts = isPointRank(a.rank) ? 0 : 1;
+    const bPts = isPointRank(b.rank) ? 0 : 1;
+    if (aPts !== bPts) return aPts - bPts;
+    return getEffectiveRank(b, ctx) - getEffectiveRank(a, ctx);
+  });
+  const chosen = nonTrump.slice(0, need);
+  if (chosen.length < need) {
+    const trumps = hand.filter(c => isTrump(c, ctx))
+      .sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+    chosen.push(...trumps.slice(0, need - chosen.length));
+  }
+  return chosen;
+}
+
 export function discardNonTrump(
   hand: Card[],
   leadLen: number,
@@ -44,6 +82,12 @@ export function discardNonTrump(
   leadCombo?: ComboClass,
 ): { cards: Card[]; reason: string } {
   const combo = leadCombo || { type: 'single' as const, cards: [], length: leadLen, pairCount: 0, tractors: [], hasTractor: false };
+  if (isDeclarerRepeatBigLead(combo.cards, ctx)) {
+    const cards = selectRepeatLeadDiscards(hand, leadLen, ctx);
+    const reason = annotateReason('垫牌(庄家连出同门，先分后大)', cards, [], [],
+      combo, leadLen, ctx, position, tmWin, false, 'add');
+    return { cards, reason };
+  }
   // 垫牌类别：第二家按手牌数避分；第三/四家队友大加分，否则避分
   const mode: DiscardMode = position === 'second'
     ? (secondShouldAvoid(hand) ? 'avoid' : 'open')

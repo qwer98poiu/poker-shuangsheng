@@ -870,6 +870,31 @@ export function followTrumpThrow(
   return padWithDiscards(hand, trump, leadLen, ctx, tmWin, position, leadCombo);
 }
 
+/**
+ * §10.2 — the declarer leads a single small joker and I am his partner: do not
+ * cover it with a big joker, least of all break a big-joker pair. A level card
+ * cannot beat the small joker anyway, so the declarer keeps the lead while I
+ * shed a 常主. Prefer a lone level card; only break a level pair if that is all
+ * I have.
+ */
+function holdBackOverDeclarerJoker(
+  leadCards: Card[],
+  myTrump: Card[],
+  ctx: AIContext,
+): Card | null {
+  if (!ctx.isDeclarerPartner || ctx.myIndex < 0) return null;
+  if (ctx.leadPlayerIndex !== ctx.declarerIndex) return null;
+  if (leadCards.length !== 1 || leadCards[0].rank !== Rank.SmallJoker) return null;
+  const bigJokers = myTrump.filter(c => c.rank === Rank.BigJoker);
+  if (bigJokers.length < 2) return null; // needs a big-joker pair to be at risk
+  const levelCards = myTrump.filter(c => !c.isJoker);
+  if (levelCards.length === 0) return null;
+  levelCards.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+  const lone = levelCards.filter(c =>
+    levelCards.filter(x => x.suit === c.suit && x.rank === c.rank).length === 1);
+  return lone.length > 0 ? lone[0] : levelCards[0];
+}
+
 // ---- NT trump follow ----
 
 export function followNTTrumpLead(
@@ -888,6 +913,13 @@ export function followNTTrumpLead(
     : Math.max(...leadCards.map(c => getEffectiveRank(c, ctx)));
 
   if (leadLen === 1) {
+    const holdBack = holdBackOverDeclarerJoker(leadCards, myTrump, ctx);
+    if (holdBack) {
+      const cards = [holdBack];
+      const reason = annotateReason('同花色出小', cards, myTrump, myTrump,
+        leadCombo, 1, ctx, position, tmWin, true, 'none');
+      return { cards, reason };
+    }
     if (myTrump.length > 0) {
       const canBeatCards = myTrump.filter(c => getEffectiveRank(c, ctx) > currentMax);
       if (canBeatCards.length > 0) {

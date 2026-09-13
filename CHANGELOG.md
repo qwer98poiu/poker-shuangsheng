@@ -1,5 +1,33 @@
 # Changelog
 
+## 2026-09-13 14:42
+
+### 新增无主长花色领出层（控制张分阶段兑现 + 甩牌把关）
+
+**问题**：NT 局面的领出沿用七级通用优先级（甩副牌 → 出大副牌 A/K → 出拖拉机 → 出对子 → 吊主 → 小牌），与扣底阶段刚重构出的「控制张（tier）」体系脱节——扣底刻意留下的长花色控制张，领出时没有对应的兑现规则；被毙打断后也不知道该继续打哪一门。
+
+**修复**：新增 `ai/suit-memory.ts` 与 `ai/nt-lead.ts`，在 `_aiLeadPlay` 最前面接入（仅 NT，有主模式一行未改）。
+
+- **长花色认定**（`computeLongSuit`）：用**初始手牌**（当前手牌 + 我已打出的牌；庄家再加底牌）按扣底同款判据（总张数 ≥9 且控制张 ≥6）取唯一一门，**整回合固定**，被毙后仍有效。
+- **T1 控制张**：复用扣底 tier1 判定；`computeOffSuitControls` 与 `findThrowableSuitCards` 新增可选的「已知不在场」扣除项，扣除后「顶张」自然下移（两张 A 都出掉后 K 成为顶张）。扣底调用点不传该参数，行为逐字节不变。
+- **信息口径**：庄家读该门全部已出牌并累积（被毙 / 安全吊主 / 改换花色都不清空）；非庄家只回看紧邻上一墩，且看不到底牌——新建的 `suit-memory` / `nt-lead` 读底牌一律先过 `ctx.isDeclarer && ctx.bottomCards`（`buildAIContext` 只给庄家发底牌，其余座位含庄家对家为 `null`）。缺门与无对（含「领 k 个对子只跟出 j<k 个」的多对子推断）都从 `ctx.trickHistory` 重建。
+- **流程**：先出非长花色的 T1（按张数少 → 打出后缺门 → hand+bottom 少选门，整门一次打完）；首次出长花色只出拖拉机（`A6655` 这类「单张顶张 + 一个拖拉机」特例全打）；再次出 T1 按 §5 的 proposal 规则，T1 只剩一张则停出该门；第二次之后该门已绝则全出、否则只出对牌、无对且队友缺门则送最小单张让队友毙；可被毙时先走安全吊主（复用吊主六条），吊不了且 proposal 不够大就放弃该花色。非庄家走简化版（§9）。
+- **甩牌把关**：只有 `throw` 型领出会被引擎罚分（±10 并强制改小），故只对 `throw` 做「最坏情况可甩」过滤——对牌与单张必须过判定（直接复用引擎的 `validateThrow` 打在最坏情况手牌上，不重写封堵逻辑），拖拉机按方案免检。
+
+### 跟牌侧补充规则：庄家连出同门的垫牌、队友不盖单小王
+
+**问题**：两处跟牌行为与方案不符——庄家连续两墩领出同一门大牌时，队友仍按默认避分垫小牌；NT 下庄家吊单张小王时，身为队友的 AI 会拿大王（乃至拆对大王）去盖。
+
+**修复**：`discardNonTrump` 增加 §8 分支（庄家连续两墩同门且都 ≥3 张 ⇒ 优先垫分牌、其次垫大牌），`followNTTrumpLead` 增加 §10.2 分支（庄家领单张小王、我是队友且有对大王 + 至少一张级牌 ⇒ 改出级牌，有级牌单张先出单张，只有级牌对才拆对）。策略改动使镜像自对弈的行为指纹随之变化，`arena-e2e` 的期望值同步更新。
+
+**同时落地 plays 索引修正**：`Trick.plays` 按出牌顺序存放（slot 0 = 领出者，`plays[k]` 属于玩家 `(leadPlayerIndex + k) % 4`），新建的 `suit-memory.ts` 与 `helpers.ts` 新增的 `isDeclarerRepeatBigLead` 若照座位号读就会读到**别人**的牌——`myPlayedCards` 会把该墩领出者的牌算进「我」的初始手牌，`voidPlayers` / `noPairPlayers` 与大王判断随之错位。故两者从一开始就走 `playOf(trick, playerIndex)`（或 `plays[0]`，唯一与座位无关的槽位）。
+
+实测（种子 41 / 发牌序号 28 / level 9 / 无主 / P0 当庄，第 10 墩）：按座位读时 `myPlayedCards` 返回 `♦Q♦Q♦J♦J♦10♦10 | ♣3♣3 | ♥A♥A♥K | ♠3♠3 | ♠4♠4 | joker joker | ♣A | ♦9 | ♣6`——每段恰是该墩**领出者**出的牌（`♥A♥A♥K` 是 AI-2 第 3 墩领出的）；AI-2 的两张 ♥A 因此被算进「我」的初始手牌、从最坏手里被剔除，手上的 ♥K 被提升成 ♥ 的控制张，§1 把这张单张 K 领了出去被 AI-4 最后一张主毙掉白送 25 分。改按 `playOf` 读后该墩改回长花色甩牌，该局闲家分 105 → 90。三个测试文件里手写的 `Trick` 原是「按座位」排（与引擎契约不一致，故这些路径从未被测到），统一改为按出牌顺序生成、且每一手都带上领出花色。
+
+**新增 41 项测试**（suit-memory.test.ts：18 项、ai-nt-lead.test.ts：19 项、ai-follow.test.ts：4 项），**修改 8 项测试**（arena-e2e.test.ts：1 项，自对弈指纹 203 → 207；bottom-exchange-input.test.ts：1 项，当庄次数 8 → 9；gameStore.test.ts：2 项，attackerPoints 140 → 145 且 tricksPlayed 17 → 18；ai-context.test.ts：4 项，补 `initialHand` 断言）＝ 引擎 813 项 + arena 82 项 + CLI 80 项 + client 202 项 = 1177 项通过。
+
+- **影响文件**：`packages/engine/src/ai/suit-memory.ts`（新）、`packages/engine/src/ai/nt-lead.ts`（新）、`packages/engine/src/ai/nt-trump.ts`（新，从 lead.ts 抽出吊主六条供两层复用）、`packages/engine/src/ai/lead.ts`、`packages/engine/src/ai/bottom-controls.ts`、`packages/engine/src/ai/throw-detector.ts`、`packages/engine/src/ai/bottom-strategy.ts`、`packages/engine/src/ai/helpers.ts`、`packages/engine/src/ai/follow-trump.ts`、`packages/engine/src/ai/STRATEGY.md`、`packages/engine/src/__tests__/suit-memory.test.ts`（新）、`packages/engine/src/__tests__/ai-nt-lead.test.ts`（新）、`packages/engine/src/__tests__/ai-follow.test.ts`、`packages/engine/src/__tests__/ai-context.test.ts`、`packages/arena/src/__tests__/arena-e2e.test.ts`、`packages/arena/src/__tests__/bottom-exchange-input.test.ts`、`packages/arena/src/__tests__/historical-strategies.test.ts`、`packages/client/src/__tests__/gameStore.test.ts`
+
 ## 2026-09-13 19:24
 
 ### 新增无主（NT）竞技场：只打无主、按发牌口径判显著

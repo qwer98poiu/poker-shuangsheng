@@ -4,6 +4,7 @@ import type { Card, CardSuit, GameState, PlayerState } from '../types.js';
 import { createCard } from '../model.js';
 import { createInitialState } from '../types.js';
 import { buildAIContext } from '../ai/context.js';
+import { initialHand } from '../ai/suit-memory.js';
 
 function c(s: CardSuit, r: number, i: number): Card { return createCard(s, r, i); }
 
@@ -38,12 +39,13 @@ describe('buildAIContext — 底牌只发给庄家', () => {
   for (const trumpSuit of [Suit.Spades, null] as const) {
     const label = trumpSuit === null ? '无主' : '有主 ♠';
 
-    it(`${label}：庄家 ctx.bottomCards 为 8 张底牌`, () => {
+    it(`${label}：庄家 ctx.bottomCards 为 8 张底牌，初始手牌 3+8=11 张`, () => {
       const state = playingState(trumpSuit);
       const ctx = buildAIContext(state, 1)!;
       expect(ctx.isDeclarer).toBe(true);
       expect(ctx.bottomCards).toHaveLength(8);
       expect(ctx.bottomCards!.map(x => x.id)).toEqual(state.bottomCards.map(x => x.id));
+      expect(initialHand(state.players[1].hand, ctx)).toHaveLength(11);
     });
 
     it(`${label}：另外三个座位 ctx.bottomCards 为 null（含庄家对家 P3）`, () => {
@@ -52,6 +54,8 @@ describe('buildAIContext — 底牌只发给庄家', () => {
       for (const seat of [0, 2, 3]) {
         const ctx = buildAIContext(state, seat)!;
         expect(ctx.bottomCards).toBeNull();
+        // 情报口径：非庄家的初始手牌只有自己的 3 张（手牌 + 已打出），不含底牌
+        expect(initialHand(state.players[seat].hand, ctx)).toHaveLength(3);
       }
     });
   }
