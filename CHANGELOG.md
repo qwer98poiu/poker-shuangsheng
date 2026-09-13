@@ -1,5 +1,28 @@
 # Changelog
 
+## 2026-09-13 19:24
+
+### 新增无主（NT）竞技场：只打无主、按发牌口径判显著
+
+**问题**：整体竞技场以"整场"为单位，无主小局只占一小部分（谁亮到对王谁打无主），无主长花色领出层的差异被淹没在其余牌局里；而且同一副牌的多个小局共用一副牌、彼此相关，"按对局数"做显著性检验的单位也不合适。
+
+**修复**：新增 `packages/arena/src/nt-arena.ts` / `nt-run.ts` / `nt-child-run.ts` / `nt-report.ts` / `nt-significance.ts` 与 `arena:nt` 脚本（`npm run arena:nt -w packages/arena`）。
+
+- **只取无主发牌**：四家都没有对王的发牌直接跳过（这种牌局不会被亮成无主），保留的牌局天然打无主。
+- **镜像**：每副牌按 4 个庄家 × 13 个等级（2…A）打 52 小局，A 坐 0/2 号位、B 坐 1/3 号位，四个庄家轮转即双方各当庄 26 小局。没有整场概念，指标按小局统计。
+- **显著性与进度以「发牌」为单位**：一副牌里 A 赢的小局多则该副记 A 胜（26-26 记平），99% Wilson 检验的 n 是发牌数而不是小局数。进度每 25 副一行、每 250 副附 `leader / p̂ / 99% CI 下界 / 状态`，与整体竞技场同款；默认阶梯 2500 副起步、不显著每次 +250 副、上限 10000 副。
+- **报告**：版式对齐整体竞技场、只打印 A 队；去掉"打有主花色胜率"（本竞技场恒为空），新增"平均每局赢得张数"；末尾附各指标 A/B 的 99% Newcombe 显著性（均值类不作检验）。
+
+### 整体竞技场：子进程池抽成共用模块、等级标签改用 J/Q/K/A、新增平均每局赢得张数
+
+**问题**：NT 竞技场需要与整体竞技场相同的子进程池与统计口径，直接复制会变成两份并行维护；报告里 L11–L14 也不如 J/Q/K/A 直观。
+
+**修复**：子进程池抽为 `child-pool.ts`（两个竞技场共用，`run.ts` 改为引用 `ChildPool`），`playHand` 支持 `forceDeclaration` 覆盖亮主结果（NT 竞技场据此强制庄家与等级），报告等级标签 L11–L14 → LJ–LQ–LK–LA，`StrategyStats.tricks` 新增 `cardsWon`（平均每局赢得张数 = 我方赢下的墩的张数之和 / 小局数），`HandEvent` 相应新增 `cardsWonByTeam0`。
+
+**新增 15 项测试**（nt-arena.test.ts：15 项）＝ 引擎 801 项 + arena 81 项 + CLI 80 项 + client 202 项 = 1164 项通过。
+
+- **影响文件**：`packages/arena/src/nt-arena.ts`（新）、`packages/arena/src/nt-run.ts`（新）、`packages/arena/src/nt-child-run.ts`（新）、`packages/arena/src/nt-report.ts`（新）、`packages/arena/src/nt-significance.ts`（新）、`packages/arena/src/child-pool.ts`（新）、`packages/arena/src/__tests__/nt-arena.test.ts`（新）、`packages/arena/src/match.ts`、`packages/arena/src/stats.ts`、`packages/arena/src/types.ts`、`packages/arena/src/run.ts`、`packages/arena/src/__tests__/stats.test.ts`、`packages/arena/src/__tests__/upgrade-log.test.ts`、`packages/arena/package.json`
+
 ## 2026-08-24 23:35
 
 ### 调试菜单新增"开始新游戏"：对局中一键重开（当前设置、等级 2、不回启动界面）

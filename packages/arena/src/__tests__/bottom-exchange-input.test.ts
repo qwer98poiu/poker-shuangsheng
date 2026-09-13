@@ -2,15 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { engineStrategy } from '../strategies.js';
 import { playMatch } from '../match.js';
 import { deckForHand } from '../rng.js';
-import type { Card } from '@poker/engine';
+import { dealtHands } from '../nt-arena.js';
 import type { Strategy } from '../types.js';
-
-/** 分牌口径（与 match.ts 一致）：第 i 张发给 i % 4 号位。 */
-function dealtHands(deck: Card[]): Card[][] {
-  const hands: Card[][] = [[], [], [], []];
-  for (let i = 0; i < 100; i++) hands[i % 4].push(deck[i]);
-  return hands;
-}
 
 /**
  * 扣底决策的输入口径：庄家先拿进 8 张底牌（共 33 张），再从 33 张里扣 8 张。
