@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-09-14 20:16
+
+### 修复 AI 上下文把底牌发给四个座位（闲家可见底牌）
+
+**问题**：`buildAIContext` 把 `state.bottomCards` 无差别写进四个座位的 `AIContext`（`context.ts:100`）。底牌是庄家自己扣的、只有庄家见过——闲家（含庄家的对家）拿到它即等于偷看底牌。此前只有 `nt-tracking`（`initTracking` 的 `isDeclarer` 分支）在消费端兜底，上下文本身一直带着泄漏值，任何新消费者都可能误用。
+
+**修复**：把不变量放在唯一的取信入口——`buildAIContext` 只在 `isDeclarer` 时填底牌，其余座位（含庄家对家 P+2）为 `null`；`AIContext.bottomCards` 类型改为 `readonly Card[] | null`，把「谁看得到底牌」编码进类型；`computeNTTrumpState` 也只在庄家时收到底牌（闲家传空数组）。
+
+**新增 5 项测试**（ai-context.test.ts：5 项），引擎 770 项 + arena 66 项 + CLI 80 项 + client 201 项 = 1117 项通过。
+
+- **影响文件**：`packages/engine/src/ai/context.ts`、`packages/engine/src/ai/types.ts`、`packages/engine/src/__tests__/ai-context.test.ts`（新）
+
 ## 2026-09-14 19:52
 
 ### 闲家 40-75 分一档的术语由「保级」更正为「保庄」
