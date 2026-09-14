@@ -9,7 +9,7 @@ import {
   buildAIContext,
   getRevealOptions, canOverride,
   sortHand, suitLabel, rankLabel,
-  mulberry32, seededShuffle,
+  seededShuffle,
   Suit,
 } from '@poker/engine';
 import type { Suit as SuitType } from '@poker/engine';
@@ -114,15 +114,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
   dealingDeck: null,
 
   startGame: (aiConfig: boolean[], debug: boolean, autoGrabDealer = true) => {
-    // ?seed=N: deterministic deck + initial dealer (seededShuffle/mulberry32
-    // from engine, so the same seed reproduces the same match).
+    // ?seed=N: deterministic deck (seededShuffle from engine, so the same
+    // seed reproduces the same match).
     const seed = devParams.seed;
     const deck = seed !== null
       ? seededShuffle(createFullDeck(), seedFor(seed, 0))
       : shuffle(createFullDeck());
-    const declarerIdx = seed !== null
-      ? Math.floor(mulberry32(seed)() * 4)
-      : Math.floor(Math.random() * 4);
+    // 首局亮主前的预定庄家固定 P0（与 CLI gameLoop(0, ...) 一致）；
+    // 亮主者顶庄，故这只是"无人亮主"时的兜底，不再是随机值。
+    const declarerIdx = 0;
     const state = createInitialState(emptyPlayersOf(aiConfig), declarerIdx, 2, debug);
 
     set({
