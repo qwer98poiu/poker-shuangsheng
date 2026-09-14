@@ -88,7 +88,7 @@ describe('advanceLevel 必打 K/A', () => {
     expect(r.matchOver).toBe(false);
   });
 
-  it('庄家 A(14) 保级 → 胜出（任何上台打赢都结束对局）', () => {
+  it('庄家 A(14) 保庄 → 胜出（任何上台打赢都结束对局）', () => {
     const r = advanceLevel(14, 40);
     const r2 = advanceLevel(14, 0);
     expect(r.matchOver).toBe(true);

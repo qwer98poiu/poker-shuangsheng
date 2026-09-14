@@ -28,7 +28,7 @@ function trick(winnerIdx: number, lead: Card[]): Trick {
 const bottom10 = [c(Suit.Spades, 5, 0), c(Suit.Spades, 5, 1)]; // 10 分
 
 describe('computeRoundOutcome — 上台判定统一用含抠底的闲家最终分', () => {
-  it('修复点：原始分 75 < 80，闲家抠底 +10×2 → 最终 95 → 闲家上台（旧 gameLoop 会误判庄家保级）', () => {
+  it('修复点：原始分 75 < 80，闲家抠底 +10×2 → 最终 95 → 闲家上台（旧 gameLoop 会误判庄家保庄）', () => {
     const r = computeRoundOutcome(75, bottom10, trick(1, [c(Suit.Spades, 14, 0)]), cfg5, 0);
     expect(r.finalPts).toBe(95);
     expect(r.attackerWonLast).toBe(true);
@@ -42,7 +42,7 @@ describe('computeRoundOutcome — 上台判定统一用含抠底的闲家最终�
     expect(r.finalPts).toBe(75);
     expect(r.attackerWonLast).toBe(false);
     expect(r.attackerSits).toBe(false);
-    expect(r.changes).toEqual({ defenderChange: 1, attackerChange: 0 }); // 75 分 → 保级
+    expect(r.changes).toEqual({ defenderChange: 1, attackerChange: 0 }); // 75 分 → 保庄
   });
 
   it('原始分 100 ≥ 80 → 无论谁赢最后墩都上台', () => {

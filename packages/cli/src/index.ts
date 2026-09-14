@@ -1050,7 +1050,7 @@ function showScoreDetail() {
   }
 
   if (gameState.attackerPoints >= 80) console.log(GREEN + '闲家已够80分，升级!' + RESET);
-  else if (gameState.attackerPoints >= 40) console.log('闲家40+分，庄家保级');
+  else if (gameState.attackerPoints >= 40) console.log('闲家40+分，庄家保庄（升1级）');
   else console.log(YELLOW + '闲家不足40分，庄家跳级(小光)!' + RESET);
 }
 
@@ -1154,7 +1154,7 @@ function showRoundResult(): RoundOutcome {
     console.log(GREEN + `闲家上台！${up > 0 ? '升' + up + '级' : '不升级'}` + RESET);
   } else {
     const up = changes.defenderChange;
-    const label = up === 3 ? '大光' : up === 2 ? '小光' : '保级';
+    const label = up === 3 ? '大光' : up === 2 ? '小光' : '保庄';
     console.log(`庄家${label}（升${up}级）`);
   }
 

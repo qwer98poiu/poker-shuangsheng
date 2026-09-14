@@ -3,7 +3,7 @@ import { Suit } from '@poker/engine';
 import type { HandEvent } from '../types.js';
 import { createStats, addHandStats, addMatchOutcome, mergeStats, toJSON } from '../stats.js';
 
-/** 庄家(team0)在 Q(12) 有主 打赢：闲家 40 分保级。 */
+/** 庄家(team0)在 Q(12) 有主 打赢：闲家 40 分保庄。 */
 const evBankerWin: HandEvent = {
   handIndex: 0, level: 12, attackerLevel: 10, declarerIdx: 0, teamBanker: 0,
   trumpSuit: Suit.Hearts, bottomPoints: 15, killSuitCount: 1,

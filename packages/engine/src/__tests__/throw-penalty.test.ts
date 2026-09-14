@@ -122,7 +122,7 @@ describe('computeLevelChange clamps negative to 0', () => {
 
 describe('penalty crosses score threshold', () => {
   it('defender fails at 75 pts → attackerPoints=85, attacker sits', () => {
-    // 保级 (75) → 上台 (85), defender fails +10 pushes over 80
+    // 保庄 (75) → 上台 (85), defender fails +10 pushes over 80
     const thrown = makeThrow();
     const blocker = makeBlocker();
     const hand = [...thrown, c('H', 2, 80), c('H', 3, 80), c('C', 4, 80), c('D', 5, 80)];

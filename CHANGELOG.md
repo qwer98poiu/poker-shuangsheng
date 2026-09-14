@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-09-14 19:52
+
+### 闲家 40-75 分一档的术语由「保级」更正为「保庄」
+
+**问题**：闲家 40-75 分一档在代码里被叫作「保级」，而该档的实际规则与行为是庄家**保住庄位并升 1 级**（`computeLevelChange(40..75)` = `defenderChange: 1`）——CLI 的实时比分（`闲家40+分，庄家保级`）与局末结算（`庄家保级（升1级）`）、client 结算面板（`庄家保级 +1 级`）都出现了「保级（升1级）」这种自相矛盾的写法（保级＝等级不变）。
+
+**修复**：把该档统一改称「保庄」（与「大光/小光/上台」并列），行为不变——只改文案、注释与测试用例名。
+
+- `packages/cli/src/index.ts`：实时比分改 `闲家40+分，庄家保庄（升1级）`；局末 label `保级` → `保庄`（输出变为 `庄家保庄（升1级）`）。
+- `packages/client/src/components/game/GameTable.tsx`：结算面板 `庄家保级 +1 级` → `庄家保庄 +1 级`（字数不变，布局基线不受影响）。
+- `packages/engine/src/scoring/index.ts`：模块头与等级档位注释改「保庄」。
+- 测试用例名/注释同步更名（`保级` → `保庄`），断言未改。历史 Changelog 条目保留原写法，不回改。
+
+**无新增测试**，引擎 801 项 + arena 82 项 + CLI 80 项 + client 202 项 = 1165 项通过。
+
+- **影响文件**：`packages/cli/src/index.ts`、`packages/client/src/components/game/GameTable.tsx`、`packages/engine/src/scoring/index.ts`、`packages/engine/src/__tests__/scoring.test.ts`、`packages/engine/src/__tests__/round-outcome.test.ts`、`packages/engine/src/__tests__/advance-level.test.ts`、`packages/engine/src/__tests__/throw-penalty.test.ts`、`packages/cli/src/__tests__/round-result.test.ts`、`packages/arena/src/__tests__/advance-level.test.ts`、`packages/arena/src/__tests__/arena-e2e.test.ts`、`packages/arena/src/__tests__/stats.test.ts`
+
 ## 2026-09-14 19:45
 
 ### 客户端首局预定庄家由随机改为固定 P0
