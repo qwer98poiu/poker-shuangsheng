@@ -79,8 +79,9 @@ export interface AIContext extends TrumpDeclaration {
   readonly bestSoFar: { cards: Card[]; playerIndex: number } | null;
   /** NT trump tracking - precomputed, only non-null in NT mode. */
   readonly ntState: NTTrumpState | null;
-  /** Cards the declarer put in the bottom (if known to this player). */
-  readonly bottomCards: readonly Card[];
+  /** Cards the declarer put in the bottom — only for the declarer himself;
+   *  every other seat (including his partner) gets null. */
+  readonly bottomCards: readonly Card[] | null;
   /** Whether this is a debug game. */
   readonly debug: boolean;
 }
