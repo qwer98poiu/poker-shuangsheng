@@ -4,7 +4,7 @@
  * 7.  Trick scoring: count raw points in a trick.
  * 8.  Bottom scoring: multiplier depends on last trick's lead pattern.
  * 9.  Attacker scoring: only scores when attacker wins a trick.
- * 10. Level change: 大光/小光/保级/上台.
+ * 10. Level change: 大光/小光/保庄/上台.
  */
 import type { Card, ComboClass } from '../types.js';
 import { cardPointsFromRank } from '../types.js';
@@ -74,7 +74,7 @@ export function finalizeAttackerPoints(
 /**
  *   0 分      = 大光, 庄家升3级
  *   5-35 分   = 小光, 庄家升2级
- *   40-75 分  = 保级, 庄家升1级
+ *   40-75 分  = 保庄, 庄家升1级
  *   80-115 分 = 上台, 不升级
  *   ≥120 分   = 上台, 每40分台阶 +1 级 (不封顶)
  */

@@ -458,7 +458,7 @@ const GameTable: React.FC = () => {
             ? `闲家上台（${adv.newLevel > teamLevels[advancingTeam] ? `+${adv.newLevel - teamLevels[advancingTeam]} 级` : '不升级'}）`
             : outcome.changes.defenderChange === 3 ? '大光！庄家 +3 级'
             : outcome.changes.defenderChange === 2 ? '小光！庄家 +2 级'
-            : '庄家保级 +1 级';
+            : '庄家保庄 +1 级';
         return (
           <div className="round-result" data-testid="round-result">
             <div className="round-verdict">{verdict}</div>

@@ -109,7 +109,7 @@ describe('arena e2e', () => {
       for (let i = 1; i < lines.length; i++) {
         const prev = lines[i - 1];
         const cur = lines[i];
-        // 上一手升级方成为下一手庄家（庄家保级 → 对家同队；闲家上台 → 闲家队）
+        // 上一手升级方成为下一手庄家（庄家保庄 → 对家同队；闲家上台 → 闲家队）
         expect(cur.banker).toBe(prev.upgradeSide);
         // 升级方的等级 = 上一手的升级结果；另一方保持不变
         expect(cur.levelA).toBe(prev.upgradeSide === 'A' ? prev.upgradeTo : prev.levelA);

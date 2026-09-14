@@ -9,7 +9,7 @@ describe('Level change', () => {
   it('小光: 5 pts → defender +2', () => {
     expect(computeLevelChange(5)).toEqual({ defenderChange: 2, attackerChange: 0 });
   });
-  it('保级: 40 pts → defender +1', () => {
+  it('保庄: 40 pts → defender +1', () => {
     expect(computeLevelChange(40)).toEqual({ defenderChange: 1, attackerChange: 0 });
   });
   it('上台: 80 pts → both 0', () => {
