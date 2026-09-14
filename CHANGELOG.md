@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-09-14 19:45
+
+### 客户端首局预定庄家由随机改为固定 P0
+
+**问题**：client 的 `startGame` 随机挑首局预定庄家（种子局 `Math.floor(mulberry32(seed)() * 4)`、普通局 `Math.floor(Math.random() * 4)`），与 CLI（`gameLoop(0, ...)` 固定 P0）和 arena（`match.ts` 从 0 起）不一致。该值在亮主前就有作用——无人亮主时是兜底庄家，且 AI 亮主决策读 `ctx.isDeclarer`——随机值让同一副牌（`?seed=N`）之外的普通对局在亮主前不可复现。
+
+**修复**：`startGame` 固定 `declarerIdx = 0`（`mulberry32` 导入随之移除）。作用域仅限首局亮主前：亮主者仍顶庄（`finalizeReveal(gs, roundNumber === 0)`），第二局起由 `startNewRound` 按上一局结果轮转庄家，不受此默认值影响。
+
+**无新增测试**，引擎 801 项 + arena 82 项 + CLI 80 项 + client 202 项 = 1165 项通过。
+
+- **影响文件**：`packages/client/src/store/gameStore.ts`
+
 ## 2026-09-13 10:40
 
 ### 新增扣底随机场景生成脚本：按细分场景枚举代表牌局
