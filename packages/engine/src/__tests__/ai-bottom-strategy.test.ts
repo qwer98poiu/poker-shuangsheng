@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { Suit } from '../types.js';
 import { createCard } from '../model.js';
 import { aiChooseBottomCards } from '../ai/index.js';
+// 下面的场景手牌是手工构造的形状（长度只为凑够可扣的 8 张），打的是选牌算法本身；
+// 对外入口「必须 33 张」的契约由文件末尾的契约用例单独覆盖。
+import { aiChooseBottomCards as chooseBottom } from '../ai/bottom-strategy.js';
 import type { TrumpDeclaration, Card } from '../types.js';
 
 type SR = [string, number];
@@ -38,7 +41,7 @@ describe('aiChooseBottomCards', () => {
         const suits = ['S', 'H', 'C', 'D'];
         return c(suits[i % 4], 2 + (i % 13), i);
       });
-      const r = aiChooseBottomCards(hand, cfg5);
+      const r = chooseBottom(hand, cfg5);
       expect(r.discard.length).toBe(8);
       expect(r.keep.length).toBe(25);
       expect(r.reason.length).toBeGreaterThan(0);
@@ -54,7 +57,7 @@ describe('aiChooseBottomCards', () => {
         ['S', 3], ['S', 4], ['S', 7], ['S', 8], ['S', 9], ['S', 11],
       ]);
       expect(hand.length).toBe(33);
-      const r = aiChooseBottomCards(hand, cfg5);
+      const r = chooseBottom(hand, cfg5);
       expect(r.reason).toBe('扣绝♣花色（共10分）；填充1张（共0分）');
       // The A stays in hand; the 7-card remainder plus one ♠3 fill the bottom.
       expect(keys(r.discard)).toEqual(
@@ -74,7 +77,7 @@ describe('aiChooseBottomCards', () => {
         ['S', 4], ['S', 6], ['S', 8], ['S', 10],
       ]);
       expect(hand.length).toBe(33);
-      const r = aiChooseBottomCards(hand, cfg3);
+      const r = chooseBottom(hand, cfg3);
       expect(r.reason).toBe('扣绝♣♦花色（共5分）；填充1张（共0分）');
       expect(keys(r.discard)).toEqual(
         ['C07', 'C08', 'C09', 'D05', 'D07', 'D08', 'D09', 'S04'],
@@ -93,7 +96,7 @@ describe('aiChooseBottomCards', () => {
         ['C', 11], ['C', 12], ['C', 13], ['C', 10], ['C', 10],
       ]);
       expect(hand.length).toBe(33);
-      const r = aiChooseBottomCards(hand, cfg3);
+      const r = chooseBottom(hand, cfg3);
       expect(r.reason).toBe('扣绝♦花色（共5分）；填充5张（共0分）');
       // ♦ 3 张 + 5 张填充 (桶1 跨花色从小到大: S2/C2/S4/C4/S6);
       // ♠ 的 10 分门整门保留 (累计 5+10 > cap 10)。
@@ -113,7 +116,7 @@ describe('aiChooseBottomCards', () => {
         ['D', 2], ['D', 4], ['D', 5], ['D', 6], ['D', 7], ['D', 8],
       ]);
       expect(hand.length).toBe(25);
-      const r = aiChooseBottomCards(hand, cfg3);
+      const r = chooseBottom(hand, cfg3);
       expect(r.reason).toBe('无扣绝；填充8张（共0分）');
       // 桶1 非分单从小到大: ♠/♦ rank 2/4/6/7 的单张 (♣ 的 9/8 排 rank 8/9 之后).
       expect(keys(r.discard)).toEqual(
@@ -130,7 +133,7 @@ describe('aiChooseBottomCards', () => {
         ['S', 6], ['S', 4], ['S', 3], ['S', 2],
       ]);
       expect(hand.length).toBe(33);
-      const r = aiChooseBottomCards(hand, cfg5);
+      const r = chooseBottom(hand, cfg5);
       expect(r.reason).toBe('扣绝♣花色（共0分）；无填充');
       expect(keys(r.discard)).toEqual(
         ['C02', 'C03', 'C04', 'C06', 'C07', 'C08', 'C09', 'C11'],
@@ -149,7 +152,7 @@ describe('aiChooseBottomCards', () => {
         ['D', 10], ['D', 13],
       ]);
       expect(hand.length).toBe(25);
-      const r = aiChooseBottomCards(hand, cfg5);
+      const r = chooseBottom(hand, cfg5);
       // ♦ 的非控制 (D10/D13) 全数由填充清空 → 按整体归类计为 扣绝♦(共20分)。
       expect(r.reason).toBe('扣绝♦花色（共20分）；填充6张（共0分）');
       expect(keys(r.discard)).toEqual(
@@ -169,7 +172,7 @@ describe('aiChooseBottomCards', () => {
         ['C', 14], ['C', 10], ['C', 10], ['C', 10],
       ]);
       expect(hand.length).toBe(25);
-      const r = aiChooseBottomCards(hand, cfg5);
+      const r = chooseBottom(hand, cfg5);
       expect(r.reason).toBe('无扣绝；填充8张（共0分）');
       expect(keys(r.discard)).toEqual(
         ['D02', 'H02', 'S02', 'S03', 'S04', 'S06', 'S08', 'S09'],
@@ -190,7 +193,7 @@ describe('aiChooseBottomCards', () => {
         ['D', 14], ['D', 10], ['D', 13],
       ]);
       expect(hand.length).toBe(25);
-      const r = aiChooseBottomCards(hand, cfg3);
+      const r = chooseBottom(hand, cfg3);
       expect(r.reason).toBe('扣绝♣花色（共5分）；填充7张（共0分）');
       expect(keys(r.discard)).toEqual(
         ['C05', 'H02', 'S02', 'S04', 'S06', 'S08', 'S09', 'S11'],
@@ -212,7 +215,7 @@ describe('aiChooseBottomCards', () => {
         ['C', 14], ['C', 10], ['C', 10],
       ]);
       expect(hand.length).toBe(25);
-      const r = aiChooseBottomCards(hand, cfg5);
+      const r = chooseBottom(hand, cfg5);
       expect(r.reason).toBe('无扣绝；填充8张（共0分）');
       expect(keys(r.discard)).toEqual(
         ['D02', 'S02', 'S03', 'S04', 'S06', 'S07', 'S08', 'S09'],
@@ -233,7 +236,7 @@ describe('aiChooseBottomCards', () => {
         ['D', 10], ['D', 2], ['D', 4], ['D', 6],
       ]);
       expect(hand.length).toBe(25);
-      const r = aiChooseBottomCards(hand, cfg5);
+      const r = chooseBottom(hand, cfg5);
       expect(r.reason).toBe('无扣绝；填充8张（共0分）');
       expect(keys(r.discard)).toEqual(
         ['C03', 'C06', 'C07', 'C07', 'C08', 'D02', 'D04', 'D06'],
@@ -253,7 +256,7 @@ describe('aiChooseBottomCards', () => {
         ['D', 14], ['D', 3], ['D', 3], ['D', 8], ['D', 8], ['D', 13],
       ]);
       expect(hand.length).toBe(25);
-      const r = aiChooseBottomCards(hand, cfg5);
+      const r = chooseBottom(hand, cfg5);
       expect(r.reason).toBe('无扣绝；填充8张（共0分）');
       expect(keys(r.discard)).toEqual(
         ['C07', 'C07', 'S02', 'S04', 'S06', 'S08', 'S09', 'S11'],
@@ -271,7 +274,7 @@ describe('aiChooseBottomCards', () => {
         ['C', 2], ['C', 3], ['C', 4], ['C', 6], ['C', 7], ['C', 8], ['C', 9],
       ]);
       expect(hand.length).toBe(33);
-      const r = aiChooseBottomCards(hand, cfg5);
+      const r = chooseBottom(hand, cfg5);
       expect(r.reason).toBe('扣绝♣花色（共0分）；填充1张（共0分）');
       // 最后一槽由桶9 末组拆最弱主牌对 H2 补足 (主A 对保留)。
       expect(keys(r.discard)).toEqual(
@@ -296,7 +299,7 @@ describe('aiChooseBottomCards', () => {
         ['C', 14], ['C', 13], ['C', 10], ['C', 5], ['C', 2], ['C', 4], ['C', 6], ['C', 6], ['C', 9],
       ]);
       expect(hand.length).toBe(25);
-      const r = aiChooseBottomCards(hand, cfg3);
+      const r = chooseBottom(hand, cfg3);
       expect(r.reason).toBe('扣绝♠花色（共0分）；填充3张（共0分）');
       expect(keys(r.discard)).toEqual(
         ['C02', 'C04', 'C09', 'S02', 'S04', 'S06', 'S07', 'S08'],
@@ -318,7 +321,7 @@ describe('aiChooseBottomCards', () => {
         ['C', 6], ['C', 7], ['C', 8], ['C', 9], ['C', 11], ['C', 12],
       ]);
       expect(hand.length).toBe(25);
-      const r = aiChooseBottomCards(hand, cfg3);
+      const r = chooseBottom(hand, cfg3);
       expect(r.reason).toBe('无扣绝；填充8张（共0分）');
       expect(keys(r.discard)).toEqual(
         ['C02', 'C04', 'C06', 'C07', 'C08', 'C09', 'C11', 'C12'],
@@ -342,7 +345,7 @@ describe('aiChooseBottomCards', () => {
         ['C', 7], ['C', 8], ['C', 9], ['C', 11], ['C', 12],
       ]);
       expect(hand.length).toBe(33);
-      const r = aiChooseBottomCards(hand, cfg3);
+      const r = chooseBottom(hand, cfg3);
       expect(r.reason).toBe('无扣绝；填充8张（共0分）');
       expect(keys(r.discard)).toEqual(
         ['C04', 'C06', 'C07', 'C08', 'C09', 'C11', 'C12', 'D02'],
@@ -364,7 +367,7 @@ describe('aiChooseBottomCards', () => {
         ['C', 7], ['C', 8], ['C', 9], ['C', 11], ['C', 12],
       ]);
       expect(hand.length).toBe(33);
-      const r = aiChooseBottomCards(hand, cfg3);
+      const r = chooseBottom(hand, cfg3);
       expect(r.reason).toBe('无扣绝；填充8张（共0分）');
       expect(keys(r.discard)).toEqual(
         ['C04', 'C06', 'C07', 'C08', 'C09', 'C11', 'C12', 'D02'],
@@ -384,7 +387,7 @@ describe('aiChooseBottomCards', () => {
         ['S', 4], ['S', 6], ['S', 8], ['S', 10], ['S', 12],
       ]);
       expect(hand.length).toBe(33);
-      const r = aiChooseBottomCards(hand, cfg3);
+      const r = chooseBottom(hand, cfg3);
       expect(r.reason).toBe('扣绝♣♦花色（共10分）；填充3张（共0分）');
       expect(keys(r.discard)).toEqual(
         ['C08', 'C09', 'D08', 'D09', 'D13', 'S04', 'S06', 'S08'],
@@ -404,7 +407,7 @@ describe('aiChooseBottomCards', () => {
         ['D', 13], ['D', 12], ['D', 9],
       ]);
       expect(hand.length).toBe(33);
-      const r = aiChooseBottomCards(hand, cfg11);
+      const r = chooseBottom(hand, cfg11);
       expect(r.reason).toBe('扣绝♠♦花色（共20分）；填充1张（共0分）');
       expect(keys(r.discard)).toEqual(
         ['C04', 'D09', 'D12', 'D13', 'S03', 'S06', 'S07', 'S13'],
@@ -425,7 +428,7 @@ describe('aiChooseBottomCards', () => {
         ['D', 2], ['D', 4], ['D', 6], ['D', 8], ['D', 10], ['D', 10], ['D', 11], ['D', 11], ['D', 12], ['D', 12], ['D', 13], ['D', 13], ['D', 14], ['D', 14],
       ]);
       expect(hand.length).toBe(25);
-      const r = aiChooseBottomCards(hand, cfg3);
+      const r = chooseBottom(hand, cfg3);
       expect(r.reason).toBe('扣绝♣♦花色（共5分）；填充2张（共0分）');
       expect(keys(r.discard)).toEqual(
         ['C02', 'C05', 'D02', 'D04', 'D06', 'D08', 'S02', 'S08'],
@@ -445,7 +448,7 @@ describe('aiChooseBottomCards', () => {
         ['D', 10], ['D', 2], ['D', 4], ['D', 6], ['D', 8], ['D', 9], ['D', 11], ['D', 11], ['D', 12], ['D', 12], ['D', 13], ['D', 13], ['D', 14], ['D', 14],
       ]);
       expect(hand.length).toBe(25);
-      const r = aiChooseBottomCards(hand, cfg3);
+      const r = chooseBottom(hand, cfg3);
       expect(r.reason).toBe('扣绝♠♦花色（共5分）；填充1张（共0分）');
       expect(keys(r.discard)).toEqual(
         ['C04', 'D02', 'D04', 'D06', 'D08', 'D09', 'S02', 'S05'],
@@ -465,7 +468,7 @@ describe('aiChooseBottomCards', () => {
         ['C', 2], ['C', 4], ['C', 6], ['C', 10], ['C', 10], ['C', 11], ['C', 11], ['C', 14], ['C', 14],
       ]);
       expect(hand.length).toBe(25);
-      const r = aiChooseBottomCards(hand, cfg3);
+      const r = chooseBottom(hand, cfg3);
       expect(r.reason).toBe('扣绝♠♣花色（共10分）；填充3张（共5分）');
       expect(keys(r.discard)).toEqual(
         ['C02', 'C04', 'C06', 'D02', 'D04', 'D05', 'S02', 'S13'],
@@ -484,7 +487,7 @@ describe('aiChooseBottomCards', () => {
       }
       hand.push(c('S', 11, n++)); // 33rd card
       expect(hand.length).toBe(33);
-      const r = aiChooseBottomCards(hand, cfgNT);
+      const r = chooseBottom(hand, cfgNT);
       expect(r.discard.length).toBe(8);
       expect(r.keep.length).toBe(25);
     });
@@ -498,7 +501,7 @@ describe('aiChooseBottomCards', () => {
         ...([3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].map(r => ['D', r] as SR)),
       ]);
       expect(hand.length).toBe(33);
-      const r = aiChooseBottomCards(hand, cfgNT);
+      const r = chooseBottom(hand, cfgNT);
       expect(r.reason).toBe('NT: 扣绝♣花色（共5分）；填充1张（共0分）');
       expect(keys(r.discard)).toEqual(
         ['C03', 'C04', 'C05', 'C06', 'C07', 'C08', 'C09', 'S03'],
@@ -514,7 +517,7 @@ describe('aiChooseBottomCards', () => {
         ...([3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].map(r => ['D', r] as SR)),
       ]);
       expect(hand.length).toBe(33);
-      const r = aiChooseBottomCards(hand, cfgNT);
+      const r = chooseBottom(hand, cfgNT);
       expect(r.reason).toBe('NT: 无扣绝；填充8张（共0分）');
       // 桶1 非分单从小到大 (rank3→4→6) 取 8 张, 含 ♣ 低张 — K(10 分) 留下。
       expect(keys(r.discard)).toEqual(
@@ -534,7 +537,7 @@ describe('aiChooseBottomCards', () => {
         ['H', 14], ['H', 10], ['H', 10], ['H', 10], ['H', 13],
       ]);
       expect(hand.length).toBe(25);
-      const r = aiChooseBottomCards(hand, cfgNT);
+      const r = chooseBottom(hand, cfgNT);
       expect(r.reason).toBe('NT: 无扣绝；填充8张（共0分）');
       expect(keys(r.discard)).toEqual(
         ['D04', 'S03', 'S04', 'S06', 'S08', 'S09', 'S11', 'S12'],
@@ -553,7 +556,7 @@ describe('aiChooseBottomCards', () => {
         ['H', 14], ['H', 5], ['H', 5], ['H', 5], ['H', 10], ['H', 10], ['H', 13],
       ]);
       expect(hand.length).toBe(25);
-      const r = aiChooseBottomCards(hand, cfgNT);
+      const r = chooseBottom(hand, cfgNT);
       expect(r.reason).toBe('NT: 无扣绝；填充8张（共0分）');
       expect(keys(r.discard)).toEqual(
         ['C07', 'C07', 'S03', 'S04', 'S06', 'S08', 'S09', 'S11'],
@@ -574,7 +577,7 @@ describe('aiChooseBottomCards', () => {
         ['H', 14], ['H', 10], ['H', 10],
       ]);
       expect(hand.length).toBe(25);
-      const r = aiChooseBottomCards(hand, cfgNT);
+      const r = chooseBottom(hand, cfgNT);
       expect(r.reason).toBe('NT: 无扣绝；填充8张（共0分）');
       expect(keys(r.discard)).toEqual(
         ['D04', 'S03', 'S04', 'S06', 'S08', 'S09', 'S11', 'S12'],
@@ -594,7 +597,7 @@ describe('aiChooseBottomCards', () => {
         ['C', 9], ['C', 9], ['C', 10], ['C', 10], ['C', 11], ['C', 11], ['C', 12], ['C', 12], ['C', 13], ['C', 13], ['C', 14], ['C', 14],
       ]);
       expect(hand.length).toBe(25);
-      const r = aiChooseBottomCards(hand, cfgNT3);
+      const r = chooseBottom(hand, cfgNT3);
       expect(r.reason).toBe('NT: 扣绝♠花色（共10分）；填充6张（共10分）');
       expect(keys(r.discard)).toEqual(
         ['D02', 'D04', 'D05', 'H02', 'H05', 'H07', 'S02', 'S13'],
@@ -612,7 +615,7 @@ describe('aiChooseBottomCards', () => {
         ...([3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14].map(r => ['D', r] as SR)),
       ]);
       expect(hand.length).toBe(33);
-      const r = aiChooseBottomCards(hand, cfgNT);
+      const r = chooseBottom(hand, cfgNT);
       expect(r.reason).toBe('NT: 扣绝♠花色（共0分）；无填充');
       expect(keys(r.discard)).toEqual(
         ['S03', 'S04', 'S06', 'S07', 'S08', 'S09', 'S11', 'S12'],
@@ -632,7 +635,7 @@ describe('aiChooseBottomCards', () => {
         ['C', 9], ['C', 10], ['C', 11], ['C', 12], ['C', 13],
       ]);
       expect(hand.length).toBe(33);
-      const r = aiChooseBottomCards(hand, cfgNT);
+      const r = chooseBottom(hand, cfgNT);
       // ♦ 唯一待扣 (D9) 被桶1 恰好清空 → 按整体归类计为 扣绝♦(共0分)。
       expect(r.reason).toBe('NT: 扣绝♦花色（共0分）；填充7张（共0分）');
       // 桶1 = 非长(♦/♣) 非分非控单牌 (rank5 是分不进): ♣3/4/6/7/8/9 + ♦9 + ♣J;
@@ -655,7 +658,7 @@ describe('aiChooseBottomCards', () => {
         ['C', 8], ['C', 9], ['C', 10], ['C', 11], ['C', 12], ['C', 13],
       ]);
       expect(hand.length).toBe(25);
-      const r = aiChooseBottomCards(hand, cfgNT3);
+      const r = chooseBottom(hand, cfgNT3);
       expect(r.reason).toBe('NT: 扣绝♠花色（共0分）；填充3张（共0分）');
       expect(keys(r.discard)).toEqual(
         ['C06', 'C07', 'C08', 'S02', 'S04', 'S06', 'S07', 'S08'],
@@ -676,11 +679,40 @@ describe('aiChooseBottomCards', () => {
         ['D', 8], ['D', 9], ['D', 10], ['D', 11], ['D', 12], ['D', 13],
       ]);
       expect(hand.length).toBe(33);
-      const r = aiChooseBottomCards(hand, cfgNT);
+      const r = chooseBottom(hand, cfgNT);
       expect(r.reason).toBe('NT: 无扣绝；填充8张（共0分）');
       // 桶1 非分单: rank3-6 先于 ♣5(分单) — 8 张正好取完。
       expect(keys(r.discard)).toEqual(
         ['C03', 'C04', 'C06', 'D03', 'D06', 'S03', 'S04', 'S06'],
+      );
+    });
+  });
+
+  describe('对外入口的手牌张数契约', () => {
+    // 庄家先拿底牌后扣底：决策输入 = 发到的 25 张 + 拿进的 8 张 = 33 张。
+    // 4 个调用点（arena/cli/client/导出脚本）曾长期只喂 25 张，等价于先扣后拿，
+    // 且不报错、静默降级；入口断言把这类回归从「安静地打折扣」变成「立刻炸」。
+    it('33 张（拿进底牌后）可以决策，扣 8 张留 25 张', () => {
+      const hand = Array.from({ length: 33 }, (_, i) => {
+        const suits = ['S', 'H', 'C', 'D'];
+        return c(suits[i % 4], 2 + (i % 13), i);
+      });
+      const r = aiChooseBottomCards(hand, cfg5);
+      expect(r.discard.length).toBe(8);
+      expect(r.keep.length).toBe(25);
+    });
+
+    it('25 张（未拿底牌）直接抛错', () => {
+      const hand = build([
+        ['H', 2], ['H', 4], ['H', 5], ['H', 6], ['H', 7], ['H', 8], ['H', 9],
+        ['H', 10], ['H', 11], ['H', 12], ['H', 13], ['H', 14],
+        ['S', 14], ['S', 13], ['S', 12], ['S', 11], ['S', 10], ['S', 9],
+        ['C', 14], ['C', 13], ['C', 12], ['C', 11], ['C', 10], ['C', 9],
+        ['D', 14],
+      ]);
+      expect(hand.length).toBe(25);
+      expect(() => aiChooseBottomCards(hand, cfg5)).toThrow(
+        '扣底决策必须基于 33 张手牌（发到的 25 张 + 拿进的 8 张底牌），实收 25 张',
       );
     });
   });

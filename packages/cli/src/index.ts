@@ -498,10 +498,12 @@ async function doBottomExchange() {
   console.log(`底牌 (8张): ${showCards(gameState.bottomCards)}`);
 
   if (aiPlayers[declarerIdx]) {
-    const { discard, reason } = aiChooseBottomCards(declarer.hand, gameState.trumpDeclaration!);
-    const newHand = declarer.hand.filter(c => !discard.some(d => d.id === c.id));
+    // 与人类分支同口径：先把底牌拿进手（33 张），再从中扣 8 张。
+    const mergedHand = [...declarer.hand, ...gameState.bottomCards];
+    const { discard, reason } = aiChooseBottomCards(mergedHand, gameState.trumpDeclaration!);
+    const newHand = mergedHand.filter(c => !discard.some(d => d.id === c.id));
     const newPlayers = gameState.players.map((p, i) =>
-      i === declarerIdx ? { ...p, hand: [...newHand, ...gameState.bottomCards] } : p,
+      i === declarerIdx ? { ...p, hand: newHand } : p,
     ) as any;
     gameState = {
       ...gameState,

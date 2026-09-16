@@ -228,11 +228,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const declarer = finalized.players[declarerIdx];
 
     if (get().aiPlayers[declarerIdx]) {
-      // AI declarer: pick 8 discards from the 25-card hand (CLI semantics);
-      // the 8 discarded become the new bottom, the old bottom joins the hand.
-      const { discard } = aiChooseBottomCards(declarer.hand, config);
+      // AI 庄家：与人类分支、与引擎策略契约同口径——先把底牌拿进手（33 张），
+      // 再从中选 8 张扣入底牌。拿上来的牌可以再扣回去。
+      const merged = [...declarer.hand, ...finalized.bottomCards];
+      const { discard } = aiChooseBottomCards(merged, config);
       const discarded = new Set(discard.map(d => d.id));
-      const withBottom = [...declarer.hand.filter(c => !discarded.has(c.id)), ...finalized.bottomCards];
+      const withBottom = merged.filter(c => !discarded.has(c.id));
       const newPlayers = finalized.players.map((p, i) =>
         i === declarerIdx ? { ...p, hand: withBottom } : p,
       ) as [PlayerState, PlayerState, PlayerState, PlayerState];

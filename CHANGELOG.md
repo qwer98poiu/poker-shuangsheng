@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-09-16 19:33
+
+### AI 庄家扣底改为按 33 张（拿进底牌后）决策
+
+**问题**：规则是庄家先把 8 张底牌拿进手里（共 33 张），再从 33 张里扣 8 张入底；但四处 AI 调用点（arena `match.ts`、CLI `index.ts` / `test-run.ts`、GUI `gameStore.ts`）只把**发到的 25 张**交给策略，扣掉的 8 张必然来自自己发到的牌，之后再并入旧底牌——结构上等价于「先扣后拿」。25 张口径的可行集是 33 张的**真子集**（旧底牌 8 张必被强制留在手里），且决策时看不到底牌信息。策略自身（`bottom-strategy.ts`、`STRATEGY.md`）、引擎测试与人类/提示路径全都是 33 张口径，只有 AI 调用点喂错；两处注释（`gameStore.ts` 的 `(CLI semantics)` 与 `getBottomHint` 的「与 AI 庄家同口径」）把错的口径描述成了设计决定，人类路径又是另一段正确代码，所以长期未被发现。
+
+**修复**：四处调用点统一改为「先并入 `bottomCards` 得到 33 张 → 扣 8 张 → 剩余 25 张」，防御性回退（`discard.length !== 8`）同样在 33 张上做；`match.ts` 的 `killSuitCount` 的 preHand 口径随之取 33 张（扣绝从庄家实际看到的牌算起）。`aiChooseBottomCards`（引擎对外入口）新增 33 张硬断言，喂错张数立刻抛错而不是静默降级；选牌算法本身（`aiChooseBottomCardsDetailed`）不断言，形状级单元测试仍可直接调用。
+
+实测差异（seed 42，发牌序号 0–399，P0 当庄、无主、级牌 4）：两口径扣出的 8 张不同 395/400；33 张口径有 375/400 会把原底牌又埋回去（25 张口径结构上恒为 0）；「跨底牌对子」（一张发到手里、一张在底牌）共 772 个，25 张口径拆掉 315 个、33 张口径只拆 60 个；扣进底里的分数合计 330 vs 405（均值 0.82 vs 1.01，差异小）。
+
+**连带发现（未修，已标注）**：`ai-0719` 的扣绝分支没有「整门 ≤8 张」前提，整门 >8 张时 `remaining.slice(0, 8 - n)` 是负数切片，实测返回 21 张 → arena 回退计 1 次 errors。该 bug 在 25 张口径下也已存在（seed 42 前 16 对触发 2 局），33 张口径下扩大到 9 局；快照冻结不修，其 Elo 分数最不可信。所有历史基线的强度一并变化，README 的 Elo 表已加失效标注（按既定决策只标注、不重测）。
+
+**新增 4 项测试**（ai-bottom-strategy.test.ts：2 项、bottom-exchange-input.test.ts：2 项），**修改 3 项测试**（arena-e2e.test.ts：自对弈指纹 234 → 203、historical-strategies.test.ts：ai-0719 越界改为已知值、gameStore.test.ts：attackerPoints 135 → 140）＝ 引擎 772 项 + arena 68 项 + CLI 80 项 + client 201 项 = 1121 项通过。
+
+- **影响文件**：`packages/arena/src/match.ts`、`packages/cli/src/index.ts`、`packages/cli/src/test-run.ts`、`packages/client/src/store/gameStore.ts`、`packages/engine/src/ai/bottom-strategy.ts`、`packages/engine/src/ai/index.ts`、`packages/engine/src/ai/STRATEGY.md`、`packages/engine/src/__tests__/ai-bottom-strategy.test.ts`、`packages/arena/src/__tests__/bottom-exchange-input.test.ts`（新）、`packages/arena/src/__tests__/arena-e2e.test.ts`、`packages/arena/src/__tests__/historical-strategies.test.ts`、`packages/client/src/__tests__/gameStore.test.ts`、`README.md`
+
 ## 2026-09-14 20:22
 
 ### 修复 AI 上下文把底牌发给四个座位（闲家可见底牌）

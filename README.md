@@ -78,7 +78,8 @@ In NT (no-trump) mode, 12 constant trump cards (Big Joker × 2, Small Joker × 2
 - **Progress & checkpoints** — A progress line every 100 matches (with ETA); every `stepMatches` matches the significance result is printed and `results/checkpoint.json` is written; Ctrl+C saves partial results and exits gracefully. No resume — every run starts from 0.
 - **Upgrade log** — `--detail-pair N` prints the per-hand upgrade records of both mirrored matches side by side (same deck), showing banker side, both levels at hand start, attacker points, and the upgrade result.
 - **Historical baselines** — `ai-0719` (2026-07-19), `ai-0802` (2026-08-02, position-based follow refactor), `ai-0808` (2026-08-08, before the fourth-position no-overkill / NT-discard fixes), `ai-0809` (2026-08-14, before the second-position avoid-points fixes) and `ai-0816` (2026-08-16, before the bottom-card strategy rewrite) were extracted from git history to PK against the current `ai`. (Archived: `ai-0707`, `ai-0712`, `ai-0726` — removed 2026-08-07; `ai-0801` — removed 2026-08-15; Elo scores below kept for reference.)
-- **Strategy Elo ratings** (baseline `ai-0802` = 1000; measured 2026-08-17, seeds 43/44, 6 × 10000 matches, WLS on all edges; computed by `packages/arena/scripts/elo-calc.ts`; the 2026-08-17 `ai` measurement is now attributed to `ai-0816`, current `ai` to be re-measured):
+- **Strategy Elo ratings** (baseline `ai-0802` = 1000; measured 2026-08-17, seeds 43/44, 6 × 10000 matches, WLS on all edges; computed by `packages/arena/scripts/elo-calc.ts`; the 2026-08-17 `ai` measurement is now attributed to `ai-0816`, current `ai` to be re-measured).
+  ⚠️ **All values below were measured before the 2026-09-16 bottom-exchange fix** (the AI declarer used to choose its 8 discards from the 25 dealt cards instead of the 33 after picking up the bottom). Every AI declarer's decision changed, so the numbers are not comparable with post-fix measurements. `ai-0719` additionally overflows the bottom (21 cards) under the 33-card input, because its void branch lacks a "suit ≤ 8 cards" precondition — its rating is the least trustworthy of the set.
 
   | Strategy | Elo |
   |---|---|
@@ -264,7 +265,8 @@ MIT — see [LICENSE](LICENSE).
 - **进度与检查点**：每 100 场一行进度（含 ETA）；每 `stepMatches` 场输出显著性并写 `results/checkpoint.json`；Ctrl+C 保存部分结果后优雅退出。不支持恢复，每次从 0 开始。
 - **升级记录**：`--detail-pair N` 并排输出该对决镜像两场的逐手升级记录（同一副牌），含庄家方、双方等级、闲家得分与升级结果。
 - **历史基线策略**：`ai-0719`（2026-07-19）、`ai-0802`（2026-08-02，分位置跟牌重构）、`ai-0808`（2026-08-08，第四家不盖过/NT 垫牌修复前）、`ai-0809`（2026-08-14，第二家避分修复前）、`ai-0816`（2026-08-16，扣底策略重构前）从 git 历史提取，用于与当前策略 `ai` 对比。（已归档移除：`ai-0707`、`ai-0712`、`ai-0726`，2026-08-07 删除；`ai-0801`，2026-08-15 删除；下方 Elo 分数仅保留展示。）
-- **策略 Elo 评分**（基准 `ai-0802` = 1000；2026-08-17 实测，seed 43/44，6 × 10000 场，全体边加权最小二乘；由 `packages/arena/scripts/elo-calc.ts` 计算；原 `ai` 实测分数归 `ai-0816`，当前 `ai` 待重测）：
+- **策略 Elo 评分**（基准 `ai-0802` = 1000；2026-08-17 实测，seed 43/44，6 × 10000 场，全体边加权最小二乘；由 `packages/arena/scripts/elo-calc.ts` 计算；原 `ai` 实测分数归 `ai-0816`，当前 `ai` 待重测）。
+  ⚠️ **以下分数均为 2026-09-16 扣底口径修正前所测**（AI 庄家此前只按发到的 25 张选 8 张扣底，而非拿进底牌后的 33 张）。每个 AI 庄家的决策都变了，故与修正后的测量不可比。其中 `ai-0719` 在 33 张输入下还会扣出 21 张（其扣绝分支没有「整门 ≤8 张」前提），分数最不可信。
 
   | 策略 | Elo |
   |---|---|
