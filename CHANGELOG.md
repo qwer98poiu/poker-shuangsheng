@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-09-17 00:12
+
+### 修复 cli/round-result.test.ts 的 Suit 枚举类型错误
+
+**问题**：`Suit` 是 TS 枚举（`enum Suit { Spades = 'S', ... }`），字符串字面量 `'S'` 与枚举成员值相同但类型不兼容，严格模式下不可赋给 `CardSuit`。该测试的辅助函数 `c(s: CardSuit, ...)` 类型标注本身没错，是 13 处调用方传了裸字面量 `c('S', ...)`，`packages/cli` 的 `tsc --noEmit` 报 TS2345 × 13（vitest 经 esbuild 转译不做类型检查，所以测试一直照常通过）。
+
+**修复**：13 处 `c('S', ...)` 改为 `c(Suit.Spades, ...)`——文件本就 `import { Suit }` 并在 `cfg5`/`cfg1` 里用 `Suit.Spades`，属就地统一；运行时值不变（枚举成员即 `'S'`）。`createCard(s, r as any, i)` 的 `r as any` 保留：`Rank` 同样是枚举，测试刻意传裸数字，与 `ai-bottom-strategy.test.ts` 的同类辅助函数写法一致，不属本次错误。
+
+**无新增测试**，引擎 808 项 + arena 83 项 + CLI 80 项 + client 202 项 = 1173 项通过（`packages/cli` 的 `tsc --noEmit` 由 13 错误转为 0）。
+
+- **影响文件**：`packages/cli/src/__tests__/round-result.test.ts`
+
 ## 2026-09-16 23:14
 
 ### Elo 表按扣底口径一分为二；归档移除 ai-0719、删除 ai-0801 代码
