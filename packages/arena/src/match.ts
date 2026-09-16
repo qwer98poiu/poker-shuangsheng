@@ -106,28 +106,30 @@ export function playHand(opts: PlayHandOptions): HandEvent {
   const teamBanker = (declarer % 2) as 0 | 1;
 
   // --- bottom exchange (position-blind bare declaration, like the CLI) ---
+  // 庄家先把 8 张底牌拿进手里（共 33 张），再从 33 张里扣 8 张入底。
   let errors = 0;
-  let { discard } = strategies[declarer % 2].chooseBottom(state.players[declarer].hand, t);
+  const merged = [...state.players[declarer].hand, ...state.bottomCards];
+  let { discard } = strategies[declarer % 2].chooseBottom(merged, t);
   if (discard.length !== 8) {
     // 防御：策略返回了非法扣底（历史 bug：负数切片产生 >8 张），回退为
     // 均匀扣底（低分低张优先）并计入 errors，供合法性检测暴露
     errors += 1;
-    discard = [...state.players[declarer].hand]
+    discard = [...merged]
       .sort((a, b) => (isPointRank(a.rank) ? 100 : 0) + a.rank - ((isPointRank(b.rank) ? 100 : 0) + b.rank))
       .slice(0, 8);
   }
-  const preHand = state.players[declarer].hand;
-  const newHand = preHand.filter(c => !discard.some(d => d.id === c.id));
+  const newHand = merged.filter(c => !discard.some(d => d.id === c.id));
   state = {
     ...state,
     players: state.players.map((p, i) =>
-      i === declarer ? { ...p, hand: [...newHand, ...state.bottomCards] } : p,
+      i === declarer ? { ...p, hand: newHand } : p,
     ) as unknown as typeof state.players,
     bottomCards: discard,
     currentPlayerIndex: declarer,
     leadPlayerIndex: declarer,
   };
-  const killSuitCount = countVoidedSuits(preHand, state.players[declarer].hand, t);
+  // 扣绝口径：从庄家实际看到的 33 张（拿进底牌后）算起
+  const killSuitCount = countVoidedSuits(merged, newHand, t);
 
   // --- play phase ---
   let aborted = false;

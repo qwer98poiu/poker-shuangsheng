@@ -43,8 +43,9 @@ describe('gameStore — seeded 4-AI match', () => {
     const gs = useGameStore.getState().gameState!;
     expect(gs.phase).toBe(GamePhase.RoundEnd);
     expect(useGameStore.getState().roundNumber).toBe(0);
-    // seed=42 已知结果（与 ui-smoke 一致）；扣底策略重构后 145 → 135
-    expect(gs.attackerPoints).toBe(135);
+    // seed=42 已知结果（与 ui-smoke 一致）；扣底策略重构后 145 → 135；
+    // AI 庄家扣底改为 33 张口径（拿进底牌后再扣）后 135 → 140
+    expect(gs.attackerPoints).toBe(140);
     expect(gs.players.every(p => p.hand.length === 0)).toBe(true);
 
     const declarer = gs.trumpDeclaration!.declarerIndex;

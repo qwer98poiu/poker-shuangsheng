@@ -17,7 +17,10 @@ import {
   groupBySuit, suitLabelCn,
 } from './utils.js';
 import { isOnlyLegalPlay } from '../following/index.js';
-import { aiChooseBottomCards as aiChooseBottomImpl } from './bottom-strategy.js';
+import {
+  aiChooseBottomCards as aiChooseBottomImpl,
+  BOTTOM_DECISION_HAND_SIZE,
+} from './bottom-strategy.js';
 import { annotateReason } from './reason.js';
 import {
   discardNonTrump,
@@ -99,11 +102,23 @@ export function aiTryReveal(
   return null;
 }
 
-/** Bottom exchange - delegates to bottom-strategy module. */
+/**
+ * Bottom exchange - delegates to bottom-strategy module.
+ *
+ * 契约：`hand` 是庄家**拿进 8 张底牌之后**的 33 张手牌（先拿后扣，拿上来的牌
+ * 可以再扣回去），不是发到的 25 张。调用点曾长期只喂 25 张，等价于先扣后拿，
+ * 而且不报错、静默降级；所以这里硬断言，喂错张数立刻炸而不是悄悄换个问题解。
+ */
 export function aiChooseBottomCards(
   hand: Card[],
   config: AIContext | TrumpDeclaration,
 ): { keep: Card[]; discard: Card[]; reason: string } {
+  if (hand.length !== BOTTOM_DECISION_HAND_SIZE) {
+    throw new Error(
+      `扣底决策必须基于 ${BOTTOM_DECISION_HAND_SIZE} 张手牌（发到的 25 张 + 拿进的 8 张底牌），`
+      + `实收 ${hand.length} 张`,
+    );
+  }
   return aiChooseBottomImpl(hand, config);
 }
 

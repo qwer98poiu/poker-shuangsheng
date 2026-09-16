@@ -35,6 +35,9 @@ import {
 
 const SUIT_SYMBOL: Record<string, string> = { S: '♠', H: '♥', C: '♣', D: '♦' };
 
+/** 扣底决策的输入张数：发到的 25 张 + 拿进手里的 8 张底牌。 */
+export const BOTTOM_DECISION_HAND_SIZE = 33;
+
 export interface BottomVoidDetail {
   suit: Suit;
   /** Discarded cards of this door — the suit's whole non-control remainder. */
@@ -60,7 +63,13 @@ export interface BottomChoiceDetail {
   fillBuckets: number[];
 }
 
-/** Run bottom selection and also return its internal structure (same decision). */
+/**
+ * Run bottom selection and also return its internal structure (same decision).
+ *
+ * 这里是选牌算法本身，对任意手牌形状都成立；「必须 33 张」是对外入口
+ * （`ai/index.ts` 的 aiChooseBottomCards）的契约，不在此处断言——单元测试
+ * 用手工构造的形状手牌直接打这个函数。
+ */
 export function aiChooseBottomCardsDetailed(
   hand: Card[],
   config: AIContext | TrumpDeclaration,

@@ -66,12 +66,14 @@ async function runGame() {
 
     // --- bottom exchange ---
     const declarer = gameState.players[t.declarerIndex];
-    const { discard } = aiChooseBottomCards(declarer.hand, t);
+    // 庄家先把底牌拿进手（33 张），再从中扣 8 张。
+    const mergedHand = [...declarer.hand, ...gameState.bottomCards];
+    const { discard } = aiChooseBottomCards(mergedHand, t);
     gameState = {
       ...gameState,
       players: gameState.players.map((p, i) =>
         i === t.declarerIndex
-          ? { ...p, hand: [...p.hand.filter(c => !discard.some(d => d.id === c.id)), ...gameState.bottomCards] }
+          ? { ...p, hand: mergedHand.filter(c => !discard.some(d => d.id === c.id)) }
           : p,
       ) as any,
       bottomCards: discard,
