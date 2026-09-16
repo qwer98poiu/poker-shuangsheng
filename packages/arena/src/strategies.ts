@@ -3,8 +3,7 @@
  * One-line delegations; identical input → identical output (guarded by the
  * engine-side differential tests).
  */
-import { aiTryReveal, aiChooseBottomCards, aiLeadPlay, aiFollowPlay, ai0719, ai0802, ai0808, ai0809, ai0816 } from '@poker/engine';
-import type { CardSuit } from '@poker/engine';
+import { aiTryReveal, aiChooseBottomCards, aiLeadPlay, aiFollowPlay, ai0802, ai0808, ai0809, ai0816 } from '@poker/engine';
 import type { Strategy } from './types.js';
 
 export const engineStrategy: Strategy = {
@@ -13,15 +12,6 @@ export const engineStrategy: Strategy = {
   chooseBottom: (hand, config) => aiChooseBottomCards(hand, config),
   lead: (hand, config) => aiLeadPlay(hand, config),
   follow: (hand, lead, suit, config) => aiFollowPlay(hand, lead, suit, config),
-};
-
-/** 基线策略：ai/ 在 98221b（2026-07-19）时的版本（leadSuit 参数为非空，竞技场调用点已保证非空）。 */
-export const ai0719Strategy: Strategy = {
-  name: 'ai-0719',
-  tryReveal: (hand, dealt, pi, level, cur) => ai0719.aiTryReveal(hand, dealt, pi, level, cur),
-  chooseBottom: (hand, config) => ai0719.aiChooseBottomCards(hand, config),
-  lead: (hand, config) => ai0719.aiLeadPlay(hand, config),
-  follow: (hand, lead, suit, config) => ai0719.aiFollowPlay(hand, lead, suit as CardSuit, config),
 };
 
 /** 快照基线：ai/ 在分位置跟牌重构提交（2026-08-02, ebe0625）时的版本，用于对比重构效果。 */
@@ -60,13 +50,12 @@ export const ai0816Strategy: Strategy = {
   follow: (hand, lead, suit, config) => ai0816.aiFollowPlay(hand, lead, suit, config),
 };
 
-/** Resolve a strategy by name ('ai' | 'ai-0719' | 'ai-0802' | 'ai-0808' | 'ai-0809' | 'ai-0816'). */
+/** Resolve a strategy by name ('ai' | 'ai-0802' | 'ai-0808' | 'ai-0809' | 'ai-0816'). */
 export function strategyByName(name: string): Strategy {
   if (name === 'ai') return engineStrategy;
-  if (name === 'ai-0719') return ai0719Strategy;
   if (name === 'ai-0802') return ai0802Strategy;
   if (name === 'ai-0808') return ai0808Strategy;
   if (name === 'ai-0809') return ai0809Strategy;
   if (name === 'ai-0816') return ai0816Strategy;
-  throw new Error(`未知策略: ${name}（可选: ai, ai-0719, ai-0802, ai-0808, ai-0809, ai-0816）`);
+  throw new Error(`未知策略: ${name}（可选: ai, ai-0802, ai-0808, ai-0809, ai-0816）`);
 }

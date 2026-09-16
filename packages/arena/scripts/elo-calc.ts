@@ -6,17 +6,18 @@
  * 用法：
  * 1. 编辑脚本顶部 `MATCHES`：每行 [策略A, 策略B, p̂(A), 对局数 n]——p̂ 为 A 对 B 的
  *    含平局胜率（来自竞技场报告），n 为对局数。
- * 2. 确认 `ANCHOR` 为锚点策略名（其 Elo 固定 = 1000，`GIVEN` 同步给出该值）。
+ * 2. 确认 `ANCHOR`（锚点策略名）与 `ANCHOR_ELO`（其 Elo 分，实测给定）——两者是
+ *    整个刻度唯一的自由参数，`GIVEN` 由它们派生，不必也不能单独改。
  * 3. 运行脚本：输出各边 ΔR、各策略 Elo（1 位小数）、拟合残差（自洽性检查）。
  *
  * 补充新数据：
  * - 新对决：在 `MATCHES` 数组追加一行即可；新出现的策略名自动进入求解集合。
- * - 更换锚点策略：修改 `ANCHOR` 与 `GIVEN` 两处。
+ * - 更换锚点策略：改 `ANCHOR`；重定刻度：改 `ANCHOR_ELO`。
  *
  * 方法（与报告口径一致）：
  * 1. 每场对决的 Elo 差 ΔR = 400·log10(p̂/(1−p̂))，p̂ 为含平局（按 0.5 计）的胜率。
  * 2. 各边的 ΔR 互相矛盾（图中有环）时，对 ΔR 做以对局数 n 为权重的加权最小二乘
- *    （WLS），固定锚点策略（ANCHOR 常量）＝ 1000 解出全体 Elo。
+ *    （WLS），固定锚点策略的 Elo（`ANCHOR_ELO`）解出全体 Elo。
  * 3. 输出拟合残差供自洽性检查（残差应远小于 100 量级的 Elo 差）。
  *
  * 已知近似：visibleTrickPoints 相关近似不涉及本脚本；p̂ 的统计误差（n 不同）由
@@ -25,20 +26,28 @@
 
 const MATCHES: ReadonlyArray<readonly [string, string, number, number]> = [
   // A           B           p̂(A)      n(对局数)
-  ['ai-0808', 'ai-0802', 0.5178, 10000],
-  ['ai-0809', 'ai-0802', 0.5532, 10000],
-  ['ai-0809', 'ai-0808', 0.5314, 10000],
-  ['ai', 'ai-0808', 0.5601, 10000],
-  ['ai', 'ai-0809', 0.5283, 10000],
-  ['ai', 'ai-0802', 0.5783, 10000],
+  ['ai-0808', 'ai-0802', 0.5326, 10000],
+  ['ai-0809', 'ai-0802', 0.5551, 10000],
+  ['ai-0816', 'ai-0802', 0.5888, 10000],
+  ['ai-0809', 'ai-0808', 0.5350, 10000],
+  ['ai-0816', 'ai-0808', 0.5654, 10000],
+  ['ai-0816', 'ai-0809', 0.5360, 10000],
 ];
 
-/** 用户给定值（仅锚点策略 = 1000；其余策略为求解对象，显示重算值本身）。 */
-const GIVEN: Record<string, number> = {
-  'ai-0802': 1000,
-};
-
+/** 锚点策略：其 Elo 由 ANCHOR_ELO 给定，其余策略都是相对它解出来的。 */
 const ANCHOR = 'ai-0802';
+
+/**
+ * 锚点策略的 Elo 分（实测给定）——**整个刻度唯一的自由参数**，
+ * 想换刻度只改这一个常量；脚本里其余地方一律引用它，不再写字面量。
+ * 当前值 = 扣底口径修复（2026-09-16）后的实测分。
+ */
+const ANCHOR_ELO = 1082.7;
+
+/** 用户给定值（仅锚点策略；其余策略为求解对象，显示重算值本身）。 */
+const GIVEN: Record<string, number> = {
+  [ANCHOR]: ANCHOR_ELO,
+};
 
 function log10(x: number): number {
   return Math.log(x) / Math.LN10;
@@ -70,7 +79,7 @@ function solveLinear(A: number[][], b: number[]): number[] {
   return M.map((row, i) => row[n] / row[i]);
 }
 
-/** 加权最小二乘：min Σ n·(x_a − x_b − ΔR_ab)²，锚定 ANCHOR = 1000。 */
+/** 加权最小二乘：min Σ n·(x_a − x_b − ΔR_ab)²，锚定 ANCHOR = ANCHOR_ELO。 */
 function fitWls(names: string[]): Map<string, number> {
   const freeNames = names.filter((x) => x !== ANCHOR);
   const freeIdx = new Map(freeNames.map((x, i) => [x, i]));
@@ -79,11 +88,11 @@ function fitWls(names: string[]): Map<string, number> {
   const Atb = new Array<number>(N).fill(0);
   for (const [a, b, p, n] of MATCHES) {
     const d = deltaFromWinRate(p);
-    // 方程：R_a − R_b = d。锚点策略的 R 固定为 1000，折入右侧：
-    // x_a − x_b = d − 1000·(anchor_a − anchor_b)，解出的 x 即绝对 Elo。
+    // 方程：R_a − R_b = d。锚点策略的 R 固定为 ANCHOR_ELO，折入右侧：
+    // x_a − x_b = d − ANCHOR_ELO·(anchor_a − anchor_b)，解出的 x 即绝对 Elo。
     const i = a === ANCHOR ? -1 : freeIdx.get(a)!;
     const j = b === ANCHOR ? -1 : freeIdx.get(b)!;
-    const rhs = d - (a === ANCHOR ? 1000 : 0) + (b === ANCHOR ? 1000 : 0);
+    const rhs = d - (a === ANCHOR ? ANCHOR_ELO : 0) + (b === ANCHOR ? ANCHOR_ELO : 0);
     const coeff = (k: number): number => (i === k ? 1 : 0) - (j === k ? 1 : 0);
     for (let k = 0; k < N; k++) {
       for (let l = 0; l < N; l++) AtA[k][l] += n * coeff(k) * coeff(l);
@@ -91,7 +100,7 @@ function fitWls(names: string[]): Map<string, number> {
     }
   }
   const x = solveLinear(AtA, Atb);
-  const out = new Map<string, number>([[ANCHOR, 1000]]);
+  const out = new Map<string, number>([[ANCHOR, ANCHOR_ELO]]);
   freeNames.forEach((name, i) => out.set(name, x[i]));
   return out;
 }
@@ -106,7 +115,7 @@ function main(): void {
     console.log(`  ${a} vs ${b}: p̂=${p} n=${n}  ΔR=${d.toFixed(2)}`);
   }
 
-  console.log('\n=== 2. 加权最小二乘解（锚定 ANCHOR = 1000，权重 = n） ===');
+  console.log(`\n=== 2. 加权最小二乘解（锚定 ${ANCHOR} = ${ANCHOR_ELO}，权重 = n） ===`);
   console.log('\n  策略     给定值    重算值   偏差');
   let maxDiff = 0;
   for (const name of names) {

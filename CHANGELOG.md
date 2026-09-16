@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-09-16 23:14
+
+### Elo 表按扣底口径一分为二；归档移除 ai-0719、删除 ai-0801 代码
+
+**问题**：扣底口径修复（本日 19:33 那一条）改变了每个 AI 庄家的决策，README 的单张 Elo 表因此混了两套不可比的刻度——表里既有修复前测的分数，也（在此前）写着待重测的当前 `ai`，没有区分。另外 `ai-0801` 已于 2026-08-15 归档（移出竞技场注册），但代码一直留在 `packages/engine/src/ai-0801/`；`ai-0719` 在 33 张口径下还会越界扣出 21 张（见同日修复条目），已无对比价值。
+
+**修复**：
+
+- README 的 Elo 表拆成两套刻度：**现行刻度**（修复后实测，取整，锚点 `ai-0802` = 1082.7）与**旧刻度**（带扣底 bug 时测得，保留一位小数，锚点 1000），后者在表前注明不可比，并说明其中名为 `ai-0802` 的一行实为 `ai-0802-flawed`（同一份代码 + 修复前口径）。
+- `elo-calc.ts`：锚点分数收成单一常量 `ANCHOR_ELO`（`GIVEN` 由它派生），替掉散在 5 处的字面量 1000。
+- 归档 `ai-0719`：删除整目录（7 个文件）、引擎 `index.ts` 导出、竞技场适配器与 `strategyByName` 条目、`historical-strategies.test.ts` 的合法性用例；README 的 Elo 分数保留展示并移入归档列表。
+- 一并删除 `ai-0801` 的残留目录（11 个文件）与引擎导出。
+- 用于重测锚点的对照策略 `ai-0802-flawed`（ai-0802 代码 + 修复前扣底入口）在完成测量后删除，未进入提交。
+
+**删除 1 项测试**（historical-strategies.test.ts：1 项）＝ 引擎 772 项 + arena 67 项 + CLI 80 项 + client 201 项 = 1120 项通过。
+
+- **影响文件**：`README.md`、`packages/arena/scripts/elo-calc.ts`、`packages/arena/src/strategies.ts`、`packages/arena/src/__tests__/historical-strategies.test.ts`、`packages/engine/src/index.ts`、`packages/engine/src/ai-0719/`（删）、`packages/engine/src/ai-0801/`（删）
+
 ## 2026-09-16 19:33
 
 ### AI 庄家扣底改为按 33 张（拿进底牌后）决策
