@@ -1,4 +1,4 @@
-import type { Card, GameState, Trick, TrumpDeclaration } from '@poker/engine';
+import type { Card, CardSuit, GameState, Trick, TrumpDeclaration } from '@poker/engine';
 import {
   GamePhase, computeFollowableCards, computeMandatoryFollow, validateFollow,
   classify, isTrump, findAllPairs, detectTractors, sortHand, computeBestSoFar,
@@ -131,7 +131,7 @@ function buildPairGroups(hand: Card[], playable: Set<string>): Record<string, st
 }
 
 /** 该牌是否属于领出花色组（吊主 leadSuit=null 时为主牌组）。 */
-function inLeadSuitGroup(c: Card, leadSuit: string | null, trump: TrumpDeclaration): boolean {
+function inLeadSuitGroup(c: Card, leadSuit: CardSuit | null, trump: TrumpDeclaration): boolean {
   if (leadSuit === null) return isTrump(c, trump);
   return c.suit === leadSuit;
 }
@@ -359,7 +359,7 @@ export function findWinningCardIds(trick: Trick): Set<string> {
  */
 export function orderTrickCardsForDisplay(
   cards: Card[],
-  leadSuit: string | null,
+  leadSuit: CardSuit | null,
   trump: TrumpDeclaration | null,
 ): Card[] {
   const sorted = sortHand(cards, trump);

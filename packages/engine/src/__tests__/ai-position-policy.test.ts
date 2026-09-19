@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { Suit } from '../types.js';
 import { createCard, isTrump } from '../model.js';
-import type { Card, TrumpDeclaration } from '../types.js';
+import type { Card, CardSuit, TrumpDeclaration } from '../types.js';
 import type { AIContext } from '../ai/types.js';
 import {
   sortDiscards, pickDiscards, selectFillers,
@@ -11,7 +11,7 @@ import {
 const cfg2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
 const cfg5: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 5 };
 const cfg10: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 10 };
-function c(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+function c(s: CardSuit, r: number, i: number): Card { return createCard(s, r, i); }
 
 function ctxOf(cfg: TrumpDeclaration, over: Partial<AIContext> = {}): AIContext {
   return {

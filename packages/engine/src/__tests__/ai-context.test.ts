@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { Suit, GamePhase } from '../types.js';
-import type { Card, GameState, PlayerState } from '../types.js';
+import { GamePhase, Suit } from '../types.js';
+import type { Card, CardSuit, GameState, PlayerState } from '../types.js';
 import { createCard } from '../model.js';
 import { createInitialState } from '../types.js';
 import { buildAIContext } from '../ai/context.js';
 
-function c(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+function c(s: CardSuit, r: number, i: number): Card { return createCard(s, r, i); }
 
 function player(index: number): PlayerState {
   return { name: `P${index}`, index, hand: [], isHuman: index === 0 };

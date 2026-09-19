@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-09-19 09:16
+
+### `Suit` / `SpecialSuit` 由字符串枚举改为 `as const` 对象 + 同名联合类型
+
+**问题**：字符串枚举的值就是 `'S'`，但类型是**名义的**——`'S'` 赋给 `CardSuit` 报 TS2345，编译器没有任何开关能放宽（`strict` 无关）。本条 08:26 修的 13 处只是这个摩擦的第 N 次。更糟的是它派生出的应对方式：`createCard(s as any, r as any, i)` 这类 helper 为消音把**整条链路的类型检查一起关掉**——`r as any` 掩盖的不只是花色，还有 rank 传错这类真错误（`Rank` 是数值枚举，本来就接受裸数字，这个 cast 从写下那天起就是多余的）。
+
+**修复**：`types.ts` 的两个字符串枚举换成 `as const` 对象 + 同名联合类型（值与类型分属两个命名空间，可以同名，无需改名）。运行时值不变（仍是 `'S'`/`'J'`），`Suit.Spades`、`switch` 穷尽检查、`Record<Suit, X>`、`suit as Suit` 全部照旧——`grep -rl "Suit"` 命中的 152 个文件（其中 66 个是冻结快照）**一个都没改**；反向映射（`Suit['S']`）全仓无使用，改对象不破坏任何反射用法。`Rank` 保持数值枚举，不动。
+
+**无新增测试**。
+
+- **影响文件**：`packages/engine/src/types.ts`
+
+### 顺带清理：去掉枚举摩擦派生出的 221 处 `as any` 中的 186 处
+
+类型变更把这些 cast 全部变成多余，一并去掉（`packages/*/src`，不含冻结快照）：`createCard(s as any, r as any, i)` → `createCard(s, r, i)`；helper 参数 `s: string` → `s: CardSuit`——此后调用点写 `c('S', 14, 0)` 既合法**又受检查**（花色写错立刻报错），这是本次最大的实际收益；`'S' as any` / `Suit.Spades as any` / `null as any` / `leadSuit as any` 直接去掉 cast；`[string, number]` 规格数组改 `as const`。两处**解析边界**保留窄 cast 而非消音：`nt-tracking.ts` 的 `reconstructFromKey`（key 由 `suitRankKey` 生成）与 cli/GUI 的 `possibleTrumpLabel`（key 形如 `'S-2'`）改为 `as CardSuit`。`reveal.test.ts` / `reveal-panel.test.ts` 的 helper 入参由 `CardSuit | null` 收窄为 `Suit | null`——`Reveal.suit` 本就不含 `'J'`，原先的宽类型才是那个 cast 的来源。
+
+剩余 35 处全是结构性 cast（`{} as any` 的 pattern、`state as any`、`(window as any)`、`dealt.map(...) as any`），与枚举摩擦无关，保持原样。
+
+**无新增测试**，引擎 772 项 + arena 67 项 + CLI 80 项 + client 201 项 = 1120 项通过（行为零变化：四包测试数与上一提交 `538ba30` 逐项相同；`npm run typecheck` 四包 + 三个 scripts 配置仍为零错误）。
+
+- **影响文件**：`packages/engine/src/ai/nt-tracking.ts`、`packages/engine/src/ai/throw-detector.ts`、`packages/cli/src/index.ts`、`packages/cli/src/test-run.ts`、`packages/client/src/components/game/GameTable.tsx`、`packages/client/src/components/game/export-game.ts`、`packages/client/src/components/game/playable.ts`，及 `packages/{engine,cli,client}/src/**/__tests__/` 下 32 个测试文件
+
 ## 2026-09-19 08:54
 
 ### 类型检查补齐四个包 + `packages/*/scripts/`

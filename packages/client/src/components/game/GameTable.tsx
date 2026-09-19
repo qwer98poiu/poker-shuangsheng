@@ -4,7 +4,7 @@ import {
   GamePhase, sortHand, Suit, suitLabel, rankLabel,
   computeRoundOutcome, advanceLevel, buildAIContext,
 } from '@poker/engine';
-import type { GameState, Card } from '@poker/engine';
+import type { GameState, Card, CardSuit } from '@poker/engine';
 import CardFace from '../cards/CardFace.js';
 import PlayerHand from './PlayerHand.js';
 import PlayerSeat, { finalRevealChip } from './PlayerSeat.js';
@@ -27,7 +27,7 @@ function possibleTrumpLabel(key: string): string {
   const idx = key.indexOf('-');
   const suit = key.slice(0, idx);
   const rank = parseInt(key.slice(idx + 1), 10);
-  return rank === 16 ? '大王' : rank === 15 ? '小王' : `${suitLabel(suit as any)}${rankLabel(rank as any)}`;
+  return rank === 16 ? '大王' : rank === 15 ? '小王' : `${suitLabel(suit as CardSuit)}${rankLabel(rank)}`;
 }
 
 function trackerSortKey(key: string): number {

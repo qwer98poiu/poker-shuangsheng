@@ -9,7 +9,7 @@ import {
   rankLabel, suitLabel,
   aiTryReveal, aiChooseBottomCards, aiLeadPlay, aiFollowPlay,
 } from '@poker/engine';
-import type { GameState, PlayerState, Card } from '@poker/engine';
+import type { Card, CardSuit, GameState, PlayerState } from '@poker/engine';
 import { Suit, Rank } from '@poker/engine';
 
 let gameState: GameState;

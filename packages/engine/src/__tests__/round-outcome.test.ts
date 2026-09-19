@@ -7,7 +7,7 @@ import { computeRoundOutcome } from '../scoring/index.js';
 const cfg5: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 5 };
 
 function c(s: CardSuit, r: number, i: number): Card {
-  return createCard(s, r as any, i);
+  return createCard(s, r, i);
 }
 
 /** 构造一墩：winnerIdx 为赢家（declarer=0 时奇数=闲家）。lead 为领出牌。 */

@@ -5,23 +5,23 @@ import { classify } from '../pattern/index.js';
 import { compareTwo } from '../comparing/index.js';
 import { validateFollow } from '../following/index.js';
 import { aiFollowPlay } from '../ai/index.js';
-import type { TrumpDeclaration, Card } from '../types.js';
+import type { Card, CardSuit, TrumpDeclaration } from '../types.js';
 import type { AIContext, NTTrumpState } from '../ai/types.js';
 
 const cfg5: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 5 };
 const cfgDiamondA: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Diamonds, level: 14 };
-function c(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+function c(s: CardSuit, r: number, i: number): Card { return createCard(s, r, i); }
 
 function checkFollow(
-  play: Card[], hand: Card[], lead: Card[], leadSuit: string | null, config: TrumpDeclaration,
+  play: Card[], hand: Card[], lead: Card[], leadSuit: CardSuit | null, config: TrumpDeclaration,
 ): void {
   const lp = classify(lead, config);
-  const vr = validateFollow(play, hand, lead, lp, leadSuit as any, config);
+  const vr = validateFollow(play, hand, lead, lp, leadSuit, config);
   expect(vr.valid).toBe(true);
 }
 
-function aiFollow(hand: Card[], lead: Card[], suit: string, config: TrumpDeclaration): Card[] {
-  return aiFollowPlay(hand, lead, suit as any, config).cards;
+function aiFollow(hand: Card[], lead: Card[], suit: CardSuit, config: TrumpDeclaration): Card[] {
+  return aiFollowPlay(hand, lead, suit, config).cards;
 }
 
 describe('AI follow play compliance', () => {
@@ -443,7 +443,7 @@ describe('AI follow compliance - diamonds trump, level 2 (crash scenarios)', () 
       c('H', 2, 200), c('H', 2, 201),
     ];
     const leadTrump = lead.every(c => isTrump(c, cfgD2));
-    const play = aiFollowPlay(handAI2, lead, null as any, cfgD2).cards;
+    const play = aiFollowPlay(handAI2, lead, null, cfgD2).cards;
     checkFollow(play, handAI2, lead, leadTrump ? null : 'D', cfgD2);
     expect(play.length).toBe(4);
   });
@@ -461,7 +461,7 @@ describe('AI follow compliance - diamonds trump, level 2 (crash scenarios)', () 
       c('H', 2, 200), c('H', 2, 201),
     ];
     const leadTrump = lead.every(c => isTrump(c, cfgD2));
-    const play = aiFollowPlay(handAI2, lead, null as any, cfgD2).cards;
+    const play = aiFollowPlay(handAI2, lead, null, cfgD2).cards;
     checkFollow(play, handAI2, lead, leadTrump ? null : 'D', cfgD2);
     expect(play.length).toBe(6);
   });
@@ -475,7 +475,7 @@ describe('AI follow compliance - diamonds trump, level 2 (crash scenarios)', () 
       c('S', 9, 4),
     ];
     const lead: Card[] = [c('S', 14, 200), c('S', 12, 200), c('S', 12, 201)];
-    const play = aiFollowPlay(hand, lead, Suit.Spades as any, cfgD2).cards;
+    const play = aiFollowPlay(hand, lead, Suit.Spades, cfgD2).cards;
     checkFollow(play, hand, lead, 'S', cfgD2);
     expect(play.length).toBe(3);
   });
@@ -494,7 +494,7 @@ describe('AI follow compliance - diamonds trump, level 2 (crash scenarios)', () 
       c('C', 10, 4),
     ];
     const lead: Card[] = [c('C', 14, 200), c('C', 13, 200), c('C', 13, 201)];
-    const play = aiFollowPlay(hand, lead, Suit.Clubs as any, cfgD2).cards;
+    const play = aiFollowPlay(hand, lead, Suit.Clubs, cfgD2).cards;
     checkFollow(play, hand, lead, 'C', cfgD2);
     expect(play.length).toBe(3);
   });
@@ -507,7 +507,7 @@ describe('AI follow compliance - diamonds trump, level 2 (crash scenarios)', () 
 // ================================================================
 describe('position-aware point adding (diamonds trump, level=2)', () => {
   const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Diamonds, level: 2 };
-  function cc(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+  function cc(s: CardSuit, r: number, i: number): Card { return createCard(s, r, i); }
 
   // P0 has C-A-A-K (2 decks: 2xA total, 2xK total). P0 leads AAK throw.
   // Remaining clubs: 0xA, 1xK (P0 has 1), plus J-3. P0 also has Q,9,9,6,6,4,4.
@@ -598,8 +598,8 @@ describe('position-aware point adding (diamonds trump, level=2)', () => {
     // Bug: followNTTrumpLead used `shouldAvoid` without defining it.
     // Fix: declare shouldAvoid before usage, matching followTrumpLead.
     // NT mode: trumpSuit=null, all jokers+level cards are trump.
-    function ct(s: string, r: number, i: number): Card {
-      return createCard(s as any, r as any, i);
+    function ct(s: CardSuit, r: number, i: number): Card {
+      return createCard(s, r, i);
     }
 
     // Minimal NTTrumpState mock — enough for the cannot-beat path.
@@ -652,8 +652,8 @@ describe('position-aware point adding (diamonds trump, level=2)', () => {
         ct('H', 14, 0),    // ♥A (non-trump)
         ct('D', 10, 0),    // ♦10 (non-trump)
       ];
-      const r = aiFollowPlay(hand, lead, null as any, ctx);
-      checkFollow(r.cards, hand, lead, null as any, ctx);
+      const r = aiFollowPlay(hand, lead, null, ctx);
+      checkFollow(r.cards, hand, lead, null, ctx);
       expect(r.cards.length).toBe(1);
       expect(r.reason).toBeTruthy();
       // Should not crash
@@ -673,7 +673,7 @@ describe('position-aware point adding (diamonds trump, level=2)', () => {
         bestSoFar: { cards: lead, playerIndex: 0 },
         ntState: mockNTState, bottomCards: [], debug: false,
       };
-      const r = aiFollowPlay(hand, lead, null as any, ctx);
+      const r = aiFollowPlay(hand, lead, null, ctx);
       expect(r.cards.map(c => c.id).sort()).toEqual(['C-4-1', 'H-4-2']);
       expect(r.cards.some(c => c.rank === 15)).toBe(false); // 不垫小王
     });
@@ -690,7 +690,7 @@ describe('position-aware point adding (diamonds trump, level=2)', () => {
         bestSoFar: { cards: lead, playerIndex: 0 },
         ntState: mockNTState, bottomCards: [], debug: false,
       };
-      const r = aiFollowPlay(hand, lead, null as any, ctx);
+      const r = aiFollowPlay(hand, lead, null, ctx);
       expect(r.cards.map(c => c.id).sort()).toEqual(['C-4-1', 'H-4-2']);
       expect(r.cards.some(c => c.rank === 15)).toBe(false); // 不垫小王
     });
@@ -703,7 +703,7 @@ describe('position-aware point adding (diamonds trump, level=2)', () => {
 // ================================================================
 describe('short-suited fill reason (diamonds trump, level=2)', () => {
   const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Diamonds, level: 2 };
-  function cc(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+  function cc(s: CardSuit, r: number, i: number): Card { return createCard(s, r, i); }
 
   it('uses "同花色不够，垫其他花色" when fillers contain other suits but no trump', () => {
     // Lead C-9-9 pair. AI has C-Q (1 club) + H-3, H-6 (other suits, no trump).
@@ -759,7 +759,7 @@ describe('short-suited fill reason (diamonds trump, level=2)', () => {
 // ================================================================
 describe('trump kill validity (hearts trump, level=5)', () => {
   const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 5 };
-  function c2(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+  function c2(s: CardSuit, r: number, i: number): Card { return createCard(s, r, i); }
 
   describe('single lead, void in suit, can beat', () => {
     it('kills off-suit A with smallest trump - "用主牌毙"', () => {
@@ -1203,7 +1203,7 @@ describe('trump kill validity (hearts trump, level=5)', () => {
       // AI-3 has S-3-3 (1 pair) + S-4 + S-6. Not enough trump pairs to match.
       // Previously claimed "用主牌毙" with singles-for-pairs. Should discard.
       const cfgS2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
-      function cc(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+      function cc(s: CardSuit, r: number, i: number): Card { return createCard(s, r, i); }
       const lead: Card[] = [
         cc('D', 6, 200), cc('D', 6, 201),
         cc('D', 3, 200), cc('D', 3, 201),
@@ -1225,7 +1225,7 @@ describe('trump kill validity (hearts trump, level=5)', () => {
 
   describe('pair selection avoids breaking tractors', () => {
     const cfgD2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Diamonds, level: 2 };
-    function cc(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+    function cc(s: CardSuit, r: number, i: number): Card { return createCard(s, r, i); }
 
     it('void in spades, picks standalone trump pair over tractor pair', () => {
       // Reproduces: AI-4 leads S-8-8 pair. Player 1 has:
@@ -1290,7 +1290,7 @@ describe('trump kill validity (hearts trump, level=5)', () => {
 // ================================================================
 describe('reason annotation format', () => {
   const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 5 };
-  function cc(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+  function cc(s: CardSuit, r: number, i: number): Card { return createCard(s, r, i); }
 
   it('third + teammate wins + max pattern: "同花色出小（队友已大，加分）"', () => {
     const lead: Card[] = [cc('S', 14, 200)]; // S-A (max single)
@@ -1375,7 +1375,7 @@ describe('reason annotation format', () => {
 // ================================================================
 describe('short-suited / fourth avoid points on max pattern (spades trump, level=2)', () => {
   const cfgS2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
-  function cc(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+  function cc(s: CardSuit, r: number, i: number): Card { return createCard(s, r, i); }
 
   // P0 leads D-A-K-K (AAK throw, max pattern). P1=second, has D-9 + D-A + C-K(10pts).
   // Short-suited: only D-9 + D-A = 2 diamonds < 3. Filler needed.
@@ -1424,7 +1424,7 @@ describe('short-suited / fourth avoid points on max pattern (spades trump, level
 // ================================================================
 describe('tractor lead fill-with-pairs annotations (level=2, spades trump)', () => {
   const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
-  function cc(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+  function cc(s: CardSuit, r: number, i: number): Card { return createCard(s, r, i); }
 
   // P0 leads H-KK+QQ (tractor, max). P1=second, has H-6-6 pair + H-4,H-5,H-8.
   // No tractor match → fill with H-6-6 + 2 smallest singles.
@@ -1514,7 +1514,7 @@ describe('tractor lead fill-with-pairs annotations (level=2, spades trump)', () 
 // ================================================================
 describe('filler avoids level trump when all remaining are trump', () => {
   const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
-  function cc(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+  function cc(s: CardSuit, r: number, i: number): Card { return createCard(s, r, i); }
 
   it('prefers non-level S-3 over S-2(level) and S-10(point) as filler', () => {
     // P0 leads D-Q-Q pair. AI has D-Q (1 diamond, short).
@@ -1539,7 +1539,7 @@ describe('filler avoids level trump when all remaining are trump', () => {
 // ================================================================
 describe('trump draw canBeat uses bestSoFar (spades trump, level=2)', () => {
   const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
-  function cc(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+  function cc(s: CardSuit, r: number, i: number): Card { return createCard(s, r, i); }
 
   it('third position cannot beat with S-8 when S-9 already beat lead S-7', () => {
     // P0 leads S-7(607). P1's S-9(609) beat the lead.
@@ -1586,7 +1586,7 @@ describe('NT throw kill: 拖拉机覆盖领出对子（getCompareKey 空成分�
   // （小王 900 + 级牌 800 相邻），extractComponents 把它整体归拖拉机、
   // 无独立对——修复前 getCompareKey 对空 pairs 数组 reduce 崩溃。
   const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: null, level: 11 };
-  const c11 = (s: string, i: number): Card => createCard(s as any, 11 as any, i);
+  const c11 = (s: CardSuit, i: number): Card => createCard(s, 11, i);
 
   it('盖毙用拖拉机（小王对+级牌对）盖两对甩领出：不崩溃且出牌合法', () => {
     const lead: Card[] = [
@@ -1679,7 +1679,7 @@ describe('NT throw kill: 拖拉机覆盖领出对子（getCompareKey 空成分�
 // ================================================================
 describe('trump kill point-aware selection (hearts trump, level=5)', () => {
   const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 5 };
-  function cc(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+  function cc(s: CardSuit, r: number, i: number): Card { return createCard(s, r, i); }
 
   describe('no points in trick → smallest trump', () => {
     it('kills S-A with smallest trump H-3', () => {
@@ -1755,8 +1755,8 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
 
   describe('trump kill reason annotations (用分牌盖 / 用最小牌盖)', () => {
     const cfgS: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
-    function crd(s: string, r: number, i: number): Card {
-      return createCard(s as any, r as any, i);
+    function crd(s: CardSuit, r: number, i: number): Card {
+      return createCard(s, r, i);
     }
     // All tests use ♥J♥9 throw lead (2 cards, off-suit), matching user scenario.
     // effRank: ♠3=603, ♠4=604, ♠5=605, ♠7=607, ♠9=609, ♠K=613, ♠A=614, ♣2=700
@@ -1998,8 +1998,8 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
         ntState: null, bottomCards: [], debug: false,
       };
     }
-    function crd(s: string, r: number, i: number): Card {
-      return createCard(s as any, r as any, i);
+    function crd(s: CardSuit, r: number, i: number): Card {
+      return createCard(s, r, i);
     }
     // P0 leads ♣4♣4♣3♣3 tractor. P1 (teammate) follows ♣9♣9♣8♣8 → wins.
     const lead = [crd('C', 4, 200), crd('C', 4, 201), crd('C', 3, 200), crd('C', 3, 201)];
@@ -2111,8 +2111,8 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
 
   describe('trump follow single beating rules (hearts trump, level=5)', () => {
     const cfgT: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 5 };
-    function ct(s: string, r: number, i: number): Card {
-      return createCard(s as any, r as any, i);
+    function ct(s: CardSuit, r: number, i: number): Card {
+      return createCard(s, r, i);
     }
 
     it('second position: plays small trump (no tractor/throw to seize)', () => {
@@ -2225,8 +2225,8 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
 
   describe('trump follow pair with points (hearts trump, level=5)', () => {
     const cfgT: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 5 };
-    function ct(s: string, r: number, i: number): Card {
-      return createCard(s as any, r as any, i);
+    function ct(s: CardSuit, r: number, i: number): Card {
+      return createCard(s, r, i);
     }
 
     it('pair lead with points: uses biggest beating pair', () => {
@@ -2253,8 +2253,8 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
       // has JOKER + ♠2 + ♦2 + ♥2 (4 trump, no pair).
       // Should play 2 smallest trump (♦2♥2 effRank=700) not JOKER(1000).
       const cfgS2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
-      function c2(s: string, r: number, i: number): Card {
-        return createCard(s as any, r as any, i);
+      function c2(s: CardSuit, r: number, i: number): Card {
+        return createCard(s, r, i);
       }
       const lead: Card[] = [c2('J', 15, 200), c2('J', 15, 201)]; // SJ pair
       const hand = [
@@ -2277,8 +2277,8 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
       // Reproduce: level=2, spades trump. P0 leads SJ pair. AI=P3(fourth)
       // has only 1 trump (♠2), opp wins. padWithDiscards should add 不加分.
       const cfgS2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
-      function c2(s: string, r: number, i: number): Card {
-        return createCard(s as any, r as any, i);
+      function c2(s: CardSuit, r: number, i: number): Card {
+        return createCard(s, r, i);
       }
       const lead: Card[] = [c2('J', 15, 200), c2('J', 15, 201)]; // SJ pair
       const best = { cards: lead, playerIdx: 0 };
@@ -2299,8 +2299,8 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
       // Reproduce: P1 leads ♦6♦6, P2 beats with ♦9♦9, AI=P3(third) has
       // ♦4♦8 (no pair), can't beat P2. Should annotate 不加分.
       const cfgD2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 2 };
-      function c3(s: string, r: number, i: number): Card {
-        return createCard(s as any, r as any, i);
+      function c3(s: CardSuit, r: number, i: number): Card {
+        return createCard(s, r, i);
       }
       const lead: Card[] = [c3('D', 6, 200), c3('D', 6, 201)]; // ♦6♦6 pair
       const best = { cards: [c3('D', 9, 0), c3('D', 9, 1)], playerIdx: 1 }; // P2 beats
@@ -2323,8 +2323,8 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
     // NOT 盖不过 (which contradicts beating). Regression test for bug where
     // shouldAvoid was set unconditionally for 4th+!tmWin regardless of beating.
     const cfgS2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
-    function c2(s: string, r: number, i: number): Card {
-      return createCard(s as any, r as any, i);
+    function c2(s: CardSuit, r: number, i: number): Card {
+      return createCard(s, r, i);
     }
 
     it('fourth beats with trump pair: "同花色出大" (no 盖不过)', () => {
@@ -2394,8 +2394,8 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
 
   describe('fourth position off-suit single: prefers point card when beating', () => {
     const cfgD: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Diamonds, level: 2 };
-    function ct(s: string, r: number, i: number): Card {
-      return createCard(s as any, r as any, i);
+    function ct(s: CardSuit, r: number, i: number): Card {
+      return createCard(s, r, i);
     }
 
     it('beats with K(10pts) over Q when both can beat', () => {
@@ -2433,8 +2433,8 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
 
   describe('tractor follow: scans for beating tractor when smallest cannot beat', () => {
     const cfgD: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Diamonds, level: 2 };
-    function ct(s: string, r: number, i: number): Card {
-      return createCard(s as any, r as any, i);
+    function ct(s: CardSuit, r: number, i: number): Card {
+      return createCard(s, r, i);
     }
 
     it('off-suit: smallest tractor cannot beat, scans for bigger one', () => {
@@ -2472,8 +2472,8 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
     // ♦7♦7 + 6 other singles. Must follow with the pair, but many single choices
     // → NOT 唯一可出. Second + max pattern → avoid points.
     const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
-    function ct(s: string, r: number, i: number): Card {
-      return createCard(s as any, r as any, i);
+    function ct(s: CardSuit, r: number, i: number): Card {
+      return createCard(s, r, i);
     }
 
     it('pair+single throw, one pair + spare singles → not 唯一可出, avoid points', () => {
@@ -2501,8 +2501,8 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
     // tryMatchTractorSlots must pick non-merging tractors (e.g. 8877 + 4433)
     // instead of ones that merge (8877 + 5544).
     const cfg6: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 6 };
-    function ct(s: string, r: number, i: number): Card {
-      return createCard(s as any, r as any, i);
+    function ct(s: CardSuit, r: number, i: number): Card {
+      return createCard(s, r, i);
     }
 
     it('two 2-pair tractor lead, hand has 88775544 → splits correctly', () => {
@@ -2556,8 +2556,8 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
     // Third (P2, teammate) should add points → include 55.
     // Fourth (P3, opponent) should avoid points → exclude 55.
     const cfg6: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 6 };
-    function ct(s: string, r: number, i: number): Card {
-      return createCard(s as any, r as any, i);
+    function ct(s: CardSuit, r: number, i: number): Card {
+      return createCard(s, r, i);
     }
 
     const lead: Card[] = [
@@ -2603,8 +2603,8 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
       // joker(SJ) + ♠2 + ♦2 + ♥2 (4 trump, no pair). opp wins.
       // Filler sort should NOT pick joker (effRank 900) over level-2s (800).
       const cfgNT: TrumpDeclaration = { declarerIndex: 1, trumpSuit: null, level: 2 };
-      function c2(s: string, r: number, i: number): Card {
-        return createCard(s as any, r as any, i);
+      function c2(s: CardSuit, r: number, i: number): Card {
+        return createCard(s, r, i);
       }
       // Lead: ♣2♣2 pair. P0 (AI-4) follows ♥2 joker. P1 (human) follows ♥10♣5.
       // AI=P2(fourth). Best so far is lead (pair), not beaten by teammate.
@@ -2616,8 +2616,8 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
         c2('D', 2, 30),    // ♦2 (effRank 800)
         c2('H', 2, 90),    // ♥2 (effRank 800)
       ];
-      const r = aiFollowPlay(hand, lead, null as any, cfgNT, best, 3);
-      checkFollow(r.cards, hand, lead, null as any, cfgNT);
+      const r = aiFollowPlay(hand, lead, null, cfgNT, best, 3);
+      checkFollow(r.cards, hand, lead, null, cfgNT);
       expect(r.cards.length).toBe(2);
       // Must NOT include joker (rank 15 = SmallJoker)
       expect(r.cards.some(c => c.rank === 15)).toBe(false);
@@ -2630,8 +2630,8 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
     // so non-point fillers like ♥A were dumped before ♥8/♥9.
     // Fix: only point cards sort descending when adding points; non-point ascending.
     const cfgH: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 2 };
-    function ct(s: string, r: number, i: number): Card {
-      return createCard(s as any, r as any, i);
+    function ct(s: CardSuit, r: number, i: number): Card {
+      return createCard(s, r, i);
     }
 
     it('third+tmWin+short throw, non-point filler ascending: picks ♣8 not ♣A', () => {
@@ -2695,8 +2695,8 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
 
   describe('team-win void avoids unnecessary trump kill', () => {
     const cfgD: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Diamonds, level: 2 };
-    function ct(s: string, r: number, i: number): Card {
-      return createCard(s as any, r as any, i);
+    function ct(s: CardSuit, r: number, i: number): Card {
+      return createCard(s, r, i);
     }
 
     it('third+tmWin, throw lead void, has enough trump: dumps points instead of trumping', () => {
@@ -2704,8 +2704,8 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
       // P2=AI(teammate) void in clubs. Has 3 trump (enough to kill) but
       // teammate P0 already wins. Should dump points, not waste trump.
       const cfgS: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
-      function ct2(s: string, r: number, i: number): Card {
-        return createCard(s as any, r as any, i);
+      function ct2(s: CardSuit, r: number, i: number): Card {
+        return createCard(s, r, i);
       }
       const lead: Card[] = [ct2('C', 14, 200), ct2('C', 14, 201), ct2('C', 13, 200)];
       const best = { cards: lead, playerIdx: 0 };
@@ -2760,8 +2760,8 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
 // followTrumpLead has. In suited mode, second position with a tractor
 // seizes with biggest trump. In NT mode, always picks smallest beater.
 describe('NT second position seizing lead (抢牌权)', () => {
-  function ct(s: string, r: number, i: number): Card {
-    return createCard(s as any, r as any, i);
+  function ct(s: CardSuit, r: number, i: number): Card {
+    return createCard(s, r, i);
   }
 
   const mockNT: NTTrumpState = {
@@ -2813,8 +2813,8 @@ describe('NT second position seizing lead (抢牌权)', () => {
       ct('S', 3, 0), ct('S', 3, 1),       // S-33 pair
       ct('S', 4, 0), ct('S', 4, 1),       // S-44 pair (tractor with S-33)
     ];
-    const r = aiFollowPlay(hand, lead, null as any, ctx);
-    checkFollow(r.cards, hand, lead, null as any, ctx);
+    const r = aiFollowPlay(hand, lead, null, ctx);
+    checkFollow(r.cards, hand, lead, null, ctx);
     expect(r.cards.length).toBe(1);
     expect(r.cards[0].rank).toBe(16); // BJ seizes
   });
@@ -2834,8 +2834,8 @@ describe('NT second position seizing lead (抢牌权)', () => {
       ct('S', 14, 0), ct('S', 14, 1),     // S-AA (throw combo)
       ct('S', 13, 0),                       // S-K
     ];
-    const r = aiFollowPlay(hand, lead, null as any, ctx);
-    checkFollow(r.cards, hand, lead, null as any, ctx);
+    const r = aiFollowPlay(hand, lead, null, ctx);
+    checkFollow(r.cards, hand, lead, null, ctx);
     expect(r.cards.length).toBe(1);
     // With throw combo, should actively seize (同花色出大), not passively follow
     expect(r.reason).toContain('同花色出大');
@@ -2852,8 +2852,8 @@ describe('NT second position seizing lead (抢牌权)', () => {
       ct('J', 16, 0), ct('J', 15, 0),
       ct('S', 3, 0), ct('S', 5, 0), ct('C', 8, 0),
     ];
-    const r = aiFollowPlay(hand, lead, null as any, ctx);
-    checkFollow(r.cards, hand, lead, null as any, ctx);
+    const r = aiFollowPlay(hand, lead, null, ctx);
+    checkFollow(r.cards, hand, lead, null, ctx);
     expect(r.cards.length).toBe(1);
     // Passive: no tractor/throw, just play smallest beater (SJ=15)
     expect(r.cards[0].rank).toBe(15); // SJ
@@ -2874,8 +2874,8 @@ describe('NT second position seizing lead (抢牌权)', () => {
       ct('J', 16, 0), ct('J', 16, 1),       // 大王对
       ct('D', 14, 2), ct('S', 14, 3), ct('C', 14, 4), // 级牌单张 ×3
     ];
-    const r = aiFollowPlay(hand, lead, null as any, ctx14);
-    checkFollow(r.cards, hand, lead, null as any, ctx14);
+    const r = aiFollowPlay(hand, lead, null, ctx14);
+    checkFollow(r.cards, hand, lead, null, ctx14);
     expect(r.cards.length).toBe(4);
     // 大王对必须整体出，不能拆成单张
     expect(r.cards.filter(c => c.rank === 16).length).toBe(2);
@@ -2895,7 +2895,7 @@ describe('NT second position seizing lead (抢牌权)', () => {
 describe('attacker crosses 40-point threshold', () => {
   it('third+!tmWin+35pts: breaks 10-pair to cross 40', () => {
     const cfg: TrumpDeclaration = { declarerIndex: 1, trumpSuit: Suit.Hearts, level: 5 };
-    function cc(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+    function cc(s: CardSuit, r: number, i: number): Card { return createCard(s, r, i); }
     // declarerIndex=1 → P0 is attacker. P0 leads S-A.
     // P1 (defender) plays S-3. P2 (attacker myIndex=2, third).
     // P0 wins with S-A, but P2's teammate IS P0 → tmWin=true for P2!
@@ -2971,7 +2971,7 @@ describe('attacker crosses 40-point threshold', () => {
 describe('declarer avoids pushing attacker to 80', () => {
   it('void third+tmWin+75pts: discards non-point trump instead of adding 10', () => {
     const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 5 };
-    function cc(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+    function cc(s: CardSuit, r: number, i: number): Card { return createCard(s, r, i); }
     const lead: Card[] = [cc('S', 14, 200)]; // S-A (max off-suit)
     const best = { cards: lead, playerIdx: 0 }; // P0 defender winning
 
@@ -3010,7 +3010,7 @@ describe('short-suited point adding annotation', () => {
   // point) over D-5.
   it('third+tmWin+max throw short: picks D-10 over D-5, annotates 加分', () => {
     const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 7 };
-    function cc(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+    function cc(s: CardSuit, r: number, i: number): Card { return createCard(s, r, i); }
     const lead: Card[] = [cc('C', 14, 200), cc('C', 14, 201), cc('C', 13, 200), cc('C', 13, 201)];
     const best = { cards: lead, playerIdx: 0 };
     const hand = [
@@ -3043,7 +3043,7 @@ describe('padWithDiscards add-points annotation', () => {
   // D-K should be the filler (10分优先 via discardSort(true)).
   it('third+tmWin max trump pair short: annotates 加分 on filler', () => {
     const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 7 };
-    function cc(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+    function cc(s: CardSuit, r: number, i: number): Card { return createCard(s, r, i); }
     const lead: Card[] = [cc('J', 16, 200), cc('J', 16, 201)];
     const best = { cards: lead, playerIdx: 0 };
     const hand = [
@@ -3071,7 +3071,7 @@ describe('followOffSuitThrow partial fill add-points annotation', () => {
   // Fillers: D-K,K pair + D-8. tmWin+third+max throw→canAddPoints.
   it('third+tmWin partial throw: annotates 加分 on fillers', () => {
     const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 7 };
-    function cc(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+    function cc(s: CardSuit, r: number, i: number): Card { return createCard(s, r, i); }
     const lead: Card[] = [
       cc('S', 14, 200), cc('S', 14, 201),
       cc('S', 13, 200), cc('S', 12, 200),
@@ -3104,7 +3104,7 @@ describe('point card priority: 10 > K > 5 when adding', () => {
   // AI-3 (third, declarer partner, tmWin) has D-10, D-K, D-5 + fillers.
   // Vary the club count to test fill-1, fill-2, fill-3.
 
-  function cc(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+  function cc(s: CardSuit, r: number, i: number): Card { return createCard(s, r, i); }
   const lead: Card[] = [
     cc('C', 14, 200), cc('C', 14, 201),
     cc('C', 13, 200),
@@ -3169,8 +3169,8 @@ describe('point card priority: 10 > K > 5 when adding', () => {
 // P1(defender) follows small clubs. P2(attacker, third, tmWin=true)
 // has some clubs + D-10,D-10 pair + D-5 single + D-4 filler.
 describe('break pair: score-aware pair breaking', () => {
-  function cc(s: string, r: number, i: number): Card {
-    return createCard(s as any, r as any, i);
+  function cc(s: CardSuit, r: number, i: number): Card {
+    return createCard(s, r, i);
   }
   const lead: Card[] = [
     cc('C', 14, 200), cc('C', 14, 201),
@@ -3272,7 +3272,7 @@ describe('break pair: score-aware pair breaking', () => {
 // ================================================================
 describe('fourth position reason always carries add/avoid mark', () => {
   const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 6 };
-  const c4 = (s: string, r: number, i: number): Card => createCard(s as any, r as any, i);
+  const c4 = (s: CardSuit, r: number, i: number): Card => createCard(s, r, i);
   const MARK = /加分|不加分|少加分|分牌盖|最小牌盖|唯一可出|必出/;
 
   function ctx4(
@@ -3367,7 +3367,7 @@ describe('fourth position reason always carries add/avoid mark', () => {
     const lead = [c4('J', 15, 200), c4('J', 16, 200)];
     const r = aiFollowPlay(hand, lead, Suit.Hearts,
       ctx4({ cards: [c4('J', 15, 200), c4('J', 16, 200)], playerIndex: 0 },
-        { trumpSuit: null as any, level: 6 }));
+        { trumpSuit: null, level: 6 }));
     expect(r.reason).toBe('垫同花色（盖不过，不加分）');
   });
 });
@@ -3377,7 +3377,7 @@ describe('fourth position reason always carries add/avoid mark', () => {
 // ================================================================
 describe('void discard with all-trump hand says 垫主牌', () => {
   const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 6 };
-  const c5 = (s: string, r: number, i: number): Card => createCard(s as any, r as any, i);
+  const c5 = (s: CardSuit, r: number, i: number): Card => createCard(s, r, i);
 
   it('第二家、缺门不能毙、手牌全主 → 垫主牌', () => {
     // P2 领出 ♥9♥9（红桃对），P0（第二家）无红桃、主牌全单张不能毙对子

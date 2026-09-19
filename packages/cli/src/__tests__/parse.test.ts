@@ -2,16 +2,16 @@ import { describe, it, expect } from 'vitest';
 import { Suit } from '@poker/engine';
 import { createCard } from '@poker/engine';
 import { parseCards, parseHumanCount, parseYesNo, parseSaveChoice, parseTrickNumber, revealLabel, usableRevealOptions, revealHint } from '../parse.js';
-import type { Card, TrumpDeclaration } from '@poker/engine';
+import type { Card, CardSuit, TrumpDeclaration } from '@poker/engine';
 
 const cfgD2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Diamonds, level: 2 };
 const cfgNull: TrumpDeclaration | null = null;
 
-function c(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+function c(s: CardSuit, r: number, i: number): Card { return createCard(s, r, i); }
 
 describe('parseCards', () => {
   const hand25: Card[] = Array.from({ length: 25 }, (_, i) => {
-    const suits = ['S', 'H', 'C', 'D'];
+    const suits = ['S', 'H', 'C', 'D'] as const;
     return c(suits[i % 4], 2 + (i % 13), i);
   });
 
@@ -92,7 +92,7 @@ describe('parseCards', () => {
   describe('bottom exchange (扣底) scenario', () => {
     // Simulating a 33-card merged hand (25 + 8 bottom cards)
     const hand33: Card[] = Array.from({ length: 33 }, (_, i) => {
-      const suits = ['S', 'H', 'C', 'D'];
+      const suits = ['S', 'H', 'C', 'D'] as const;
       return c(suits[i % 4], 2 + (i % 13), i);
     });
 
@@ -114,7 +114,7 @@ describe('parseCards', () => {
     // 庄家手牌剩 26 张而非 25 张，总牌数不再守恒。
     it('rejects the user-reported duplicate bottom selection', () => {
       const hand33: Card[] = Array.from({ length: 33 }, (_, i) => {
-        const suits = ['S', 'H', 'C', 'D'];
+        const suits = ['S', 'H', 'C', 'D'] as const;
         return c(suits[i % 4], 2 + (i % 13), i);
       });
       const r = parseCards('22 23 24 25 20 21 18 21', hand33, cfgD2);
@@ -137,7 +137,7 @@ describe('parseCards', () => {
 
     it('rejects duplicates among 8 bottom picks', () => {
       const hand33: Card[] = Array.from({ length: 33 }, (_, i) => {
-        const suits = ['S', 'H', 'C', 'D'];
+        const suits = ['S', 'H', 'C', 'D'] as const;
         return c(suits[i % 4], 2 + (i % 13), i);
       });
       const r = parseCards('0 1 2 3 4 5 6 6', hand33, cfgD2);
@@ -147,7 +147,7 @@ describe('parseCards', () => {
 
     it('still accepts 8 distinct bottom picks', () => {
       const hand33: Card[] = Array.from({ length: 33 }, (_, i) => {
-        const suits = ['S', 'H', 'C', 'D'];
+        const suits = ['S', 'H', 'C', 'D'] as const;
         return c(suits[i % 4], 2 + (i % 13), i);
       });
       const r = parseCards('0 1 2 3 4 5 6 7', hand33, cfgD2);

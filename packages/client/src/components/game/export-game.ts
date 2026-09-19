@@ -1,10 +1,10 @@
-import type { GameState } from '@poker/engine';
+import type { CardSuit, GameState, Rank } from '@poker/engine';
 import { rankLabel, suitLabel } from '@poker/engine';
 
 /** CLI 风格单牌显示（如 ♠A / 🃏JOKER）。 */
-export function cardName(c: { suit: string; rank: number }): string {
+export function cardName(c: { suit: CardSuit; rank: Rank }): string {
   if (c.rank >= 15) return c.rank === 16 ? 'JOKER' : 'joker';
-  return `${suitLabel(c.suit as any)}${rankLabel(c.rank)}`;
+  return `${suitLabel(c.suit)}${rankLabel(c.rank)}`;
 }
 
 export interface ExportInput {

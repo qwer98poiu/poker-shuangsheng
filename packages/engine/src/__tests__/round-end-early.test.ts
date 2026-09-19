@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { Suit, GamePhase, createInitialState } from '../types.js';
+import { createInitialState, GamePhase, Suit } from '../types.js';
 import { createCard } from '../model.js';
 import { playCards } from '../game/index.js';
-import type { TrumpDeclaration, Card, PlayerState, GameState } from '../types.js';
+import type { Card, CardSuit, GameState, PlayerState, TrumpDeclaration } from '../types.js';
 
-function c(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+function c(s: CardSuit, r: number, i: number): Card { return createCard(s, r, i); }
 
 function mkPlayer(name: string, idx: number, hand: Card[]): PlayerState {
   return { name, index: idx, hand, isHuman: false };

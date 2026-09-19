@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { Suit, Rank, SpecialSuit } from '../types.js';
+import { Rank, SpecialSuit, Suit } from '../types.js';
 import { createCard } from '../model.js';
 import { computeNTTrumpState, canFormJokerPair, opponentsHaveTrump,
   canPlayerBeatSingle, canPlayerBeatPair, canAnyOpponentBeatSingle, canAnyOpponentBeatPair,
 } from '../ai/nt-tracking.js';
-import type { TrumpDeclaration, Card, Trick, Reveal } from '../types.js';
+import type { Card, CardSuit, Reveal, Trick, TrumpDeclaration } from '../types.js';
 
 /** Create a minimal NT config at the given level. */
 function ntCfg(level: number, declarerIdx = 0): TrumpDeclaration {
@@ -12,8 +12,8 @@ function ntCfg(level: number, declarerIdx = 0): TrumpDeclaration {
 }
 
 /** Shorthand: create a card with a specific id suffix. */
-function c(s: string, r: number, idx: number): Card {
-  return createCard(s as any, r as any, idx);
+function c(s: CardSuit, r: number, idx: number): Card {
+  return createCard(s, r, idx);
 }
 
 /** Mock trick with known plays at known positions. */
@@ -73,12 +73,12 @@ function sumPossible(rec: Record<string, number> | null): number {
 }
 
 /** Make a suit-rank key from suit character and rank number. */
-function srk(suit: string, rank: number): string {
+function srk(suit: CardSuit, rank: number): string {
   return suit === 'J' ? `J-${rank}` : `${suit}-${rank}`;
 }
 
 /** Check if a location can have >=1 of a given suitRank. */
-function has(rec: Record<string, number> | null, suit: string, rank: number, _idx?: number): boolean {
+function has(rec: Record<string, number> | null, suit: CardSuit, rank: number, _idx?: number): boolean {
   return (rec?.[srk(suit, rank)] ?? 0) > 0;
 }
 
@@ -1573,7 +1573,7 @@ describe('current trick plays — in-progress trick deduction', () => {
 // ================================================================
 describe('save scenario: after 5 tricks, P1 has BJ', () => {
   const cfg2 = ntCfg(2, 0);
-  function cc(s: string, r: number, idx: number): Card { return createCard(s as any, r as any, idx); }
+  function cc(s: CardSuit, r: number, idx: number): Card { return createCard(s, r, idx); }
 
   it('from P2 view after 5 tricks: P1 has BJ in possible list', () => {
     const reveals: Reveal[] = [{ playerIndex: 0, suit: null, strength: 3 }];

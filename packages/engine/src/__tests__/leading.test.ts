@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { Suit, Rank } from '../types.js';
+import { Rank, Suit } from '../types.js';
 import { createCard } from '../model.js';
 import { validateLead, resolveThrowFailure } from '../leading/index.js';
-import type { TrumpDeclaration, Card } from '../types.js';
+import type { Card, CardSuit, TrumpDeclaration } from '../types.js';
 
-function ct(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+function ct(s: CardSuit, r: number, i: number): Card { return createCard(s, r, i); }
 
 describe('Leading — validateLead', () => {
   const trumpSuit: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 2 };
@@ -22,7 +22,7 @@ describe('Leading — validateLead', () => {
   });
 
   it('accepts mixed trump cards (all trump = one suit group)', () => {
-    const bj = createCard('J' as any, Rank.BigJoker, 0);
+    const bj = createCard('J', Rank.BigJoker, 0);
     const h2 = createCard(Suit.Hearts, Rank.Two, 1);
     const s2 = createCard(Suit.Spades, Rank.Two, 2);
     const hA = createCard(Suit.Hearts, Rank.Ace, 3);

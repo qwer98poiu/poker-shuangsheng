@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createCard, createInitialState, GamePhase, Suit } from '@poker/engine';
-import type { Card, GameState, PlayerState } from '@poker/engine';
+import type { Card, CardSuit, GameState, PlayerState } from '@poker/engine';
 
 // Deterministic dev params (same derivation as src/dev.ts).
 // mockDev.seed 可在单个测试内临时切换（如 seed=9：P0 有对♠2 且 AI 无可亮牌）。
@@ -15,7 +15,7 @@ import { useGameStore, settledFrom } from '../store/gameStore.js';
 
 const advance = (ms: number) => vi.advanceTimersByTimeAsync(ms);
 
-const c = (s: string, r: number, i: number): Card => createCard(s as any, r as any, i);
+const c = (s: CardSuit, r: number, i: number): Card => createCard(s, r, i);
 
 async function waitFor(pred: () => boolean, guard = 4000): Promise<void> {
   let n = 0;

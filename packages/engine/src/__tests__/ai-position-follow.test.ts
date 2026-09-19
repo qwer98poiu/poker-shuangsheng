@@ -11,18 +11,18 @@ import { createCard, isTrump } from '../model.js';
 import { classify } from '../pattern/index.js';
 import { validateFollow } from '../following/index.js';
 import { aiFollowPlay } from '../ai/index.js';
-import type { TrumpDeclaration, Card } from '../types.js';
+import type { Card, CardSuit, TrumpDeclaration } from '../types.js';
 import type { AIContext } from '../ai/types.js';
 
 const cfgS2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
 const cfgH5: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 5 };
-function cc(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+function cc(s: CardSuit, r: number, i: number): Card { return createCard(s, r, i); }
 
 function checkFollow(
-  play: Card[], hand: Card[], lead: Card[], leadSuit: string | null, config: TrumpDeclaration,
+  play: Card[], hand: Card[], lead: Card[], leadSuit: CardSuit | null, config: TrumpDeclaration,
 ): void {
   const lp = classify(lead, config);
-  const vr = validateFollow(play, hand, lead, lp, leadSuit as any, config);
+  const vr = validateFollow(play, hand, lead, lp, leadSuit, config);
   expect(vr.valid).toBe(true);
 }
 
@@ -560,7 +560,7 @@ describe('第二家：主牌双对领出填单张避分（>15 张）', () => {
     ];
     const ctx = secondCtx(cfgS2, leadAAKK);
     const r = aiFollowPlay(hand, leadAAKK, Suit.Spades, ctx);
-    checkFollow(r.cards, hand, leadAAKK, Suit.Spades as any, cfgS2);
+    checkFollow(r.cards, hand, leadAAKK, Suit.Spades, cfgS2);
     expect(r.cards.length).toBe(4);
     const ids = r.cards.map(c => c.id);
     expect(ids).toEqual(expect.arrayContaining(['S-4-0', 'S-4-1'])); // 主对必跟
@@ -575,7 +575,7 @@ describe('第二家：主牌双对领出填单张避分（>15 张）', () => {
     ]; // 11 张
     const ctx = secondCtx(cfgS2, leadAAKK);
     const r = aiFollowPlay(hand, leadAAKK, Suit.Spades, ctx);
-    checkFollow(r.cards, hand, leadAAKK, Suit.Spades as any, cfgS2);
+    checkFollow(r.cards, hand, leadAAKK, Suit.Spades, cfgS2);
     const ids = r.cards.map(c => c.id);
     expect(ids).toContain('S-5-2'); // 大小升序填 S5 S6
   });
@@ -589,7 +589,7 @@ describe('第二家：主牌双对领出填单张避分（>15 张）', () => {
     ]; // 18 张
     const ctx = secondCtx(cfgS2, leadAAKK);
     const r = aiFollowPlay(hand, leadAAKK, Suit.Spades, ctx);
-    checkFollow(r.cards, hand, leadAAKK, Suit.Spades as any, cfgS2);
+    checkFollow(r.cards, hand, leadAAKK, Suit.Spades, cfgS2);
     const ids = r.cards.map(c => c.id);
     expect(ids).toEqual(expect.arrayContaining(['S-4-0', 'S-4-1']));
     expect(ids).toContain('S-5-2'); // 被迫垫分牌
@@ -615,7 +615,7 @@ describe('第二家：主牌单张领出避分（>15 张）', () => {
     ]; // 11 主 + 6 副 = 17 张
     const ctx = secondCtx(cfgS2, leadSA);
     const r = aiFollowPlay(hand, leadSA, Suit.Spades, ctx);
-    checkFollow(r.cards, hand, leadSA, Suit.Spades as any, cfgS2);
+    checkFollow(r.cards, hand, leadSA, Suit.Spades, cfgS2);
     expect(r.cards[0].id).toBe('S-6-1'); // 非分最小主牌
     expect(r.reason).toContain('同花色出小');
   });
@@ -624,7 +624,7 @@ describe('第二家：主牌单张领出避分（>15 张）', () => {
     const hand = [cc('S', 5, 0), cc('S', 8, 1), cc('S', 9, 2)];
     const ctx = secondCtx(cfgS2, leadSA);
     const r = aiFollowPlay(hand, leadSA, Suit.Spades, ctx);
-    checkFollow(r.cards, hand, leadSA, Suit.Spades as any, cfgS2);
+    checkFollow(r.cards, hand, leadSA, Suit.Spades, cfgS2);
     expect(r.cards[0].id).toBe('S-5-0'); // 最小
   });
 });
@@ -647,7 +647,7 @@ describe('第三/四家：加分垫牌含分花色断门优先（闲家跨 40 �
     const hand = [cc('C', 13, 0), cc('D', 10, 1), cc('D', 3, 2), cc('D', 4, 3), cc('S', 2, 4), cc('S', 5, 5)];
     const ctx = fourthVoidCtx({ isAttacker: true, attackerPoints: 0 });
     const r = aiFollowPlay(hand, leadH3, Suit.Hearts, ctx);
-    checkFollow(r.cards, hand, leadH3, Suit.Hearts as any, cfgS2);
+    checkFollow(r.cards, hand, leadH3, Suit.Hearts, cfgS2);
     expect(r.cards.map(c => c.id)).toEqual(['C-13-0']); // 断门出 ♣K
   });
 
@@ -655,7 +655,7 @@ describe('第三/四家：加分垫牌含分花色断门优先（闲家跨 40 �
     const hand = [cc('C', 13, 0), cc('D', 10, 1), cc('D', 3, 2), cc('D', 4, 3), cc('S', 2, 4), cc('S', 5, 5)];
     const ctx = fourthVoidCtx({ isAttacker: false, attackerPoints: 0 });
     const r = aiFollowPlay(hand, leadH3, Suit.Hearts, ctx);
-    checkFollow(r.cards, hand, leadH3, Suit.Hearts as any, cfgS2);
+    checkFollow(r.cards, hand, leadH3, Suit.Hearts, cfgS2);
     expect(r.cards.map(c => c.id)).toEqual(['C-13-0']);
   });
 
@@ -664,7 +664,7 @@ describe('第三/四家：加分垫牌含分花色断门优先（闲家跨 40 �
     const hand = [cc('C', 5, 0), cc('D', 10, 1), cc('S', 2, 4), cc('S', 5, 5)];
     const ctx = fourthVoidCtx({ isAttacker: true, attackerPoints: 31 });
     const r = aiFollowPlay(hand, leadH3, Suit.Hearts, ctx);
-    checkFollow(r.cards, hand, leadH3, Suit.Hearts as any, cfgS2);
+    checkFollow(r.cards, hand, leadH3, Suit.Hearts, cfgS2);
     expect(r.cards.map(c => c.id)).toEqual(['D-10-1']); // 跨台阶全力加分
   });
 
@@ -674,7 +674,7 @@ describe('第三/四家：加分垫牌含分花色断门优先（闲家跨 40 �
     const hand = [cc('C', 3, 0), cc('D', 10, 1), cc('D', 13, 2), cc('D', 4, 3)];
     const ctx = fourthVoidCtx({ isAttacker: false, attackerPoints: 0 });
     const r = aiFollowPlay(hand, leadH3, Suit.Hearts, ctx);
-    checkFollow(r.cards, hand, leadH3, Suit.Hearts as any, cfgS2);
+    checkFollow(r.cards, hand, leadH3, Suit.Hearts, cfgS2);
     expect(r.cards.map(c => c.id)).toEqual(['D-10-1']); // 分牌优先（♦ 出不绝，分散加分）
   });
 
@@ -685,7 +685,7 @@ describe('第三/四家：加分垫牌含分花色断门优先（闲家跨 40 �
     // 领出 2 张（甩牌 ♣3 ♣4）→ 垫 2 张
     const lead2: Card[] = [cc('C', 3, 200), cc('C', 4, 201)];
     const r = aiFollowPlay(hand, lead2, Suit.Clubs, ctx);
-    checkFollow(r.cards, hand, lead2, Suit.Clubs as any, cfgS2);
+    checkFollow(r.cards, hand, lead2, Suit.Clubs, cfgS2);
     const ids = r.cards.map(c => c.id);
     expect(ids).toContain('H-13-0'); // 断 ♥ 门
     expect(ids).toContain('D-10-1'); // 其余加分垫（10 分）
@@ -705,7 +705,7 @@ describe('第三/四家：不能毙路径跨 40 台阶例外（selectFillers ful
       isAttacker: true, attackerPoints: 31,
     });
     const r = aiFollowPlay(hand, leadH3, Suit.Hearts, ctx);
-    checkFollow(r.cards, hand, leadH3, Suit.Hearts as any, cfgS2);
+    checkFollow(r.cards, hand, leadH3, Suit.Hearts, cfgS2);
     expect(r.cards.map(c => c.id)).toEqual(['D-10-1']); // full 分散加分
   });
 });

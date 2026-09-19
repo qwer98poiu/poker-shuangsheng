@@ -2,9 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { Suit } from '../types.js';
 import { createCard } from '../model.js';
 import { finalize } from '../revealing/index.js';
-import type { Reveal, Card } from '../types.js';
+import type { Card, CardSuit, Reveal } from '../types.js';
 
-function c(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+function c(s: CardSuit, r: number, i: number): Card { return createCard(s, r, i); }
 
 function mkReveal(playerIndex: number, suit: Suit | null, strength: number): Reveal {
   return { playerIndex, suit, strength };
