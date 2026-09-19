@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createCard, createInitialState, GamePhase, Suit } from '@poker/engine';
-import type { Card, GameState, PlayerState } from '@poker/engine';
+import type { Card, CardSuit, GameState, PlayerState } from '@poker/engine';
 
 // 可切换的 dev 参数（getter 延迟读取，测试内改 mockDev 生效）。
 // 默认 seed=42：与 gameStore.test 一致，种子局结果确定。
@@ -33,7 +33,7 @@ function emptyPlayer(name: string, index: number): PlayerState {
   return { name, index, hand: [], isHuman: false };
 }
 
-const c = (s: string, r: number, i: number): Card => createCard(s as any, r as any, i);
+const c = (s: CardSuit, r: number, i: number): Card => createCard(s, r, i);
 
 function playingState(): GameState {
   const base = createInitialState(

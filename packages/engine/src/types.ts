@@ -4,8 +4,22 @@
  */
 
 // ---- Card ----
-export enum Suit { Spades = 'S', Hearts = 'H', Clubs = 'C', Diamonds = 'D' }
-export enum SpecialSuit { Joker = 'J' }
+/**
+ * 花色。值就是 `'S'`/`'H'`/`'C'`/`'D'`，类型是这四个字面量的联合。
+ *
+ * 用 `as const` 对象 + 同名联合类型，而**不是**字符串枚举：枚举是名义类型，
+ * 值相同的 `'S'` 赋给 `CardSuit` 会报 TS2345（编译器没有任何开关能放宽），
+ * 于是每个测试 helper 都要写成 `Suit.Spades` 或 `as any`。改对象后
+ * `Suit.Spades` 与 `'S'` 都合法，且运行时值不变（仍是 `'S'`）。
+ * `Rank` 保持数值枚举——数值枚举对裸数字本来就宽松。
+ */
+export const Suit = { Spades: 'S', Hearts: 'H', Clubs: 'C', Diamonds: 'D' } as const;
+export type Suit = (typeof Suit)[keyof typeof Suit];
+
+/** 王牌花色（唯一成员 `'J'`）。理由同 `Suit`。 */
+export const SpecialSuit = { Joker: 'J' } as const;
+export type SpecialSuit = (typeof SpecialSuit)[keyof typeof SpecialSuit];
+
 export type CardSuit = Suit | SpecialSuit;
 
 export enum Rank {

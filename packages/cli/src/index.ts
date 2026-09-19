@@ -23,7 +23,7 @@ import type { RoundOutcome } from './round-result.js';
 import { parseCards, parseHumanCount, parseYesNo, parseSaveChoice, parseTrickNumber, revealLabel, usableRevealOptions, revealHint } from './parse.js';
 import { parseLevelSuit } from './parse-level.js';
 import type {
-  GameState, PlayerState, TrumpDeclaration, Card, AIReason,
+  GameState, PlayerState, TrumpDeclaration, Card, CardSuit, AIReason,
 } from '@poker/engine';
 
 const SAVE_DIR = path.join(process.cwd(), 'saves');
@@ -871,7 +871,7 @@ function possibleTrumpLabel(key: string): string {
   const idx = key.indexOf('-');
   const suit = key.slice(0, idx);
   const rank = parseInt(key.slice(idx + 1), 10);
-  const symbol = suitLabel(suit as any) + rankLabel(rank as any);
+  const symbol = suitLabel(suit as CardSuit) + rankLabel(rank);
   const red = suit === 'H' || suit === 'D' || rank === 16; // BigJoker red, SmallJoker black
   return red ? RED + symbol + RESET : symbol;
 }
@@ -1079,7 +1079,7 @@ function showHint(playerIndex: number) {
 
     // Safety net: validate the suggestion against engine rules
     const leadPattern = classify(leadPlay.cards, config);
-    const vr = validateFollow(suggested, player.hand, leadPlay.cards, leadPattern, suit as any, config);
+    const vr = validateFollow(suggested, player.hand, leadPlay.cards, leadPattern, suit, config);
     if (!vr.valid) {
       console.log(YELLOW + `⚠ 提示校验失败: ${vr.error}，重试...` + RESET);
       // Fallback: just play all lead suit cards (if any) and fill with smallest
@@ -1099,7 +1099,7 @@ function showHint(playerIndex: number) {
         suggested = sorted.slice(0, leadPlay.cards.length);
       }
       reason = '(fallback)';
-      const vr2 = validateFollow(suggested, player.hand, leadPlay.cards, leadPattern, suit as any, config);
+      const vr2 = validateFollow(suggested, player.hand, leadPlay.cards, leadPattern, suit, config);
       if (!vr2.valid) {
         console.log(RED + `✗ 提示失败: ${vr2.error}` + RESET);
         return;

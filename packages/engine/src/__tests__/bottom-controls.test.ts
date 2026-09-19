@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { Suit, Rank } from '../types.js';
+import { Rank, Suit } from '../types.js';
 import { createCard } from '../model.js';
-import type { TrumpDeclaration, Card } from '../types.js';
+import type { Card, CardSuit, TrumpDeclaration } from '../types.js';
 import { computeOffSuitControls } from '../ai/bottom-controls.js';
 
-function c(s: string, r: number, idx: number): Card {
-  return createCard(s as any, r as any, idx);
+function c(s: CardSuit, r: number, idx: number): Card {
+  return createCard(s, r, idx);
 }
 
 /** Deterministic card key: suit + zero-padded rank (lexicographic == numeric). */

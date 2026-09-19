@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createCard, GamePhase, Suit } from '@poker/engine';
-import type { Card, TrumpDeclaration } from '@poker/engine';
+import type { Card, CardSuit, TrumpDeclaration } from '@poker/engine';
 import {
   computePlayableIds, computeFollowPlan, canSubmitPlay, bottomExchangeStatus,
   computeSelectionMode, applyGroupClick, applyGroupDragPick, clearSelectionKeepLocked,
@@ -8,7 +8,7 @@ import {
   declarerFlagSeat,
 } from '../components/game/playable.js';
 
-const c = (s: string, r: number, i: number): Card => createCard(s as any, r as any, i);
+const c = (s: CardSuit, r: number, i: number): Card => createCard(s, r, i);
 const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
 const play = (cards: Card[], leadSuit: Suit | null): any => ({ cards, pattern: {}, leadSuit });
 

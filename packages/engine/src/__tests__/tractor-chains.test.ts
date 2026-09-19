@@ -2,10 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { Suit } from '../types.js';
 import { createCard } from '../model.js';
 import { detectTractors } from '../pattern/index.js';
-import type { TrumpDeclaration, Card } from '../types.js';
+import type { Card, CardSuit, TrumpDeclaration } from '../types.js';
 
-function c(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
-function pairs(ranks: [string, number][]): Card[] {
+function c(s: CardSuit, r: number, i: number): Card { return createCard(s, r, i); }
+function pairs(ranks: [CardSuit, number][]): Card[] {
   return ranks.map(([s, r]) => [c(s, r, 0), c(s, r, 1)]).flat();
 }
 function hasTractor(cards: Card[], expectedPairs: number, config: TrumpDeclaration): boolean {

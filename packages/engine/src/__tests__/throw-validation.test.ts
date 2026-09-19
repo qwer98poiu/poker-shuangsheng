@@ -2,9 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { Suit } from '../types.js';
 import { createCard } from '../model.js';
 import { validateThrow } from '../leading/index.js';
-import type { Card, TrumpDeclaration } from '../types.js';
+import type { Card, CardSuit, TrumpDeclaration } from '../types.js';
 
-function ct(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+function ct(s: CardSuit, r: number, i: number): Card { return createCard(s, r, i); }
 function cfg(level: number, trumpSuit: Suit | null = Suit.Spades): TrumpDeclaration {
   return { declarerIndex: 0, trumpSuit, level };
 }

@@ -1,15 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { Suit, Rank } from '../types.js';
+import { Rank, Suit } from '../types.js';
 import { createCard, isTrump } from '../model.js';
 import { classify } from '../pattern/index.js';
 import { validateLead } from '../leading/index.js';
 import { aiLeadPlay } from '../ai/index.js';
 import { minimalContext } from '../ai/types.js';
 import type { AIContext } from '../ai/types.js';
-import type { TrumpDeclaration, Card } from '../types.js';
+import type { Card, CardSuit, TrumpDeclaration } from '../types.js';
 
-function c(s: string, r: number, idx: number): Card {
-  return createCard(s as any, r as any, idx);
+function c(s: CardSuit, r: number, idx: number): Card {
+  return createCard(s, r, idx);
 }
 
 /** Build a minimal AIContext from a plain TrumpDeclaration. */

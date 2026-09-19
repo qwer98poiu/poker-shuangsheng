@@ -3,14 +3,14 @@ import { Suit } from '../types.js';
 import { createCard } from '../model.js';
 import { computeMandatoryFollow } from '../following/index.js';
 import { aiFollowPlay } from '../ai/index.js';
-import type { TrumpDeclaration, Card } from '../types.js';
+import type { Card, CardSuit, TrumpDeclaration } from '../types.js';
 
 const cfg5: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 5 };
 // trump = all Jokers, all Hearts, all 5s (any suit)
 const cfg2S: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
 // 黑桃主，级牌 2：主牌 = 大小王 + 所有 2 + 黑桃全花色
 
-function c(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+function c(s: CardSuit, r: number, i: number): Card { return createCard(s, r, i); }
 
 function expectFollow(
   hand: Card[], lead: Card[], cfg: TrumpDeclaration,

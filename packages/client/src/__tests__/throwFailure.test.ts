@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { createCard } from '@poker/engine';
-import type { Card } from '@poker/engine';
+import type { Card, CardSuit } from '@poker/engine';
 import {
   mergeFailedThrow, buildFailedThrow, formatAttackerScore,
   type FailedThrow,
 } from '../store/throwFailure.js';
 
-const c = (s: string, r: number, i: number): Card => createCard(s as any, r as any, i);
+const c = (s: CardSuit, r: number, i: number): Card => createCard(s, r, i);
 
 describe('mergeFailedThrow — 桌面牌序列与置灰', () => {
   it('无失败回显：原样直通、全部不置灰', () => {

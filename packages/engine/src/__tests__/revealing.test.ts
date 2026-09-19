@@ -11,8 +11,8 @@ import { tryReveal, finalizeReveal } from '../game/index.js';
 describe('Revealing — getRevealOptions', () => {
   it('returns NT with strength 4 for pair of BigJokers', () => {
     const opts = getRevealOptions([
-      createCard('J' as any, Rank.BigJoker, 0),
-      createCard('J' as any, Rank.BigJoker, 1),
+      createCard('J', Rank.BigJoker, 0),
+      createCard('J', Rank.BigJoker, 1),
     ], 2);
     const nt = opts.find(o => o.suit === null);
     expect(nt).toBeDefined();
@@ -21,8 +21,8 @@ describe('Revealing — getRevealOptions', () => {
 
   it('returns NT with strength 3 for pair of SmallJokers', () => {
     const opts = getRevealOptions([
-      createCard('J' as any, Rank.SmallJoker, 0),
-      createCard('J' as any, Rank.SmallJoker, 1),
+      createCard('J', Rank.SmallJoker, 0),
+      createCard('J', Rank.SmallJoker, 1),
     ], 2);
     const nt = opts.find(o => o.suit === null);
     expect(nt).toBeDefined();
@@ -31,8 +31,8 @@ describe('Revealing — getRevealOptions', () => {
 
   it('does NOT return NT for one big + one small joker', () => {
     const opts = getRevealOptions([
-      createCard('J' as any, Rank.BigJoker, 0),
-      createCard('J' as any, Rank.SmallJoker, 1),
+      createCard('J', Rank.BigJoker, 0),
+      createCard('J', Rank.SmallJoker, 1),
     ], 2);
     expect(opts.find(o => o.suit === null)).toBeUndefined();
   });
@@ -92,7 +92,7 @@ describe('Revealing — canSelfReinforce', () => {
   it('无主（strength 3/4）不可自保（禁止自反）', () => {
     expect(canSelfReinforce(
       { playerIndex: 1, suit: null, strength: 3 },
-      [createCard('J' as any, Rank.BigJoker, 0), createCard('J' as any, Rank.BigJoker, 1)], 2, 1,
+      [createCard('J', Rank.BigJoker, 0), createCard('J', Rank.BigJoker, 1)], 2, 1,
     )).toBe(false);
   });
 
@@ -202,13 +202,13 @@ describe('Revealing — aiTryReveal 亮主过程（无人亮主不直接亮一�
 
   it('无人亮主 + 对王 → 亮无主（无主本身即一对，不受单张限制）', () => {
     const r = aiTryReveal(
-      [createCard('J' as any, Rank.SmallJoker, 0), createCard('J' as any, Rank.SmallJoker, 1)], [], 1, 5, null,
+      [createCard('J', Rank.SmallJoker, 0), createCard('J', Rank.SmallJoker, 1)], [], 1, 5, null,
     );
     expect(r?.suit).toBeNull();
   });
 
   it('无人亮主 + 单张王 → 不亮（无主需对王）', () => {
-    const r = aiTryReveal([createCard('J' as any, Rank.BigJoker, 0)], [], 1, 5, null);
+    const r = aiTryReveal([createCard('J', Rank.BigJoker, 0)], [], 1, 5, null);
     expect(r).toBeNull();
   });
 });
@@ -247,12 +247,12 @@ describe('Revealing — aiTryReveal 对子反主', () => {
   });
 
   it('无主不可自保：自己亮对小王无主，手里对大王 → 不触发', () => {
-    const r = aiTryReveal([createCard('J' as any, Rank.BigJoker, 0), createCard('J' as any, Rank.BigJoker, 1)], [], 1, 5, { suit: null, strength: 3, playerIndex: 1 });
+    const r = aiTryReveal([createCard('J', Rank.BigJoker, 0), createCard('J', Rank.BigJoker, 1)], [], 1, 5, { suit: null, strength: 3, playerIndex: 1 });
     expect(r).toBeNull();
   });
 
   it('自保已达上限：自己亮对大王无主 → 不再亮', () => {
-    const r = aiTryReveal([createCard('J' as any, Rank.SmallJoker, 0), createCard('J' as any, Rank.SmallJoker, 1)], [], 1, 5, { suit: null, strength: 4, playerIndex: 1 });
+    const r = aiTryReveal([createCard('J', Rank.SmallJoker, 0), createCard('J', Rank.SmallJoker, 1)], [], 1, 5, { suit: null, strength: 4, playerIndex: 1 });
     expect(r).toBeNull();
   });
 
@@ -284,7 +284,7 @@ describe('tryReveal — 亮主过程（单张 → 自保，不直接亮一对）
 
   it('无人亮主 + 对王 → 亮无主保持 3/4', () => {
     const s = tryReveal(
-      mkState([createCard('J' as any, Rank.BigJoker, 0), createCard('J' as any, Rank.BigJoker, 1)]),
+      mkState([createCard('J', Rank.BigJoker, 0), createCard('J', Rank.BigJoker, 1)]),
       0, null,
     );
     expect(s.currentReveal).toEqual({ playerIndex: 0, suit: null, strength: 4 });

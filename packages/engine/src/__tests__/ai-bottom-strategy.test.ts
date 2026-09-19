@@ -5,12 +5,12 @@ import { aiChooseBottomCards } from '../ai/index.js';
 // 下面的场景手牌是手工构造的形状（长度只为凑够可扣的 8 张），打的是选牌算法本身；
 // 对外入口「必须 33 张」的契约由文件末尾的契约用例单独覆盖。
 import { aiChooseBottomCards as chooseBottom } from '../ai/bottom-strategy.js';
-import type { TrumpDeclaration, Card } from '../types.js';
+import type { Card, CardSuit, TrumpDeclaration } from '../types.js';
 
-type SR = [string, number];
+type SR = [CardSuit, number];
 
-function c(s: string, r: number, idx: number): Card {
-  return createCard(s as any, r as any, idx);
+function c(s: CardSuit, r: number, idx: number): Card {
+  return createCard(s, r, idx);
 }
 
 /** Build a hand from [suit, rank] pairs with unique ids. */
@@ -38,7 +38,7 @@ describe('aiChooseBottomCards', () => {
   describe('suited trump mode', () => {
     it('returns exactly 8 discard and 25 keep for a 33-card hand', () => {
       const hand = Array.from({ length: 33 }, (_, i) => {
-        const suits = ['S', 'H', 'C', 'D'];
+        const suits = ['S', 'H', 'C', 'D'] as const;
         return c(suits[i % 4], 2 + (i % 13), i);
       });
       const r = chooseBottom(hand, cfg5);
@@ -482,7 +482,7 @@ describe('aiChooseBottomCards', () => {
     it('returns exactly 8 discard and 25 keep', () => {
       const hand: Card[] = [];
       let n = 0;
-      for (const s of ['S', 'H', 'C', 'D']) {
+      for (const s of ['S', 'H', 'C', 'D'] as const) {
         for (let r = 3; r <= 10; r++) hand.push(c(s, r, n++));
       }
       hand.push(c('S', 11, n++)); // 33rd card
@@ -694,7 +694,7 @@ describe('aiChooseBottomCards', () => {
     // 且不报错、静默降级；入口断言把这类回归从「安静地打折扣」变成「立刻炸」。
     it('33 张（拿进底牌后）可以决策，扣 8 张留 25 张', () => {
       const hand = Array.from({ length: 33 }, (_, i) => {
-        const suits = ['S', 'H', 'C', 'D'];
+        const suits = ['S', 'H', 'C', 'D'] as const;
         return c(suits[i % 4], 2 + (i % 13), i);
       });
       const r = aiChooseBottomCards(hand, cfg5);

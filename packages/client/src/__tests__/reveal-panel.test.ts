@@ -3,9 +3,9 @@ import type { Reveal } from '@poker/engine';
 import { createCard, Rank, Suit } from '@poker/engine';
 import { revealPills } from '../components/game/revealPanel.js';
 
-const lv = (s: string, i: number) => createCard(s as any, Rank.Two, i); // 级牌（level 2）
-const cur = (playerIndex: number, suit: string | null, strength: number): Reveal =>
-  ({ playerIndex, suit: suit as any, strength });
+const lv = (s: Suit, i: number) => createCard(s, Rank.Two, i); // 级牌（level 2）
+const cur = (playerIndex: number, suit: Suit | null, strength: number): Reveal =>
+  ({ playerIndex, suit, strength });
 const pill = (pills: ReturnType<typeof revealPills>, label: string) =>
   pills.find(p => p.label === label)!;
 
@@ -76,7 +76,7 @@ describe('revealPills — 反主（他人已亮）', () => {
   it('他人亮无主（strength 3）→ 有主花色全部灰；无主 4 > 3 可反', () => {
     const pills = revealPills(
       [lv('H', 0), lv('H', 1),
-       createCard('J' as any, Rank.BigJoker, 0), createCard('J' as any, Rank.BigJoker, 1)],
+       createCard('J', Rank.BigJoker, 0), createCard('J', Rank.BigJoker, 1)],
       2, cur(2, null, 3), 0,
     );
     expect(pill(pills, '♥').available).toBe(false);
@@ -88,8 +88,8 @@ describe('revealPills — 反主（他人已亮）', () => {
 describe('revealPills — 无主（NT/nt）', () => {
   it('对大王 → NT 可用（红）；对小王 → nt 可用（黑）；没人亮过 → 一律 1 图标', () => {
     const pills = revealPills(
-      [createCard('J' as any, Rank.BigJoker, 0), createCard('J' as any, Rank.BigJoker, 1),
-       createCard('J' as any, Rank.SmallJoker, 0), createCard('J' as any, Rank.SmallJoker, 1)],
+      [createCard('J', Rank.BigJoker, 0), createCard('J', Rank.BigJoker, 1),
+       createCard('J', Rank.SmallJoker, 0), createCard('J', Rank.SmallJoker, 1)],
       2, null, 0,
     );
     expect(pill(pills, 'NT').available).toBe(true);
@@ -100,14 +100,14 @@ describe('revealPills — 无主（NT/nt）', () => {
   });
 
   it('单张大王 → NT 灰（无主需对王）；无人亮 → 灰框 1 图标', () => {
-    const pills = revealPills([createCard('J' as any, Rank.BigJoker, 0)], 2, null, 0);
+    const pills = revealPills([createCard('J', Rank.BigJoker, 0)], 2, null, 0);
     expect(pill(pills, 'NT').available).toBe(false);
     expect(pill(pills, 'NT').icons).toBe(1);
   });
 
   it('自己已亮对小王无主 → NT 灰（禁止自反）', () => {
     const pills = revealPills(
-      [createCard('J' as any, Rank.BigJoker, 0), createCard('J' as any, Rank.BigJoker, 1)], 2, cur(0, null, 3), 0,
+      [createCard('J', Rank.BigJoker, 0), createCard('J', Rank.BigJoker, 1)], 2, cur(0, null, 3), 0,
     );
     expect(pill(pills, 'NT').available).toBe(false);
     expect(pill(pills, 'nt').available).toBe(false);

@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import type { Reveal } from '@poker/engine';
+import { Suit, type Reveal } from '@poker/engine';
 import { successfulReveals, displayReveals, isCurrentReveal, revealDisplayCards } from '../components/game/CenterArea.js';
 import { finalRevealChip } from '../components/game/PlayerSeat.js';
 
-const rev = (playerIndex: number, suit: string | null, strength: number): Reveal =>
-  ({ playerIndex, suit: suit as any, strength });
+const rev = (playerIndex: number, suit: Suit | null, strength: number): Reveal =>
+  ({ playerIndex, suit, strength });
 
 describe('successfulReveals — 只保留成功的亮/反主（失败尝试过滤）', () => {
   it('空历史 → 空', () => {

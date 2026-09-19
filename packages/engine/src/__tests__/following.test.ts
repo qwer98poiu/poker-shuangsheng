@@ -3,12 +3,12 @@ import { Suit } from '../types.js';
 import { createCard } from '../model.js';
 import { validateFollow, isOnlyLegalPlay } from '../following/index.js';
 import { classify } from '../pattern/index.js';
-import type { TrumpDeclaration, Card } from '../types.js';
+import type { Card, CardSuit, TrumpDeclaration } from '../types.js';
 
 const cfg5: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 5 };
 // trump = all Jokers, all Hearts, all 5s (any suit)
 
-function c(s: string, r: number, i: number): Card { return createCard(s as any, r as any, i); }
+function c(s: CardSuit, r: number, i: number): Card { return createCard(s, r, i); }
 
 // ============================================================
 // Pair lead (non-trump) — 领出对牌
@@ -24,10 +24,10 @@ describe('pair lead (non-trump)', () => {
       c('S', 12, 3), c('S', 11, 4), c('S', 10, 5), c('S', 9, 6),
     ];
     const lp = classify(lead, cfg5);
-    const r1 = validateFollow([c('S', 12, 3), c('S', 11, 4)], hand, lead, lp, 'S' as any, cfg5);
+    const r1 = validateFollow([c('S', 12, 3), c('S', 11, 4)], hand, lead, lp, 'S', cfg5);
     expect(r1.valid).toBe(false);
     expect(r1.error).toContain('pair');
-    const r2 = validateFollow([c('S', 13, 1), c('S', 13, 2)], hand, lead, lp, 'S' as any, cfg5);
+    const r2 = validateFollow([c('S', 13, 1), c('S', 13, 2)], hand, lead, lp, 'S', cfg5);
     expect(r2.valid).toBe(true);
   });
 
@@ -36,7 +36,7 @@ describe('pair lead (non-trump)', () => {
       c('S', 13, 1), c('S', 12, 2), c('S', 11, 3), c('S', 10, 4),
     ];
     const lp = classify(lead, cfg5);
-    const r = validateFollow([c('S', 13, 1), c('S', 12, 2)], hand, lead, lp, 'S' as any, cfg5);
+    const r = validateFollow([c('S', 13, 1), c('S', 12, 2)], hand, lead, lp, 'S', cfg5);
     expect(r.valid).toBe(true);
   });
 
@@ -46,9 +46,9 @@ describe('pair lead (non-trump)', () => {
       c('C', 10, 3), c('C', 9, 4),
     ];
     const lp = classify(lead, cfg5);
-    const r1 = validateFollow([c('S', 13, 1), c('C', 10, 3)], hand, lead, lp, 'S' as any, cfg5);
+    const r1 = validateFollow([c('S', 13, 1), c('C', 10, 3)], hand, lead, lp, 'S', cfg5);
     expect(r1.valid).toBe(false);
-    const r2 = validateFollow([c('S', 13, 1), c('S', 13, 2)], hand, lead, lp, 'S' as any, cfg5);
+    const r2 = validateFollow([c('S', 13, 1), c('S', 13, 2)], hand, lead, lp, 'S', cfg5);
     expect(r2.valid).toBe(true);
   });
 
@@ -57,14 +57,14 @@ describe('pair lead (non-trump)', () => {
       c('S', 13, 1), c('C', 10, 2), c('C', 9, 3),
     ];
     const lp = classify(lead, cfg5);
-    const r = validateFollow([c('S', 13, 1), c('C', 10, 2)], hand, lead, lp, 'S' as any, cfg5);
+    const r = validateFollow([c('S', 13, 1), c('C', 10, 2)], hand, lead, lp, 'S', cfg5);
     expect(r.valid).toBe(true);
   });
 
   it('void in suit → any play valid', () => {
     const hand = [c('C', 13, 1), c('C', 12, 2), c('C', 11, 3)];
     const lp = classify(lead, cfg5);
-    const r = validateFollow([c('C', 13, 1), c('C', 12, 2)], hand, lead, lp, 'S' as any, cfg5);
+    const r = validateFollow([c('C', 13, 1), c('C', 12, 2)], hand, lead, lp, 'S', cfg5);
     expect(r.valid).toBe(true);
   });
 
@@ -88,10 +88,10 @@ describe('tractor lead (non-trump)', () => {
     ];
     const lp = classify(lead, cfg5);
     // accept: exact tractor QJ
-    const r1 = validateFollow([c('S', 12, 1), c('S', 12, 2), c('S', 11, 3), c('S', 11, 4)], hand, lead, lp, 'S' as any, cfg5);
+    const r1 = validateFollow([c('S', 12, 1), c('S', 12, 2), c('S', 11, 3), c('S', 11, 4)], hand, lead, lp, 'S', cfg5);
     expect(r1.valid).toBe(true);
     // reject: no tractor, no pairs (4 singles)
-    const r2 = validateFollow([c('S', 12, 1), c('S', 10, 5), c('S', 9, 6), c('S', 8, 7)], hand, lead, lp, 'S' as any, cfg5);
+    const r2 = validateFollow([c('S', 12, 1), c('S', 10, 5), c('S', 9, 6), c('S', 8, 7)], hand, lead, lp, 'S', cfg5);
     expect(r2.valid).toBe(false);
   });
 
@@ -105,7 +105,7 @@ describe('tractor lead (non-trump)', () => {
     ];
     const lp = classify(lead, cfg5);
     // extract 2-pair from 3-pair ≡ valid
-    const r = validateFollow([c('S', 12, 1), c('S', 12, 2), c('S', 11, 3), c('S', 11, 4)], hand, lead, lp, 'S' as any, cfg5);
+    const r = validateFollow([c('S', 12, 1), c('S', 12, 2), c('S', 11, 3), c('S', 11, 4)], hand, lead, lp, 'S', cfg5);
     expect(r.valid).toBe(true);
   });
 
@@ -118,10 +118,10 @@ describe('tractor lead (non-trump)', () => {
     ];
     const lp = classify(lead, cfg5);
     // accept: 2 pairs fill the tractor slot
-    const r1 = validateFollow([c('S', 12, 1), c('S', 12, 2), c('S', 9, 3), c('S', 9, 4)], hand, lead, lp, 'S' as any, cfg5);
+    const r1 = validateFollow([c('S', 12, 1), c('S', 12, 2), c('S', 9, 3), c('S', 9, 4)], hand, lead, lp, 'S', cfg5);
     expect(r1.valid).toBe(true);
     // reject: only 1 pair + 2 singles
-    const r2 = validateFollow([c('S', 12, 1), c('S', 12, 2), c('S', 9, 3), c('S', 8, 5)], hand, lead, lp, 'S' as any, cfg5);
+    const r2 = validateFollow([c('S', 12, 1), c('S', 12, 2), c('S', 9, 3), c('S', 8, 5)], hand, lead, lp, 'S', cfg5);
     expect(r2.valid).toBe(false);
   });
 
@@ -130,7 +130,7 @@ describe('tractor lead (non-trump)', () => {
       c('S', 12, 1), c('S', 9, 2), c('S', 8, 3), c('S', 7, 4), c('S', 6, 5),
     ];
     const lp = classify(lead, cfg5);
-    const r = validateFollow([c('S', 12, 1), c('S', 9, 2), c('S', 8, 3), c('S', 7, 4)], hand, lead, lp, 'S' as any, cfg5);
+    const r = validateFollow([c('S', 12, 1), c('S', 9, 2), c('S', 8, 3), c('S', 7, 4)], hand, lead, lp, 'S', cfg5);
     expect(r.valid).toBe(true);
   });
 
@@ -140,7 +140,7 @@ describe('tractor lead (non-trump)', () => {
       c('C', 10, 3), c('C', 9, 4),
     ];
     const lp = classify(lead, cfg5);
-    const r = validateFollow([c('S', 12, 1), c('S', 11, 2), c('C', 10, 3), c('C', 9, 4)], hand, lead, lp, 'S' as any, cfg5);
+    const r = validateFollow([c('S', 12, 1), c('S', 11, 2), c('C', 10, 3), c('C', 9, 4)], hand, lead, lp, 'S', cfg5);
     expect(r.valid).toBe(true);
   });
 
@@ -151,10 +151,10 @@ describe('tractor lead (non-trump)', () => {
     ];
     const lp = classify(lead, cfg5);
     // accept: pair + 2 fillers
-    const r1 = validateFollow([c('S', 12, 1), c('S', 12, 2), c('C', 10, 3), c('C', 9, 4)], hand, lead, lp, 'S' as any, cfg5);
+    const r1 = validateFollow([c('S', 12, 1), c('S', 12, 2), c('C', 10, 3), c('C', 9, 4)], hand, lead, lp, 'S', cfg5);
     expect(r1.valid).toBe(true);
     // reject: didn't play both spades
-    const r2 = validateFollow([c('S', 12, 1), c('C', 10, 3), c('C', 9, 4), c('C', 8, 5)], hand, lead, lp, 'S' as any, cfg5);
+    const r2 = validateFollow([c('S', 12, 1), c('C', 10, 3), c('C', 9, 4), c('C', 8, 5)], hand, lead, lp, 'S', cfg5);
     expect(r2.valid).toBe(false);
   });
 
@@ -242,7 +242,7 @@ describe('throw (singles only)', () => {
       c('S', 11, 1), c('S', 10, 2), c('S', 9, 3), c('S', 8, 4),
     ];
     const lp = classify(lead, cfg5);
-    const r = validateFollow([c('S', 11, 1), c('S', 10, 2), c('S', 9, 3)], hand, lead, lp, 'S' as any, cfg5);
+    const r = validateFollow([c('S', 11, 1), c('S', 10, 2), c('S', 9, 3)], hand, lead, lp, 'S', cfg5);
     expect(r.valid).toBe(true);
   });
 
@@ -251,16 +251,16 @@ describe('throw (singles only)', () => {
       c('S', 11, 1), c('C', 10, 2), c('C', 9, 3),
     ];
     const lp = classify(lead, cfg5);
-    const r1 = validateFollow([c('C', 10, 2), c('C', 9, 3), c('C', 8, 4)], hand, lead, lp, 'S' as any, cfg5);
+    const r1 = validateFollow([c('C', 10, 2), c('C', 9, 3), c('C', 8, 4)], hand, lead, lp, 'S', cfg5);
     expect(r1.valid).toBe(false);
-    const r2 = validateFollow([c('S', 11, 1), c('C', 10, 2), c('C', 9, 3)], hand, lead, lp, 'S' as any, cfg5);
+    const r2 = validateFollow([c('S', 11, 1), c('C', 10, 2), c('C', 9, 3)], hand, lead, lp, 'S', cfg5);
     expect(r2.valid).toBe(true);
   });
 
   it('void → any play', () => {
     const hand = [c('C', 13, 1), c('C', 12, 2), c('C', 11, 3), c('C', 10, 4)];
     const lp = classify(lead, cfg5);
-    const r = validateFollow([c('C', 13, 1), c('C', 12, 2), c('C', 11, 3)], hand, lead, lp, 'S' as any, cfg5);
+    const r = validateFollow([c('C', 13, 1), c('C', 12, 2), c('C', 11, 3)], hand, lead, lp, 'S', cfg5);
     expect(r.valid).toBe(true);
   });
 
@@ -283,10 +283,10 @@ describe('throw (pair + single)', () => {
     ];
     const lp = classify(lead, cfg5);
     // reject: 3 singles, no pair
-    const r1 = validateFollow([c('S', 12, 1), c('S', 11, 3), c('S', 10, 4)], hand, lead, lp, 'S' as any, cfg5);
+    const r1 = validateFollow([c('S', 12, 1), c('S', 11, 3), c('S', 10, 4)], hand, lead, lp, 'S', cfg5);
     expect(r1.valid).toBe(false);
     // accept: pair + single
-    const r2 = validateFollow([c('S', 12, 1), c('S', 12, 2), c('S', 11, 3)], hand, lead, lp, 'S' as any, cfg5);
+    const r2 = validateFollow([c('S', 12, 1), c('S', 12, 2), c('S', 11, 3)], hand, lead, lp, 'S', cfg5);
     expect(r2.valid).toBe(true);
   });
 
@@ -295,7 +295,7 @@ describe('throw (pair + single)', () => {
       c('S', 12, 1), c('S', 11, 2), c('S', 10, 3), c('S', 9, 4),
     ];
     const lp = classify(lead, cfg5);
-    const r = validateFollow([c('S', 12, 1), c('S', 11, 2), c('S', 10, 3)], hand, lead, lp, 'S' as any, cfg5);
+    const r = validateFollow([c('S', 12, 1), c('S', 11, 2), c('S', 10, 3)], hand, lead, lp, 'S', cfg5);
     expect(r.valid).toBe(true);
   });
 
@@ -305,9 +305,9 @@ describe('throw (pair + single)', () => {
       c('C', 10, 3), c('C', 9, 4),
     ];
     const lp = classify(lead, cfg5);
-    const r1 = validateFollow([c('S', 12, 1), c('C', 10, 3), c('C', 9, 4)], hand, lead, lp, 'S' as any, cfg5);
+    const r1 = validateFollow([c('S', 12, 1), c('C', 10, 3), c('C', 9, 4)], hand, lead, lp, 'S', cfg5);
     expect(r1.valid).toBe(false);
-    const r2 = validateFollow([c('S', 12, 1), c('S', 12, 2), c('C', 10, 3)], hand, lead, lp, 'S' as any, cfg5);
+    const r2 = validateFollow([c('S', 12, 1), c('S', 12, 2), c('C', 10, 3)], hand, lead, lp, 'S', cfg5);
     expect(r2.valid).toBe(true);
   });
 
@@ -316,7 +316,7 @@ describe('throw (pair + single)', () => {
       c('S', 12, 1), c('S', 11, 2), c('C', 10, 3),
     ];
     const lp = classify(lead, cfg5);
-    const r = validateFollow([c('S', 12, 1), c('S', 11, 2), c('C', 10, 3)], hand, lead, lp, 'S' as any, cfg5);
+    const r = validateFollow([c('S', 12, 1), c('S', 11, 2), c('C', 10, 3)], hand, lead, lp, 'S', cfg5);
     expect(r.valid).toBe(true);
   });
 
@@ -346,10 +346,10 @@ describe('throw (tractor + single)', () => {
     ];
     const lp = classify(lead, cfg5);
     // accept: extract 2-pair (JJ1010) + 1 single
-    const r1 = validateFollow([c('S', 11, 1), c('S', 11, 2), c('S', 10, 3), c('S', 10, 4), c('S', 8, 7)], hand, lead, lp, 'S' as any, cfg5);
+    const r1 = validateFollow([c('S', 11, 1), c('S', 11, 2), c('S', 10, 3), c('S', 10, 4), c('S', 8, 7)], hand, lead, lp, 'S', cfg5);
     expect(r1.valid).toBe(true);
     // reject: two non-consecutive pairs (JJ+99) + single
-    const r2 = validateFollow([c('S', 11, 1), c('S', 11, 2), c('S', 9, 5), c('S', 9, 6), c('S', 8, 7)], hand, lead, lp, 'S' as any, cfg5);
+    const r2 = validateFollow([c('S', 11, 1), c('S', 11, 2), c('S', 9, 5), c('S', 9, 6), c('S', 8, 7)], hand, lead, lp, 'S', cfg5);
     expect(r2.valid).toBe(false);
   });
 
@@ -362,10 +362,10 @@ describe('throw (tractor + single)', () => {
     ];
     const lp = classify(lead, cfg5);
     // accept: 2 pairs + 1 single
-    const r1 = validateFollow([c('S', 11, 1), c('S', 11, 2), c('S', 8, 3), c('S', 8, 4), c('S', 7, 5)], hand, lead, lp, 'S' as any, cfg5);
+    const r1 = validateFollow([c('S', 11, 1), c('S', 11, 2), c('S', 8, 3), c('S', 8, 4), c('S', 7, 5)], hand, lead, lp, 'S', cfg5);
     expect(r1.valid).toBe(true);
     // reject: only 1 pair + 3 singles
-    const r2 = validateFollow([c('S', 11, 1), c('S', 11, 2), c('S', 8, 3), c('S', 7, 5), c('S', 6, 6)], hand, lead, lp, 'S' as any, cfg5);
+    const r2 = validateFollow([c('S', 11, 1), c('S', 11, 2), c('S', 8, 3), c('S', 7, 5), c('S', 6, 6)], hand, lead, lp, 'S', cfg5);
     expect(r2.valid).toBe(false);
   });
 
@@ -377,7 +377,7 @@ describe('throw (tractor + single)', () => {
       c('C', 9, 5),
     ];
     const lp = classify(lead, cfg5);
-    const r = validateFollow([c('S', 11, 1), c('S', 11, 2), c('S', 10, 3), c('S', 10, 4), c('C', 9, 5)], hand, lead, lp, 'S' as any, cfg5);
+    const r = validateFollow([c('S', 11, 1), c('S', 11, 2), c('S', 10, 3), c('S', 10, 4), c('C', 9, 5)], hand, lead, lp, 'S', cfg5);
     expect(r.valid).toBe(true);
   });
 
@@ -409,10 +409,10 @@ describe('throw (tractor + standalone pair)', () => {
     ];
     const lp = classify(lead, cfg5);
     // accept: tractor QJ + pair 99 = 6 cards
-    const r1 = validateFollow([c('S', 12, 1), c('S', 12, 2), c('S', 11, 3), c('S', 11, 4), c('S', 9, 5), c('S', 9, 6)], hand, lead, lp, 'S' as any, cfg5);
+    const r1 = validateFollow([c('S', 12, 1), c('S', 12, 2), c('S', 11, 3), c('S', 11, 4), c('S', 9, 5), c('S', 9, 6)], hand, lead, lp, 'S', cfg5);
     expect(r1.valid).toBe(true);
     // reject: only 2 pairs + 2 singles (missing tractor/fill)
-    const r2 = validateFollow([c('S', 12, 1), c('S', 12, 2), c('S', 9, 5), c('S', 9, 6), c('S', 8, 7), c('S', 7, 8)], hand, lead, lp, 'S' as any, cfg5);
+    const r2 = validateFollow([c('S', 12, 1), c('S', 12, 2), c('S', 9, 5), c('S', 9, 6), c('S', 8, 7), c('S', 7, 8)], hand, lead, lp, 'S', cfg5);
     expect(r2.valid).toBe(false);
   });
 
@@ -426,7 +426,7 @@ describe('throw (tractor + standalone pair)', () => {
     ];
     const lp = classify(lead, cfg5);
     // accept: 3 pairs
-    const r = validateFollow([c('S', 12, 1), c('S', 12, 2), c('S', 9, 3), c('S', 9, 4), c('S', 6, 5), c('S', 6, 6)], hand, lead, lp, 'S' as any, cfg5);
+    const r = validateFollow([c('S', 12, 1), c('S', 12, 2), c('S', 9, 3), c('S', 9, 4), c('S', 6, 5), c('S', 6, 6)], hand, lead, lp, 'S', cfg5);
     expect(r.valid).toBe(true);
   });
 
@@ -452,7 +452,7 @@ describe('short-suited / exact-count (no pattern check)', () => {
     // Play all 4 spade singles — valid because player must play all suit cards.
     const r = validateFollow(
       [c('S', 12, 1), c('S', 11, 2), c('S', 10, 3), c('S', 9, 4)],
-      hand, lead, lp, 'S' as any, cfg5,
+      hand, lead, lp, 'S', cfg5,
     );
     expect(r.valid).toBe(true);
   });
@@ -469,7 +469,7 @@ describe('short-suited / exact-count (no pattern check)', () => {
     // Play both spades → valid even though they don't form a pair.
     const r = validateFollow(
       [c('S', 13, 1), c('S', 12, 2)],
-      hand, lead, lp, 'S' as any, cfg5,
+      hand, lead, lp, 'S', cfg5,
     );
     expect(r.valid).toBe(true);
   });
@@ -486,7 +486,7 @@ describe('short-suited / exact-count (no pattern check)', () => {
     // Play both spades as a pair + 2 fillers → valid.
     const r = validateFollow(
       [c('S', 12, 1), c('S', 12, 2), c('C', 10, 3), c('C', 9, 4)],
-      hand, lead, lp, 'S' as any, cfg5,
+      hand, lead, lp, 'S', cfg5,
     );
     expect(r.valid).toBe(true);
   });
@@ -507,7 +507,7 @@ describe('short-suited / exact-count (no pattern check)', () => {
     // Play both spade singles + 3 fillers → valid.
     const r = validateFollow(
       [c('S', 11, 1), c('S', 10, 2), c('C', 9, 3), c('C', 8, 4), c('C', 7, 5)],
-      hand, lead, lp, 'S' as any, cfg5,
+      hand, lead, lp, 'S', cfg5,
     );
     expect(r.valid).toBe(true);
   });
@@ -528,7 +528,7 @@ describe('short-suited / exact-count (no pattern check)', () => {
     // Play pair + single + 3 fillers → valid.
     const r = validateFollow(
       [c('S', 12, 1), c('S', 12, 2), c('S', 11, 3), c('C', 9, 4), c('C', 8, 5), c('C', 7, 6)],
-      hand, lead, lp, 'S' as any, cfg5,
+      hand, lead, lp, 'S', cfg5,
     );
     expect(r.valid).toBe(true);
   });
@@ -564,7 +564,7 @@ describe('short-suited / exact-count (no pattern check)', () => {
     // Play the tractor → valid (must play all suit cards).
     const r = validateFollow(
       [c('S', 12, 1), c('S', 12, 2), c('S', 11, 3), c('S', 11, 4)],
-      hand, lead, lp, 'S' as any, cfg5,
+      hand, lead, lp, 'S', cfg5,
     );
     expect(r.valid).toBe(true);
   });
@@ -578,7 +578,7 @@ describe('validateFollow (basic)', () => {
   const trump2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
 
   it('rejects wrong count', () => {
-    const r = validateFollow([c('H', 3, 0)], [c('H', 3, 0)], [c('H', 5, 1), c('H', 5, 2)], classify([c('H', 5, 1), c('H', 5, 2)], trump2), 'H' as any, trump2);
+    const r = validateFollow([c('H', 3, 0)], [c('H', 3, 0)], [c('H', 5, 1), c('H', 5, 2)], classify([c('H', 5, 1), c('H', 5, 2)], trump2), 'H', trump2);
     expect(r.valid).toBe(false);
     expect(r.error).toContain('must play');
   });
@@ -586,7 +586,7 @@ describe('validateFollow (basic)', () => {
   it('must follow suit', () => {
     const hand = [c('H', 3, 0), c('D', 4, 1)];
     const lead = [c('H', 5, 2)];
-    const r = validateFollow([c('D', 4, 1)], hand, lead, classify(lead, trump2), 'H' as any, trump2);
+    const r = validateFollow([c('D', 4, 1)], hand, lead, classify(lead, trump2), 'H', trump2);
     expect(r.valid).toBe(false);
     expect(r.error).toContain('follow suit');
   });
@@ -594,14 +594,14 @@ describe('validateFollow (basic)', () => {
   it('void can trump', () => {
     const hand = [c('S', 2, 0)];
     const lead = [c('H', 5, 1)];
-    const r = validateFollow([c('S', 2, 0)], hand, lead, classify(lead, trump2), 'H' as any, trump2);
+    const r = validateFollow([c('S', 2, 0)], hand, lead, classify(lead, trump2), 'H', trump2);
     expect(r.valid).toBe(true);
   });
 
   it('trump lead must follow trump', () => {
     const hand = [c('S', 2, 0), c('S', 3, 1), c('H', 5, 2)];
     const lead = [c('S', 2, 3)];
-    const r = validateFollow([c('H', 5, 2)], hand, lead, classify(lead, trump2), 'S' as any, trump2);
+    const r = validateFollow([c('H', 5, 2)], hand, lead, classify(lead, trump2), 'S', trump2);
     expect(r.valid).toBe(false);
     expect(r.error).toContain('trump');
   });
@@ -640,7 +640,7 @@ describe('validateFollow (basic)', () => {
   it('trump lead with pair — must play pair if available', () => {
     const hand = [c('S', 3, 0), c('S', 3, 1), c('S', 5, 2)];
     const lead = [c('S', 2, 3), c('S', 2, 5)];
-    const r = validateFollow([c('S', 3, 0), c('S', 5, 2)], hand, lead, classify(lead, trump2), 'S' as any, trump2);
+    const r = validateFollow([c('S', 3, 0), c('S', 5, 2)], hand, lead, classify(lead, trump2), 'S', trump2);
     expect(r.valid).toBe(false);
     expect(r.error).toContain('pair');
   });
@@ -829,8 +829,8 @@ describe('complex tractor follow (diamonds trump, ace level)', () => {
     // Following a throw with two 2-pair tractors (AAKK + JJ1010 = 8 cards),
     // player must pick any 2 disjoint 2-pair tractors from the 6 pairs.
     const cfg6: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 6 };
-    function ct(s: string, r: number, i: number): Card {
-      return createCard(s as any, r as any, i);
+    function ct(s: CardSuit, r: number, i: number): Card {
+      return createCard(s, r, i);
     }
 
     const lead: Card[] = [
@@ -860,7 +860,7 @@ describe('complex tractor follow (diamonds trump, ace level)', () => {
         ct('C', 5, 0), ct('C', 5, 1),
         ct('C', 4, 0), ct('C', 4, 1),
       ];
-      const r = validateFollow(play, hand, lead, lp, 'C' as any, cfg6);
+      const r = validateFollow(play, hand, lead, lp, 'C', cfg6);
       expect(r.valid).toBe(true);
     });
 
@@ -871,7 +871,7 @@ describe('complex tractor follow (diamonds trump, ace level)', () => {
         ct('C', 4, 0), ct('C', 4, 1),
         ct('C', 3, 0), ct('C', 3, 1),
       ];
-      const r = validateFollow(play, hand, lead, lp, 'C' as any, cfg6);
+      const r = validateFollow(play, hand, lead, lp, 'C', cfg6);
       expect(r.valid).toBe(true);
     });
 
@@ -882,7 +882,7 @@ describe('complex tractor follow (diamonds trump, ace level)', () => {
         ct('C', 3, 0), ct('C', 3, 1),
         ct('C', 2, 0), ct('C', 2, 1),
       ];
-      const r = validateFollow(play, hand, lead, lp, 'C' as any, cfg6);
+      const r = validateFollow(play, hand, lead, lp, 'C', cfg6);
       expect(r.valid).toBe(true);
     });
 
@@ -893,7 +893,7 @@ describe('complex tractor follow (diamonds trump, ace level)', () => {
         ct('C', 4, 0), ct('C', 4, 1),
         ct('C', 3, 0), ct('C', 3, 1),
       ];
-      const r = validateFollow(play, hand, lead, lp, 'C' as any, cfg6);
+      const r = validateFollow(play, hand, lead, lp, 'C', cfg6);
       expect(r.valid).toBe(true);
     });
 
@@ -904,7 +904,7 @@ describe('complex tractor follow (diamonds trump, ace level)', () => {
         ct('C', 3, 0), ct('C', 3, 1),
         ct('C', 2, 0), ct('C', 2, 1),
       ];
-      const r = validateFollow(play, hand, lead, lp, 'C' as any, cfg6);
+      const r = validateFollow(play, hand, lead, lp, 'C', cfg6);
       expect(r.valid).toBe(true);
     });
 
@@ -915,7 +915,7 @@ describe('complex tractor follow (diamonds trump, ace level)', () => {
         ct('C', 3, 0), ct('C', 3, 1),
         ct('C', 2, 0), ct('C', 2, 1),
       ];
-      const r = validateFollow(play, hand, lead, lp, 'C' as any, cfg6);
+      const r = validateFollow(play, hand, lead, lp, 'C', cfg6);
       expect(r.valid).toBe(true);
     });
 

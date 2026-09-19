@@ -5,7 +5,7 @@
  * individual virtual copy IDs. This avoids the pair-deduction / card-removal
  * divergence bug.
  */
-import type { Card, Trick, Reveal } from '../types.js';
+import type { Card, Trick, Reveal, CardSuit } from '../types.js';
 import { SpecialSuit } from '../types.js';
 import { createCard, isTrump, getEffectiveRank } from '../model.js';
 import { classify, findAllPairs } from '../pattern/index.js';
@@ -52,9 +52,10 @@ function countBySuitRank(cards: Card[]): Map<string, number> {
 
 function reconstructFromKey(key: string): Card {
   const dashIdx = key.indexOf('-');
-  const suit = key.slice(0, dashIdx);
+  // key 由 suitRankKey 生成，花色段必然是 'S'|'H'|'C'|'D'|'J' 之一
+  const suit = key.slice(0, dashIdx) as CardSuit;
   const rank = parseInt(key.slice(dashIdx + 1), 10);
-  return createCard(suit as any, rank as any, 0);
+  return createCard(suit, rank, 0);
 }
 
 // ---- Tracking state ----

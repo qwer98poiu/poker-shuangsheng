@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { createCard, createInitialState, GamePhase, Suit } from '@poker/engine';
-import type { Card, GameState, PlayerState } from '@poker/engine';
+import type { Card, CardSuit, GameState, PlayerState } from '@poker/engine';
 import { cardName, formatGameExport } from '../components/game/export-game.js';
 
-const c = (s: string, r: number, i: number): Card => createCard(s as any, r as any, i);
+const c = (s: CardSuit, r: number, i: number): Card => createCard(s, r, i);
 const mk = (name: string, idx: number, hand: Card[]): PlayerState => ({ name, index: idx, hand, isHuman: false });
 const play = (cards: Card[]): any => ({ cards, pattern: { type: 'single', cards, length: 1, pairCount: 0, tractors: [], hasTractor: false }, leadSuit: Suit.Spades });
 

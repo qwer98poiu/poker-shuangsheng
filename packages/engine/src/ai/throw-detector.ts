@@ -100,7 +100,7 @@ function getAllSuitCards(suit: Suit, level: number): Card[] {
   for (let d = 0; d < 2; d++) {
     for (let r = 2; r <= 14; r++) {
       if (r === level) continue; // level card is trump, not in this suit group
-      cards.push(createCard(suit, r as any, idx++));
+      cards.push(createCard(suit, r, idx++));
     }
   }
   return cards;

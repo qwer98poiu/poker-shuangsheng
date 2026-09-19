@@ -1,14 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { Suit, Rank } from '../types.js';
+import { Rank, Suit } from '../types.js';
 import { createCard, sortHand } from '../model.js';
 import { cardGreater, compareTwo, determineWinner } from '../comparing/index.js';
-import type { TrumpDeclaration, Card } from '../types.js';
+import type { Card, CardSuit, TrumpDeclaration } from '../types.js';
 
 const trump2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
 const trumpA: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 14 };
 
-function ct(suit: string, rank: number, idx: number): Card {
-  return createCard(suit as any, rank as any, idx);
+function ct(suit: CardSuit, rank: number, idx: number): Card {
+  return createCard(suit, rank, idx);
 }
 
 describe('cardGreater', () => {

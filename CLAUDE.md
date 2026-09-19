@@ -115,7 +115,7 @@ Changelog 测试数行与提交信息不同——列出子包分项与总数；�
 - **命令**：根目录 `npm run typecheck`，按 engine → arena → cli → client 顺序各跑一次 `tsc --noEmit`（与 `test:all` 同风格，任一失败即停止）。提交前必零错误。
 - **历史坑一（范围）**：该条原先只写「engine 与 client」，`cli`/`arena` 从未被检查过——2026-09-19 修掉的 13 个 TS2345（`packages/cli/src/__tests__/round-result.test.ts`）在此之前一直存在于 HEAD 上，而 vitest 全绿。
 - **历史坑二（`scripts/`）**：四个包的 `tsconfig.json` 都只 `include: ["src"]`，**`packages/*/scripts/` 不在任何 tsconfig 范围内**。有 scripts 的包（engine / arena / client）另配 `tsconfig.scripts.json`，已并入该包的 `typecheck` 脚本；新增含 scripts 的包要同步补一个，否则脚本仍然裸奔。
-- **字符串枚举**：`Suit`/`SpecialSuit` 是字符串枚举（值就是 `'S'`/`'J'`，但类型是名义的），`'S'` 不能赋给 `CardSuit`，要写 `Suit.Spades`；`Rank` 是数值枚举，传裸数字合法（`createCard(Suit.Spades, 14, 200)`）。
+- **花色类型**：`Suit`/`SpecialSuit` 是 `as const` 对象 + 同名联合类型（2026-09-19 由**字符串枚举**改来；字符串枚举是名义类型，那时 `'S'` 赋给 `CardSuit` 会报 TS2345，没有任何编译器开关能放宽）。现在 `Suit.Spades` 与 `'S'` 都合法，不需要任何 cast；`Rank` 仍是数值枚举，传裸数字合法（`createCard(Suit.Spades, 14, 200)`）。
 - **不要用 `as any` 消音**：那会把整条链路的类型检查一起关掉——`createCard(s, r as any, i)` 就是反例，它同时掩盖了 rank 传错这类真错误。类型实在对不上时用最小必要的 cast（`as CardSuit` 而非 `as any`）。
 
 ## 布局回归检查
