@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-09-19 08:54
+
+### 类型检查补齐四个包 + `packages/*/scripts/`
+
+**问题**：`CLAUDE.md` 的提交前清单只写「在 `packages/engine` 与 `packages/client` 下各跑一次 `npx tsc --noEmit`」，`cli` 与 `arena` 从来不在检查范围内——09-17 00:06 修掉的 13 个 TS2345（`packages/cli/src/__tests__/round-result.test.ts`）在此之前**一直存在于 HEAD 上**，而 vitest 经 esbuild 转译不做类型检查，测试始终全绿。第二个缺口是脚本：四个包的 `tsconfig.json` 都只 `include: ["src"]`，`packages/*/scripts/` 不在**任何** tsconfig 范围内，`elo-calc.ts`、`layout-regression.ts`、`ui-player.ts`、`gen-bottom-tests.ts` 等全部裸奔（改 `elo-calc.ts` 时只能手工指定编译选项单跑）。实测一纳入 scripts 就多出 8 个错误。
+
+**修复**：
+
+- 各包 `package.json` 加 `typecheck`：engine / arena / client 跑「`tsc --noEmit` + `tsc --noEmit -p tsconfig.scripts.json`」，cli 只有前者。根 `package.json` 加 `typecheck`，按 engine → arena → cli → client 顺序串跑（与 `test:all` 同风格，任一失败即停止）。
+- 新增 `packages/{engine,arena,client}/tsconfig.scripts.json`（继承 `tsconfig.base.json`，`include: ["scripts"]`，`noEmit`；client 另加 `jsx`）。`arena`/`cli` 的 devDependencies 补 `typescript`（原先只靠 workspace 提升可用）。
+- 清掉纳入检查后暴露的 7 个错误：`client/scripts/lib/driver.ts` 的 `UiSnapshot.store.gameState` 由 `any` 改为 `GameState | null`（**根因**——`any` 让 `ui-player.ts` 里 `gs.players[0].hand` 等 6 处的回调参数失去上下文类型，报 4 个 TS7006 与 2 个 `unknown[]` → `Card[]`；改完后只剩 1 个真实告警：`maybeUseDebugMenu` 未判空，补 `if (!gs) return`）。
+- 顺手去掉三处多余的 `as any`：`driver.ts`/`ui-player.ts` 里 `(window as any)` 仍保留（页面注入全局，必要），但 `nt-replay-trace.ts` 的 `suitLabel(c.suit as any)`（`Card` 的 `suit` 本就有类型）、`layout-regression.ts` 的 `createCard(m[1] as any, ...)`（改为 `as CardSuit`，从「关掉检查」退到「最小必要的 cast」）。
+- `CLAUDE.md`：提交前那条改为指向根目录 `npm run typecheck`；新增「类型检查」一节，写明四个包的范围、`scripts/` 的缺口与各自的 `tsconfig.scripts.json`、字符串枚举的字面量限制（含 `Rank` 数值枚举的反例）以及「不要用 `as any` 消音」。
+
+**无新增测试**，引擎 772 项 + arena 67 项 + CLI 80 项 + client 201 项 = 1120 项通过（`npm run typecheck` 四包 + 三个 scripts 配置均为零错误）。
+
+- **影响文件**：`package.json`、`packages/engine/package.json`、`packages/arena/package.json`、`packages/cli/package.json`、`packages/client/package.json`、`packages/engine/tsconfig.scripts.json`、`packages/arena/tsconfig.scripts.json`、`packages/client/tsconfig.scripts.json`、`packages/client/scripts/lib/driver.ts`、`packages/client/scripts/ui-player.ts`、`packages/client/scripts/layout-regression.ts`、`CLAUDE.md`
+
 ## 2026-09-19 08:26
 
 ### 修复 Trick.plays 索引错位：大王判断把别人的牌记到自己头上

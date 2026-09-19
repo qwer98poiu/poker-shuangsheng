@@ -18,6 +18,7 @@ import { createRequire } from 'node:module';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import type { CardSuit } from '@poker/engine';
 import { createCard } from '../../../packages/engine/src/model.js';
 
 const require = createRequire(import.meta.url);
@@ -34,7 +35,7 @@ const TOLERANCE = 1;
 const card = (id: string) => {
   const m = /^([A-Z])-(\d+)-(\d+)$/.exec(id);
   if (!m) throw new Error(`bad card id: ${id}`);
-  return createCard(m[1] as any, Number(m[2]), Number(m[3]));
+  return createCard(m[1] as CardSuit, Number(m[2]), Number(m[3]));
 };
 
 // ---- 各阶段固定状态（牌 id = 引擎 cardId；同 suit-rank 全局 ≤2 张） ----
