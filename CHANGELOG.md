@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-09-19 08:26
+
+### 修复 Trick.plays 索引错位：大王判断把别人的牌记到自己头上
+
+**问题**：`Trick.plays` 是「从领出者起算、按出牌顺序」存放的四元组（`game/index.ts` 逐手 `[...trickPlays, play]` 追加），`plays[k]` 属于玩家 `(leadPlayerIndex + k) % 4`——`determineWinner`、`computeBestSoFar`、GUI 导出都按这个约定读，只有 `ai/nt-tracking.ts` 显式写出换算。但 `ai/helpers.ts` 的 `sideHasBigJoker` 把下标直接当座位号用：读 `plays[pi]` 再拿 `ourTeam.has(pi)` 判断，**只要那一墩不是自己领出，读到的就是别人的牌**，「我方是否已见大王」因此可能失真（有主局的加分/避分判断依赖它）。
+
+**修复**：引擎新增 `playOf(trick, playerIndex)`（`model.ts`，按 `(playerIndex - leadPlayerIndex + 4) % 4` 换算槽位），`sideHasBigJoker` 改走它，改用 `playOf(trick, pi).cards` 后团队判断自然落在正确的座位上。同属这一类错位的无主长花色记忆（`ai/suit-memory.ts`，6 处按座位读 `plays`）此时尚未引入，随「无主长花色领出层」一并落地——它在那一笔里从一开始就读 `playOf`，对应的 5 项新增测试也在该提交。
+
+实测：本提交点上竞技场自对弈指纹（203 / A 当庄 8 次）与客户端种子局（attackerPoints 140、17 墩）均不变——只有无主长花色记忆上线后，这些数字才随读牌修正变化。
+
+**无新增测试**，引擎 772 项 + arena 67 项 + CLI 80 项 + client 201 项 = 1120 项通过。
+
+- **影响文件**：`packages/engine/src/model.ts`、`packages/engine/src/ai/helpers.ts`
+
 ## 2026-09-17 00:12
 
 ### 修复 cli/round-result.test.ts 的 Suit 枚举类型错误

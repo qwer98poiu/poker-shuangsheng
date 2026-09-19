@@ -5,7 +5,7 @@
  */
 import type { Card, ComboClass } from '../types.js';
 import { Rank, isPointRank } from '../types.js';
-import { isTrump, getEffectiveRank } from '../model.js';
+import { isTrump, getEffectiveRank, playOf } from '../model.js';
 import { findAllPairs, detectTractors } from '../pattern/index.js';
 import type { AIContext } from './types.js';
 import { isBigOffSuitCard, discardSort, pairSortAsc } from './utils.js';
@@ -158,8 +158,9 @@ export function sideHasBigJoker(ctx: AIContext): boolean {
   const ourTeam = new Set([ctx.myIndex, (ctx.myIndex + 2) % 4]);
   for (const trick of ctx.trickHistory) {
     for (let pi = 0; pi < 4; pi++) {
-      for (const c of trick.plays[pi].cards) {
-        if (c.rank === Rank.BigJoker && ourTeam.has(pi)) return true;
+      if (!ourTeam.has(pi)) continue;
+      for (const c of playOf(trick, pi).cards) {
+        if (c.rank === Rank.BigJoker) return true;
       }
     }
   }

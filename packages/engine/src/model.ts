@@ -1,8 +1,19 @@
 /**
  * Pure model: card creation, deck, rank ordering, hand sorting.
  */
-import type { Card, CardSuit, TrumpDeclaration } from './types.js';
+import type { Card, CardSuit, PlayedCards, Trick, TrumpDeclaration } from './types.js';
 import { Rank, Suit, SpecialSuit, SUIT_ORDER, cardId } from './types.js';
+
+// ---- Trick accessors ----
+
+/**
+ * The play a given player made in a trick. `Trick.plays` is stored in **play
+ * order** starting from the leader (slot 0 is always the lead, whoever led),
+ * so a seat number has to be rotated into a slot first.
+ */
+export function playOf(trick: Trick, playerIndex: number): PlayedCards {
+  return trick.plays[(playerIndex - trick.leadPlayerIndex + 4) % 4];
+}
 
 // ---- Card factory ----
 
