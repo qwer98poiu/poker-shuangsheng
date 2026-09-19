@@ -271,6 +271,7 @@ function groupClickPath(
 async function maybeUseDebugMenu(page: Page, snap: UiSnapshot, seed: number): Promise<void> {
   const st = snap.store!;
   const gs = st.gameState;
+  if (!gs) return;
   const rnd = mulberry32((seed + st.roundNumber * 7919 + gs.tricksPlayed * 131 + 777) >>> 0)();
   if (rnd >= 0.15) return;
   const check = await collectSnapshot(page);

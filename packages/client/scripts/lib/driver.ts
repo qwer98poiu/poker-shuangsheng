@@ -6,6 +6,7 @@
  * window.__POKER_STORE__), and phase/trick waits.
  */
 import { chromium, type Page } from 'playwright-core';
+import type { GameState } from '@poker/engine';
 import { spawn, type ChildProcess } from 'node:child_process';
 import http from 'node:http';
 import path from 'node:path';
@@ -120,7 +121,8 @@ export interface UiSnapshot {
     lockedCardIds: string[];
     teamLevels: [number, number] | null;
     matchOver: boolean;
-    gameState: any;
+    /** zustand store 里的 gameState——与 gameStore.ts 同类型（页面内 JSON 往返，结构一致）。 */
+    gameState: GameState | null;
   } | null;
   elements: Array<{
     tag: string; testid: string | null; cardId: string | null; cls: string;
@@ -168,7 +170,7 @@ export async function collectSnapshot(page: Page): Promise<UiSnapshot> {
         clippedBy,
       });
     });
-    const gs = st?.gameState ?? null;
+    const gs: GameState | null = st?.gameState ?? null;
     return {
       viewport,
       elements,

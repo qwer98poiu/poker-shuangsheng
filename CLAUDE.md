@@ -99,7 +99,7 @@ Changelog 测试数行与提交信息不同——列出子包分项与总数；�
 - **Changelog 只在更新代码时写**（fix/feat/strategy/refactor/test 等）；纯文档提交（`docs:` 和 `skill:`）一律不写 Changelog。
 - **测试断言优先用精确值**（`toBe(n)`），避免使用 `toBeGreaterThan`、`toBeGreaterThanOrEqual` 等模糊匹配，除非值本身因外部因素不确定。
 - **基础模块的测试必须逐项穷举**。对于记牌器这类高阶策略依赖的基础模块，测试覆盖所有视角 × 所有目标玩家 × 所有可能的牌（suit-rank）× 精确张数断言，不允许只验证部分卡牌。
-- **每次提交前必须跑类型检查并清理全部错误**：在 `packages/engine` 与 `packages/client` 下各跑一次 `npx tsc --noEmit`，须零错误后才提交。vitest 经 esbuild 转译不做类型检查，类型错误不会导致测试失败，因此必须显式检查。
+- **每次提交前必须跑类型检查并清理全部错误**：根目录 `npm run typecheck`，须零错误后才提交（范围与 `scripts/` 的坑见「类型检查」节）。vitest 经 esbuild 转译不做类型检查，类型错误不会导致测试失败，因此必须显式检查。
 - **删除符号链接路径下的内容前先确认目标**：`git worktree` 无 node_modules，复用主仓库依赖时通常把 worktree 的 `node_modules` 符号链接到主仓库——此时 `rm worktree/node_modules/@poker/engine` 会顺着链接删掉**主仓库**里的真身（2026-08-15 实测：误删 `@poker/engine` 导致 vite 无法解析）。删除/重建前用 `ls -la`/`readlink` 确认是否为链接及指向；worktree 清理（`git worktree remove`）前先把指向 worktree 内部路径的链接改回相对链接（`../../packages/engine`），否则悬空。
 
 ## 测试命令
@@ -109,6 +109,14 @@ Changelog 测试数行与提交信息不同——列出子包分项与总数；�
 - **根目录 `npm run test` 只跑引擎**（根 package.json 的 test 脚本指向 engine）
 - **不要从仓库根用 `npx vitest run <包路径>` 统计测试数**——positional filter 在存在多个 vitest.config.ts 时会混入其他包的测试（实测 `npx vitest run packages/cli` 混入 client 测试，127 ≠ 真实 80）
 - **Changelog 的测试总数**：运行 `npm run test:all 2>&1 | grep -E "^> @poker/.* test$|Tests +[0-9]+ passed"`，取输出中对应包的 `Tests N passed` 中的 N（四包顺序 = engine + arena + CLI + client），四者之和为总数
+
+## 类型检查
+
+- **命令**：根目录 `npm run typecheck`，按 engine → arena → cli → client 顺序各跑一次 `tsc --noEmit`（与 `test:all` 同风格，任一失败即停止）。提交前必零错误。
+- **历史坑一（范围）**：该条原先只写「engine 与 client」，`cli`/`arena` 从未被检查过——2026-09-19 修掉的 13 个 TS2345（`packages/cli/src/__tests__/round-result.test.ts`）在此之前一直存在于 HEAD 上，而 vitest 全绿。
+- **历史坑二（`scripts/`）**：四个包的 `tsconfig.json` 都只 `include: ["src"]`，**`packages/*/scripts/` 不在任何 tsconfig 范围内**。有 scripts 的包（engine / arena / client）另配 `tsconfig.scripts.json`，已并入该包的 `typecheck` 脚本；新增含 scripts 的包要同步补一个，否则脚本仍然裸奔。
+- **字符串枚举**：`Suit`/`SpecialSuit` 是字符串枚举（值就是 `'S'`/`'J'`，但类型是名义的），`'S'` 不能赋给 `CardSuit`，要写 `Suit.Spades`；`Rank` 是数值枚举，传裸数字合法（`createCard(Suit.Spades, 14, 200)`）。
+- **不要用 `as any` 消音**：那会把整条链路的类型检查一起关掉——`createCard(s, r as any, i)` 就是反例，它同时掩盖了 rank 传错这类真错误。类型实在对不上时用最小必要的 cast（`as CardSuit` 而非 `as any`）。
 
 ## 布局回归检查
 

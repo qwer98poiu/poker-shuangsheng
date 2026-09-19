@@ -12,6 +12,7 @@
     "build": "npm run build -w packages/engine && npm run build -w packages/client",
     "test": "npm run test -w packages/engine",
     "test:all": "npm run test -w packages/engine && npm run test -w packages/arena && npm run test -w packages/cli && npm run test -w packages/client",
+    "typecheck": "npm run typecheck -w packages/engine && npm run typecheck -w packages/arena && npm run typecheck -w packages/cli && npm run typecheck -w packages/client",
     "arena": "npm run arena -w packages/arena"
   }
 }
