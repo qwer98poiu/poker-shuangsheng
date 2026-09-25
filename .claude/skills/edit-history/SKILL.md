@@ -38,6 +38,8 @@ git log --oneline --stat        # ⑫ 逐个提交确认内容正确
 
 ## 注意事项（已踩过的坑）
 
+> 本节举例中的短哈希**仅为示例**：本仓库历经多次历史改写，它们多数已不可达（解析到改写前的旧对象或被 GC），核对时以题述的提交信息与时间为准，不要拿 `git cat-file` 验证它们是否存在。
+
 - **detach + cherry-pick + commit 是"叠加"不是"合并"**：新提交的父是原目标，原目标仍在，历史出现两个同主题提交——用 `reset --hard` 站到目标上再 cherry-pick，不经过 detach。
 - **`git commit --amend` 提交的是整个暂存区**，不是只提交 `git add` 过的文件。`reset --soft` 后暂存区混有后续提交内容时 amend 会误吞（曾把 14 个基线文件吞进策略提交；也曾把"目标之后其他提交"的分牌改动混进布局合并提交）——amend/提交前 `git status`/`git diff --cached --stat` 必须确认暂存区只含预期文件。
 - **多提交合并用 `reset --hard <范围父>` + `cherry-pick --no-commit` 逐个应用，不用 `reset --soft`**：soft reset 暂存的是"当前树 vs 目标"的全部差异——目标与 HEAD 之间其他提交的改动全会被暂存（2026-08-16 实测）。cherry-pick 每个提交只带它自己的 diff。

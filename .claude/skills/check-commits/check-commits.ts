@@ -24,6 +24,11 @@ const VALID_PREFIXES = ['fix', 'feat', 'strategy', 'refactor', 'test', 'docs', '
 /** 纯文档前缀：不写 Changelog、不改代码、不跑测试 */
 const DOC_PREFIXES = ['docs', 'skill'];
 
+/** 「代码/配置」路径口径：S5 判纯文档提交越界、S3 判是否该写 Changelog，共用一套 */
+function codeFilesOf(files: string[]): string[] {
+  return files.filter((f) => f.startsWith('packages/') || f === 'package.json' || /^tsconfig.*\.json$/.test(f));
+}
+
 /** 冻结快照目录（extract-ai-baseline 产物），创建后只读 */
 const SNAPSHOT_DIR_RE = /^packages\/engine\/src\/(ai-\d+)\//;
 const SNAPSHOT_SCAN_PATH = 'packages/engine/src/';
@@ -40,6 +45,35 @@ const LEVEL_GLYPH: Record<Level, string> = { error: '✗', warn: '⚠', info: '�
 
 /** 英文单词里混进来的 [0-9a-f]{7,40} 假阳性（S11） */
 const HEX_STOPWORDS = new Set(['defaced', 'effaced', 'facaded', 'decafed']);
+
+/**
+ * 出处字段——S11 的**例外之二**（与下面的快照出处注释并列）。
+ *
+ * 生成物里记录「依据哪个提交生成/测量」的机器可读字段，如布局基线的
+ * `"commit": "e2a0158"`（由 `layout-regression.ts --snapshot` 写入）。它与快照出处注释
+ * 同源：值只有是哈希才具备定位能力——日期到分钟仍可能与同日多次改写混淆——而这类字段
+ * 行内没有「快照/基线」字样可依赖，只能按**键名**判。
+ *
+ * 判据比对注释类更严（据此收窄误报面）：键名须含 commit/revision 语义，值须是
+ * 7–40 位十六进制串（日期、布尔、普通字符串都匹配不到）。与注释类例外相同，仍要求
+ * 该 token 能解析成 commit 对象才报 info。
+ */
+const PROVENANCE_FIELD_RE = /"[A-Za-z_]*(?:commit|revision)[A-Za-z_]*"\s*:\s*"[0-9a-f]{7,40}"/i;
+
+/**
+ * 快照出处注释——S11 的**例外之一**。
+ *
+ * 冻结基线（`packages/engine/src/ai-XXXX/`）的出处注释必须同时给出「出处提交的哈希」与
+ * 「日期」：目录名只到日，且快照日与提取提交往往不同日（`ai-0808` ← 133900d 是 08-08，
+ * 提取提交在 08-09；`ai-0809` ← b77a7b1 是 08-14，提取在 08-15），只留日期无法唯一定位
+ * 提取源。同理适用于 `ai/ as of <hash>` 形式的导出注释与 `it('ai-XXXX（<hash>, …）')`
+ * 这类把出处写进测试名的写法。
+ *
+ * 判据宽松是有意的：只要求同一行里出现快照标识（`ai-XXXX`）或出处用词（快照/基线/
+ * `as of`）。哈希出现在可执行代码里本就极罕见，而误报一个出处注释的代价（逼人删掉追溯
+ * 信息）高于漏报一个前提是「这行同时还是个快照出处注释」的哈希引用。
+ */
+const SNAPSHOT_PROVENANCE_RE = /快照|基线|snapshot|baseline|as of|ai-\d{4}/i;
 
 /** 测试数解析：vitest 每包只输出一行 `Tests  N passed (N)` */
 const TESTS_PASSED_RE = /Tests\s+(\d+)\s+passed/;
@@ -325,14 +359,12 @@ function checkS2Prefix(c: CommitInfo): void {
 
 function checkS3S4S5(c: CommitInfo): void {
   if (c.isDoc) {
-    // S4：纯文档提交不得改 Changelog
-    if (c.files.includes('CHANGELOG.md')) {
-      report('S4', MODE.ERROR, c.short, `${c.prefix}: 提交修改了 CHANGELOG.md（规范：纯文档提交不写 Changelog）`);
+    // S4：纯文档提交不得新增 Changelog 条目（`## 时间` 行）；修正既有正文不受限
+    if (c.addedSections.length > 0) {
+      report('S4', MODE.ERROR, c.short, `${c.prefix}: 提交新增了 CHANGELOG.md 小节（规范：纯文档提交不写 Changelog 条目）`);
     }
     // S5：纯文档提交不得改代码
-    const codeFiles = c.files.filter(
-      (f) => f.startsWith('packages/') || f === 'package.json' || /^tsconfig.*\.json$/.test(f),
-    );
+    const codeFiles = codeFilesOf(c.files);
     if (codeFiles.length > 0) {
       report(
         'S5',
@@ -345,8 +377,8 @@ function checkS3S4S5(c: CommitInfo): void {
     return;
   }
 
-  // S3：非纯文档提交必须新增至少一个 `## ` 小节
-  if (c.addedSections.length === 0) {
+  // S3：改了代码的提交必须新增至少一个 `## ` 小节（只碰 .md/.gitignore 的 chore 之类不在此列）
+  if (codeFilesOf(c.files).length > 0 && c.addedSections.length === 0) {
     const addedH3 = c.clAdded.filter((l) => /^###\s+/.test(l));
     report(
       'S3',
@@ -354,7 +386,7 @@ function checkS3S4S5(c: CommitInfo): void {
       c.short,
       addedH3.length > 0
         ? `提交只往别人的小节里插了 ${addedH3.length} 个 ###，没有新增自己的 \`## 时间\` 小节`
-        : '非纯文档提交没有新增 Changelog 小节',
+        : '改了代码的提交没有新增 Changelog 小节',
     );
   }
 }
@@ -514,6 +546,27 @@ function checkS11(c: CommitInfo, codeAddedLines: Map<string, { file: string; lin
 
   // 载体三：代码新增行——只在能解析成 commit 时报，避免把颜色/ID 当哈希
   for (const { file, line } of codeAddedLines.get(c.sha) ?? []) {
+    // 两类出处例外（见 SNAPSHOT_PROVENANCE_RE / PROVENANCE_FIELD_RE 注释）。报告为 info
+    // 而非静默跳过，免得将来误把整行其他位置的哈希也一并豁免时无人察觉。
+    const provenance = SNAPSHOT_PROVENANCE_RE.test(line)
+      ? '快照出处注释'
+      : PROVENANCE_FIELD_RE.test(line)
+        ? '出处字段'
+        : null;
+    if (provenance !== null) {
+      for (const token of hexTokens(line)) {
+        if (isCommitish(token)) {
+          report(
+            'S11',
+            MODE.INFO,
+            c.short,
+            `${provenance}含提交哈希 \`${token}\``,
+            `已豁免（${provenance}例外）：${file}: ${line.trim().slice(0, 100)}`,
+          );
+        }
+      }
+      continue;
+    }
     for (const token of hexTokens(line)) {
       if (isCommitish(token)) {
         report(

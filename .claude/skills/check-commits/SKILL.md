@@ -50,7 +50,7 @@ npx tsx .claude/skills/check-commits/check-commits.ts --no-tests --no-typecheck
 
 ## 检查项
 
-三级：**error**（影响退出码）/ **warn** / **info**。纯文档指 `docs:` 与 `skill:` 前缀（规范：一律不写 Changelog）。
+三级：**error**（影响退出码）/ **warn** / **info**。纯文档指 `docs:` 与 `skill:` 前缀（规范：不写 Changelog 条目）。
 
 ### 结构类（不跑测试）
 
@@ -58,15 +58,15 @@ npx tsx .claude/skills/check-commits/check-commits.ts --no-tests --no-typecheck
 |---|---|---|
 | S1 | 提交 author date 自旧到新严格递增 | error |
 | S2 | 提交信息前缀在 `fix/feat/strategy/refactor/test/docs/chore/skill` 白名单内 | warn |
-| S3 | 非纯文档提交必须新增 ≥1 个 `## 时间` Changelog 小节 | error |
-| S4 | 纯文档提交不得修改 `CHANGELOG.md` | error |
+| S3 | 改了代码的提交必须新增 ≥1 个 `## 时间` Changelog 小节（只碰 `.md`/`.gitignore` 的 chore 之类不在此列） | error |
+| S4 | 纯文档提交不得**新增** Changelog 小节（修正既有正文不受限） | error |
 | S5 | 纯文档提交不得改动 `packages/**`、根 `package.json`、`tsconfig*.json` | error |
 | S6 | 新增的 `## 时间` 行必须位于文件首个 `## ` 位置（新条目置顶） | warn |
 | S7 | Changelog 全文 `## ` 时间严格递减 | error |
 | S8 | Changelog 无缺少 `## ` 前缀的孤立时间行 | error |
 | S9 | 每个新增 `## 时间` 行只被一个提交引入 | error |
 | S10 | Changelog 时间不得晚于该提交 author date（早 >40 分钟另报 warn：多半是映射错了） | error / warn |
-| S11 | **不得引用提交哈希**：提交信息、Changelog、代码一律用日期指代历史 | error |
+| S11 | **不得引用提交哈希**：提交信息、Changelog、代码一律用日期指代历史（快照出处注释、出处字段两处例外，报 info） | error / info |
 | S12 | 英文正文 ≤12 行；`Co-Authored-By:` 尾行存在 | 纯文档 info；改代码 warn |
 | S13 | 同一 `##` 下只有**最后一个** `###` 带「= X 项通过」总数行 | error |
 | S14 | 冻结快照 `packages/engine/src/ai-XXXX/` 只读 | error |
@@ -91,6 +91,14 @@ npx tsx .claude/skills/check-commits/check-commits.ts --no-tests --no-typecheck
 **T3 的增量口径**：`新增 N` 计 `+N`、`删除/移除 N` 计 `−N`、`修改/重写` 与 `无新增测试` 计 `0`。逐包分解只在括号能唯一对应到子句时硬校验；`新增 34 项、重写 9 项、修改 2 项测试（engine 43 + arena 1 + client 1）` 这类括号横跨多个动词的写法推不出逐包分配，降为 info 并打印实测逐包 Δ 供人工核对。
 
 **S11 的探测分三种载体**（只扫本次提交引入的文本，不翻旧账）：提交信息与 Changelog 增行是散文语境，命中 `[0-9a-f]{7,40}` 即报；代码增行只在该 token 能解析成 commit 对象时报（`#1a2b3c` 这类颜色/ID 天然解析不到）。
+
+**S11 的例外之一：快照出处注释**（仅代码载体，报 info 不报 error）。冻结基线的出处必须同时给出哈希与日期——目录名 `ai-XXXX` 只到日，且快照日与提取提交往往不同日（`ai-0808` ← `133900d` 是 08-08、提取提交在 08-09；`ai-0809` ← `b77a7b1` 是 08-14、提取在 08-15），只留日期无法唯一定位提取源。判据是**同一行**出现快照标识（`ai-\d{4}`）或出处用词（快照/基线/snapshot/baseline/`as of`），覆盖 `// ai/ as of <hash>` 导出注释、`/** 快照基线：ai/ 在 <hash>（日期）时… */` 与 `it('ai-XXXX（<hash>, …）')` 三类写法。判据宽松是有意的：哈希出现在可执行代码里本就极罕见，误报一个出处注释的代价（逼人删掉追溯信息）高于漏报。提交信息与 Changelog 载体**不豁免**——那两处指代历史一律用日期。
+
+**S11 的例外之二：出处字段**（仅代码载体，报 info 不报 error）。生成物里记录「依据哪个提交生成/测量」的机器可读字段——典型是布局基线的 `"commit": "e2a0158"`，由 `scripts/layout-regression.ts --snapshot` 写入。它与例外一同源：值只有是哈希才具备定位能力（日期到分钟仍可能与同日多次改写混淆），而这类行内没有「快照/基线」字样可依赖，只能按**键名**判。判据比注释类更严：键名须含 `commit`/`revision` 语义，**值**须是 7–40 位十六进制串——`"commitDate": "2026-08-25 23:52"` 这类日期值匹配不到；同样要求该 token 能解析成 commit 对象才报 info。**生成器若改成写日期，此例外即不再命中**（那是另一条路，两者取其一即可）。
+
+**S3 只认「改了代码」**：判据是 `codeFilesOf(files)` 非空（`packages/**`、根 `package.json`、`tsconfig*.json`，与 S5 共用一套），**不是**「前缀不属纯文档」。`CLAUDE.md` 的原话是「Changelog 只在更新代码时写」，纯文档前缀只是这句话的代理；原判据把「只改 `.gitignore` 的 chore」也算了进来，而那类提交没有行为可记。实测全history：`feat`/`refactor`/`strategy` 零违规（98 个提交），活跃误报只有 2 个 `chore`——`09-25 16:22`（只改 `.gitignore`）放行，`08-30 10:08`（动了根 `package.json`）仍报。**不采用「按前缀豁免 `chore:`」**：`07-01 21:02` 那位 chore 改了 10 个引擎文件、且历史上确实写了条目，按前缀豁免会让这类逃逸——前缀是自报的意图，判据该看事实。
+
+**S4 只认「新增小节」**：判据是 `addedSections`（本提交引入的 `## 时间` 行）非空，**不是**「diff 里出现 `CHANGELOG.md`」。原判据把两件事混成一件——「给文档提交补写 Changelog 条目」（规范禁止）与「修正 Changelog 既有正文」（维护 Changelog 本身必需）。`09-25 17:37` 那条把早期条目里指代快照的短哈希改写成条目时间，10 余行全落在既有正文上，却因碰了 `CHANGELOG.md` 被判 S4 error。`CLAUDE.md` 的原话是「Changelog 只在更新代码时写」，针对的是**写条目**，不含修正文。
 
 **S14**：整体删除快照目录 = info（归档合规）；新增快照目录 = info（提取基线）；目录内**文件被修改/新增/删除** = error。`extract-ai-baseline/SKILL.md:58-59` 允许「死代码清理与注释」两类例外，故 error 文案会打印改动的文件并附该例外说明，需人工判定。
 
