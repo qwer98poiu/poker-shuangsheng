@@ -6,3 +6,6 @@ saves/
 .DS_Store
 .env
 results/
+
+# Changelog↔提交对照表：由 gen-changelog-map 生成的派生物，默认不提交
+CHANGELOG_COMMITS.md

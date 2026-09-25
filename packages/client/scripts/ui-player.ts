@@ -7,7 +7,7 @@
  * 交互全部真实输入，覆盖多条人类路径：
  *   - 扣底：50% 点"建议扣底"直接扣；50% 按 AI 决策手动逐张选
  *   - 出牌：与 GameTable 同口径计算 selectionMode（free/replace/accumulate）——
- *     free 走 XOR 拖框/逐张点选；组粒度（replace/accumulate，6bf3a20 引入）把 AI
+ *     free 走 XOR 拖框/逐张点选；组粒度（replace/accumulate，08-23 00:40 引入）把 AI
  *     决策经 applyGroupClick 模拟展开为"整组点击/整组拖拽"（点代表一张整组进、
  *     拖拽终点拾取组），组语义表达不了才落 hint；另有 skipped 页弃竞态快照
  *
@@ -620,7 +620,7 @@ async function main(): Promise<void> {
 
       // setup：勾选调试模式（hint 按钮需要 debug）→ 开始游戏（默认人类南座）
       // 注意：.setup-debug 有两个 （自动抢庄 + 调试），.first() 会点到抢庄——
-      // 调试必须点 [data-testid="setup-debug"]（8b9dab2 引入抢庄勾选框后此处曾错位）
+      // 调试必须点 [data-testid="setup-debug"]（08-23 20:37 引入抢庄勾选框后此处曾错位）
       await safeClick(page, '[data-testid="setup-debug"]');
       await safeClick(page, '[data-testid="setup-start"]');
 
