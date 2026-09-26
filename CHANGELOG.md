@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-09-26 19:24
+
+### 根的 `typescript` 依赖改为显式声明
+
+**问题**：根 `typecheck:skills` 直接调 `tsc`，但根 `package.json` 的 `devDependencies` 是空的——它能跑，靠的是 npm workspaces 把四个包同区间的 `typescript: ^5.7.0` **提升**到根（实测：`node_modules/typescript` 是真实目录 5.9.3、`dev: true`，`node_modules/.bin/tsc` 软链过去，而根条目此前只有 `name` + `workspaces`）。依赖关系只存在于那条脚本里，不在任何配置中；若将来各包区间分歧到不再提升，根 `node_modules/.bin/tsc` 可能消失，届时报的是 `tsc: command not found`——一个与类型无关、反直觉的错。
+
+**修复**：根 `devDependencies` 加 `typescript: ^5.7.0`（与四包同区间，dedupe 到已装的那份 5.9.3，未多装、未换版本；lock 里 `node_modules/typescript` 仍只有一条）。顺带把 lock 里 `packages/arena`、`packages/cli` 两处缺失的 `typescript` 条目补上——它们自 2026-09-19 那次「四个包全部纳入类型检查」起就声明了 typescript，而 lock 从未同步。实测该不一致**没有**导致 `npm ci` 失败（在 worktree 里对改前状态跑 `npm ci --dry-run`，退出码 0），故只属记录不一致，不是修复了破损安装。
+
+- **影响文件**：`package.json`、`package-lock.json`
+
+### `.claude/skills/` 纳入类型检查
+
+**问题**：`npm run typecheck` 只跑四个包，而 `.claude/skills/` 在包之外、不在任何 tsconfig 范围内——两个 skill 脚本（`check-commits.ts`、`inject-gui.ts`）一直游离在类型检查之外。这与 2026-09-19 修掉的 `cli`/`arena` 从未被检查、以及 `packages/*/scripts/` 不在任何 tsconfig 内属同源问题。接入时当场报出 6 个错误，全在 `inject-gui.ts`：`JSON.parse` 未定型 → `Object.values` 推成 `unknown[]` → 2 处展开报 TS2488、4 处回调参数隐式 any（TS7006）。
+
+**修复**：新增根 `tsconfig.skills.json`（extends `tsconfig.base.json`，`include: [".claude/skills"]`，沿用 `tsconfig.scripts.json` 的 `noEmit`/`declaration`/`sourceMap` 开关），根 `package.json` 新增 `typecheck:skills` 并接进 `typecheck` 链末。6 个错误按「补输入类型」而非 `as any` 修：为 state.json 补 `InjectState` 接口（`trump` 复用引擎的 `TrumpDeclaration`），`mkPlays` 形参由 `any[]` 改 `[number, string[]][]`，回调上的 `(t: any)`/`(p: any)` 随之去掉（它们本是缺类型时的消音，去掉后才真正参与检查）；顺带把 `createCard(m[1] as any, …)` 收窄为 `as CardSuit`（CLAUDE.md 点名的反例）。新增带 `.ts` 的 skill 会被自动纳入，不必再改配置。
+
+**无新增测试**，引擎 790 项 + arena 68 项 + CLI 80 项 + client 201 项 = 1139 项通过。
+
+- **影响文件**：`tsconfig.skills.json`（新）、`package.json`
+
 ## 2026-09-26 10:59
 
 ### 存档 ai-0907 基线（09-07 00:45，毙牌单张按档位选牌之前）
