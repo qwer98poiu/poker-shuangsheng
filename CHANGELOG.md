@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-09-26 22:14
+
+### CLI 结算改用引擎的 `advanceLevel`；删除 `test-run.ts`
+
+**问题**：`packages/cli/src/index.ts` 的 `gameLoop` 自己累加 `changes.attackerChange/defenderChange`、并以 `level > 14` 判比赛结束，绕过了引擎的 `advanceLevel`（调用点：client 3 处、arena 2 处、**CLI 0 处**）。缺了它的三条钳制，三处场景会算错：闲家在 K(13) 拿 ≥160 时 13+2=**15** → 被判比赛结束（应停在 K 继续打）；闲家在 Q(12) 拿 ≥160 时 12+2=14 → 跳过 K（应为 13）；闲家在 A(14) 拿 ≥120 时 14+1=**15** → 被判结束（应停 14 继续打 A）。结束判定本身也不对：`advanceLevel` 的 `matchOver` 只在**庄家在 A 打赢**时为真。症状可见：`rankLabel(15)` 会打印出字符串 `"15"`。
+
+**修复**：新增纯函数 `packages/cli/src/settle.ts`（`settleRound`），内部只调引擎的 `advanceLevel`，与 `packages/client/src/store/gameStore.ts` 的结算段逐行同口径（推进方 = 闲家上台 ? 庄家对面 : 庄家本人，只写回推进方那一格；轮换口径沿用 CLI 原有写法）；`gameLoop` 改为调它。顺带把升级播报从 `showRoundResult` 移到结算之后——`changes` 是**分数应得**的级数，必打 K/A 会把它钳住，在结算前播报会出现「升2级」而实际停在 K 的矛盾；现在播报实际变化量，被钳制时写明「应升 N 级、受必打 K/A 钳制实际升 M 级」。同次删除 `packages/cli/src/test-run.ts`（205 行）：零引用、是 arena 的前身（2026-06-28，早于 `packages/arena/` 五周）、其升级口径正是本次修正的那个旧写法（用未含抠底的原始分、单一共享等级、`Math.min(level, 14)`），且 `process.exit(0)` 恒成功使它的「测试」身份为假。
+
+**新增 7 项测试**（settle.test.ts：7 项），引擎 790 项 + arena 68 项 + CLI 87 项 + client 201 项 = 1146 项通过。非空验证：把 `settleRound` 临时换回旧算术，7 项中 6 项失败（`expected [ 2, 15 ] to deeply equal [ 2, 13 ]` 等），穷举那项也在 `expected 15 to be less than or equal to 14` 上失败。
+
+- **影响文件**：`packages/cli/src/settle.ts`（新）、`packages/cli/src/__tests__/settle.test.ts`（新）、`packages/cli/src/index.ts`、`packages/cli/src/test-run.ts`（删）
+
 ## 2026-09-26 22:07
 
 ### 修正 dev server 端口：文档里的 5199 改为 3000

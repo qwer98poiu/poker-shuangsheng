@@ -20,6 +20,7 @@ import {
 } from '@poker/engine';
 import { computeRoundOutcome } from './round-result.js';
 import type { RoundOutcome } from './round-result.js';
+import { settleRound } from './settle.js';
 import { parseCards, parseHumanCount, parseYesNo, parseSaveChoice, parseTrickNumber, revealLabel, usableRevealOptions, revealHint } from './parse.js';
 import { parseLevelSuit } from './parse-level.js';
 import type {
@@ -246,26 +247,32 @@ async function gameLoop(
     firstRound = false;
 
     const result = showRoundResult();
-    const changes = result.changes;
-    const attackerSits = result.attackerSits; // 含抠底的闲家最终分 ≥ 80（与等级变更同口径）
     const declarerIdx = gameState.trumpDeclaration!.declarerIndex;
-    const defenderTeam = declarerIdx % 2;
-    if (attackerSits) {
-      if (defenderTeam === 0) {
-        levelBD += changes.attackerChange;
-      } else {
-        levelAC += changes.attackerChange;
-      }
-    } else {
-      if (defenderTeam === 0) {
-        levelAC += changes.defenderChange;
-      } else {
-        levelBD += changes.defenderChange;
-      }
-    }
+    // 等级推进与比赛结束判定都交给引擎（必打 K/A 等规则见 settle.ts）。
+    // 旧实现自己累加 changes 并以 `level > 14` 判结束，缺了三条钳制：闲家在 K 或 A 上
+    // 拿高分会被算成 15 级并直接判比赛结束（rankLabel(15) 还会打印出 "15"）。
+    const before: [number, number] = [levelAC, levelBD];
+    const settled = settleRound(before, result, declarerIdx);
+    levelAC = settled.levels[0];
+    levelBD = settled.levels[1];
 
-    if (levelAC > 14 || levelBD > 14) {
-      console.log('\n' + GREEN + BOLD + `🏆 比赛结束！TeamAC=${rankLabel(levelAC)} TeamBD=${rankLabel(levelBD)}` + RESET);
+    // 升级播报。`result.changes` 是分数**应得**的级数，必打 K/A 会把它钳住，
+    // 所以实际变化量按结算后的等级算，两者不等时一并说明。
+    const earned = result.attackerSits ? result.changes.attackerChange : result.changes.defenderChange;
+    const moved = (levelAC - before[0]) + (levelBD - before[1]);
+    const who = result.attackerSits
+      ? '闲家上台'
+      : `庄家${earned === 3 ? '大光' : earned === 2 ? '小光' : '保庄'}`;
+    const how = earned === 0
+      ? '不升级'
+      : moved === earned
+        ? `升${earned}级`
+        : `应升${earned}级、受必打 K/A 钳制实际升${moved}级`;
+    console.log(GREEN + `${who}！${how}（TeamAC=${rankLabel(levelAC)} TeamBD=${rankLabel(levelBD)}）` + RESET);
+
+    if (settled.matchOver) {
+      const winner = settled.winnerTeam === 0 ? 'TeamAC' : 'TeamBD';
+      console.log('\n' + GREEN + BOLD + `🏆 比赛结束！${winner} 胜出（TeamAC=${rankLabel(levelAC)} TeamBD=${rankLabel(levelBD)}）` + RESET);
       gameOver = true;
     }
 
@@ -286,7 +293,7 @@ async function gameLoop(
       if (!ansChoice.value) break;
     }
 
-    nextDeclarer = attackerSits ? (declarerIdx + 1) % 4 : (declarerIdx + 2) % 4;
+    nextDeclarer = settled.nextDeclarer;
   }
 
   if (spectator && matchLogs.length > 0) {
@@ -1132,7 +1139,7 @@ function showRoundResult(): RoundOutcome {
     gameState.trumpDeclaration,
     gameState.trumpDeclaration!.declarerIndex, // 实际庄家（首局亮主者可能顶替预定庄家）
   );
-  const { multiplier: mult, bottomPoints: bp, finalPts: pts, attackerWonLast, attackerSits, changes } = outcome;
+  const { multiplier: mult, bottomPoints: bp, finalPts: pts, attackerWonLast, attackerSits } = outcome;
   console.log('\n' + BOLD + '=== 本局结束 ===' + RESET);
   console.log(`闲家得分: ${gameState.attackerPoints}`);
   if (gameState.attackerPoints < 0) console.log(DIM + `  (罚分前: ${gameState.attackerPoints})` + RESET);
@@ -1151,14 +1158,9 @@ function showRoundResult(): RoundOutcome {
     console.log(DIM + `  (罚分后不足80分，未能上台)` + RESET);
   }
 
-  if (attackerSits) {
-    const up = changes.attackerChange;
-    console.log(GREEN + `闲家上台！${up > 0 ? '升' + up + '级' : '不升级'}` + RESET);
-  } else {
-    const up = changes.defenderChange;
-    const label = up === 3 ? '大光' : up === 2 ? '小光' : '保庄';
-    console.log(`庄家${label}（升${up}级）`);
-  }
+  // 升级播报不在这里做：`changes` 是**分数应得**的级数，必打 K/A 会把它钳住
+  // （闲家在 K/A 上台时级数不动），必须等 settleRound 之后才知道实际升了几级。
+  // 播报在 gameLoop 里（见那里的 `${who}！`）。
 
   return outcome;
 }
