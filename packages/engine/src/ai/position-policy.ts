@@ -106,7 +106,7 @@ export function unitize(cards: Card[], ctx?: TrumpDeclaration): Unit[] {
 }
 
 /** 主牌 A 的有效大小（"主牌A或更大"的阈值）。 */
-function aceEff(ctx: TrumpDeclaration): number {
+export function aceEff(ctx: TrumpDeclaration): number {
   return getEffectiveRank(
     { suit: ctx.trumpSuit ?? Suit.Spades, rank: Rank.Ace, isJoker: false, id: '' } as Card, ctx);
 }
@@ -196,6 +196,74 @@ export function catOf(u: Unit, mode: DiscardMode, ctx: TrumpDeclaration): number
   if (!tr && c.rank === Rank.Ten) return 5;
   if (!tr && c.rank === Rank.King) return 6;
   return 7;
+}
+
+// ---- 主牌档位筛选（毙单张 / 第四家吊主单张·队友大） ----
+
+/** 档位模式：fourth = 第四家（毙/盖毙单张、吊主单张队友大）；mid = 第二/三家毙单张。 */
+export type TrumpTierMode = 'fourth' | 'mid';
+
+/** 分牌档内序：10(0) > K(1) > 5(2)；非分牌 3（只在分牌档内比较）。 */
+function pointOrder(c: Card): number {
+  return c.rank === Rank.Ten ? 0 : c.rank === Rank.King ? 1 : c.rank === Rank.Five ? 2 : 3;
+}
+
+/**
+ * 按档位从候选主牌池取一张：档位优先，同档内取最小；池空返回 null。
+ *
+ * fourth（规格 2.3 第 3 条、第 1 条）：分牌单张（10>K>5）> 拆分牌散对（10>K>5）
+ *   > A 以下非分单张 > A 以下非分散对（拆对）> A 以下含分拖拉机（出其中分牌）
+ *   > A 以下不含分拖拉机 > A 和常主（升序，不区分单张/对牌/拖拉机）。
+ *   分牌含「级牌本身 rank 为 5/10/K」的常主。
+ * mid（规格毙牌通用规则·第二/三家，不区分分牌与非分）：A 以下单张 > A 以下散对（拆对）
+ *   > A 以下拖拉机 > A 和常主（升序，不区分单张/对牌/拖拉机）。
+ *
+ * 拖拉机成员一律按拖拉机档归类（含 A 的拖拉机整段归末档，不按成员拆档），
+ * 否则 A-K 拖拉机里的 K 会被分牌档抢走、含分拖拉机里的分牌会让拖拉机档永不可达。
+ * 「A 以下」= 有效大小 < 主牌 A（级牌与王都算 A 以上）。
+ */
+export function pickTrumpByTier(
+  pool: Card[], mode: TrumpTierMode, ctx: TrumpDeclaration,
+): Card | null {
+  if (pool.length === 0) return null;
+
+  const unitOf = new Map<string, Unit>();
+  for (const u of unitize(pool)) for (const c of u.cards) unitOf.set(c.id, u);
+  const tractorOf = new Map<string, Card[]>();
+  for (const t of detectTractors(pool, ctx)) for (const c of t) tractorOf.set(c.id, t);
+  const ace = aceEff(ctx);
+
+  const tier = (c: Card): number => {
+    const eff = getEffectiveRank(c, ctx);
+    const tr = tractorOf.get(c.id);
+    if (tr) {
+      const belowA = tr.every(x => getEffectiveRank(x, ctx) < ace);
+      if (mode === 'mid') return belowA ? 2 : 3;
+      if (!belowA) return 6;
+      return tr.some(x => isPointRank(x.rank)) ? 4 : 5;
+    }
+    const single = unitOf.get(c.id)!.kind === 'single';
+    if (mode === 'mid') {
+      if (eff >= ace) return 3;
+      return single ? 0 : 1;
+    }
+    // fourth：分牌档先于「A 和常主」档——rank 为 5/10/K 的常主（级牌）也按分牌算
+    if (isPointRank(c.rank)) return single ? 0 : 1;
+    if (eff >= ace) return 6;
+    return single ? 2 : 3;
+  };
+
+  return [...pool].sort((a, b) => {
+    const ta = tier(a);
+    const tb = tier(b);
+    if (ta !== tb) return ta - tb;
+    // 仅 fourth 的分牌档（0/1/4）先比 10>K>5，再比有效大小；其余档只比有效大小
+    if (mode === 'fourth' && (ta === 0 || ta === 1 || ta === 4)) {
+      const d = pointOrder(a) - pointOrder(b);
+      if (d !== 0) return d;
+    }
+    return getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx);
+  })[0];
 }
 
 function unitCompare(a: Unit, b: Unit, mode: DiscardMode, ctx: TrumpDeclaration): number {

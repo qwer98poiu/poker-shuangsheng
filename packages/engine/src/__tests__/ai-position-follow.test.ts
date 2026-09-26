@@ -813,3 +813,30 @@ describe('第四家对子领出：能盖过对手', () => {
     checkFollow(r.cards, hand, lead8, null, cfgS2);
   });
 });
+
+// ================================================================
+// 第二/三家毙单张按档位选牌（A 以下单张 > A 以下散对 > A 以下拖拉机 > A 和常主）
+// ================================================================
+describe('第二/三家 毙单张按档位选牌（不区分分牌与非分）', () => {
+  it('第二家首毙副牌单张：不拆散对（♠3×2 + ♠9 → 出 ♠9）', () => {
+    const lead = [cc('C', 3, 200)];
+    const hand = [cc('S', 3, 0), cc('S', 3, 1), cc('S', 9, 2)];
+    const r = aiFollowPlay(hand, lead, Suit.Clubs, secondCtx(cfgS2, lead));
+    checkFollow(r.cards, hand, lead, 'C', cfgS2);
+    expect(r.cards[0].id).toBe('S-9-2'); // 旧行为出 S-3-0（拆对）
+    expect(r.reason).toBe('用主牌毙（用最小牌盖）');
+  });
+
+  it('第二家盖毙：能盖过的牌里不拆散对，且不因分牌改档（K 与 7 同档取小）', () => {
+    const lead = [cc('C', 9, 200)];
+    const hand = [cc('S', 5, 0), cc('S', 5, 1), cc('S', 7, 2), cc('S', 13, 3)];
+    const ctx = ctxOf(cfgS2, {
+      myIndex: 1, playCount: 1, leadPlayerIndex: 0,
+      bestSoFar: { cards: [cc('S', 3, 100)], playerIndex: 2 },
+    });
+    const r = aiFollowPlay(hand, lead, Suit.Clubs, ctx);
+    checkFollow(r.cards, hand, lead, 'C', cfgS2);
+    expect(r.cards[0].id).toBe('S-7-2'); // 旧行为出 S-5-0（拆对）
+    expect(r.reason).toBe('盖毙（用最小牌盖）');
+  });
+});

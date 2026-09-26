@@ -6,6 +6,7 @@ import type { AIContext } from '../ai/types.js';
 import {
   sortDiscards, pickDiscards, selectFillers,
   hasStrongFollowUp, visibleTrickPoints, secondShouldAvoid, defense80, leadHasPoints,
+  pickTrumpByTier,
 } from '../ai/position-policy.js';
 
 const cfg2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
@@ -411,5 +412,72 @@ describe('谓词', () => {
     expect(leadHasPoints(combo2, ctx)).toBe(false);
     const ctx2 = ctxOf(cfg2, { bestSoFar: { cards: [c('D', 5, 3)], playerIndex: 1 } });
     expect(leadHasPoints(combo2, ctx2)).toBe(true);
+  });
+});
+
+describe('pickTrumpByTier（主牌档位筛选）', () => {
+  // 主 ♥、级 2：主牌为 王 / 2 / ♥ 各 rank
+  const cfgH2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 2 };
+
+  it('空池返回 null', () => {
+    expect(pickTrumpByTier([], 'fourth', cfgH2)).toBeNull();
+    expect(pickTrumpByTier([], 'mid', cfgH2)).toBeNull();
+  });
+
+  it('fourth：分牌单张 > 拆分牌散对（10♥ 对不拆，先出 5♥ 单）', () => {
+    const pool = [c('H', 5, 0), c('H', 10, 1), c('H', 10, 2)];
+    expect(pickTrumpByTier(pool, 'fourth', cfgH2)!.id).toBe('H-5-0');
+  });
+
+  it('mid：不区分分牌与非分，只按 A 以下单张取最小', () => {
+    const pool = [c('H', 5, 0), c('H', 9, 1), c('H', 7, 2), c('H', 7, 3)];
+    // 5 是最小单张（mid 里分牌不吃香），7 是对子不拆
+    expect(pickTrumpByTier(pool, 'mid', cfgH2)!.id).toBe('H-5-0');
+  });
+
+  it('同一手牌两种模式给出不同答案：♥5♥5 对 + ♥9 单', () => {
+    const pool = [c('H', 5, 0), c('H', 5, 1), c('H', 9, 2)];
+    // fourth：分牌档先命中 → 拆 ♥5 对
+    expect(pickTrumpByTier(pool, 'fourth', cfgH2)!.id).toBe('H-5-0');
+    // mid：A 以下单张优先 → ♥9，不拆对
+    expect(pickTrumpByTier(pool, 'mid', cfgH2)!.id).toBe('H-9-2');
+  });
+
+  it('fourth：A 以下非分单张 > A 以下非分散对（不拆散对）', () => {
+    const pool = [c('H', 7, 0), c('H', 7, 1), c('H', 9, 2)];
+    expect(pickTrumpByTier(pool, 'fourth', cfgH2)!.id).toBe('H-9-2');
+  });
+
+  it('fourth：散对 > 含分拖拉机 > 不含分拖拉机', () => {
+    // ♥8♥8♥9♥9 是不含分拖拉机；♥3♥3 是散对
+    const withPair = [c('H', 3, 0), c('H', 3, 1), c('H', 8, 2), c('H', 8, 3), c('H', 9, 4), c('H', 9, 5)];
+    expect(pickTrumpByTier(withPair, 'fourth', cfgH2)!.id).toBe('H-3-0');
+    // 无散对时：含分拖拉机（♥10♥10♥J♥J）先于不含分拖拉机（♥8♥8♥9♥9）
+    const tractors = [c('H', 10, 0), c('H', 10, 1), c('H', 11, 2), c('H', 11, 3),
+      c('H', 8, 4), c('H', 8, 5), c('H', 9, 6), c('H', 9, 7)];
+    expect(pickTrumpByTier(tractors, 'fourth', cfgH2)!.id).toBe('H-10-0');
+  });
+
+  it('fourth：含 A 的拖拉机整段归末档，不按成员拆档', () => {
+    // ♥K♥K♥A♥A 与散对 ♥3♥3 并存 → 出散对成员，不动拖拉机
+    const pool = [c('H', 13, 0), c('H', 13, 1), c('H', 14, 2), c('H', 14, 3),
+      c('H', 3, 4), c('H', 3, 5)];
+    expect(pickTrumpByTier(pool, 'fourth', cfgH2)!.id).toBe('H-3-4');
+  });
+
+  it('fourth：A 与常主（王/级牌）最后才动，从小到大', () => {
+    const pool = [c('J', 16, 0), c('S', 2, 1), c('H', 14, 2)];
+    // 主牌 A（♥A）< 副级牌（♠2） < 大王
+    expect(pickTrumpByTier(pool, 'fourth', cfgH2)!.id).toBe('H-14-2');
+  });
+
+  it('fourth：级牌本身是分牌时（级10）按分牌档，先于 A 与非分常主', () => {
+    const cfgH10: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 10 };
+    // ♠10 是副级牌（常主）且 rank 10 为分牌；♥A 是主牌 A；♥3 是非分主牌
+    expect(pickTrumpByTier([c('H', 14, 0), c('S', 10, 1), c('H', 3, 2)], 'fourth', cfgH10)!.id)
+      .toBe('S-10-1');
+    // 分常主同样「单张优先于拆对」
+    expect(pickTrumpByTier([c('H', 10, 0), c('H', 10, 1), c('S', 10, 2)], 'fourth', cfgH10)!.id)
+      .toBe('S-10-2');
   });
 });

@@ -3397,3 +3397,92 @@ describe('void discard with all-trump hand says 垫主牌', () => {
     expect(r.reason).toBe('垫主牌');
   });
 });
+
+// ================================================================
+// 毙单张按档位选牌（保对/保拖拉机）；第四家吊主·队友大共用同一函数
+// ================================================================
+describe('trump-kill single picks by tier (pair/tractor preserving)', () => {
+  const H2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 2 };
+  const S2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
+  const t = (s: CardSuit, r: number, i: number): Card => createCard(s, r, i);
+
+  /** 第四家（myIndex 3、playCount 3）面对副牌单张领出。bestOwner 默认 2（对手）。 */
+  function fourthCtx(cfg: TrumpDeclaration, best: Card[], bestOwner = 2): AIContext {
+    return {
+      declarerIndex: 0, trumpSuit: cfg.trumpSuit, level: cfg.level,
+      myIndex: 3, isDeclarer: false, isDeclarerPartner: false,
+      isAttacker: true, attackerPoints: 5,
+      handCounts: [14, 13, 13, 13], trickHistory: [], reveals: [],
+      playCount: 3, leadPlayerIndex: 0,
+      bestSoFar: { cards: best, playerIndex: bestOwner },
+      ntState: null, bottomCards: [], debug: false,
+    };
+  }
+
+  it('第四家缺门毙副牌单张：不拆唯一主对（7♥×2 + 9♥ → 出 9♥）', () => {
+    const hand = [t('H', 7, 0), t('H', 7, 1), t('H', 9, 2),
+      t('S', 13, 3), t('S', 12, 4), t('C', 2, 5)];
+    const lead = [t('D', 14, 200)];
+    const r = aiFollowPlay(hand, lead, Suit.Diamonds, fourthCtx(H2, lead));
+    checkFollow(r.cards, hand, lead, 'D', H2);
+    expect(r.cards[0].id).toBe('H-9-2'); // 旧行为出 H-7-0（拆对）
+    expect(r.reason).toBe('用主牌毙（用最小牌盖）');
+  });
+
+  it('第四家：分牌单张优先于拆分牌散对（5♥单 > 10♥对）', () => {
+    const hand = [t('H', 5, 0), t('H', 10, 1), t('H', 10, 2), t('S', 13, 3)];
+    const lead = [t('D', 14, 200)];
+    const r = aiFollowPlay(hand, lead, Suit.Diamonds, fourthCtx(H2, lead));
+    checkFollow(r.cards, hand, lead, 'D', H2);
+    expect(r.cards[0].id).toBe('H-5-0');
+    expect(r.reason).toBe('用主牌毙（用分牌盖）');
+  });
+
+  it('第四家：本墩有分也先看分牌档（♥10 先于 ♥A）', () => {
+    const hand = [t('H', 14, 0), t('H', 10, 1), t('S', 13, 2)];
+    const lead = [t('D', 13, 200)]; // ♦K = 10 分
+    const r = aiFollowPlay(hand, lead, Suit.Diamonds, fourthCtx(H2, lead));
+    checkFollow(r.cards, hand, lead, 'D', H2);
+    expect(r.cards[0].id).toBe('H-10-1'); // 旧行为出 ♥A（≥A 最小）
+    expect(r.reason).toBe('用主牌毙（用分牌盖）');
+  });
+
+  it('第四家：A 以下非分单张优先于含分拖拉机（不拆拖拉机）', () => {
+    const hand = [t('H', 10, 0), t('H', 10, 1), t('H', 11, 2), t('H', 11, 3), t('H', 3, 4)];
+    const lead = [t('D', 14, 200)];
+    const r = aiFollowPlay(hand, lead, Suit.Diamonds, fourthCtx(H2, lead));
+    checkFollow(r.cards, hand, lead, 'D', H2);
+    expect(r.cards[0].id).toBe('H-3-4'); // 旧行为拆拖拉机出 H-10-0
+    expect(r.reason).toBe('用主牌毙（用最小牌盖）');
+  });
+
+  it('第四家：散对优先于不含分拖拉机（拆散对不拆拖拉机）', () => {
+    const hand = [t('H', 3, 0), t('H', 3, 1), t('H', 8, 2), t('H', 8, 3), t('H', 9, 4), t('H', 9, 5)];
+    const lead = [t('D', 14, 200)];
+    const r = aiFollowPlay(hand, lead, Suit.Diamonds, fourthCtx(H2, lead));
+    checkFollow(r.cards, hand, lead, 'D', H2);
+    expect(r.cards[0].id).toBe('H-3-0');
+    expect(r.reason).toBe('用主牌毙（用最小牌盖）');
+  });
+
+  it('第四家盖毙：在能盖过的牌里按档位取（♠Q 单张先于拆 ♠7 对）', () => {
+    // 对手（P2）已用 ♠6 毙；本家主牌 ♠7×2、♠Q 均可盖过
+    const hand = [t('S', 7, 0), t('S', 7, 1), t('S', 12, 2)];
+    const lead = [t('D', 9, 200)];
+    const best = [t('S', 6, 100)];
+    const r = aiFollowPlay(hand, lead, Suit.Diamonds, fourthCtx(S2, best));
+    checkFollow(r.cards, hand, lead, 'D', S2);
+    expect(r.cards[0].id).toBe('S-12-2'); // 旧行为出 S-7-0（拆对）
+    expect(r.reason).toBe('盖毙（用最小牌盖）');
+  });
+
+  it('第四家吊主单张·队友大：加分池不拆散对（无分牌时出最小不盖过的主牌）', () => {
+    const hand = [t('S', 7, 0), t('S', 7, 1), t('S', 9, 2), t('S', 2, 3)];
+    const lead = [t('S', 5, 200)];
+    // 第二家（myIndex 3 的队友 = 1）以 ♠J 大；♠2 正主可盖过 → 进入该分支
+    const r = aiFollowPlay(hand, lead, Suit.Spades, fourthCtx(S2, [t('S', 11, 100)], 1));
+    checkFollow(r.cards, hand, lead, 'S', S2);
+    expect(r.cards[0].id).toBe('S-9-2'); // 旧行为出 S-7-0（拆对）
+    expect(r.reason).toBe('同花色出小（但没分可加）');
+  });
+});

@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-09-26 09:34
+
+### 毙单张改按档位选牌：保对/保拖拉机，第四家与「吊主单张·队友大」共用一套
+
+**问题**：第四家缺门毙副牌单张时，`trumpKillSingle` 的第四家分支取 `sortKillCards()[0]`、第二/三家取 eff 升序 `[0]`——整条链路只按「分牌权重 → 有效大小」排序，**没有对子/拖拉机概念**。实测牌局（主 ♥、级 2，第四家缺门，领出 ♦ 单张、对手 `A♦` 当前最大、本墩 0 分，手牌 `7♥×2` + `9♥` 等）建议出 `7♥`，拆掉了手上唯一的主牌对。对照实验：把 `7♥×2` 换成 `7♥ + 8♥`（无对子）后仍出 `7♥`，证明对子从未参与计算。同一手牌改走「主牌领出」时 `followTrumpLead` 的第四家分支却有明确的保对逻辑（`catOf`）——同一估值问题上两处口径不一致，正是病根。另：第四家吊主单张 + 队友大（`follow-trump.ts`）与无主模式下的同构副本同样只按 eff 排序，同样拆对。
+
+**调整**：抽出共用的 `pickTrumpByTier(pool, mode, ctx)`（`ai/position-policy.ts`），档位优先、同档内取最小，池空返回 null。两种模式：
+
+- **第四家**（`'fourth'`，毙/盖毙单张与吊主单张·队友大共用）：分牌单张（10>K>5，级牌本身 rank 为 5/10/K 时按分牌算）> 拆分牌散对 > A 以下非分单张 > A 以下非分散对（拆对）> A 以下含分拖拉机 > A 以下不含分拖拉机 > A 和常主（升序，不区分单张/对牌/拖拉机）。第四家**总是**先看分牌档，本墩有无分一视同仁——取代原先「墩含分改取不小于 A 的最小牌」。
+- **第二/三家**（`'mid'`，不区分分牌与非分）：A 以下单张 > A 以下散对（拆对）> A 以下拖拉机 > A 和常主（升序）。`rule1KillMode` 的前两档（有强牌→最大、墩含分→不小于 A）**保留**，只替换第三档「否则→最小」；盖毙在能盖过的牌里按同一档位取。
+
+配套：`sortKillCards` 两个调用点全部消失，函数删除；`aceEff` 统一到 `position-policy.ts`（删 `follow-trump.ts` 私有副本）；`trumpKillSingle` 的 `hasPoints` 形参在单张路径已无用，删除。拖拉机成员一律按拖拉机档归类——含 A 的拖拉机整段归末档，不按成员拆档（否则 A-K 拖拉机里的 K 会被分牌档抢走、含分拖拉机里的分牌会让拖拉机档永不可达）。仅覆盖**单张领出**的毙牌选牌；对子/拖拉机领出的毙牌、`followTrumpLead` 的第二家/第三家/第四家「能盖过对手」分支、垫牌路径全部未动，reason 文案零改动。顺带把失效标签「第四家原则6注」（现行 STRATEGY.md 2.3 只有 1–4 条）改指「规格 2.3 第 3 条」。
+
+实测：原始牌局建议由 `7♥` 变为 `9♥`（对子保住）；无主副本按同一规则，级牌本身为分牌时同样单张优先于拆对。
+
+策略既已变更，README 现行刻度里 `ai`（当前）一行的 Elo 不再成立，该格标记为待重测（其余基线行与锚点未动）。
+
+**新增 18 项测试**（ai-position-policy.test.ts：9 项、ai-follow.test.ts：7 项、ai-position-follow.test.ts：2 项），**修改 1 项测试**（arena-e2e.test.ts：A==A 冒烟基线数值）。引擎 790 项 + arena 67 项 + CLI 80 项 + client 201 项 = 1138 项通过。
+
+- **影响文件**：`packages/engine/src/ai/position-policy.ts`、`packages/engine/src/ai/follow-trump.ts`、`packages/engine/src/ai/STRATEGY.md`、`packages/engine/src/__tests__/ai-position-policy.test.ts`、`packages/engine/src/__tests__/ai-follow.test.ts`、`packages/engine/src/__tests__/ai-position-follow.test.ts`、`packages/arena/src/__tests__/arena-e2e.test.ts`、`README.md`
+
 ## 2026-09-25 19:22
 
 ### 布局基线改指「实测与当前布局相同的最早提交」
