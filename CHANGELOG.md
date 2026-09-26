@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-09-26 21:18
+
+### 删除无人管辖的 `packages/utility`
+
+**问题**：`packages/utility`（4 文件 / 121 行）不在根 `package.json` 的 `workspaces` 里，`package-lock.json` 无条目、`node_modules/@poker/` 无链接、全仓零 import，也没有 test/typecheck 脚本——因此它既不被类型检查也不被测试覆盖，却含一个真实类型错误（`src/compact.ts:61` TS2339），且在 `"type": "module"` 的包里有 `require('fs')`（运行时必崩）。它可以无限腐烂且零信号，同时让「仓库只有四个包」的认知与事实不符。
+
+**修复**：`git rm -r packages/utility`。除删除外无需任何改动（已逐项核对：workspaces、lock、`node_modules` 链接、tsconfig 的 `references`/`paths`、README、CLAUDE.md、`.claude/**` 均无引用）。历史 Changelog 里的两处散文提及不回改（不追溯旧账）。
+
+**无新增测试**，引擎 790 项 + arena 68 项 + CLI 80 项 + client 201 项 = 1139 项通过（该包本无测试，数量不变）。
+
+- **影响文件**：`packages/utility/package.json`（删）、`packages/utility/tsconfig.json`（删）、`packages/utility/src/index.ts`（删）、`packages/utility/src/compact.ts`（删）
+
 ## 2026-09-26 21:17
 
 ### 给两个零断言的空壳测试补上真断言
