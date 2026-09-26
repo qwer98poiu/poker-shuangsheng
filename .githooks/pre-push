@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+#
+# 推送前门禁。装配方式见根 package.json 的 prepare（npm install 后自动设 core.hooksPath）。
+# 逃生口：git push --no-verify
+#
+# 为什么是 pre-push 而不是 pre-commit：提交保持轻快，推送才是「离开本机」的时刻。
+#
+# 为什么第 1 步不可省：它跑的是**当前工作区**。check-commits 的 T2 也在跑 typecheck，
+# 但那是在为每个提交新建的**干净 worktree** 里跑，看不见未提交/被 .gitignore 忽略的文件。
+# 2026-09-26 实测到的最坏组合：本机 `npm run typecheck` 因 packages/arena/scripts/ 下
+# 三个被忽略的实验脚本而红，而 T2 报告「通过」——唯一强制人跑的门坏了，唯一会报告门
+# 坏了的检查器看不见真实工作区。
+set -u
+
+cd "$(git rev-parse --show-toplevel)" || exit 0
+
+fail() {
+  printf '\n\033[31m✗ pre-push 门禁失败：%s\033[0m\n' "$1" >&2
+  printf '  绕过（确认无害时）：git push --no-verify\n\n' >&2
+}
+
+# ── 1. 工作区类型检查 ───────────────────────────────────────────
+echo '▶ typecheck（工作区，五段：engine → arena → cli → client → skills）'
+if ! npm run typecheck; then
+  fail '类型检查未通过（见上方 error TS）'
+  exit 1
+fi
+
+# ── 2. 全量测试 ─────────────────────────────────────────────────
+echo '▶ test:all（engine → arena → cli → client）'
+if ! npm run test:all; then
+  fail '测试未全绿（见上方失败用例）'
+  exit 1
+fi
+
+# ── 3. 本次推送范围的提交规范（只跑 S1–S14 结构检查，秒级）─────────
+# stdin 上**没有** "<remote> <url>" 头（远端名与 URL 是 $1/$2），只有 ref 行：
+#   <本地 ref> SP <本地 sha> SP <远端 ref> SP <远端 sha>
+# 这个格式是在一次性仓库里实测确认的，不是照文档猜的——最初照记忆写成「首行是头」，
+# 结果把一行真实 ref 当成了头，范围静默退化成 origin/main..HEAD。
+# check-commits 自己不读 stdin，范围必须在这里算好再作为位置参数传给它；它默认的
+# origin/main..HEAD 在 push 语义下既不对（会重复检查已推送的提交）也可能很慢。
+RANGES=()
+while read -r _local_ref local_sha _remote_ref remote_sha; do
+  case "$local_sha" in
+    *[!0]*) ;;        # 有非零字符 = 正常推送
+    *) continue ;;    # 全零 = 删除远端分支，没有新提交要检查
+  esac
+  [ "$local_sha" = "$remote_sha" ] && continue    # 该 ref 没有更新
+  case "$remote_sha" in
+    *[!0]*) r="${remote_sha}..${local_sha}" ;;     # 增量推送
+    # 新分支（远端 oid 全零）：回退到与主线的差集。origin/main 取不到就跳过这一条，
+    # 而不是把一个解析不了的范围交给 check-commits（那会以退出码 2 假性阻断推送）。
+    *) if git rev-parse --verify --quiet origin/main >/dev/null; then
+         r='origin/main..HEAD'
+       else
+         r=''
+       fi ;;
+  esac
+  [ -n "$r" ] && RANGES+=("$r")
+done
+
+if [ ${#RANGES[@]} -eq 0 ]; then
+  echo '· 没有可解析的推送范围，跳过提交规范检查'
+else
+  for RANGE in "${RANGES[@]}"; do
+    echo "▶ check-commits（结构检查，范围 ${RANGE}）"
+    npx tsx .claude/skills/check-commits/check-commits.ts "$RANGE" --no-tests --no-typecheck
+    rc=$?
+    if [ "$rc" -ne 0 ]; then
+      if [ "$rc" -eq 2 ]; then
+        fail "提交规范检查器自身出错（退出码 2，范围 ${RANGE}）"
+      else
+        fail "提交规范检查未通过（范围 ${RANGE}）"
+      fi
+      exit 1
+    fi
+  done
+fi
+
+echo '✓ pre-push 门禁通过'

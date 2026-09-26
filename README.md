@@ -108,6 +108,10 @@ In NT (no-trump) mode, 12 constant trump cards (Big Joker × 2, Small Joker × 2
 - **Node.js** ≥ 18
 - **npm** ≥ 9
 
+### Git hooks (pre-push)
+
+`.githooks/pre-push` runs the gate before anything leaves your machine: the working-tree `npm run typecheck`, then `npm run test:all`, then the commit-series conformance check over the range being pushed. It installs itself — `npm install` runs `prepare`, which points `core.hooksPath` at `.githooks`. Bypass with `git push --no-verify`.
+
 ### CLI
 
 ```bash
@@ -301,6 +305,10 @@ MIT — see [LICENSE](LICENSE).
 
 - **Node.js** ≥ 18
 - **npm** ≥ 9
+
+### Git 钩子（pre-push）
+
+`.githooks/pre-push` 在代码离开本机前把关：先跑**工作区**的 `npm run typecheck`，再跑 `npm run test:all`，最后对本次推送范围跑一遍提交规范检查。钩子会自己装配——`npm install` 触发的 `prepare` 会把 `core.hooksPath` 指到 `.githooks`。需要绕过时用 `git push --no-verify`。
 
 ### 命令行（CLI）
 

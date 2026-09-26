@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-09-26 21:16
+
+### 修复类型检查门禁，并加一个会自动装配的 pre-push 钩子
+
+**问题**：`packages/arena/tsconfig.scripts.json` 的 `include: ["scripts"]` 是**按目录**取的，把同目录下三个被 `.gitignore` 忽略的未完成实验脚本（`nt-guarantee-ceiling.ts` 等）也纳入了类型检查。于是本地 `npm run typecheck` 在 arena 这一段就失败退出，**其后的 cli / client / skills 三段从未执行**——而 `check-commits` 的 T2 是在为每个提交新建的**干净 worktree** 里跑 typecheck，那里没有这些文件，所以它一直报告「通过」。唯一强制人跑的门坏了，唯一会报告门坏了的检查器看不见真实工作区。仓库彼时也没有任何触发点：无 CI、无 `.githooks/`、`core.hooksPath` 未设置、根 `package.json` 无生命周期脚本，全靠人记得手动跑。
+
+**修复**：① 该 tsconfig 补 `"exclude": ["scripts/nt-*.ts"]`（与 `.gitignore`、`scripts/NOTES-nt-experiments.md` 三处保持一致），五段链恢复跑全。② 新增 `.githooks/pre-push`：从 stdin 解析本次推送范围，依次跑「工作区 `npm run typecheck` → `npm run test:all` → `check-commits <范围> --no-tests --no-typecheck`」，任一失败即阻断推送，`git push --no-verify` 可跳过；**不引入 pre-commit**，提交保持轻快。`pre-push` 的 stdin **没有** `<remote> <url>` 头（远端名与 URL 走 `$1`/`$2`），只有 `<本地 ref> <本地 sha> <远端 ref> <远端 sha>` 四列——该格式是在一次性仓库里实测确认的：最初照记忆写成「首行是头」，结果把一行真实 ref 当成了头，推送范围静默退化成 `origin/main..HEAD`。五种 stdin 形状（空 / 增量 / 新分支 / 删除分支 / 混合）已逐一验证。③ 根 `package.json` 补受保护的 `prepare`（`[ -d .git ] && git config core.hooksPath .githooks || true`），`npm install` 后钩子自动生效，不依赖「谁记得跑一条 git config」。④ CLAUDE.md 与 README（中英各一处）写明钩子、逃生口，以及「本地 typecheck ≠ T2」这条容易误以为重复的区分。
+
+**无新增测试**，引擎 790 项 + arena 68 项 + CLI 80 项 + client 201 项 = 1139 项通过（`npm run typecheck` 五段零错误；钩子实测：正常路径退出 0、注入类型错误后退出 1 并打印失败原因、跑完 `.git/cc-check-wt/` 为空）。
+
+- **影响文件**：`packages/arena/tsconfig.scripts.json`、`.githooks/pre-push`（新）、`package.json`、`CLAUDE.md`、`README.md`
+
 ## 2026-09-26 19:24
 
 ### 根的 `typescript` 依赖改为显式声明

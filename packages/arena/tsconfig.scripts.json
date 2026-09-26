@@ -6,5 +6,10 @@
     "declarationMap": false,
     "sourceMap": false
   },
-  "include": ["scripts"]
+  "include": ["scripts"],
+  // nt-*.ts 是已声明「未完成、不提交」的无主实验脚本（见 .gitignore 与
+  // scripts/NOTES-nt-experiments.md）。**只在 .gitignore 里排除不够**：本 include 是按
+  // 目录取，会把它们一并纳入检查，于是本地 `npm run typecheck` 在 arena 这一段就断掉，
+  // 其后的 cli / client / skills 三段永不执行。三者必须保持一致。
+  "exclude": ["scripts/nt-*.ts"]
 }

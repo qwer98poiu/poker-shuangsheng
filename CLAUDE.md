@@ -102,6 +102,8 @@ Changelog 的测试数行与提交信息不同：列出子包分项与总数（`
 ## 类型检查
 
 - **命令**：根目录 `npm run typecheck`，按 engine → arena → cli → client → skills 顺序各跑一次 `tsc --noEmit`（与 `test:all` 同风格，任一失败即停止）。提交前必零错误。
+- **门禁在 pre-push，不在 pre-commit**：`.githooks/pre-push` 依次跑「工作区 `npm run typecheck` → `npm run test:all` → `check-commits <本次推送范围> --no-tests --no-typecheck`」，任一失败即阻断推送；`git push --no-verify` 可跳过。`core.hooksPath` 由根 `package.json` 的 `prepare` 在 `npm install` 后自动设好，**新克隆无需手工配置**（提交保持快，推送才是「离开本机」的时刻）。
+- **本地 `npm run typecheck` ≠ `check-commits` 的 T2**：两者跑的都是 typecheck，但 T2 是在为每个提交新建的**干净 worktree** 里跑，看不见未提交的与被 `.gitignore` 忽略的文件——2026-09-26 实测的最坏组合：本机因 `packages/arena/scripts/` 下三个被忽略的实验脚本而红，而 T2 报告「通过」。**两者不可互相替代**，门禁里跑的是前者；同理，把一个文件写进 `.gitignore` 并不会把它移出 tsconfig 的 `include`（`include` 按目录取），必须同步加 `exclude`。
 - **历史坑一（范围）**：该条原先只写「engine 与 client」，`cli`/`arena` 从未被检查过——2026-09-19 修掉的 13 个 TS2345（`packages/cli/src/__tests__/round-result.test.ts`）在此之前一直存在于 HEAD 上，而 vitest 全绿。
 - **历史坑二（`scripts/`）**：四个包的 `tsconfig.json` 都只 `include: ["src"]`，**`packages/*/scripts/` 不在任何 tsconfig 范围内**。有 scripts 的包（engine / arena / client）另配 `tsconfig.scripts.json`，已并入该包的 `typecheck` 脚本；新增含 scripts 的包要同步补一个，否则脚本仍然裸奔。
 - **历史坑三（`.claude/skills/`）**：skills 在四个包之外，同样不在任何 tsconfig 范围内，脚本一直裸奔——2026-09-26 接入时当场报出 6 个错误（`inject-gui.ts` 的 `JSON.parse` 未定型 → `Object.values` 推成 `unknown[]`，各处展开报 TS2488、回调参数隐式 any）。现由根 `tsconfig.skills.json`（`include: [".claude/skills"]`）与根 `typecheck:skills` 脚本覆盖；**新增带 `.ts` 的 skill 自动纳入，不必再改配置**。
