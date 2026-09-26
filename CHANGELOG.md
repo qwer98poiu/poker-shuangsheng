@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-09-26 21:17
+
+### 给两个零断言的空壳测试补上真断言
+
+**问题**：`ai-leading.test.ts` 的 `declarer with 20+ cards does not lead trump pairs` 与 `declarer partner never leads trump pairs` 两个测试，`if` 块里**只有注释**（其一写着 "If it does lead a trump pair, it's a test failure"——描述了本该做的断言，然后什么都没做）。二者实际执行的唯一断言是 `checkLead`（只验出牌合法），因此无论 AI 出什么都通过，而 `STRATEGY.md` 优先级 3/4 的两条庄家/对家限制就靠它们「守着」。全仓扫描确认：真正的空壳只有这 2 个（其余 66 处「`it` 体内 expect 计数为 0」都是委托给本文件内的断言助手 `checkFollow`/`expectThrow`/`expectFollow`/`checkAll5`）。
+
+**修复**：先实测 `aiLeadPlay` 在这两个 fixture 上的真实输出（两例均出单张 `H-3`、reason `吊主`，即受限后拆对而不成对领出），再据实写断言：出牌**恰好一张**、是主牌、rank 为 3、reason 为 `吊主`。**非空验证**：临时把 `ai/lead.ts` 的两处主牌过滤条件改成恒假，两个测试立刻失败（`expected 2 to be 1`，即真的领出了 H-33 主对），还原后重新通过——证明它们不再是空壳。
+
+**修改 2 项测试**（ai-leading.test.ts：2 项），引擎 790 项 + arena 68 项 + CLI 80 项 + client 201 项 = 1139 项通过。
+
+- **影响文件**：`packages/engine/src/__tests__/ai-leading.test.ts`
+
 ## 2026-09-26 21:16
 
 ### 修复类型检查门禁，并加一个会自动装配的 pre-push 钩子

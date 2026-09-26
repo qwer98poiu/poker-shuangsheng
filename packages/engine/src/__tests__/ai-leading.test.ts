@@ -182,11 +182,13 @@ describe('AI leading play', () => {
       });
       const result = aiLeadPlay(hand, ctxD);
       checkLead(result.cards, hand, cfg5);
-      // Should not lead the trump pair (H-33) because declarer with 20+ cards
-      if (result.cards.length === 2 && result.cards.every(c => isTrump(c, cfg5))) {
-        // If it does lead a trump pair, it's a test failure
-        // Actually, the restriction is declarer doesn't lead trump pairs with 20+ cards
-      }
+      // STRATEGY.md 优先级 3/4 的庄家限制：手牌 ≥20 张时不出主牌对子。
+      // 本副唯一的对子就是主牌 H-33（也是仅有的两张主牌）——受限后改出拆开的一张，
+      // 而非成对领出，故断言「恰好一张、且是主牌」。
+      expect(result.cards.length).toBe(1);
+      expect(isTrump(result.cards[0], cfg5)).toBe(true);
+      expect(result.cards[0].rank).toBe(Rank.Three);
+      expect(result.reason).toBe('吊主');
     });
 
     it('declarer partner never leads trump pairs', () => {
@@ -200,10 +202,12 @@ describe('AI leading play', () => {
       });
       const result = aiLeadPlay(hand, ctxDP);
       checkLead(result.cards, hand, cfg5);
-      // Declarer partner should not lead trump pairs
-      if (result.cards.length === 2 && result.cards.every(c => isTrump(c, cfg5))) {
-        // fail-safe: this should not happen
-      }
+      // 对家同样不得领出主牌对子（STRATEGY.md 优先级 3/4 的对家限制）；
+      // 本副唯一的对子也是 H-33，同样断言「恰好一张主牌」。
+      expect(result.cards.length).toBe(1);
+      expect(isTrump(result.cards[0], cfg5)).toBe(true);
+      expect(result.cards[0].rank).toBe(Rank.Three);
+      expect(result.reason).toBe('吊主');
     });
   });
 
