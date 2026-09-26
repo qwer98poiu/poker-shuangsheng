@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-09-26 10:59
+
+### 存档 ai-0907 基线（09-07 00:45，毙牌单张按档位选牌之前）
+
+**问题**：`ai/` 在 09-07 00:45 的扣底策略重构之后又叠了多轮改动，需要一个停在那一刻的对照基线供竞技场与当前 `ai` 对比。既有四个基线（`ai-0802`/`ai-0808`/`ai-0809`/`ai-0816`）全部早于那次重构，量不到它的影响。
+
+**做法**：`git archive` 提取 09-07 00:45 的 `ai/` 为 `packages/engine/src/ai-0907/`（15 文件，含 STRATEGY.md），引擎注册 `ai0907` 命名空间、竞技场注册 `ai0907Strategy`，`historical-strategies.test.ts` 补 pair 18/19 合法性用例（无中止、无验牌回退）。README 的 `--strategy-a/b` 可选列表补入 `ai-0907`，Elo 表新增 `ai-0907` 行 = 1229（原 `ai` 行的历史分数归此），当前 `ai` 行记为实测 1240，历史基线列表同步；`elo-calc.ts` 的 `MATCHES` 补入 6 条新对决（`ai-0907` 对 `ai-0802`/`ai-0809`/`ai-0816`，`ai` 对 `ai-0802`/`ai-0816`/`ai-0907`）。新增对决会让整条刻度轻微漂移，故 `ai-0907` 的拟合值 1230 与历史值 1229 只差 1 时保留原值。
+
+**新增 1 项测试**（historical-strategies.test.ts：1 项）。
+
+- **影响文件**：`packages/engine/src/ai-0907/`（新目录，15 文件）、`packages/engine/src/index.ts`、`packages/arena/src/strategies.ts`、`packages/arena/src/__tests__/historical-strategies.test.ts`、`packages/arena/scripts/elo-calc.ts`、`README.md`
+
+### 竞技场 `--strategy-b` 默认值同步到最新基线 `ai-0907`
+
+**问题**：`run.ts` 的 `--strategy-b` 默认值停在 `ai-0816`（08-16 提取基线时同步的那一次），新基线 `ai-0907` 注册后没有跟上——不带参数运行 `npm run arena` 时对手仍是旧基线。README 的 `--strategy-b` 选项表与示例命令同样写着 `ai-0816`。
+
+**修复**：`run.ts` 默认值改为 `ai-0907`（usage 文本同步）；README 选项表与示例命令同步（中英各两处）。
+
+引擎 790 项 + arena 68 项 + CLI 80 项 + client 201 项 = 1139 项通过。
+
+- **影响文件**：`packages/arena/src/run.ts`、`README.md`
+
 ## 2026-09-26 09:34
 
 ### 毙单张改按档位选牌：保对/保拖拉机，第四家与「吊主单张·队友大」共用一套
