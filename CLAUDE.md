@@ -11,19 +11,7 @@ packages/arena/      - 策略竞技场（镜像对决、显著性判定）
 
 ## 提交规范
 
-提交信息使用双语（英文 + 中文）：
-
-```
-<type>: <English short description>
-
-<English details (if needed)>
-
-<中文简述（可选）>
-
-Co-Authored-By: DeepSeek V4.1 Flash <noreply@deepseek.com>
-```
-
-英文正文（details）不超过 12 行；更长的解释写进 Changelog 对应小节，不堆在提交信息里。
+提交信息使用双语（英文 + 中文），英文正文（details）不超过 12 行；更长的解释写进 Changelog 对应小节，不堆在提交信息里。
 
 | 前缀 | 用途 |
 |---|---|
@@ -36,16 +24,7 @@ Co-Authored-By: DeepSeek V4.1 Flash <noreply@deepseek.com>
 | `chore:` | 构建/依赖 |
 | `skill:` | 新增或修改 skill（`.claude/skills/` 下的技能；提交时用 `git add -f`，该目录在 .gitignore 中） |
 
-**开发脚本（`packages/*/scripts/`）按用途归类**：
-
-| 脚本性质 | 前缀 | 例 |
-|---|---|---|
-| 产物是测试断言或测试场景数据 | `test:` | `gen-bottom-tests.ts` |
-| 通用调试基建，供人工手动运行 | `chore:` | `ui-dump.ts`、`ui-smoke.ts` |
-| 本身构成一项可用的检查能力（接入流程） | `feat:` | `layout-regression.ts` |
-| 仅挪位置/改名/重构 | `refactor:` | `elo-verify.ts → elo-calc.ts` |
-
-`test:` 类脚本不改变测试套件本身，提交信息与 Changelog 的测试数行均写「无新增测试」。
+**开发脚本（`packages/*/scripts/`）按用途归类**：产物是测试断言或测试场景数据 → `test:`（`gen-bottom-tests.ts`；不改测试套件本身，提交信息与 Changelog 的测试数行均写「无新增测试」）；通用调试基建、供人工手动运行 → `chore:`（`ui-dump.ts`、`ui-smoke.ts`）；本身构成一项可用的检查能力（接入流程）→ `feat:`（`layout-regression.ts`）；仅挪位置/改名/重构 → `refactor:`（`elo-verify.ts → elo-calc.ts`）。
 
 示例：
 ```
@@ -57,18 +36,10 @@ Adds nonTrump.length >= leadLen guard for safe filler selection.
 第三家队友已大时，缺门应先检查可加分再毙牌。
 新增 1 项测试（engine）。
 
-Co-Authored-By: DeepSeek V4 Flash <noreply@deepseek.com>
+Co-Authored-By: DeepSeek V4.1 Flash <noreply@deepseek.com>
 ```
 
-测试数行格式（提交信息）：
-
-```
-新增/修改/删除 N 项测试（子包）。
-```
-
-- 只写测试变动本身，不列测试总数：`新增 12 项测试（engine）`、`修改 2 项测试（arena）`、`删除 3 项测试（cli）`；跨子包写 `新增 3 项测试（engine 1 + client 2）`。
-- 无测试改动写 `无新增测试`。
-- 提交信息与 Changelog 中的测试数必须与实际测试结果一致（`npm run test` 各包之和）；Changelog 的分项与总数格式见下节。
+测试数行写 `新增/修改/删除 N 项测试（子包）`——只写测试变动本身、不列测试总数（跨子包写 `新增 3 项测试（engine 1 + client 2）`），无测试改动写 `无新增测试`；数字必须与实际测试结果一致，取数命令见「测试命令」。
 
 ### 引用历史：用日期，不用提交哈希
 
@@ -85,6 +56,8 @@ Co-Authored-By: DeepSeek V4 Flash <noreply@deepseek.com>
 |---|---|---|
 | **快照出处注释** | `packages/engine/src/ai-XXXX/` 的出处注释、`// ai/ as of <hash> (日期)` 导出注释、`it('ai-XXXX（<hash>, …）')` 测试名 | 目录名 `ai-XXXX` 只到日，且快照日与提取提交往往不同日（`ai-0808` ← 08-08 的提交、提取在 08-09），只留日期无法唯一定位提取源——必须**同时**给出哈希与日期 |
 | **出处字段** | 生成物里记录来源提交的机器可读字段，如布局基线的 `"commit": "<hash>"`（`layout-regression.ts --snapshot` 写入） | 同上；判据看键名（须含 `commit`/`revision`）与值（7–40 位十六进制） |
+
+出处哈希必须**在 main 上可达**（`git merge-base --is-ancestor <hash> main` 成立）：指向被改写掉的旧对象时，眼下还能 `git show <hash>:<path>`，GC 之后彻底失效。
 
 提交前自检与全量校验见 `.claude/skills/check-commits` 的 **S11**（两处例外报 info，其余报 error）。
 
@@ -104,11 +77,9 @@ Co-Authored-By: DeepSeek V4 Flash <noreply@deepseek.com>
 - **影响文件**：`path/to/file.ts`
 ```
 
-Changelog 测试数行与提交信息不同——列出子包分项与总数；无新增写 `无新增测试`；删除写 `删除 N 项测试`；client 无测试时省略 `client` 项。
+Changelog 的测试数行与提交信息不同：列出子包分项与总数（`引擎 X 项 + arena X 项 + CLI X 项 + client X 项 = X 项通过`）；无新增写 `无新增测试`；删除写 `删除 N 项测试`；client 无测试时省略 `client` 项。每项修改为一个独立的日期时间小节，按时间倒序排列。
 
-每项修改为一个独立的日期时间小节，按时间倒序排列。
-
-**多小节条目**：一个日期时间条目下可包含多个 `###` 小节（同一提交的多方面改动，如策略变更 + 其影响）。只有**最后**一个小节写测试总数（`引擎 X 项 + arena X 项 + CLI X 项 + client X 项 = X 项通过`），前面的小节只写 `**新增/修改/删除 N 项测试**（file.ts：M 项）`，不写总数。
+**多小节条目**：一个日期时间条目下可包含多个 `###` 小节（同一提交的多方面改动，如策略变更 + 其影响）。只有**最后**一个小节写测试总数（同上一行的分项+总数格式），前面的小节只写 `**新增/修改/删除 N 项测试**（file.ts：M 项）`，不写总数。
 
 ## 开发原则
 
@@ -116,7 +87,7 @@ Changelog 测试数行与提交信息不同——列出子包分项与总数；�
 - **修改 Changelog 必须在代码提交之前**。每次提交前先写 Changelog，再 `git add` 一起提交。Changelog 时间与提交时间允许相差几分钟，无需强制对齐。
 - **Changelog 只在更新代码时写**（fix/feat/strategy/refactor/test 等）；纯文档提交（`docs:` 和 `skill:`）一律不写 Changelog。
 - **测试断言优先用精确值**（`toBe(n)`），避免使用 `toBeGreaterThan`、`toBeGreaterThanOrEqual` 等模糊匹配，除非值本身因外部因素不确定。
-- **基础模块的测试必须逐项穷举**。对于记牌器这类高阶策略依赖的基础模块，测试覆盖所有视角 × 所有目标玩家 × 所有可能的牌（suit-rank）× 精确张数断言，不允许只验证部分卡牌。
+- **基础模块的测试必须逐项穷举**。对于记牌器这类高阶策略依赖的基础模块，测试覆盖所有视角 × 所有目标玩家 × 所有可能的牌（suit-rank）× 精确张数断言，不允许只验证部分卡牌（记牌器那一套即按此穷举，见 `packages/engine/src/__tests__/ai-nt-tracking.test.ts`）。另外，**测试场景里的庄家（`declarerIndex`）与亮主者（reveal 的 `playerIndex`）必须与真实游戏一致**——庄家身份决定底牌是否进入可能列表，设错会测到另一条分支而测试照样绿，这类错误不会自己暴露。
 - **每次提交前必须跑类型检查并清理全部错误**：根目录 `npm run typecheck`，须零错误后才提交（范围与 `scripts/` 的坑见「类型检查」节）。vitest 经 esbuild 转译不做类型检查，类型错误不会导致测试失败，因此必须显式检查。
 - **删除符号链接路径下的内容前先确认目标**：`git worktree` 无 node_modules，复用主仓库依赖时通常把 worktree 的 `node_modules` 符号链接到主仓库——此时 `rm worktree/node_modules/@poker/engine` 会顺着链接删掉**主仓库**里的真身（2026-08-15 实测：误删 `@poker/engine` 导致 vite 无法解析）。删除/重建前用 `ls -la`/`readlink` 确认是否为链接及指向；worktree 清理（`git worktree remove`）前先把指向 worktree 内部路径的链接改回相对链接（`../../packages/engine`），否则悬空。
 
@@ -130,9 +101,10 @@ Changelog 测试数行与提交信息不同——列出子包分项与总数；�
 
 ## 类型检查
 
-- **命令**：根目录 `npm run typecheck`，按 engine → arena → cli → client 顺序各跑一次 `tsc --noEmit`（与 `test:all` 同风格，任一失败即停止）。提交前必零错误。
+- **命令**：根目录 `npm run typecheck`，按 engine → arena → cli → client → skills 顺序各跑一次 `tsc --noEmit`（与 `test:all` 同风格，任一失败即停止）。提交前必零错误。
 - **历史坑一（范围）**：该条原先只写「engine 与 client」，`cli`/`arena` 从未被检查过——2026-09-19 修掉的 13 个 TS2345（`packages/cli/src/__tests__/round-result.test.ts`）在此之前一直存在于 HEAD 上，而 vitest 全绿。
 - **历史坑二（`scripts/`）**：四个包的 `tsconfig.json` 都只 `include: ["src"]`，**`packages/*/scripts/` 不在任何 tsconfig 范围内**。有 scripts 的包（engine / arena / client）另配 `tsconfig.scripts.json`，已并入该包的 `typecheck` 脚本；新增含 scripts 的包要同步补一个，否则脚本仍然裸奔。
+- **历史坑三（`.claude/skills/`）**：skills 在四个包之外，同样不在任何 tsconfig 范围内，脚本一直裸奔——2026-09-26 接入时当场报出 6 个错误（`inject-gui.ts` 的 `JSON.parse` 未定型 → `Object.values` 推成 `unknown[]`，各处展开报 TS2488、回调参数隐式 any）。现由根 `tsconfig.skills.json`（`include: [".claude/skills"]`）与根 `typecheck:skills` 脚本覆盖；**新增带 `.ts` 的 skill 自动纳入，不必再改配置**。
 - **花色类型**：`Suit`/`SpecialSuit` 是 `as const` 对象 + 同名联合类型（2026-09-19 由**字符串枚举**改来；字符串枚举是名义类型，那时 `'S'` 赋给 `CardSuit` 会报 TS2345，没有任何编译器开关能放宽）。现在 `Suit.Spades` 与 `'S'` 都合法，不需要任何 cast；`Rank` 仍是数值枚举，传裸数字合法（`createCard(Suit.Spades, 14, 200)`）。
 - **不要用 `as any` 消音**：那会把整条链路的类型检查一起关掉——`createCard(s, r as any, i)` 就是反例，它同时掩盖了 rank 传错这类真错误。类型实在对不上时用最小必要的 cast（`as CardSuit` 而非 `as any`）。
 
@@ -144,18 +116,28 @@ Changelog 测试数行与提交信息不同——列出子包分项与总数；�
   - 生成基线：`npx tsx scripts/layout-regression.ts --snapshot`——**仅当人工确认当前布局正确时**执行；基线随代码提交，视口固定 1280×720。
 - **有意移动组件时**：人工确认全布局正确后重新 `--snapshot` 更新基线，再提交。
 
+## Elo 分与 README 数值
+
+- **用途**：README 中英两张表里的 Elo 分是**实测快照**（`packages/arena/scripts/elo-calc.ts` 拟合，锚点 `ANCHOR_ELO`）。被测代码或测量口径一变旧数字就失效，**必须改标 `待重测`（TBD）**——中英两处都改，不得让旧分数挂着不动。
+- **失效范围按被测物的依赖边界划分**（实测：冻结快照只 import 共享模块 `model`/`pattern`/`comparing`/`following`/`types`，**不 import `ai/`**——所以改 `ai/` 只波及当前行，改共享模块才波及全表）：
+
+  | 改了什么 | 失效范围 | 处理 |
+  |---|---|---|
+  | `packages/engine/src/ai/` 策略代码 | 仅 `ai`（当前）一行 | 该格改 `待重测`；基线行与锚点不动 |
+  | 共享引擎代码——`model.ts`、`pattern/`、`comparing/`、`following/`、扣底/升级、发牌 | **整张表**（含锚点） | 全表重测；口径变了（如扣底口径）另开一表，不与旧表混列 |
+  | `packages/engine/src/ai-XXXX/` 冻结快照 | 该基线 | 不应改动——快照是 `git archive` 产物，改了就不再是那个日期的策略 |
+  | 策略接线（`packages/arena/src/strategies.ts` 的策略名 → 引擎入口） | 被改接线的那些行 | 名字必须继续指同一份代码；换实现 = 换策略，旧分不成立 |
+  | 竞技场测量口径（`packages/arena/src/run.ts`、镜像对局、平局按 0.5、n 局数） | `MATCHES` 全部 p̂ | 重跑对局、重填 `MATCHES` |
+  | `ANCHOR` / `ANCHOR_ELO` | 整张表（构造上） | 只在有意改刻度时动 |
+
+- **判据是「行为是否可能改变 AI 决策或牌局结算」**，不是「是否动了 engine 目录」：纯注释、纯类型、测试、无行为变更的重构、尚未接线的导出函数不必改标。**拿不准就改标**——旧数字挂着不动的代价远大于多测一次。
+- 重测后按 `elo-calc.ts` 的读数规则填表（新拟合值与表中原值只差 **1** 时保留原值）。CLI / GUI 改动**不影响** Elo——竞技场在 Node 里直接跑引擎，不经前端。
+
 ## 命名约定
 
 - **内部编号 P0-P3**：代码和测试中统一使用，P0=玩家1、P1=AI-2、P2=AI-3、P3=AI-4。不存在 P4。
 - **外部显示**：CLI 输出使用 `玩家1`（非 AI）或 `AI-2`（AI），由 `playerLabel(idx)` 生成。
 - **测试注释中的玩家标注**：优先使用 P0-P3 内部编号，或用 `P2(AI-3)` 同时标注两者。
-
-## 记牌器相关
-
-- 记牌器测试必须验证每个视角下每张常主（S-2, H-2, C-2, D-2, J-15, J-16）在每个非 void 玩家手中的精确副本数（`cnt` 断言）。
-- 必须验证对子推断：何种对子可能存在（`cnt=2`），何种不可能（`cnt≤1`），包括底牌（不受对子推断影响）。
-- 必须验证 void deduction 结果（`playersWithNoTrump`、possible 列表长度）。
-- 测试场景中的庄家（declarerIndex）、亮主者（reveal playerIndex）必须与真实游戏一致。
 
 ## AI 策略文档
 
