@@ -27,6 +27,28 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createCard } from '../../../packages/engine/src/model.js';
 import { computeMandatoryFollow } from '../../../packages/engine/src/following/index.js';
+import type { CardSuit, TrumpDeclaration } from '../../../packages/engine/src/types.js';
+
+/**
+ * state.json 的形状（见文件头注释）。除 `trump` 外都可缺省（各处用 `?? 默认` 兜底）。
+ * 有它才能让 `Object.values` 推出 `string[][]` 而非 `unknown[]`——后者会让每处展开报 TS2488。
+ */
+interface InjectState {
+  trump: TrumpDeclaration;
+  hand?: string[];
+  initialHands?: Record<string, string[]>;
+  aiHands?: Record<string, string[]>;
+  trickPlays?: { playerIndex: number; cards: string[]; leadSuit?: string | null }[];
+  history?: { winnerIndex: number; points: number; leadPlayerIndex?: number; plays: [number, string[]][] }[];
+  bottomCards?: string[];
+  reveals?: unknown[];
+  attackerPoints?: number;
+  declarerIndex?: number;
+  currentLevel?: number;
+  tricksPlayed?: number;
+  roundNumber?: number;
+  leadPlayerIndex?: number;
+}
 
 const require = createRequire(import.meta.url);
 const { chromium } = require(fileURLToPath(new URL('../../../packages/client/node_modules/playwright-core/index.js', import.meta.url)));
@@ -37,12 +59,12 @@ const statePath = args[0];
 const url = args.includes('--url') ? args[args.indexOf('--url') + 1] : 'http://localhost:5199';
 if (!statePath) { console.error('Usage: inject-gui.ts <state.json> [--url http://localhost:5199]'); process.exit(2); }
 
-const inj = JSON.parse(readFileSync(statePath, 'utf8'));
+const inj = JSON.parse(readFileSync(statePath, 'utf8')) as InjectState;
 const cfg = inj.trump;
 const card = (id: string) => {
   const m = /^([A-Z])-(\d+)-(\d+)$/.exec(id);
   if (!m) throw new Error(`bad card id: ${id}`);
-  return createCard(m[1] as any, Number(m[2]), Number(m[3]));
+  return createCard(m[1] as CardSuit, Number(m[2]), Number(m[3]));
 };
 
 // ---- 全局牌唯一性校验（两副 108 张，同 suit-rank 最多 2 张） ----
@@ -73,20 +95,20 @@ const mkPlayersOf = (hands: string[][]) => hands.map((h, i) => ({
 
 // 当前状态（直接注入模式）
 const curHands = [inj.hand ?? [], ...Object.values(inj.aiHands ?? {})];
-const mkPlays = (plays: any[]) => plays.map((p: any) => ({ playerIndex: p[0], cards: p[1].map(card) }));
+const mkPlays = (plays: [number, string[]][]) => plays.map((p) => ({ playerIndex: p[0], cards: p[1].map(card) }));
 const curState = {
   players: mkPlayersOf(curHands),
   trumpDeclaration: cfg,
   declarerIndex: inj.declarerIndex ?? 0,
   attackerPoints: inj.attackerPoints ?? 0,
-  trickHistory: (inj.history ?? []).map((t: any) => ({
+  trickHistory: (inj.history ?? []).map((t) => ({
     winnerIndex: t.winnerIndex, points: t.points,
     // 调试菜单历史渲染 players[(leadPlayerIndex+j)%4].name——缺 leadPlayerIndex 会渲染崩溃
     leadPlayerIndex: t.leadPlayerIndex ?? t.plays?.[0]?.[0] ?? 0,
     plays: mkPlays(t.plays),
   })),
   reveals: inj.reveals ?? [],
-  trickPlays: (inj.trickPlays ?? []).map((p: any) => ({ playerIndex: p.playerIndex, cards: p.cards.map(card), leadSuit: p.leadSuit ?? null })),
+  trickPlays: (inj.trickPlays ?? []).map((p) => ({ playerIndex: p.playerIndex, cards: p.cards.map(card), leadSuit: p.leadSuit ?? null })),
   leadPlayerIndex: inj.leadPlayerIndex ?? (inj.trickPlays?.[0]?.playerIndex ?? 0),
   bottomCards: (inj.bottomCards ?? []).map(card),
   debug: true,

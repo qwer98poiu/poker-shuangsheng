@@ -56,7 +56,8 @@ const HEX_STOPWORDS = new Set(['defaced', 'effaced', 'facaded', 'decafed']);
  *
  * 判据比对注释类更严（据此收窄误报面）：键名须含 commit/revision 语义，值须是
  * 7–40 位十六进制串（日期、布尔、普通字符串都匹配不到）。与注释类例外相同，仍要求
- * 该 token 能解析成 commit 对象才报 info。
+ * 该 token 能解析成 commit 对象、且**在 main 上可达**（见 isMainReachable）——后者不可达
+ * 时按 error 报，不豁免。
  */
 const PROVENANCE_FIELD_RE = /"[A-Za-z_]*(?:commit|revision)[A-Za-z_]*"\s*:\s*"[0-9a-f]{7,40}"/i;
 
@@ -72,6 +73,9 @@ const PROVENANCE_FIELD_RE = /"[A-Za-z_]*(?:commit|revision)[A-Za-z_]*"\s*:\s*"[0
  * 判据宽松是有意的：只要求同一行里出现快照标识（`ai-XXXX`）或出处用词（快照/基线/
  * `as of`）。哈希出现在可执行代码里本就极罕见，而误报一个出处注释的代价（逼人删掉追溯
  * 信息）高于漏报一个前提是「这行同时还是个快照出处注释」的哈希引用。
+ *
+ * 宽松只针对「这行算不算出处注释」；例外成立另有一项前提：该哈希必须在 main 上可达
+ * （见 isMainReachable），不可达时报 error 而非 info。
  */
 const SNAPSHOT_PROVENANCE_RE = /快照|基线|snapshot|baseline|as of|ai-\d{4}/i;
 
@@ -533,6 +537,44 @@ function isCommitish(token: string): boolean {
   return ok;
 }
 
+/**
+ * 主线基准：出处哈希还必须**在 main 上可达**，例外才成立。
+ *
+ * 例外允许哈希的唯一理由是「只留日期无法唯一定位提取源」——定位能力就是它的全部价值。
+ * 指向被改写掉的旧对象的哈希，眼下 `git show <hash>:<path>` 仍能读出内容，但那只是 GC
+ * 之前的假象：它既无法在 main 上 checkout 复现，对象一被回收，`git show` 也彻底失效。
+ *
+ * 基准取**本地 `main`** 而不是 `origin/main`：出处可以指向尚未 push 的提交（基线提取的
+ * 源提交往往就是本地主线刚提交不久的那个），用远端主线会把这类正常引用误报。`main`
+ * 取不到时依次回退 `origin/main`、`HEAD`；三者都取不到则**跳过**本项判定——宁可不报，
+ * 也不要让每个出处哈希一起误报。
+ */
+let mainRefCache: string | null | undefined;
+function mainRef(): string | null {
+  if (mainRefCache !== undefined) return mainRefCache;
+  for (const ref of ['main', 'origin/main', 'HEAD']) {
+    if (gitOk(['rev-parse', '--verify', '--quiet', `${ref}^{commit}`])) {
+      mainRefCache = ref;
+      return ref;
+    }
+  }
+  mainRefCache = null;
+  return null;
+}
+
+/** 该 token 是否在主线可达。基准本身取不到时返回 true（不判定，见 mainRef）。 */
+const reachableCache = new Map<string, boolean>();
+function isMainReachable(token: string): boolean {
+  const ref = mainRef();
+  if (ref === null) return true;
+  const key = `${ref}:${token}`;
+  const hit = reachableCache.get(key);
+  if (hit !== undefined) return hit;
+  const ok = gitOk(['merge-base', '--is-ancestor', token, ref]);
+  reachableCache.set(key, ok);
+  return ok;
+}
+
 function checkS11(c: CommitInfo, codeAddedLines: Map<string, { file: string; line: string }[]>): void {
   // 载体一：提交信息（散文语境，十六进制串基本只可能是 hash）
   for (const token of hexTokens(c.body)) {
@@ -546,8 +588,9 @@ function checkS11(c: CommitInfo, codeAddedLines: Map<string, { file: string; lin
 
   // 载体三：代码新增行——只在能解析成 commit 时报，避免把颜色/ID 当哈希
   for (const { file, line } of codeAddedLines.get(c.sha) ?? []) {
-    // 两类出处例外（见 SNAPSHOT_PROVENANCE_RE / PROVENANCE_FIELD_RE 注释）。报告为 info
-    // 而非静默跳过，免得将来误把整行其他位置的哈希也一并豁免时无人察觉。
+    // 两类出处例外（见 SNAPSHOT_PROVENANCE_RE / PROVENANCE_FIELD_RE 注释）。豁免成立时报
+    // info 而非静默跳过，免得将来误把整行其他位置的哈希也一并豁免时无人察觉；例外还有一项
+    // 前提——哈希必须在 main 上可达（见 isMainReachable），不可达时按 error 报。
     const provenance = SNAPSHOT_PROVENANCE_RE.test(line)
       ? '快照出处注释'
       : PROVENANCE_FIELD_RE.test(line)
@@ -555,13 +598,23 @@ function checkS11(c: CommitInfo, codeAddedLines: Map<string, { file: string; lin
         : null;
     if (provenance !== null) {
       for (const token of hexTokens(line)) {
-        if (isCommitish(token)) {
+        if (!isCommitish(token)) continue;
+        const where = `${file}: ${line.trim().slice(0, 100)}`;
+        if (!isMainReachable(token)) {
+          report(
+            'S11',
+            MODE.ERROR,
+            c.short,
+            `${provenance}的提交哈希 \`${token}\` 不在 main 上`,
+            `指向被改写掉的旧对象：无法在 main 上复现，GC 后 \`git show\` 也失效——改指 main 上同一提交的哈希。${where}`,
+          );
+        } else {
           report(
             'S11',
             MODE.INFO,
             c.short,
             `${provenance}含提交哈希 \`${token}\``,
-            `已豁免（${provenance}例外）：${file}: ${line.trim().slice(0, 100)}`,
+            `已豁免（${provenance}例外）：${where}`,
           );
         }
       }

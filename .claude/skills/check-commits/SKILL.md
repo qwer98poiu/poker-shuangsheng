@@ -66,7 +66,7 @@ npx tsx .claude/skills/check-commits/check-commits.ts --no-tests --no-typecheck
 | S8 | Changelog 无缺少 `## ` 前缀的孤立时间行 | error |
 | S9 | 每个新增 `## 时间` 行只被一个提交引入 | error |
 | S10 | Changelog 时间不得晚于该提交 author date（早 >40 分钟另报 warn：多半是映射错了） | error / warn |
-| S11 | **不得引用提交哈希**：提交信息、Changelog、代码一律用日期指代历史（快照出处注释、出处字段两处例外，报 info） | error / info |
+| S11 | **不得引用提交哈希**：提交信息、Changelog、代码一律用日期指代历史（快照出处注释、出处字段两处例外报 info，但前提是该哈希在 main 上可达——不可达报 error） | error / info |
 | S12 | 英文正文 ≤12 行；`Co-Authored-By:` 尾行存在 | 纯文档 info；改代码 warn |
 | S13 | 同一 `##` 下只有**最后一个** `###` 带「= X 项通过」总数行 | error |
 | S14 | 冻结快照 `packages/engine/src/ai-XXXX/` 只读 | error |
@@ -95,6 +95,8 @@ npx tsx .claude/skills/check-commits/check-commits.ts --no-tests --no-typecheck
 **S11 的例外之一：快照出处注释**（仅代码载体，报 info 不报 error）。冻结基线的出处必须同时给出哈希与日期——目录名 `ai-XXXX` 只到日，且快照日与提取提交往往不同日（`ai-0808` ← `133900d` 是 08-08、提取提交在 08-09；`ai-0809` ← `b77a7b1` 是 08-14、提取在 08-15），只留日期无法唯一定位提取源。判据是**同一行**出现快照标识（`ai-\d{4}`）或出处用词（快照/基线/snapshot/baseline/`as of`），覆盖 `// ai/ as of <hash>` 导出注释、`/** 快照基线：ai/ 在 <hash>（日期）时… */` 与 `it('ai-XXXX（<hash>, …）')` 三类写法。判据宽松是有意的：哈希出现在可执行代码里本就极罕见，误报一个出处注释的代价（逼人删掉追溯信息）高于漏报。提交信息与 Changelog 载体**不豁免**——那两处指代历史一律用日期。
 
 **S11 的例外之二：出处字段**（仅代码载体，报 info 不报 error）。生成物里记录「依据哪个提交生成/测量」的机器可读字段——典型是布局基线的 `"commit": "e2a0158"`，由 `scripts/layout-regression.ts --snapshot` 写入。它与例外一同源：值只有是哈希才具备定位能力（日期到分钟仍可能与同日多次改写混淆），而这类行内没有「快照/基线」字样可依赖，只能按**键名**判。判据比注释类更严：键名须含 `commit`/`revision` 语义，**值**须是 7–40 位十六进制串——`"commitDate": "2026-08-25 23:52"` 这类日期值匹配不到；同样要求该 token 能解析成 commit 对象才报 info。**生成器若改成写日期，此例外即不再命中**（那是另一条路，两者取其一即可）。
+
+**两处例外都以「该哈希在 main 上可达」为前提**（不可达报 error，不再豁免）。例外允许哈希的唯一理由是「只留日期无法唯一定位提取源」——定位能力就是哈希的全部价值；而只判「能否解析成 commit 对象」不够：被改写掉的旧对象在 GC 之前一直解析得到，却已无法在 main 上 checkout 复现。判据是 `git merge-base --is-ancestor <hash> <基准>`，基准依次取本地 `main` → `origin/main` → `HEAD`（取本地 `main` 而非远端主线：出处可以指向尚未 push 的提交，基线提取的源提交常是本地主线刚提交不久的，用 `origin/main` 会误报；三者都取不到时**跳过**本项判定，宁可不报也不要让每个出处哈希一起误报）。与其余 S11 判据一致，只扫本次提交新增行。
 
 **S3 只认「改了代码」**：判据是 `codeFilesOf(files)` 非空（`packages/**`、根 `package.json`、`tsconfig*.json`，与 S5 共用一套），**不是**「前缀不属纯文档」。`CLAUDE.md` 的原话是「Changelog 只在更新代码时写」，纯文档前缀只是这句话的代理；原判据把「只改 `.gitignore` 的 chore」也算了进来，而那类提交没有行为可记。实测全history：`feat`/`refactor`/`strategy` 零违规（98 个提交），活跃误报只有 2 个 `chore`——`09-25 16:22`（只改 `.gitignore`）放行，`08-30 10:08`（动了根 `package.json`）仍报。**不采用「按前缀豁免 `chore:`」**：`07-01 21:02` 那位 chore 改了 10 个引擎文件、且历史上确实写了条目，按前缀豁免会让这类逃逸——前缀是自报的意图，判据该看事实。
 
@@ -125,7 +127,7 @@ npx tsx .claude/skills/check-commits/check-commits.ts --no-tests --no-typecheck
 
 ## 已知局限
 
-- **S11 的代码扫描**只能认出**仍存在于对象库**的 hash（含 backup 分支）。被 GC 掉的改写前 hash 扫不出来。
+- **S11 的代码扫描**只能认出**仍存在于对象库**的 hash（含 backup 分支）。被 GC 掉的改写前 hash 扫不出来——所以「能解析成 commit 对象」不等于「还在 main 上」，两者的差集（悬空对象）正是可达性判定要拦的目标。
 - **S12 的英文正文行数**是启发式：数到第一行含 CJK 的行为止。提交信息里若中英混排在同一行，会提前截断。
 - **S12 对纯文档提交恒为 info**：`docs:` 提交本就不写 `Co-Authored-By` 尾行（如 `09-23 00:11` 那条），报出来属预期噪音，不是要修的问题。
 - **Changelog 条目与提交内容的语义匹配**机器判不了——时间对得上但内容张冠李戴时不会报错。报告里并排的「条目标题 ↔ 提交 subject」仅供人工扫一眼。**这一项试过三种可判定代理，结论是都不值得接成检查项**，过程记录在此以免后人重踩：
