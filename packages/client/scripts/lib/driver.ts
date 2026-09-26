@@ -66,7 +66,7 @@ export async function waitForServer(url: string, timeoutMs: number): Promise<voi
     if (await serverAlive(url)) return;
     await new Promise(r => setTimeout(r, 300));
   }
-  throw new Error(`vite dev server not reachable at ${url} after ${timeoutMs}ms (is another process on :3000?)`);
+  throw new Error(`vite dev server not reachable at ${url} after ${timeoutMs}ms (is another process on that port?)`);
 }
 
 export async function ensureServer(opts: { url: string; noSpawn: boolean }): Promise<ChildProcess | null> {

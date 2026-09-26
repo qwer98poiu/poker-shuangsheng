@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-09-26 22:07
+
+### 修正 dev server 端口：文档里的 5199 改为 3000
+
+**问题**：`CLAUDE.md`、`.claude/skills/gui-inject-ai`（文档 + 脚本默认值）、`packages/client/scripts/layout-regression.ts` 都说 vite dev server 跑在 **5199**，而 `packages/client/vite.config.ts:94` 是 `port: 3000`（`dev` 脚本不带 `--port`），README 中英两处、以及其余 GUI 脚本共用的 `scripts/lib/driver.ts:17` 也都用 3000。5199 **从未存在于任何配置**——`git log -S5199` 只命中两个纯文档/脚本提交，是写文档时凭空写错的值。后果是按文档跑 `npm run dev`（3000）再跑布局回归或 `inject-gui`（默认 5199）会直接连不上；`.claude/skills/gui-inject-ai/SKILL.md` 那行本身还自相矛盾（让人跑 `npm run dev` 却说默认 5199）。另外 `driver.ts:69` 的错误文案把端口写死成 `:3000`，调用方传了 `--url` 也照样这么报。
+
+**修复**：9 处字面量全部改为 3000，措辞统一为「默认 3000；该端口被占用时 vite 会顺延到下一个可用端口并打印实际地址，那就用 `--url` 指定」——**不把 3000 写死**：`driver.ts:69` 的文案改为「on that port?」（同一句里已经打印了实际 `${url}`）。未动 `vite.config.ts` 的 `strictPort`：加上它会让端口被占用时 `npm run dev` 直接失败而非顺延，属行为变更。
+
+**无新增测试**，引擎 790 项 + arena 68 项 + CLI 80 项 + client 201 项 = 1139 项通过（`npm run typecheck` 五段零错误）。
+
+- **影响文件**：`CLAUDE.md`、`packages/client/scripts/layout-regression.ts`、`packages/client/scripts/lib/driver.ts`、`.claude/skills/gui-inject-ai/SKILL.md`、`.claude/skills/gui-inject-ai/inject-gui.ts`
+
 ## 2026-09-26 21:18
 
 ### 删除无人管辖的 `packages/utility`

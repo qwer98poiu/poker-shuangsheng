@@ -113,7 +113,7 @@ Changelog 的测试数行与提交信息不同：列出子包分项与总数（`
 ## 布局回归检查
 
 - **用途**：修改任意 GUI 组件的位置后，验证其他所有组件位置不变（历史教训：给 `.center-area` 加 `position: relative` 导致等级框掉到桌布上——定位祖先被劫持）。
-- **用法**（vite dev server 需运行在 5199，浏览器 = 系统 Chrome）：
+- **用法**（vite dev server 默认跑在 3000；该端口被占用时 vite 会顺延到下一个可用端口并打印实际地址，那就用 `--url` 指定它。浏览器 = 系统 Chrome）：
   - 检查：`cd packages/client && npx tsx scripts/layout-regression.ts`——注入 6 个代表性阶段（发牌/亮主/扣底/出牌/甩 10 张/局末），测量 40 个关键组件的矩形，与基线 `scripts/layout-baseline.json` 比对；任一组件位移 >1px 时列出该组件及精确 delta，退出码 1。
   - 生成基线：`npx tsx scripts/layout-regression.ts --snapshot`——**仅当人工确认当前布局正确时**执行；基线随代码提交，视口固定 1280×720。
 - **有意移动组件时**：人工确认全布局正确后重新 `--snapshot` 更新基线，再提交。

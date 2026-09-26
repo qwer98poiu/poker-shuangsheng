@@ -13,7 +13,7 @@ description: 把任意牌局状态注入运行中的双升 GUI（window.__POKER_
 
 ## 前置
 
-1. **vite dev server 已运行**（`cd packages/client && npm run dev`，默认 5199 端口；脚本 `--url` 指定实际端口）。
+1. **vite dev server 已运行**（`cd packages/client && npm run dev`，默认 3000 端口；该端口被占用时 vite 会顺延并打印实际地址，那就用脚本的 `--url` 指定它）。
 2. 浏览器：系统 Chrome（脚本用 `channel: 'chrome'`）。
 
 ## 操作步骤
@@ -50,7 +50,7 @@ description: 把任意牌局状态注入运行中的双升 GUI（window.__POKER_
 
    ```bash
    npx tsx .claude/skills/gui-inject-ai/inject-gui.ts /tmp/state.json
-   # 或指定端口: ... --url http://localhost:5199
+   # 或指定端口: ... --url http://localhost:3000
    ```
 
 3. **读输出**：

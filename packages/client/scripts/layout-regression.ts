@@ -5,10 +5,11 @@
  * 逐一测量各组件 getBoundingClientRect，与基线（layout-baseline.json）比对，
  * 列出所有位移超过 1px 的组件及具体 delta。
  *
- * Usage（vite dev server 需在 5199 运行，浏览器 = 系统 Chrome）:
+ * Usage（vite dev server 默认在 3000；被占用时会顺延到下一个可用端口并打印实际地址，
+ * 那就用 --url 指定它。浏览器 = 系统 Chrome）:
  *   npx tsx scripts/layout-regression.ts --snapshot   # 用当前布局生成基线（仅当确认布局正确时）
  *   npx tsx scripts/layout-regression.ts              # 对照基线检查；有位移 → 列出并退出码 1
- *   npx tsx scripts/layout-regression.ts --url http://localhost:5199
+ *   npx tsx scripts/layout-regression.ts --url http://localhost:3000
  *
  * 基线文件（layout-baseline.json）随代码提交；--snapshot 覆盖时先人工确认布局正确。
  * 注意：视图必须 1280×720（游戏画布固定 720 高）；窗口缩小会触发 WindowSizeWarning 但
@@ -27,7 +28,7 @@ const { chromium } = require(fileURLToPath(new URL('../node_modules/playwright-c
 const BASELINE_PATH = fileURLToPath(new URL('./layout-baseline.json', import.meta.url));
 const GAME_URL = process.argv.includes('--url')
   ? process.argv[process.argv.indexOf('--url') + 1]
-  : 'http://localhost:5199';
+  : 'http://localhost:3000';
 const SNAPSHOT = process.argv.includes('--snapshot');
 /** 允许的最大位移（px）：getBoundingClientRect 取整误差。 */
 const TOLERANCE = 1;

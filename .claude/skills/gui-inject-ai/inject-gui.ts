@@ -8,7 +8,7 @@
  *   适合"AI 为什么建议某张牌"的完整还原（手牌/记牌/推断与真实路径一致）。
  *
  * Usage（在仓库任意位置）:
- *   npx tsx .claude/skills/gui-inject-ai/inject-gui.ts <state.json> [--url http://localhost:5199]
+ *   npx tsx .claude/skills/gui-inject-ai/inject-gui.ts <state.json> [--url http://localhost:3000]
  *
  * state.json 格式（牌 = "S-2-0"（suit-rank-idx，同引擎 cardId）; JOKER 用 J-16-x / J-15-x）:
  * {
@@ -56,8 +56,8 @@ const { chromium } = require(fileURLToPath(new URL('../../../packages/client/nod
 async function main(): Promise<void> {
 const args = process.argv.slice(2);
 const statePath = args[0];
-const url = args.includes('--url') ? args[args.indexOf('--url') + 1] : 'http://localhost:5199';
-if (!statePath) { console.error('Usage: inject-gui.ts <state.json> [--url http://localhost:5199]'); process.exit(2); }
+const url = args.includes('--url') ? args[args.indexOf('--url') + 1] : 'http://localhost:3000';
+if (!statePath) { console.error('Usage: inject-gui.ts <state.json> [--url http://localhost:3000]'); process.exit(2); }
 
 const inj = JSON.parse(readFileSync(statePath, 'utf8')) as InjectState;
 const cfg = inj.trump;
