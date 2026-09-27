@@ -5,7 +5,7 @@
  */
 import type { Card, ComboClass } from '../types.js';
 import { Rank, isPointRank } from '../types.js';
-import { isTrump, getEffectiveRank } from '../model.js';
+import { isTrump, getEffectiveRank, playOf } from '../model.js';
 import { findAllPairs, detectTractors } from '../pattern/index.js';
 import type { AIContext } from './types.js';
 import { isBigOffSuitCard, discardSort, pairSortAsc } from './utils.js';
@@ -55,7 +55,6 @@ export function discardNonTrump(
   const addPt = tmWin && canAddPoints(tmWin, position, combo, ctx);
   // 第四家恒标注：不加分时（avoid）标注避分；第二/三家保持原样。
   // 本函数内 mode 仅来自上方三元（avoid/open/add/full），不产生 forbid。
-  // （死代码清理，行为与 133900d 快照一致——仅消除 TS2367。）
   const intent = addPt ? 'add'
     : (position === 'fourth' && mode === 'avoid') ? 'avoid' : 'none';
   // 垫出的全是主牌（缺门不能毙、手牌全主）→ 垫主牌（与 finishTeammateWin 一致）
@@ -159,8 +158,9 @@ export function sideHasBigJoker(ctx: AIContext): boolean {
   const ourTeam = new Set([ctx.myIndex, (ctx.myIndex + 2) % 4]);
   for (const trick of ctx.trickHistory) {
     for (let pi = 0; pi < 4; pi++) {
-      for (const c of trick.plays[pi].cards) {
-        if (c.rank === Rank.BigJoker && ourTeam.has(pi)) return true;
+      if (!ourTeam.has(pi)) continue;
+      for (const c of playOf(trick, pi).cards) {
+        if (c.rank === Rank.BigJoker) return true;
       }
     }
   }
@@ -199,6 +199,19 @@ export function tryMatchTractorSlots(
     const available = myTractors.filter(t =>
       t.every(c => !usedIds.has(c.id)) && t.length / 2 >= req,
     );
+    if (available.length === 0) {
+      // 无 ≥req 的拖拉机：降级取最长的可用拖拉机（与 computeIdealFollow
+      // 的 closest-shorter 一致，validateFollow 接受更短拖拉机 + 对子填充；
+      // 拆开拖拉机成对子不合法）。手牌无可用拖拉机则跳过该需求。
+      const shorter = myTractors
+        .filter(t => t.every(c => !usedIds.has(c.id)))
+        .sort((a, b) => b.length - a.length);
+      if (shorter.length === 0) continue;
+      const sel = shorter[0];
+      picked.push(...sel);
+      sel.forEach(c => usedIds.add(c.id));
+      continue;
+    }
     if (available.length > 0) {
       available.sort((a, b) => {
         if (pointsStrategy === 'add') {

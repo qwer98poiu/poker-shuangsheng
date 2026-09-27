@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { engineStrategy, ai0802Strategy, ai0808Strategy, ai0809Strategy, ai0816Strategy, ai0907Strategy } from '../strategies.js';
+import { engineStrategy, ai0802Strategy, ai0809Strategy, ai0816Strategy, ai0907Strategy, ai0927Strategy } from '../strategies.js';
 import { playMatch } from '../match.js';
 
 /**
@@ -11,14 +11,6 @@ describe('historical strategies legality', () => {
   it('ai-0802（ebe0625, 08-02 分位置跟牌重构）：无中止、无验牌回退', () => {
     for (const pair of [10, 11]) {
       const m = playMatch({ seed: 42, pairIndex: pair, strategies: [ai0802Strategy, engineStrategy], captureEvents: true });
-      expect(m.abortedHands).toBe(0);
-      for (const ev of m.events) expect(ev.errors).toBe(0);
-    }
-  });
-
-  it('ai-0808（133900d, 08-08 第四家不盖/NT 垫牌修复前）：无中止、无验牌回退', () => {
-    for (const pair of [12, 13]) {
-      const m = playMatch({ seed: 42, pairIndex: pair, strategies: [ai0808Strategy, engineStrategy], captureEvents: true });
       expect(m.abortedHands).toBe(0);
       for (const ev of m.events) expect(ev.errors).toBe(0);
     }
@@ -43,6 +35,14 @@ describe('historical strategies legality', () => {
   it('ai-0907（6aa2b80, 09-07 毙牌单张按档位选牌之前）：无中止、无验牌回退', () => {
     for (const pair of [18, 19]) {
       const m = playMatch({ seed: 42, pairIndex: pair, strategies: [ai0907Strategy, engineStrategy], captureEvents: true });
+      expect(m.abortedHands).toBe(0);
+      for (const ev of m.events) expect(ev.errors).toBe(0);
+    }
+  });
+
+  it('ai-0927（45c8f78, 09-27 亮主 4>3 修复与出副对清对之前）：无中止、无验牌回退', () => {
+    for (const pair of [12, 13]) {
+      const m = playMatch({ seed: 42, pairIndex: pair, strategies: [ai0927Strategy, engineStrategy], captureEvents: true });
       expect(m.abortedHands).toBe(0);
       for (const ev of m.events) expect(ev.errors).toBe(0);
     }

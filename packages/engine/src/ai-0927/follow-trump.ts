@@ -20,18 +20,23 @@ import {
 import {
   hasStrongFollowUp, visibleTrickPoints, leadHasPoints, defense80,
   pickDiscards, secondShouldAvoid, minEff, maxEff,
+  unitize, catOf, aceEff, pickTrumpByTier,
 } from './position-policy.js';
 
 // ---- Kill mode ----
 
-/** 毙牌力度：auto=现行为（最小毙/有分>=A或最大/盖毙最小能盖）；
+/** 毙牌力度：auto=按档位选牌（单张见 pickTrumpByTier；对子/拖拉机见 trumpKill 各分支）；
  *  max=最大主牌毙；a-or-max=不小于A的最小主牌毙（没有则最大）。 */
 export type KillMode = 'auto' | 'max' | 'a-or-max';
 
-/** 主牌 A 的有效大小阈值。 */
-function aceEff(ctx: AIContext): number {
-  return getEffectiveRank(
-    { suit: ctx.trumpSuit ?? Suit.Spades, rank: Rank.Ace, isJoker: false, id: '' } as Card, ctx);
+/** 避分时主牌的垫出优先级键（越小越先垫，对应规格第二家第 5 条主牌部分）：
+ *  非分单(0) < 分单(1，级牌归保底类) < 非分对成员(2) < 分对成员(3) < A/级牌/王保底(4)。
+ *  垫分牌损失分，垫 A/级牌/王损失控制力——宁垫分牌保 A/级牌/王；不拆对先于拆对。 */
+function trumpDumpKey(c: Card, pool: Card[], ctx: AIContext): number {
+  if (getEffectiveRank(c, ctx) >= aceEff(ctx)) return 4; // 主A、级牌、王保底
+  const inPair = pool.some(x => x.id !== c.id && x.suit === c.suit && x.rank === c.rank);
+  if (isPointRank(c.rank)) return inPair ? 3 : 1;
+  return inPair ? 2 : 0;
 }
 
 
@@ -41,14 +46,8 @@ function killPointVal(c: Card, ctx: AIContext): number {
     : (c.rank === Rank.Ten ? 10 : (c.rank === Rank.King || c.rank === Rank.Five ? 5 : 0));
 }
 
-/** 毙牌排序：分最多优先（10>K>5，级牌除外，同分取小），无分取最小。 */
-function sortKillCards(cs: Card[], ctx: AIContext): Card[] {
-  return cs.sort((a, b) => (killPointVal(b, ctx) - killPointVal(a, ctx))
-    || (getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx)));
-}
-
 /** 第1条毙牌三档：有强牌(拖拉机/可甩副牌)用最大主牌毙；
- *  墩含分用不小于A的主牌毙；其他用最小主牌毙。 */
+ *  墩含分用不小于A的主牌毙；其他按档位选（see pickTrumpByTier）。 */
 export function rule1KillMode(
   _position: string, _tmWin: boolean, leadCombo: ComboClass, ctx: AIContext,
   hand: Card[], leadCards: Card[],
@@ -114,7 +113,8 @@ export function followTrumpLead(
       const canBeatCards = myTrump.filter(c => getEffectiveRank(c, ctx) > currentMax);
 
       if (position === 'second') {
-        // 第3条：出最小主牌（不一定盖过）；有拖拉机或可甩副牌 → 出最大主牌
+        // 第3条：出最小主牌（不一定盖过）；有拖拉机或可甩副牌 → 出最大主牌；
+        // 避分（>15 张）：非分小牌优先，级牌次之，分牌再次，主 A/王保底
         if (hasStrongFollowUp(hand, ctx)) {
           myTrump.sort((a, b) => getEffectiveRank(b, ctx) - getEffectiveRank(a, ctx));
           const cards = [myTrump[0]];
@@ -122,10 +122,16 @@ export function followTrumpLead(
             leadCombo, 1, ctx, position, tmWin, false, 'none');
           return { cards, reason };
         }
-        myTrump.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+        if (secondShouldAvoid(hand)) {
+          myTrump.sort((a, b) => (trumpDumpKey(a, myTrump, ctx) - trumpDumpKey(b, myTrump, ctx))
+            || (getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx)));
+        } else {
+          myTrump.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+        }
         const cards = [myTrump[0]];
+        const intent = secondShouldAvoid(hand) ? 'avoid' : 'none';
         const reason = annotateReason('同花色出小', cards, myTrump, myTrump,
-          leadCombo, 1, ctx, position, tmWin, false, 'none');
+          leadCombo, 1, ctx, position, tmWin, false, intent);
         return { cards, reason };
       }
 
@@ -150,9 +156,10 @@ export function followTrumpLead(
             leadCombo, 1, ctx, position, tmWin, false, 'none');
           return { cards, reason };
         }
-        // 盖不过前两家 → 最小主牌且不加分（避分优先级：主牌A以下非分单先于分单，
-        // 级牌归"主牌A或更大"末类；分牌不优先）
-        myTrump.sort(discardSort(false, ctx));
+        // 盖不过前两家 → 最小主牌且不加分（垫牌原则与第二家相同：
+        // 非分单 < 分单(级牌归保底) < 非分对 < 分对 < A/级牌/王，从小到大）
+        myTrump.sort((a, b) => (trumpDumpKey(a, myTrump, ctx) - trumpDumpKey(b, myTrump, ctx))
+          || (getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx)));
         const cards = [myTrump[0]];
         const reason = annotateReason('同花色出小', cards, myTrump, myTrump,
           leadCombo, 1, ctx, position, tmWin, false, 'avoid');
@@ -161,31 +168,75 @@ export function followTrumpLead(
 
       // Fourth / lead fallback: existing behavior
       if (canBeatCards.length > 0) {
-        const hasPoints = leadCards.some(c => isPointRank(c.rank))
-          || (ctx.bestSoFar && ctx.bestSoFar.cards.some(c => isPointRank(c.rank)));
-        if (hasPoints) {
-          canBeatCards.sort((a, b) => getEffectiveRank(b, ctx) - getEffectiveRank(a, ctx));
-        } else {
-          const bigBeaters = canBeatCards.filter(c => getEffectiveRank(c, ctx) >= aceEff(ctx));
-          if (bigBeaters.length > 0) {
-            bigBeaters.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
-            const cards = [bigBeaters[0]];
-            // 第四家恒标注：队友大盖过=加分，对手大=抢分
-            const intent = position === 'fourth' ? (tmWin ? 'add' : 'beat_points') : 'none';
+        if (position === 'fourth' && tmWin) {
+          // 队友已大：第四家不需要盖过。加分优先（出主牌分牌中档位最优的一张——
+          // 该池不过滤 canBeatCards，加分优先于不盖队友）；
+          // 没分可加 → 出不盖过队友的主牌（垫，让队友赢）；
+          // 全部大于 currentMax（被迫盖）→ 出能盖中档位最优的，保留大牌。
+          // 两池均按 pickTrumpByTier 档位取（保对/保拖拉机），不再裸取最小 eff。
+          // 无主下主牌全是常主：非分常主落末档，分常主（级牌 rank 为 5/10/K）仍按
+          // 分牌档——即同为分常主时单张先于拆对（同 rank 同分值，保对零代价）。
+          const pointTrump = myTrump.filter(c => isPointRank(c.rank));
+          if (pointTrump.length > 0) {
+            const cards = [pickTrumpByTier(pointTrump, 'fourth', ctx) ?? pointTrump[0]];
             const reason = annotateReason('同花色出大', cards, myTrump, myTrump,
-              leadCombo, 1, ctx, position, tmWin, false, intent);
+              leadCombo, 1, ctx, position, tmWin, false, 'add');
             return { cards, reason };
           }
-          canBeatCards.sort((a, b) => getEffectiveRank(b, ctx) - getEffectiveRank(a, ctx));
+          const notBeating = myTrump.filter(c => getEffectiveRank(c, ctx) <= currentMax);
+          const pool = notBeating.length > 0 ? notBeating : canBeatCards;
+          const cards = [pickTrumpByTier(pool, 'fourth', ctx) ?? pool[0]];
+          const reason = annotateReason(notBeating.length > 0 ? '同花色出小' : '同花色出大',
+            cards, myTrump, myTrump, leadCombo, 1, ctx, position, tmWin, false, 'add');
+          return { cards, reason };
         }
+        if (position === 'fourth') {
+          // 第四家、能盖过对手（墩上有分/无分统一）：
+          // 最小能盖过是单张 → 出最小单张（显然）；同等级单张优先于对子（不拆对）。
+          // 最小能盖过是对子 X → 按"加分不拆对的垫牌优先级"（add 模式类别）：
+          //   X 类别 < 更大单张的类别 → 拆 X 出一张盖过；否则出更大单张保留对子。
+          const units = unitize(myTrump, ctx)
+            .filter(u => getEffectiveRank(u.card, ctx) > currentMax);
+          const pairUnits = units.filter(u => u.kind === 'pair');
+          const singleUnits = units.filter(u => u.kind === 'single');
+          const pairMin = pairUnits.length
+            ? Math.min(...pairUnits.map(u => getEffectiveRank(u.card, ctx))) : Infinity;
+          const singleMin = singleUnits.length
+            ? Math.min(...singleUnits.map(u => getEffectiveRank(u.card, ctx))) : Infinity;
+          let chosen: Card;
+          if (singleMin <= pairMin) {
+            const cands = singleUnits
+              .filter(u => getEffectiveRank(u.card, ctx) === singleMin)
+              .map(u => u.card);
+            chosen = minEff(cands, ctx);
+          } else {
+            const X = pairUnits.find(u => getEffectiveRank(u.card, ctx) === pairMin)!;
+            const catX = catOf(X, 'add', ctx);
+            const biggerSingles = singleUnits
+              .filter(u => getEffectiveRank(u.card, ctx) > pairMin)
+              .sort((a, b) => (catOf(a, 'add', ctx) - catOf(b, 'add', ctx))
+                || (getEffectiveRank(a.card, ctx) - getEffectiveRank(b.card, ctx)));
+            const Y = biggerSingles[0];
+            chosen = (!Y || catX < catOf(Y, 'add', ctx)) ? X.card : Y.card;
+          }
+          const cards = [chosen];
+          const reason = annotateReason('同花色出大', cards, myTrump, myTrump,
+            leadCombo, 1, ctx, position, tmWin, false, 'beat_points');
+          return { cards, reason };
+        }
+        // lead fallback（无位置信息）：最小 A 以上，否则最大（既有行为）
+        const bigBeaters = canBeatCards.filter(c => getEffectiveRank(c, ctx) >= aceEff(ctx));
+        if (bigBeaters.length > 0) {
+          bigBeaters.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+          const cards = [bigBeaters[0]];
+          const reason = annotateReason('同花色出大', cards, myTrump, myTrump,
+            leadCombo, 1, ctx, position, tmWin, false, 'none');
+          return { cards, reason };
+        }
+        canBeatCards.sort((a, b) => getEffectiveRank(b, ctx) - getEffectiveRank(a, ctx));
         const cards = [canBeatCards[0]];
-        const fourthBeat = position === 'fourth' && !tmWin;
-        const intent = position === 'fourth' ? (tmWin ? 'add' : 'beat_points')
-          : hasPoints ? 'none'
-          : (tmWin && canAddPoints(tmWin, position, leadCombo, ctx)) ? 'add'
-          : fourthBeat ? 'beat_points' : 'none';
         const reason = annotateReason('同花色出大', cards, myTrump, myTrump,
-          leadCombo, 1, ctx, position, tmWin, false, intent);
+          leadCombo, 1, ctx, position, tmWin, false, 'none');
         return { cards, reason };
       }
       // 盖不过：第四家（对手大，不加分）/lead fallback
@@ -222,6 +273,28 @@ export function followTrumpLead(
   return padWithDiscards(hand, myTrump, leadLen, ctx, tmWin, position, leadCombo);
 }
 
+/** 对子总分（10=10 分、K/5=5 分，级牌 2 无分）。 */
+function pairPoints(p: Card[]): number {
+  return p.reduce((s, c) =>
+    s + (c.rank === Rank.Ten ? 10 : (c.rank === Rank.King || c.rank === Rank.Five ? 5 : 0)), 0);
+}
+
+/**
+ * 第四家选能盖过的对子（对手大）：优先含最多分且能盖过的（分多在前，
+ * 同分取最小能盖过）；尽量不拆拖拉机——拖拉机内的对子仅当外部能盖对子不足时使用。
+ */
+function pickBeatingPairsForFourth(
+  beatingPairs: Card[][], myTrump: Card[], pairCount: number, ctx: AIContext,
+): Card[][] {
+  const tractors = detectTractors(myTrump, ctx);
+  const inTractor = (p: Card[]) => tractors.some(t => t.some(c => c.id === p[0].id));
+  const outside = beatingPairs.filter(p => !inTractor(p));
+  const pool = outside.length >= pairCount ? outside : beatingPairs;
+  pool.sort((a, b) => (pairPoints(b) - pairPoints(a))
+    || (getEffectiveRank(a[0], ctx) - getEffectiveRank(b[0], ctx)));
+  return pool.slice(0, pairCount);
+}
+
 export function matchTrumpPattern(
   hand: Card[],
   myTrump: Card[],
@@ -238,24 +311,32 @@ export function matchTrumpPattern(
 
   // Already fully covered: try to use smallest matching pattern
   if (leadCombo.hasTractor) {
+    const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
+    const shouldAvoidT = !addPoints
+      && ((position === 'fourth' && !tmWin)
+        || (position === 'second' && secondShouldAvoid(hand))
+        || (position === 'third' && !tmWin));
     const myTractors = detectTractors(myTrump, ctx);
     if (myTractors.length > 0) {
-      const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
-      const shouldAvoidT = !addPoints
-        && ((position === 'fourth' && !tmWin)
-          || (position === 'second' && secondShouldAvoid(hand))
-          || (position === 'third' && !tmWin));
       const ptsStrat = addPoints ? 'add' : (shouldAvoidT ? 'avoid' : undefined);
 
+      // 含最多分且能盖过的优先（第四家能盖过对手）；同分取最小能盖过
+      const tractorPoints = (t: Card[]) => t.reduce((s, c) =>
+        s + (c.rank === Rank.Ten ? 10 : (c.rank === Rank.King || c.rank === Rank.Five ? 5 : 0)), 0);
       myTractors.sort((a, b) => {
+        const pd = tractorPoints(b) - tractorPoints(a);
+        if (pd !== 0) return pd;
         const aMax = getEffectiveRank(maxCardT(a, ctx), ctx);
         const bMax = getEffectiveRank(maxCardT(b, ctx), ctx);
         return aMax - bMax;
       });
       let picked = tryMatchTractorSlots(leadCombo, myTractors, myTrump, leadLen, ctx, ptsStrat);
-      if (picked && !canBeat(picked, ctx.bestSoFar, ctx) && !thirdNoSeize) {
-        // Sort biggest-first to try finding a beating tractor
+      if (picked && !canBeat(picked, ctx.bestSoFar, ctx) && !thirdNoSeize
+          && !(position === 'fourth' && tmWin)) {
+        // Sort points-first, biggest-last to try finding a beating tractor
         myTractors.sort((a, b) => {
+          const pd = tractorPoints(b) - tractorPoints(a);
+          if (pd !== 0) return pd;
           const aMax = getEffectiveRank(maxCardT(a, ctx), ctx);
           const bMax = getEffectiveRank(maxCardT(b, ctx), ctx);
           return bMax - aMax;
@@ -280,10 +361,16 @@ export function matchTrumpPattern(
     const chosen = pairs.flat();
     const used = new Set(chosen.map(c => c.id));
     const rest = myTrump.filter(c => !used.has(c.id));
-    const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
-    rest.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+    // 避分（第二家 >15 张、第三/四家盖不过等）：非分单 < 分单 < 非分对 < 分对 < A/级牌/王；
+    // 否则按大小升序（保留大牌）
+    if (shouldAvoidT) {
+      rest.sort((a, b) => (trumpDumpKey(a, rest, ctx) - trumpDumpKey(b, rest, ctx))
+        || (getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx)));
+    } else {
+      rest.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+    }
     const cards = [...chosen, ...rest].slice(0, leadLen);
-    const intent = addPoints ? 'add' : 'none';
+    const intent = addPoints ? 'add' : (shouldAvoidT ? 'avoid' : 'none');
     const reason = annotateReason('垫同花色', cards, [], myTrump,
       leadCombo, leadLen, ctx, position, tmWin, false, intent);
     return { cards, reason };
@@ -294,30 +381,41 @@ export function matchTrumpPattern(
     // Has points in trick → use biggest pair to beat
     const hasPoints = (ctx.bestSoFar && ctx.bestSoFar.cards.some(c => isPointRank(c.rank)))
       || leadCards.some(c => isPointRank(c.rank));
-    if (hasPoints && !thirdNoSeize) myPairs.sort((a, b) =>
+    // 第四家队友已大：不因场上有分而出最大对盖队友（加分走下面分牌对分支）
+    if (hasPoints && !thirdNoSeize && !(position === 'fourth' && tmWin)) myPairs.sort((a, b) =>
       getEffectiveRank(b[0], ctx) - getEffectiveRank(a[0], ctx));
     let chosen = myPairs.slice(0, leadCombo.pairCount).flat();
     // If pair(s) cannot beat, try finding a pair that can.
     // For fourth position that can beat, prefer point-card pairs.
     // Third position with 领出大 and no strong follow-up: do not seize (keep smallest).
     const pairBeating = canBeat(chosen, ctx.bestSoFar, ctx);
-    if (!pairBeating && !thirdNoSeize) {
+    // 第四家队友已大：不需要找能盖的对子盖队友
+    if (!pairBeating && !thirdNoSeize && !(position === 'fourth' && tmWin)) {
       const beatingPairs = myPairs.filter(p => canBeat(p, ctx.bestSoFar, ctx));
       if (beatingPairs.length >= leadCombo.pairCount) {
-        const isFourth = position === 'fourth';
-        beatingPairs.sort((a, b) => {
-          if (isFourth) {
-            const aPts = isPointRank(a[0].rank) ? 0 : 100;
-            const bPts = isPointRank(b[0].rank) ? 0 : 100;
-            if (aPts !== bPts) return aPts - bPts;
-          }
-          if (hasPoints) return getEffectiveRank(b[0], ctx) - getEffectiveRank(a[0], ctx);
-          return getEffectiveRank(a[0], ctx) - getEffectiveRank(b[0], ctx);
-        });
-        chosen = beatingPairs.slice(0, leadCombo.pairCount).flat();
+        if (position === 'fourth') {
+          // 第四家能盖过对手：优先含最多分且能盖过的，然后最小能盖过的；尽量不拆拖拉机
+          chosen = pickBeatingPairsForFourth(beatingPairs, myTrump, leadCombo.pairCount, ctx).flat();
+        } else {
+          beatingPairs.sort((a, b) => {
+            if (hasPoints) return getEffectiveRank(b[0], ctx) - getEffectiveRank(a[0], ctx);
+            return getEffectiveRank(a[0], ctx) - getEffectiveRank(b[0], ctx);
+          });
+          chosen = beatingPairs.slice(0, leadCombo.pairCount).flat();
+        }
+      } else if (hasPoints) {
+        // 墩内有分但盖不过 → 出最小（恢复 pairKillSort 升序，规格：不能盖出最小）
+        pairKillSort(myPairs, myTrump, ctx);
+        chosen = myPairs.slice(0, leadCombo.pairCount).flat();
+      }
+    } else if (position === 'fourth' && !tmWin) {
+      // Fourth can beat — prefer most points first, then smallest beating
+      const beatingPairs = myPairs.filter(p => canBeat(p, ctx.bestSoFar, ctx));
+      if (beatingPairs.length >= leadCombo.pairCount) {
+        chosen = pickBeatingPairsForFourth(beatingPairs, myTrump, leadCombo.pairCount, ctx).flat();
       }
     } else if (position === 'fourth') {
-      // Fourth can beat — prefer point cards
+      // Fourth, teammate winning — keep existing point-pair preference (do not beat teammate)
       const pointBeating = myPairs.filter(p =>
         isPointRank(p[0].rank) && canBeat(p, ctx.bestSoFar, ctx));
       if (pointBeating.length >= leadCombo.pairCount) {
@@ -330,7 +428,19 @@ export function matchTrumpPattern(
     if (chosen.length < leadLen) {
       const used = new Set(chosen.map(c => c.id));
       const rest = myTrump.filter(c => !used.has(c.id));
-      rest.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+      // 避分时垫牌按第二家第 5 条主牌优先级（非分单 < 分单 < 非分对 < 分对 < A/级牌/王）：
+      // 第二家 >15 张避分；第三家第二家大不能盖时避分（尽量不加分，与拖拉机分支一致）；
+      // 第四家盖不过时避分
+      const avoidRest = !addPt
+        && ((position === 'fourth' && !tmWin)
+          || (position === 'second' && secondShouldAvoid(hand))
+          || (position === 'third' && !tmWin));
+      if (avoidRest) {
+        rest.sort((a, b) => (trumpDumpKey(a, rest, ctx) - trumpDumpKey(b, rest, ctx))
+          || (getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx)));
+      } else {
+        rest.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+      }
       chosen.push(...rest.slice(0, leadLen - chosen.length));
     }
     const cards = chosen.slice(0, leadLen);
@@ -384,6 +494,26 @@ export function matchTrumpPattern(
 
 // ---- Trump kill ----
 
+/**
+ * 这组牌是否构成"真正盖过当前最大"的毙牌：全主 + 牌型匹配领出 + 盖过当前最大。
+ * 当前最大非主牌时，匹配牌型的主牌必然盖过；当前最大是主牌时要求 compareTwo 判胜。
+ *
+ * 用途一：第四家"不抢无分墩"把 `trumpKill` 的建议出牌分类成"真毙 / 否则垫牌"；
+ * 用途二：`finishTeammateWin` 判断队友已大时自己是否在盖毙（那里额外要求已有的最大
+ * 是主牌，即 overkill）。
+ */
+export function isBeatingTrumpKill(
+  cards: Card[], leadCards: Card[], ctx: AIContext,
+): boolean {
+  if (cards.length === 0 || cards.length !== leadCards.length) return false;
+  if (!cards.every(c => isTrump(c, ctx))) return false;
+  if (!matchPattern(leadCards, cards, ctx)) return false;
+  const bs = ctx.bestSoFar;
+  if (!bs || bs.cards.length === 0) return true;
+  if (!bs.cards.some(c => isTrump(c, ctx))) return true;
+  return compareTwo(bs.cards, cards, leadCards, ctx) === 'second';
+}
+
 /** Check whether our trump kill actually beats the current best play. */
 function canTrumpKillBeat(killCards: Card[], leadCards: Card[], ctx: AIContext): boolean {
   const bs = ctx.bestSoFar;
@@ -404,13 +534,12 @@ function trumpKillSingle(
   ctx: AIContext,
   position: string,
   tmWin: boolean,
-  hasPoints: boolean,
   leadCombo: ComboClass,
   killMode: KillMode,
 ): { cards: Card[]; reason: string } {
   const overkill = isOverkill(ctx);
-  // 第四家身后无人可盖毙，加分安全：毙牌/盖毙优先选分牌；第二/三家身后有人，
-  // 加分会冒被盖毙抢分的风险，保持最小
+  // 第四家身后无人可盖毙，加分安全：按档位取，分牌档优先；第二/三家身后有人，
+  // 加分会冒被盖毙抢分的风险，只保对/保拖拉机、不区分分牌与非分
   const isFourth = position === 'fourth';
 
   function killReason(cards: Card[], base: string): string {
@@ -429,8 +558,8 @@ function trumpKillSingle(
           ? (canBeatCards.some(c => getEffectiveRank(c, ctx) >= aceEff(ctx))
               ? minEff(canBeatCards.filter(c => getEffectiveRank(c, ctx) >= aceEff(ctx)), ctx)
               : maxEff(canBeatCards, ctx))
-          // 盖毙：分最多优先，否则最小能盖（仅第四家——身后无人加分安全）
-          : isFourth ? sortKillCards(canBeatCards, ctx)[0] : minEff(canBeatCards, ctx);
+          // 盖毙 auto：在能盖过的牌里按档位取（第四家=分牌档优先，第二/三家=保对/保拖拉机）
+          : pickTrumpByTier(canBeatCards, isFourth ? 'fourth' : 'mid', ctx) ?? canBeatCards[0];
       return { cards: [chosen], reason: killReason([chosen], '盖毙') };
     }
     // 盖不过恒标注不加分（第四家）
@@ -455,17 +584,10 @@ function trumpKillSingle(
     const big = trumpCards.filter(c => getEffectiveRank(c, ctx) >= aceEff(ctx));
     chosen = big.length > 0 ? minEff(big, ctx) : maxEff(trumpCards, ctx);
   } else {
-    // auto: 第四家毙牌优先选分牌（10>K>5，级牌除外，同分取小），无分取最小；
-    // 墩含分时在不小于A的主牌里同样分优先（级牌除外），没有则取最大。
-    // 第二/三家保持最小（身后有人可盖毙，加分冒风险）。
-    const sorted = isFourth ? sortKillCards([...trumpCards], ctx)
-      : [...trumpCards].sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
-    if (hasPoints) {
-      const big = sorted.filter(c => getEffectiveRank(c, ctx) >= aceEff(ctx));
-      chosen = big.length > 0 ? big[0] : sorted[sorted.length - 1];
-    } else {
-      chosen = sorted[0];
-    }
+    // auto：第四家按档位取（分牌单张 > 拆分牌散对 > A以下非分单张 > A以下非分散对
+    // > 含分拖拉机 > 不含分拖拉机 > A和常主），本墩有无分一律先看分牌档；
+    // 第二/三家取保对/保拖拉机后的 A 以下单张（不区分分牌与非分）。
+    chosen = pickTrumpByTier(trumpCards, isFourth ? 'fourth' : 'mid', ctx) ?? trumpCards[0];
   }
   return { cards: [chosen], reason: killReason([chosen], '用主牌毙') };
 }
@@ -497,7 +619,7 @@ export function trumpKill(
   }
 
   if (leadLen === 1) {
-    return trumpKillSingle(trumpCards, nonTrump, ctx, position, tmWin, hasPoints, leadCombo, killMode);
+    return trumpKillSingle(trumpCards, nonTrump, ctx, position, tmWin, leadCombo, killMode);
   }
 
   const overkill = isOverkill(ctx);
@@ -543,7 +665,7 @@ export function trumpKill(
         getEffectiveRank(b[0], ctx) - getEffectiveRank(a[0], ctx));
     } else if (overkill) {
       if (isFourth) {
-        // 盖毙（第四家原则6注）：对子槽位要盖过对方最大的对应子牌型——能盖过对方
+        // 盖毙（规格 2.3 第 3 条·第四家毙牌）：对子槽位要盖过对方最大的对应子牌型——能盖过对方
         // 大对的在前（分最多优先，否则最小能盖），其余按分最多、最小
         const bestPairs = ctx.bestSoFar ? findAllPairs(ctx.bestSoFar.cards) : [];
         const bestPairMax = bestPairs.length > 0
@@ -804,6 +926,24 @@ export function followNTTrumpLead(
           return { cards, reason };
         }
 
+        if (position === 'fourth' && tmWin) {
+          // 队友已大：加分优先（出主牌分牌中档位最优的一张）；没分 → 不盖过的主牌中
+          // 档位最优，被迫盖时同理。主牌全是常主：非分常主落末档，分常主（级牌 rank
+          // 为 5/10/K）仍按分牌档——同为分常主时单张先于拆对（同 rank 同分值，零代价）。
+          const pointTrump = myTrump.filter(c => isPointRank(c.rank));
+          if (pointTrump.length > 0) {
+            const cards = [pickTrumpByTier(pointTrump, 'fourth', ctx) ?? pointTrump[0]];
+            const reason = annotateReason('同花色出大', cards, myTrump, myTrump,
+              leadCombo, 1, ctx, position, tmWin, false, 'add');
+            return { cards, reason };
+          }
+          const notBeating = myTrump.filter(c => getEffectiveRank(c, ctx) <= currentMax);
+          const pool = notBeating.length > 0 ? notBeating : canBeatCards;
+          const cards = [pickTrumpByTier(pool, 'fourth', ctx) ?? pool[0]];
+          const reason = annotateReason(notBeating.length > 0 ? '同花色出小' : '同花色出大',
+            cards, myTrump, myTrump, leadCombo, 1, ctx, position, tmWin, false, 'add');
+          return { cards, reason };
+        }
         canBeatCards.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
         const cards = [canBeatCards[0]];
         const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);

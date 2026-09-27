@@ -17,6 +17,7 @@ import {
   attackerNearThreshold,
 } from './helpers.js';
 import { trumpKill, throwKillMode, rule1KillMode } from './follow-trump.js';
+import { probeDeclineKill } from './no-seize.js';
 import {
   hasStrongFollowUp, minEff, maxEff, pickDiscards, selectFillers,
   secondShouldAvoid, shouldBreakPairForPoints, pickBestAddCards,
@@ -302,7 +303,8 @@ function followOffSuitMulti(
       } else if (seize && thirdNoSeize) {
         // 第三家领出更大且无强牌：不盖，出最小匹配
         picked = tryMatchTractorSlots(leadCombo, myTractors, leadSuitCards, leadLen, ctx, ptsStrat);
-      } else if (picked && !canBeat(picked, ctx.bestSoFar, ctx)) {
+      } else if (picked && !canBeat(picked, ctx.bestSoFar, ctx)
+          && !(position === 'fourth' && tmWin)) {
         // Sort by max rank descending to try finding a beating tractor
         myTractors.sort((a, b) => {
           const aMax = getEffectiveRank(maxCardT(a, ctx), ctx);
@@ -358,7 +360,8 @@ function followOffSuitMulti(
       }
       chosen = myPairs.slice(0, leadCombo.pairCount).flat();
       const pairBeats = canBeat(chosen, ctx.bestSoFar, ctx);
-      if (!pairBeats && !seize) {
+      // 第四家队友已大：不需要找能盖的对子盖队友（加分走分牌对分支）
+      if (!pairBeats && !seize && !(position === 'fourth' && tmWin)) {
         // 找能盖过的对子（第四家能盖时优先分牌对）
         const beatingPairs = myPairs.filter(p => canBeat(p, ctx.bestSoFar, ctx));
         if (beatingPairs.length >= leadCombo.pairCount) {
@@ -484,6 +487,10 @@ export function followOffSuitThrow(
       return { cards, reason };
     }
     const killMode = throwKillMode(throwCombo, ctx, leadCards);
+    // 第四家：对手大 + 无分墩 + 抢来无牌可领 → 不抢（垫不起则照常毙）
+    const declined = probeDeclineKill(
+      hand, leadCards, throwCombo, leadLen, ctx, position, tmWin, trumpCards, { killMode });
+    if (declined) return declined;
     return trumpKill(trumpCards, hand, leadCards, throwCombo, leadLen, ctx, position, tmWin,
       { killMode });
   }

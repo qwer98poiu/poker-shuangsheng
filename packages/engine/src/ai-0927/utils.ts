@@ -155,8 +155,11 @@ export function discardSort(
       const bBreak = shouldAvoidBreakingPair(b, hand, ctx) ? 100 : 0;
       if (aBreak !== bBreak) return aBreak - bBreak;
     }
-    // Non-level trump before level trump (avoid wasting constant trump)
-    if (config) {
+    // Non-level trump before level trump (avoid wasting constant trump).
+    // NT (trumpSuit null): level cards are the SMALLEST trumps (below
+    // jokers) — dumping a joker while keeping a level card is wasteful,
+    // so the rule must not apply; plain rank order pads level cards first.
+    if (config && config.trumpSuit !== null) {
       const aLvl = a.rank === config.level ? 100 : 0;
       const bLvl = b.rank === config.level ? 100 : 0;
       if (aLvl !== bLvl) return aLvl - bLvl;

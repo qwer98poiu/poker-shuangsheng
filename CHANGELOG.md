@@ -1,5 +1,39 @@
 # Changelog
 
+## 2026-09-27 17:36
+
+### 提取 ai-0927 基线（09-27 11:45，亮主 4>3 修复与出副对清对之前）
+
+**问题**：`ai/` 在 09-27 之后连叠两轮改动（12:13 亮主 4>3 修复、15:27 出副对清对），而既有基线最晚的 `ai-0907` 停在 09-07，与当前 `ai` 之间隔着近三周的策略变化，需要一个停在 09-27 的对照点。
+
+**做法**：`git archive` 提取 09-27 11:45（第四家不抢无分墩）的 `ai/` 为 `packages/engine/src/ai-0927/`（16 文件，含 STRATEGY.md），引擎注册 `ai0927` 命名空间、竞技场注册 `ai0927Strategy`，`historical-strategies.test.ts` 补 pair 12/13 合法性用例（无中止、无验牌回退；这两个号原属本次归档的 `ai-0808`）。README 历史基线列表与 `--strategy-a/b` 可选列表补入 `ai-0927`（中英）。
+
+**快照止于 11:45，因此不含同日的另两轮改动**——12:13 的亮主 4>3 修复与 15:27 的出副对清对都不在其中；目录名 `ai-0927` 只到日，与那两者同名，取用时需看来源提交。该快照没有实测数据，故 **Elo 表不加行**（当前 `ai` 行仍为「待重测」，由 15:27 的策略变更触发，与本基线无关）。
+
+**新增 1 项测试**（historical-strategies.test.ts：1 项）。
+
+- **影响文件**：`packages/engine/src/ai-0927/`（新目录，16 文件）、`packages/engine/src/index.ts`、`packages/arena/src/strategies.ts`、`packages/arena/src/__tests__/historical-strategies.test.ts`、`README.md`
+
+### 归档移除 ai-0808
+
+**问题**：历史基线累积到五个（`ai-0802`/`ai-0808`/`ai-0809`/`ai-0816`/`ai-0907`），其中 `ai-0808`（08-08 的快照，第四家不盖/NT 垫牌修复前）最旧，与 `ai-0809` 只隔那两个修复，对照价值已被后者覆盖。
+
+**修复**：删除 `packages/engine/src/ai-0808/`（14 文件），并移除其四处接线——引擎的 `ai0808` 命名空间导出、竞技场的 `ai0808Strategy` 与 `strategyByName` 分支（含抛错信息里的可选列表）、`historical-strategies.test.ts` 的 pair 12/13 用例（号改用给 `ai-0927`）；README 中英把 `ai-0808` 从历史基线列表移入「已归档移除」括号。**Elo 行与 `elo-matches.json` 的数据保留**：README 既有约定是已归档基线的分数仅保留展示，且该数据同时是 `ai-0809`/`ai-0816` 等边的拟合输入，删行会改动整条刻度。
+
+**删除 1 项测试**（historical-strategies.test.ts：1 项）。
+
+- **影响文件**：`packages/engine/src/ai-0808/`（删除，14 文件）、`packages/engine/src/index.ts`、`packages/arena/src/strategies.ts`、`packages/arena/src/__tests__/historical-strategies.test.ts`、`README.md`
+
+### 竞技场 `--strategy-b` 默认值同步到最新基线 `ai-0927`
+
+**问题**：`run.ts` 的 `--strategy-b` 默认值停在 `ai-0907`（09-26 提取 ai-0907 时同步的那一次），新基线 `ai-0927` 注册后没有跟上——不带参数运行 `npm run arena` 时对手仍是旧基线。README 的 `--strategy-b` 选项表与示例命令同样写着 `ai-0907`。
+
+**修复**：`run.ts` 默认值改为 `ai-0927`（usage 文本同步）；README 选项表与示例命令同步（中英各两处）。
+
+引擎 947 项 + arena 68 项 + CLI 87 项 + client 201 项 = 1303 项通过。
+
+- **影响文件**：`packages/arena/src/run.ts`、`README.md`
+
 ## 2026-09-27 15:27
 
 ### 出副对清对（利用上一墩的出牌信息）

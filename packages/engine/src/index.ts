@@ -24,12 +24,13 @@ export * from './ai/index.js';
 
 // Strategy arena baselines: ai/ as of historical commits
 // (archived & removed: ai-0707/ai-0712/ai-0726 on 2026-08-07, ai-0801 on 2026-09-16,
-//  ai-0719 on 2026-09-16 — their Elo scores stay in the README for reference)
+//  ai-0719 on 2026-09-16, ai-0808 on 2026-09-27 — their Elo scores stay in the README
+//  for reference)
 export * as ai0802 from './ai-0802/index.js'; // ai/ as of the position-based follow refactor (2026-08-02, ebe0625)
-export * as ai0808 from './ai-0808/index.js'; // ai/ as of 133900d (2026-08-08), before fourth-no-overkill & NT-discard fixes
 export * as ai0809 from './ai-0809/index.js'; // ai/ as of b77a7b1 (2026-08-14), README 1035 Elo measurement target
 export * as ai0816 from './ai-0816/index.js'; // ai/ as of 2d56a13 (2026-08-16), README 1055 Elo measurement target
 export * as ai0907 from './ai-0907/index.js'; // ai/ as of 6aa2b80 (2026-09-07), before the trump-kill single-card tier selection
+export * as ai0927 from './ai-0927/index.js'; // ai/ as of 45c8f78 (2026-09-27), before the NT-reveal 4-over-3 fix & the drained-pair throw
 
 // Serialization (reusing old model/serialize.ts)
 export * from './model/serialize.js';

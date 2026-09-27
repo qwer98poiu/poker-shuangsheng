@@ -334,6 +334,27 @@ function leadLastCards(
   return { cards: hand, reason: `最后${hand.length}张手牌，必出` };
 }
 
+// ---- "Worth leading" probe (第四家不抢无分墩) ----
+
+/**
+ * 优先级 1–4 里是否有"值得出的牌"——抢到出牌权后领得出去、且值得为之花主牌的东西：
+ * 甩副牌(1) / 大副牌 A(K)(2) / 拖拉机(3) / 对子(4)，**且结果必须含副牌**。
+ *
+ * 只有主牌对子或主牌拖拉机不算：抢来也只能吊主（领出一手主牌），不值当。
+ * 逐条问四个 `tryLead*`（它们自带庄家/对家的主牌限制），任一条给出含副牌的结果即为真——
+ * 不做"命中即停"：主牌拖拉机命中时，若下手还有副牌对子，仍算有值得出的牌。
+ */
+export function hasWorthLeadCards(hand: Card[], ctx: AIContext): boolean {
+  const myHandCount = ctx.myIndex >= 0 ? ctx.handCounts[ctx.myIndex] : hand.length;
+  const hasOffSuit = (r: { cards: Card[] } | null): boolean =>
+    !!r && r.cards.some(c => !isTrump(c, ctx));
+
+  if (hasOffSuit(tryLeadThrowOffSuit(hand, ctx))) return true;
+  if (hasOffSuit(tryLeadBigCard(hand, ctx))) return true;
+  if (hasOffSuit(tryLeadTractor(hand, ctx, myHandCount))) return true;
+  return hasOffSuit(tryLeadPairs(hand, ctx, myHandCount));
+}
+
 // ---- Main lead orchestrator ----
 
 export function _aiLeadPlay(
