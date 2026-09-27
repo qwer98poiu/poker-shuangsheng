@@ -16,6 +16,10 @@ import type { AIContext } from '../ai/types.js';
 
 const cfgS2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
 const cfgH5: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 5 };
+/** NT（无主）：主牌 = 四门级牌 + 王。级牌 2 → 非分；10 → 分牌；A → aceEff 取 800 的边界。 */
+const cfgNT2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: null, level: 2 };
+const cfgNT10: TrumpDeclaration = { declarerIndex: 0, trumpSuit: null, level: 10 };
+const cfgNTA: TrumpDeclaration = { declarerIndex: 0, trumpSuit: null, level: 14 };
 function cc(s: CardSuit, r: number, i: number): Card { return createCard(s, r, i); }
 
 function checkFollow(
@@ -34,6 +38,7 @@ function ctxOf(
     myIndex: 1, isDeclarer: false, isDeclarerPartner: false, isAttacker: false,
     attackerPoints: 0, handCounts: [25, 25, 25, 25] as const,
     trickHistory: [], reveals: [], playCount: 1, leadPlayerIndex: 0,
+    trickPlays: [],
     bestSoFar: null, ntState: null, bottomCards: [], debug: false,
     ...over,
   };
@@ -43,6 +48,7 @@ function ctxOf(
 function secondCtx(cfg: TrumpDeclaration, lead: Card[], over: Partial<AIContext> = {}): AIContext {
   return ctxOf(cfg, {
     myIndex: 1, playCount: 1, leadPlayerIndex: 0,
+    trickPlays: [],
     bestSoFar: { cards: lead, playerIndex: 0 },
     ...over,
   });
@@ -52,6 +58,7 @@ function secondCtx(cfg: TrumpDeclaration, lead: Card[], over: Partial<AIContext>
 function thirdCtx(cfg: TrumpDeclaration, lead: Card[], over: Partial<AIContext> = {}): AIContext {
   return ctxOf(cfg, {
     myIndex: 2, playCount: 2, leadPlayerIndex: 0,
+    trickPlays: [],
     bestSoFar: { cards: lead, playerIndex: 0 },
     ...over,
   });
@@ -61,6 +68,7 @@ function thirdCtx(cfg: TrumpDeclaration, lead: Card[], over: Partial<AIContext> 
 function thirdCtxSecondWins(cfg: TrumpDeclaration, lead: Card[], secondCards: Card[]): AIContext {
   return ctxOf(cfg, {
     myIndex: 2, playCount: 2, leadPlayerIndex: 0,
+    trickPlays: [],
     bestSoFar: { cards: secondCards, playerIndex: 1 },
   });
 }
@@ -504,6 +512,7 @@ describe('第四家：70/75 禁分', () => {
     const hand = [cc('C', 10, 0), cc('D', 5, 1), cc('H', 3, 2)];
     const ctx = ctxOf(cfgS2, {
       myIndex: 3, playCount: 3, leadPlayerIndex: 0,
+      trickPlays: [],
       bestSoFar: third, isAttacker: false, attackerPoints: 65,
     });
     const r = aiFollowPlay(hand, lead, Suit.Hearts, ctx);
@@ -522,6 +531,7 @@ describe('第四家：加分优先盖过队友（盖毙）', () => {
     const hand = [cc('S', 10, 0), cc('S', 10, 1), cc('S', 3, 2), cc('S', 2, 3)];
     const ctx = ctxOf(cfgS2, {
       myIndex: 3, playCount: 3, leadPlayerIndex: 0,
+      trickPlays: [],
       bestSoFar: second, isAttacker: true,
     });
     const r = aiFollowPlay(hand, lead, Suit.Hearts, ctx);
@@ -538,6 +548,7 @@ describe('第四家：加分优先盖过队友（盖毙）', () => {
     const hand = [cc('H', 10, 0), cc('H', 13, 1), cc('H', 3, 2)];
     const ctx = ctxOf(cfgS2, {
       myIndex: 3, playCount: 3, leadPlayerIndex: 0,
+      trickPlays: [],
       bestSoFar: third, isAttacker: true,
     });
     const r = aiFollowPlay(hand, lead, Suit.Hearts, ctx);
@@ -637,6 +648,7 @@ describe('第三/四家：加分垫牌含分花色断门优先（闲家跨 40 �
   function fourthVoidCtx(over: Partial<AIContext> = {}): AIContext {
     return ctxOf(cfgS2, {
       myIndex: 3, playCount: 3, leadPlayerIndex: 0,
+      trickPlays: [],
       bestSoFar: { cards: [cc('H', 14, 201)], playerIndex: 1 },
       ...over,
     });
@@ -701,6 +713,7 @@ describe('第三/四家：不能毙路径跨 40 台阶例外（selectFillers ful
     const hand = [cc('C', 5, 0), cc('D', 10, 1), cc('D', 3, 2), cc('D', 4, 3)]; // 无主牌
     const ctx = ctxOf(cfgS2, {
       myIndex: 3, playCount: 3, leadPlayerIndex: 0,
+      trickPlays: [],
       bestSoFar: { cards: [cc('H', 14, 201)], playerIndex: 1 },
       isAttacker: true, attackerPoints: 31,
     });
@@ -717,6 +730,7 @@ describe('第三/四家：不能毙路径跨 40 台阶例外（selectFillers ful
 describe('第四家吊主单张：能盖过对手（无分墩）', () => {
   const fourthCtx = () => ctxOf(cfgS2, {
     myIndex: 3, playCount: 3, leadPlayerIndex: 0,
+    trickPlays: [],
     bestSoFar: { cards: [cc('S', 8, 900)], playerIndex: 2 },
   });
   // 领出 = ♠7 吊主单张；当前最大 = ♠8（对手，无分墩）
@@ -763,6 +777,7 @@ describe('第四家吊主单张：能盖过对手（无分墩）', () => {
   it('墩上有分同样按新规则：最小能盖过是单张（♠J）→ 出 ♠J 不拆 ♠Q 对', () => {
     const ctx = ctxOf(cfgS2, {
       myIndex: 3, playCount: 3, leadPlayerIndex: 0,
+      trickPlays: [],
       bestSoFar: { cards: [cc('S', 5, 901)], playerIndex: 2 }, // ♠5 分牌
     });
     const lead5: Card[] = [cc('S', 3, 902)];
@@ -780,6 +795,7 @@ describe('第四家吊主单张：能盖过对手（无分墩）', () => {
 describe('第四家对子领出：能盖过对手', () => {
   const ctxFor = (lead: Card[]) => ctxOf(cfgS2, {
     myIndex: 3, playCount: 3, leadPlayerIndex: 0,
+    trickPlays: [],
     bestSoFar: { cards: [...lead], playerIndex: 2 },
   });
   const lead8: Card[] = [cc('S', 8, 100), cc('S', 8, 101)];
@@ -832,11 +848,359 @@ describe('第二/三家 毙单张按档位选牌（不区分分牌与非分）',
     const hand = [cc('S', 5, 0), cc('S', 5, 1), cc('S', 7, 2), cc('S', 13, 3)];
     const ctx = ctxOf(cfgS2, {
       myIndex: 1, playCount: 1, leadPlayerIndex: 0,
+      trickPlays: [],
       bestSoFar: { cards: [cc('S', 3, 100)], playerIndex: 2 },
     });
     const r = aiFollowPlay(hand, lead, Suit.Clubs, ctx);
     checkFollow(r.cards, hand, lead, 'C', cfgS2);
     expect(r.cards[0].id).toBe('S-7-2'); // 旧行为出 S-5-0（拆对）
     expect(r.reason).toBe('盖毙（用最小牌盖）');
+  });
+});
+
+// ================================================================
+// 第四家：不抢无分墩（能毙/盖毙但抢来无牌可领 → 改垫牌）
+// ================================================================
+describe('第四家：不抢无分墩', () => {
+  // cfgS2：♠ 主（级牌 2）→ 副牌花色 ♥/♣/♦。第四家 = P3（myIndex 3，队友 = P1）。
+  // 基准局面：P0 领出 ♥3，P1 跟 ♥7（队友），P2 跟 ♥9 盖过（对手最大，本墩无分）。
+  const leadH3: Card[] = [cc('H', 3, 200)];
+  const p1H7: Card[] = [cc('H', 7, 201)];
+  const p2H9: Card[] = [cc('H', 9, 202)];
+
+  /** 第四家 ctx：三家出牌全数列出（trickPlays 与 playCount 相符才算"全知"）。 */
+  function noSeizeCtx(over: Partial<AIContext> = {}): AIContext {
+    return ctxOf(cfgS2, {
+      myIndex: 3, playCount: 3, leadPlayerIndex: 0,
+      bestSoFar: { cards: p2H9, playerIndex: 2 },
+      trickPlays: [{ cards: leadH3 }, { cards: p1H7 }, { cards: p2H9 }],
+      ...over,
+    });
+  }
+
+  it('正例：无分墩 + 无值得出的牌 + 候选全非分 + 有非分副牌 → 垫最小非分副牌', () => {
+    const hand = [cc('S', 8, 0), cc('S', 9, 1), cc('C', 4, 2)];
+    const r = aiFollowPlay(hand, leadH3, Suit.Hearts, noSeizeCtx());
+    checkFollow(r.cards, hand, leadH3, 'H', cfgS2);
+    expect(r.cards.map(c => c.id)).toEqual(['C-4-2']); // 最小非分副牌
+    expect(r.reason).toBe('垫牌（无分墩，不抢）');
+  });
+
+  it('本墩有分（中间家垫的 10 分，不是当前最大）→ 照常毙', () => {
+    // P1 垫 ♥10（10 分），P2 用 ♥J 盖过 → 当前最大是无分的 ♥J，
+    // 只看 bestSoFar 会漏掉这 10 分（旧近似口径），trickPlays 才看得见。
+    const p2HJ: Card[] = [cc('H', 11, 203)];
+    const ctx = noSeizeCtx({
+      bestSoFar: { cards: p2HJ, playerIndex: 2 },
+      trickPlays: [{ cards: leadH3 }, { cards: [cc('H', 10, 204)] }, { cards: p2HJ }],
+    });
+    const hand = [cc('S', 8, 0), cc('S', 9, 1), cc('C', 4, 2)];
+    const r = aiFollowPlay(hand, leadH3, Suit.Hearts, ctx);
+    checkFollow(r.cards, hand, leadH3, 'H', cfgS2);
+    expect(r.cards.map(c => c.id)).toEqual(['S-8-0']); // 照常毙（最小非分主牌）
+    expect(r.reason).not.toContain('无分墩');
+  });
+
+  it('出牌未知（trickPlays 不完整）→ 未知按有分处理，照常毙', () => {
+    const hand = [cc('S', 8, 0), cc('S', 9, 1), cc('C', 4, 2)];
+    const r = aiFollowPlay(hand, leadH3, Suit.Hearts, noSeizeCtx({ trickPlays: [] }));
+    checkFollow(r.cards, hand, leadH3, 'H', cfgS2);
+    expect(r.cards.map(c => c.id)).toEqual(['S-8-0']);
+  });
+
+  it('有值得出的牌（副牌对子）→ 照常毙', () => {
+    const hand = [cc('S', 8, 0), cc('S', 9, 1), cc('C', 4, 2), cc('C', 4, 3)];
+    const r = aiFollowPlay(hand, leadH3, Suit.Hearts, noSeizeCtx());
+    checkFollow(r.cards, hand, leadH3, 'H', cfgS2);
+    expect(r.cards.map(c => c.id)).toEqual(['S-8-0']);
+    expect(r.reason).not.toContain('无分墩');
+  });
+
+  it('有值得出的牌（大副牌 A 单张）→ 照常毙', () => {
+    const hand = [cc('S', 8, 0), cc('S', 9, 1), cc('C', 14, 2)];
+    const r = aiFollowPlay(hand, leadH3, Suit.Hearts, noSeizeCtx());
+    checkFollow(r.cards, hand, leadH3, 'H', cfgS2);
+    expect(r.cards.map(c => c.id)).toEqual(['S-8-0']);
+  });
+
+  it('只有主对不算值得出：有非分副牌可垫 → 不抢', () => {
+    const hand = [cc('S', 8, 0), cc('S', 8, 1), cc('C', 4, 2)];
+    const r = aiFollowPlay(hand, leadH3, Suit.Hearts, noSeizeCtx());
+    checkFollow(r.cards, hand, leadH3, 'H', cfgS2);
+    expect(r.cards.map(c => c.id)).toEqual(['C-4-2']);
+    expect(r.reason).toBe('垫牌（无分墩，不抢）');
+  });
+
+  it('建议出牌含分牌（♠5 分被档位优先选中）→ 照常毙', () => {
+    const hand = [cc('S', 5, 0), cc('S', 9, 1), cc('C', 4, 2)];
+    const r = aiFollowPlay(hand, leadH3, Suit.Hearts, noSeizeCtx());
+    checkFollow(r.cards, hand, leadH3, 'H', cfgS2);
+    expect(r.cards.map(c => c.id)).toEqual(['S-5-0']); // 分牌档优先
+    expect(r.reason).not.toContain('无分墩');
+  });
+
+  it('要拆主对才能凑齐 → 照常毙（手牌只有主对）', () => {
+    const hand = [cc('S', 8, 0), cc('S', 8, 1)];
+    const r = aiFollowPlay(hand, leadH3, Suit.Hearts, noSeizeCtx());
+    checkFollow(r.cards, hand, leadH3, 'H', cfgS2);
+    expect(r.cards.map(c => c.id)).toEqual(['S-8-0']);
+    expect(r.reason).not.toContain('无分墩');
+  });
+
+  it('主拖拉机成员不得动用 → 照常毙（手牌只有主拖拉机）', () => {
+    const hand = [cc('S', 8, 0), cc('S', 8, 1), cc('S', 9, 2), cc('S', 9, 3)];
+    const r = aiFollowPlay(hand, leadH3, Suit.Hearts, noSeizeCtx());
+    checkFollow(r.cards, hand, leadH3, 'H', cfgS2);
+    expect(r.cards.map(c => c.id)).toEqual(['S-8-0']);
+    expect(r.reason).not.toContain('无分墩');
+  });
+
+  it('要垫主牌 A 或更大 → 照常毙', () => {
+    const hand = [cc('S', 8, 0), cc('S', 8, 1), cc('S', 14, 2)];
+    const r = aiFollowPlay(hand, leadH3, Suit.Hearts, noSeizeCtx());
+    checkFollow(r.cards, hand, leadH3, 'H', cfgS2);
+    expect(r.cards.map(c => c.id)).toEqual(['S-8-0']);
+    expect(r.reason).not.toContain('无分墩');
+  });
+
+  it('非庄家要垫副分 → 照常毙；同手牌庄家 → 不抢', () => {
+    const hand = [cc('S', 14, 0), cc('C', 10, 1)]; // 主A（毙牌候选）+ 副10分
+    const asDefender = aiFollowPlay(hand, leadH3, Suit.Hearts, noSeizeCtx());
+    checkFollow(asDefender.cards, hand, leadH3, 'H', cfgS2);
+    expect(asDefender.cards.map(c => c.id)).toEqual(['S-14-0']);
+    expect(asDefender.reason).not.toContain('无分墩');
+
+    const asDeclarer = aiFollowPlay(hand, leadH3, Suit.Hearts, noSeizeCtx({
+      declarerIndex: 3, isDeclarer: true, isDeclarerPartner: false, isAttacker: false,
+    }));
+    checkFollow(asDeclarer.cards, hand, leadH3, 'H', cfgS2);
+    expect(asDeclarer.cards.map(c => c.id)).toEqual(['C-10-1']);
+    expect(asDeclarer.reason).toBe('垫牌（无分墩，不抢）');
+  });
+
+  it('庄家副分门槛：闲家 70 分可垫 5 分 → 不抢', () => {
+    const hand = [cc('S', 14, 0), cc('C', 5, 1)];
+    const r = aiFollowPlay(hand, leadH3, Suit.Hearts, noSeizeCtx({
+      declarerIndex: 3, isDeclarer: true, isDeclarerPartner: false, isAttacker: false,
+      attackerPoints: 70,
+    }));
+    checkFollow(r.cards, hand, leadH3, 'H', cfgS2);
+    expect(r.cards.map(c => c.id)).toEqual(['C-5-1']); // 70 + 5 = 75 < 80
+    expect(r.reason).toBe('垫牌（无分墩，不抢）');
+  });
+
+  it('庄家副分门槛：闲家 75 分不能垫分 → 照常毙', () => {
+    const hand = [cc('S', 14, 0), cc('C', 5, 1)];
+    const r = aiFollowPlay(hand, leadH3, Suit.Hearts, noSeizeCtx({
+      declarerIndex: 3, isDeclarer: true, isDeclarerPartner: false, isAttacker: false,
+      attackerPoints: 75,
+    }));
+    checkFollow(r.cards, hand, leadH3, 'H', cfgS2);
+    expect(r.cards.map(c => c.id)).toEqual(['S-14-0']); // 75 + 5 = 80 不允许
+    expect(r.reason).not.toContain('无分墩');
+  });
+
+  it('庄家副分门槛：闲家 70 分垫 10 分 → 照常毙（70+10=80）', () => {
+    const hand = [cc('S', 14, 0), cc('C', 10, 1)];
+    const r = aiFollowPlay(hand, leadH3, Suit.Hearts, noSeizeCtx({
+      declarerIndex: 3, isDeclarer: true, isDeclarerPartner: false, isAttacker: false,
+      attackerPoints: 70,
+    }));
+    checkFollow(r.cards, hand, leadH3, 'H', cfgS2);
+    expect(r.cards.map(c => c.id)).toEqual(['S-14-0']);
+    expect(r.reason).not.toContain('无分墩');
+  });
+
+  it('盖毙（对手先毙、能盖过且候选非分）→ 不盖毙改垫牌', () => {
+    const p2S6: Card[] = [cc('S', 6, 205)]; // P2 用主牌毙了
+    const ctx = noSeizeCtx({
+      bestSoFar: { cards: p2S6, playerIndex: 2 },
+      trickPlays: [{ cards: leadH3 }, { cards: p1H7 }, { cards: p2S6 }],
+    });
+    const hand = [cc('S', 8, 0), cc('C', 4, 1)];
+    const r = aiFollowPlay(hand, leadH3, Suit.Hearts, ctx);
+    checkFollow(r.cards, hand, leadH3, 'H', cfgS2);
+    expect(r.cards.map(c => c.id)).toEqual(['C-4-1']);
+    expect(r.reason).toBe('垫牌（无分墩，不抢）');
+  });
+
+  it('盖不过对手的毙牌 → 走既有垫牌路径（不是本规则）', () => {
+    const p2S6: Card[] = [cc('S', 6, 205)];
+    const ctx = noSeizeCtx({
+      bestSoFar: { cards: p2S6, playerIndex: 2 },
+      trickPlays: [{ cards: leadH3 }, { cards: p1H7 }, { cards: p2S6 }],
+    });
+    const hand = [cc('S', 4, 0), cc('C', 4, 1)]; // ♠4 盖不过 ♠6
+    const r = aiFollowPlay(hand, leadH3, Suit.Hearts, ctx);
+    checkFollow(r.cards, hand, leadH3, 'H', cfgS2);
+    expect(r.reason).toContain('盖不过');
+    expect(r.reason).not.toContain('无分墩');
+  });
+
+  it('队友最大（tmWin）→ 不适用本规则（走加分/毙牌分支）', () => {
+    const ctx = noSeizeCtx({ bestSoFar: { cards: p1H7, playerIndex: 1 } });
+    const hand = [cc('S', 8, 0), cc('S', 9, 1), cc('C', 4, 2)];
+    const r = aiFollowPlay(hand, leadH3, Suit.Hearts, ctx);
+    checkFollow(r.cards, hand, leadH3, 'H', cfgS2);
+    expect(r.reason).not.toContain('无分墩');
+  });
+
+  it('对子领出：非分副牌少于领出张数、要垫主分 → 照常毙', () => {
+    const leadH33: Card[] = [cc('H', 3, 210), cc('H', 3, 211)];
+    const p1H77: Card[] = [cc('H', 7, 212), cc('H', 7, 213)];
+    const p2H99: Card[] = [cc('H', 9, 214), cc('H', 9, 215)];
+    const ctx = noSeizeCtx({
+      bestSoFar: { cards: p2H99, playerIndex: 2 },
+      trickPlays: [{ cards: leadH33 }, { cards: p1H77 }, { cards: p2H99 }],
+    });
+    // 主对 ♠8♠8（非分，毙）+ 非分副单 ♣4 + 主分单 ♠5：垫满 2 张须动主分 → 毙
+    const hand = [cc('S', 8, 0), cc('S', 8, 1), cc('C', 4, 2), cc('S', 5, 3)];
+    const r = aiFollowPlay(hand, leadH33, Suit.Hearts, ctx);
+    checkFollow(r.cards, hand, leadH33, 'H', cfgS2);
+    expect(r.cards.map(c => c.id)).toEqual(['S-8-0', 'S-8-1']);
+    expect(r.reason).not.toContain('无分墩');
+  });
+
+  it('对子领出：庄家累计副分超 10 分上限 → 照常毙', () => {
+    const leadH33: Card[] = [cc('H', 3, 220), cc('H', 3, 221)];
+    const p1H77: Card[] = [cc('H', 7, 222), cc('H', 7, 223)];
+    const p2H99: Card[] = [cc('H', 9, 224), cc('H', 9, 225)];
+    const ctx = noSeizeCtx({
+      bestSoFar: { cards: p2H99, playerIndex: 2 },
+      trickPlays: [{ cards: leadH33 }, { cards: p1H77 }, { cards: p2H99 }],
+      declarerIndex: 3, isDeclarer: true, isDeclarerPartner: false, isAttacker: false,
+    });
+    const hand = [cc('S', 14, 0), cc('S', 14, 1), cc('C', 10, 2), cc('D', 10, 3)];
+    const r = aiFollowPlay(hand, leadH33, Suit.Hearts, ctx);
+    checkFollow(r.cards, hand, leadH33, 'H', cfgS2);
+    expect(r.cards.map(c => c.id)).toEqual(['S-14-0', 'S-14-1']); // 20 分 > 10 分上限
+    expect(r.reason).not.toContain('无分墩');
+  });
+
+  it('甩副牌领出：同样不抢（垫两张非分副牌）', () => {
+    // 甩牌领出：两张不同点数单张（♥3 ♥4，均非分——♥5 是分牌，会令本墩有分）
+    const leadH34: Card[] = [cc('H', 3, 230), cc('H', 4, 231)];
+    const p1H78: Card[] = [cc('H', 7, 232), cc('H', 8, 233)];
+    const p2H9J: Card[] = [cc('H', 9, 234), cc('H', 11, 235)];
+    const ctx = noSeizeCtx({
+      bestSoFar: { cards: p2H9J, playerIndex: 2 },
+      trickPlays: [{ cards: leadH34 }, { cards: p1H78 }, { cards: p2H9J }],
+    });
+    const hand = [cc('S', 8, 0), cc('S', 9, 1), cc('C', 4, 2), cc('C', 6, 3)];
+    const r = aiFollowPlay(hand, leadH34, Suit.Hearts, ctx);
+    checkFollow(r.cards, hand, leadH34, 'H', cfgS2);
+    expect(r.cards.map(c => c.id)).toEqual(['C-4-2', 'C-6-3']);
+    expect(r.reason).toBe('垫牌（无分墩，不抢）');
+  });
+
+  it('NT 无主模式同样适用：只垫副牌（级牌一律不得垫），垫不起才照常毙', () => {
+    const ctx = ctxOf({ declarerIndex: 0, trumpSuit: null, level: 2 }, {
+      myIndex: 3, playCount: 3, leadPlayerIndex: 0, isAttacker: true,
+      bestSoFar: { cards: p2H9, playerIndex: 2 },
+      trickPlays: [{ cards: leadH3 }, { cards: p1H7 }, { cards: p2H9 }],
+    });
+    // NT：主牌=王与级牌；手上 ♠2（级牌，主，非分）+ ♣4/♦6 两张副牌
+    const hand = [cc('S', 2, 0), cc('C', 4, 1), cc('D', 6, 2)];
+    const r = aiFollowPlay(hand, leadH3, Suit.Hearts, ctx);
+    checkFollow(r.cards, hand, leadH3, 'H', cfgNT2);
+    expect(r.cards.map(c => c.id)).toEqual(['C-4-1']); // 垫最小副牌，不动级牌
+    expect(r.reason).toBe('垫牌（无分墩，不抢）');
+
+    // 只剩常主可垫 → 垫不起 → 照常毙（那张主牌无论如何都要花掉，赢下此墩更优）
+    const trumpOnly = [cc('S', 2, 0), cc('S', 2, 1)];
+    const rl = aiFollowPlay(trumpOnly, leadH3, Suit.Hearts, ctx);
+    checkFollow(rl.cards, trumpOnly, leadH3, 'H', cfgNT2);
+    expect(rl.cards.map(c => c.id)).toEqual(['S-2-0']);
+    expect(rl.reason).toContain('用主牌毙');
+  });
+
+  it('NT 级牌为 A 的边界（aceEff 返回 800）：常主仍一律不得垫', () => {
+    // 打 A 时四门 A 全为主牌，aceEff(♦A) = 800；若靠 "eff >= aceEff 恒成立" 判定会随
+    // aceEff 的变化而漏掉主牌，故此处显式钉住边界。
+    const ctx = ctxOf(cfgNTA, {
+      myIndex: 3, playCount: 3, leadPlayerIndex: 0, isAttacker: true,
+      bestSoFar: { cards: p2H9, playerIndex: 2 },
+      trickPlays: [{ cards: leadH3 }, { cards: p1H7 }, { cards: p2H9 }],
+    });
+    const hand = [cc('D', 14, 0), cc('C', 4, 1)]; // ♦A 是级牌（主）+ 副牌 ♣4
+    const r = aiFollowPlay(hand, leadH3, Suit.Hearts, ctx);
+    checkFollow(r.cards, hand, leadH3, 'H', cfgNTA);
+    expect(r.cards.map(c => c.id)).toEqual(['C-4-1']); // 垫副牌，不动级牌 A
+    expect(r.reason).toBe('垫牌（无分墩，不抢）');
+
+    const trumpOnly = [cc('D', 14, 0)];
+    const rl = aiFollowPlay(trumpOnly, leadH3, Suit.Hearts, ctx);
+    checkFollow(rl.cards, trumpOnly, leadH3, 'H', cfgNTA);
+    expect(rl.cards.map(c => c.id)).toEqual(['D-14-0']); // 垫不起 → 照常毙
+  });
+
+  it('NT 级牌为 10（既是主牌又是分牌）：档位优先选分牌 → 照常毙', () => {
+    const ctx = ctxOf(cfgNT10, {
+      myIndex: 3, playCount: 3, leadPlayerIndex: 0, isAttacker: true,
+      bestSoFar: { cards: p2H9, playerIndex: 2 },
+      trickPlays: [{ cards: leadH3 }, { cards: p1H7 }, { cards: p2H9 }],
+    });
+    const hand = [cc('S', 10, 0), cc('C', 4, 1), cc('D', 6, 2)];
+    const r = aiFollowPlay(hand, leadH3, Suit.Hearts, ctx);
+    checkFollow(r.cards, hand, leadH3, 'H', cfgNT10);
+    expect(r.cards.map(c => c.id)).toEqual(['S-10-0']); // 分牌档优先 → 建议出牌含分 → 照常毙
+    expect(r.reason).not.toContain('无分墩');
+  });
+
+  it('NT 有值得出的牌（副牌对子 / 大副牌 A）→ 照常毙', () => {
+    const ctx = ctxOf(cfgNT2, {
+      myIndex: 3, playCount: 3, leadPlayerIndex: 0, isAttacker: true,
+      bestSoFar: { cards: p2H9, playerIndex: 2 },
+      trickPlays: [{ cards: leadH3 }, { cards: p1H7 }, { cards: p2H9 }],
+    });
+    const pairHand = [cc('S', 2, 0), cc('C', 4, 1), cc('C', 4, 2)];
+    const rPair = aiFollowPlay(pairHand, leadH3, Suit.Hearts, ctx);
+    checkFollow(rPair.cards, pairHand, leadH3, 'H', cfgNT2);
+    expect(rPair.cards.map(c => c.id)).toEqual(['S-2-0']); // 副牌对子 → 有值得出的牌
+    expect(rPair.reason).not.toContain('无分墩');
+
+    const bigHand = [cc('S', 2, 0), cc('C', 14, 1)];
+    const rBig = aiFollowPlay(bigHand, leadH3, Suit.Hearts, ctx);
+    checkFollow(rBig.cards, bigHand, leadH3, 'H', cfgNT2);
+    expect(rBig.cards.map(c => c.id)).toEqual(['S-2-0']); // 副牌顶张 A → 有值得出的牌
+    expect(rBig.reason).not.toContain('无分墩');
+  });
+
+  it('NT 庄家副分同有主口径：≤10 分且闲家不过 80 可垫，非庄家不能垫', () => {
+    const nt2Ctx = (over: Partial<AIContext>) => ctxOf(cfgNT2, {
+      myIndex: 3, playCount: 3, leadPlayerIndex: 0,
+      bestSoFar: { cards: p2H9, playerIndex: 2 },
+      trickPlays: [{ cards: leadH3 }, { cards: p1H7 }, { cards: p2H9 }],
+      ...over,
+    });
+    const hand = [cc('S', 2, 0), cc('C', 10, 1)]; // 级牌 ♠2 + 副分单 ♣10
+    const declarer = { declarerIndex: 3, isDeclarer: true, isDeclarerPartner: false, isAttacker: false };
+
+    const asDeclarer = aiFollowPlay(hand, leadH3, Suit.Hearts, nt2Ctx({ ...declarer, attackerPoints: 0 }));
+    checkFollow(asDeclarer.cards, hand, leadH3, 'H', cfgNT2);
+    expect(asDeclarer.cards.map(c => c.id)).toEqual(['C-10-1']); // 闲家 0 分，垫 10 分仍 < 80
+    expect(asDeclarer.reason).toBe('垫牌（无分墩，不抢）');
+
+    const near80 = aiFollowPlay(hand, leadH3, Suit.Hearts, nt2Ctx({ ...declarer, attackerPoints: 70 }));
+    checkFollow(near80.cards, hand, leadH3, 'H', cfgNT2);
+    expect(near80.cards.map(c => c.id)).toEqual(['S-2-0']); // 70 + 10 = 80 不允许
+
+    const asDefender = aiFollowPlay(hand, leadH3, Suit.Hearts, nt2Ctx({ isAttacker: true }));
+    checkFollow(asDefender.cards, hand, leadH3, 'H', cfgNT2);
+    expect(asDefender.cards.map(c => c.id)).toEqual(['S-2-0']); // 非庄家不得垫副分
+  });
+
+  it('NT 盖毙（对手用级牌毙了，能用王盖过且建议出牌非分）→ 不盖毙改垫牌', () => {
+    const p2D2: Card[] = [cc('D', 2, 205)]; // P2 用级牌 ♦2 毙了（NT 下级牌即主牌）
+    const ctx = ctxOf(cfgNT2, {
+      myIndex: 3, playCount: 3, leadPlayerIndex: 0, isAttacker: true,
+      bestSoFar: { cards: p2D2, playerIndex: 2 },
+      trickPlays: [{ cards: leadH3 }, { cards: p1H7 }, { cards: p2D2 }],
+    });
+    const hand = [cc('J', 15, 0), cc('C', 4, 1), cc('D', 6, 2)]; // 小王 + 两张副牌
+    const r = aiFollowPlay(hand, leadH3, Suit.Hearts, ctx);
+    checkFollow(r.cards, hand, leadH3, 'H', cfgNT2);
+    expect(r.cards.map(c => c.id)).toEqual(['C-4-1']); // 不盖毙，垫副牌保住小王
+    expect(r.reason).toBe('垫牌（无分墩，不抢）');
   });
 });

@@ -72,9 +72,11 @@ describe('arena e2e', () => {
     //  填充梯新增非分对拆对桶（有主桶6/NT 桶4，保留对子优先于拆对）后为 236；
     //  桶1 留保护牌（脆弱花色留一张非分单，不再抽成只剩分牌）后为 234；
     //  AI 庄家扣底改为 33 张口径（拿进底牌后再扣）后为 203；
-    //  毙单张改按档位选牌（共用 pickTrumpByTier，保对/保拖拉机）后为 207）
-    expect(statsA.matches.oppLevel).toEqual({ n: 207, d: 20 });
-    expect(statsB.matches.oppLevel).toEqual({ n: 207, d: 20 });
+    //  毙单张改按档位选牌（共用 pickTrumpByTier，保对/保拖拉机）后为 207；
+    //  第四家不抢无分墩（对手大 + 本墩无分 + 抢来无牌可领时改垫牌）后为 214；
+    //  同规则推广到 NT（NT 下常主一律不得垫 → 只垫副牌）后为 211）
+    expect(statsA.matches.oppLevel).toEqual({ n: 211, d: 20 });
+    expect(statsB.matches.oppLevel).toEqual({ n: 211, d: 20 });
     expect(statsA.handsPlayed).toBe(statsB.handsPlayed);
     expect(statsA.abortedHands).toBe(0);
     const sig = checkSignificance(statsA.matches.won, statsB.matches.won, statsA.matches.drawn, statsA.matches.played);

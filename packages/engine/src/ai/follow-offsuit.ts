@@ -17,6 +17,7 @@ import {
   attackerNearThreshold,
 } from './helpers.js';
 import { trumpKill, throwKillMode, rule1KillMode } from './follow-trump.js';
+import { probeDeclineKill } from './no-seize.js';
 import {
   hasStrongFollowUp, minEff, maxEff, pickDiscards, selectFillers,
   secondShouldAvoid, shouldBreakPairForPoints, pickBestAddCards,
@@ -486,6 +487,10 @@ export function followOffSuitThrow(
       return { cards, reason };
     }
     const killMode = throwKillMode(throwCombo, ctx, leadCards);
+    // 第四家：对手大 + 无分墩 + 抢来无牌可领 → 不抢（垫不起则照常毙）
+    const declined = probeDeclineKill(
+      hand, leadCards, throwCombo, leadLen, ctx, position, tmWin, trumpCards, { killMode });
+    if (declined) return declined;
     return trumpKill(trumpCards, hand, leadCards, throwCombo, leadLen, ctx, position, tmWin,
       { killMode });
   }

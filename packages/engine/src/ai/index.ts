@@ -28,8 +28,9 @@ import {
 } from './helpers.js';
 import {
   followTrumpLead,
-  trumpKill, followTrumpThrow, rule1KillMode,
+  trumpKill, followTrumpThrow, rule1KillMode, isBeatingTrumpKill,
 } from './follow-trump.js';
+import { probeDeclineKill } from './no-seize.js';
 import { followOffSuit, followOffSuitThrow } from './follow-offsuit.js';
 import {
   pickDiscards, selectFillers, secondShouldAvoid, shouldBreakPairForPoints,
@@ -155,13 +156,10 @@ function finishTeammateWin(
   cards: Card[], leadCards: Card[], leadCombo: ComboClass, leadLen: number,
   ctx: AIContext, position: string, tmWin: boolean, trumpCards: Card[],
 ): { cards: Card[]; reason: string } {
-  const allTrump = cards.every(c => isTrump(c, ctx));
   const overkill = !!(ctx.bestSoFar && ctx.bestSoFar.cards.length > 0
     && ctx.bestSoFar.cards.some(c => isTrump(c, ctx)));
   // 盖毙: all trump + pattern matches + beats current winner
-  const isKill = allTrump && overkill
-    && matchPattern(leadCards, cards, ctx)
-    && compareTwo(ctx.bestSoFar!.cards, cards, leadCards, ctx) === 'second';
+  const isKill = overkill && isBeatingTrumpKill(cards, leadCards, ctx);
   if (isKill) {
     const baseReason = overkill ? '盖毙' : '用主牌毙';
     const reason = annotateReason(baseReason, cards, [], trumpCards,
@@ -298,6 +296,10 @@ function _aiFollowPlay(
       return trumpKill(trumpCards, hand, leadCards, leadCombo, leadLen, ctx, position, tmWin,
         { killMode });
     }
+    // 第四家：对手大 + 无分墩 + 抢来无牌可领 → 不抢（垫不起则照常毙）
+    const declined = probeDeclineKill(
+      hand, leadCards, leadCombo, leadLen, ctx, position, tmWin, trumpCards);
+    if (declined) return declined;
     return trumpKill(trumpCards, hand, leadCards, leadCombo, leadLen, ctx, position, tmWin);
   }
 
@@ -363,6 +365,7 @@ function ensureContext(
     reveals: [],
     playCount: pc,
     leadPlayerIndex: leadIdx,
+    trickPlays: [],
     bestSoFar: bs,
     ntState: null,
     bottomCards: [],

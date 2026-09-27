@@ -99,6 +99,7 @@ export function buildAIContext(
     reveals: state.reveals,
     playCount: state.trickPlays.length,
     leadPlayerIndex: state.leadPlayerIndex,
+    trickPlays: state.trickPlays as readonly { cards: Card[] }[],
     bestSoFar,
     ntState,
     bottomCards: bottom,

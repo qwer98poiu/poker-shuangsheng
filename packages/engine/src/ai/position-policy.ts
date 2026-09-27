@@ -327,6 +327,69 @@ export function pickDiscards(
   return picked;
 }
 
+/**
+ * 第四家「不抢无分墩」的垫牌：按 avoid 梯子（第二家原则 5）取 need 张，但只用"垫得起"的档位。
+ *
+ * 可用档（按 `catOf('avoid')` 的先后取，同类内从小到大）：副非分单(1)、副非分对(2)、
+ *   主A下非分单张(3)、庄家副分单(4)与副分对(5)。
+ * 禁用档（取到就返回 null，调用方改为毙/盖毙）：**一切主对**——散对与拖拉机成员都算，
+ *   整对垫出与拆半张都不允许（含第 7 档主A下非分对）；主A下分单(6)、主A下分对(8)、
+ *   主A或更大(9)；非庄家还禁用副分(4/5)。
+ * **NT 下禁用档多一条：任何主牌（级牌与王）一律不得垫**（没有"主A以下非分单张"这一档）
+ *   → NT 版只剩副牌各档可用，等价于"只垫副牌，垫不起就照常毙"。副分口径两模式相同。
+ * 本路径下不会有副对：手里有副对即"优先级 4 能领出"，调用方早判为有值得出的牌而照常毙。
+ * 庄家的"垫光副牌变全主"由梯子自然覆盖——副牌各档都排在禁用主牌档之前，副牌不够时
+ *   梯子自动下探主牌非分单张（NT 下无此档，副牌不够即返回 null）。
+ *
+ * 分牌上限只算副分：累计 ≤10 分，且 `attackerPoints + 累计副分 < 80`（本墩已出分由
+ *   调用方保证为 0——无分墩正是触发条件之一）。闲家 70 分可垫 5 分，75 分则一分不能垫。
+ *
+ * 不拆对：对单元放不下就跳过，绝不为凑数拆对（与 `pickDiscards` 的兜底拆对不同）。
+ */
+export function pickNoSeizeDiscards(
+  hand: Card[], need: number, ctx: AIContext,
+): Card[] | null {
+  const tractorIds = new Set(detectTractors(hand, ctx).flat().map(c => c.id));
+  const usable = (u: Unit): boolean => {
+    const c = u.card;
+    if (isTrump(c, ctx)) {
+      // NT：主牌只有级牌与王（eff 800/900/1000），没有"主A以下非分单张"这一档，
+      // 一律不得垫——若可垫的只剩主牌，那张主牌垫或毙都要花掉（垫=白丢控制张且丢
+      // 牌权，毙=花同一张但赢下此墩），落回毙更优。此处显式判 NT，不要靠
+      // "eff >= aceEff 在 NT 恒成立"这个算术巧合（级牌为 A 时 aceEff 会变成 800）。
+      if (ctx.trumpSuit === null) return false;
+      if (u.kind === 'pair' || tractorIds.has(c.id)) return false; // 一切主对
+      if (isPointRank(c.rank)) return false;                       // 主分牌
+      return getEffectiveRank(c, ctx) < aceEff(ctx);               // 主A下非分单张
+    }
+    if (!isPointRank(c.rank)) return true;                         // 副非分（单/对）
+    return ctx.isDeclarer;                                         // 副分：仅庄家（上限见下）
+  };
+
+  const sorted = unitize(hand, ctx)
+    .filter(usable)
+    .sort((a, b) => {
+      const d = catOf(a, 'avoid', ctx) - catOf(b, 'avoid', ctx);
+      return d !== 0 ? d : getEffectiveRank(a.card, ctx) - getEffectiveRank(b.card, ctx);
+    });
+
+  const MAX_OFF_SUIT_POINTS = 10;
+  const picked: Card[] = [];
+  let offSuitPoints = 0;
+  for (const u of sorted) {
+    if (picked.length + u.cards.length > need) continue; // 整单位消费，放不下就跳过（不拆对）
+    if (!isTrump(u.card, ctx) && isPointRank(u.card.rank)) {
+      const add = u.cards.reduce((s, c) => s + (c.rank === Rank.Five ? 5 : 10), 0);
+      if (offSuitPoints + add > MAX_OFF_SUIT_POINTS) continue;
+      if (ctx.attackerPoints + offSuitPoints + add >= 80) continue;
+      offSuitPoints += add;
+    }
+    picked.push(...u.cards);
+    if (picked.length === need) break;
+  }
+  return picked.length === need ? picked : null;
+}
+
 /** 闲家加分时拆对跨 40 台阶的判定：存在分牌使闲家得分 + 本墩已出分 + 该分牌
  *  跨入更高的 40 台阶（40/80/120）。 */
 export function shouldBreakPairForPoints(ctx: AIContext, leadCombo: ComboClass): boolean {

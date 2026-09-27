@@ -6,7 +6,7 @@ import type { AIContext } from '../ai/types.js';
 import {
   sortDiscards, pickDiscards, selectFillers,
   hasStrongFollowUp, visibleTrickPoints, secondShouldAvoid, defense80, leadHasPoints,
-  pickTrumpByTier,
+  pickTrumpByTier, pickNoSeizeDiscards,
 } from '../ai/position-policy.js';
 
 const cfg2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
@@ -20,6 +20,7 @@ function ctxOf(cfg: TrumpDeclaration, over: Partial<AIContext> = {}): AIContext 
     myIndex: 1, isDeclarer: false, isDeclarerPartner: false, isAttacker: false,
     attackerPoints: 0, handCounts: [25, 25, 25, 25], trickHistory: [],
     reveals: [], playCount: 1, leadPlayerIndex: 0, bestSoFar: null,
+    trickPlays: [],
     ntState: null, bottomCards: [], debug: false,
     ...over,
   };
@@ -386,6 +387,7 @@ describe('谓词', () => {
     const ctx = ctxOf(cfg2, {
       bestSoFar: { cards: [c('H', 5, 2)], playerIndex: 1 }, // 5分
       leadPlayerIndex: 0,
+      trickPlays: [],
     });
     expect(visibleTrickPoints(ctx, lead)).toBe(15);
     // 当前最大是领出者 → 不重复计
@@ -479,5 +481,76 @@ describe('pickTrumpByTier（主牌档位筛选）', () => {
     // 分常主同样「单张优先于拆对」
     expect(pickTrumpByTier([c('H', 10, 0), c('H', 10, 1), c('S', 10, 2)], 'fourth', cfgH10)!.id)
       .toBe('S-10-2');
+  });
+});
+
+describe('pickNoSeizeDiscards（第四家不抢无分墩的垫牌）', () => {
+  // cfg2：♠ 主（级牌 2）→ 副牌花色 ♥/♣/♦
+  it('按 avoid 梯子取：副非分单先于主A下非分单，同类内从小到大', () => {
+    const hand = [c('C', 3, 0), c('D', 4, 1), c('S', 8, 2)];
+    expect(pickNoSeizeDiscards(hand, 2, ctxOf(cfg2))!.map(x => x.id))
+      .toEqual(['C-3-0', 'D-4-1']);
+  });
+
+  it('一切主对不得动用：整对 → null；拆对凑数 → null；拖拉机成员 → null', () => {
+    expect(pickNoSeizeDiscards([c('S', 8, 0), c('S', 8, 1)], 1, ctxOf(cfg2))).toBeNull();
+    // 主对 + 非分副单：need 2 时不能拆主对补第二张
+    expect(pickNoSeizeDiscards([c('S', 8, 0), c('S', 8, 1), c('C', 4, 2)], 2, ctxOf(cfg2)))
+      .toBeNull();
+    // 主拖拉机成员同禁
+    expect(pickNoSeizeDiscards([c('S', 8, 0), c('S', 8, 1), c('S', 9, 2), c('S', 9, 3)],
+      1, ctxOf(cfg2))).toBeNull();
+  });
+
+  it('主分牌 / 主牌 A 或更大不得垫 → null', () => {
+    expect(pickNoSeizeDiscards([c('S', 5, 0)], 1, ctxOf(cfg2))).toBeNull();   // 主分单
+    expect(pickNoSeizeDiscards([c('S', 14, 0)], 1, ctxOf(cfg2))).toBeNull();  // 主牌 A
+    expect(pickNoSeizeDiscards([c('J', 16, 0)], 1, ctxOf(cfg2))).toBeNull();  // 大王（常主）
+  });
+
+  it('副分单：非庄家不得垫；庄家可垫（≤10 分且闲家不过 80）', () => {
+    const hand = [c('S', 14, 0), c('C', 10, 1)];
+    expect(pickNoSeizeDiscards(hand, 1, ctxOf(cfg2))).toBeNull();
+    const declarer = { isDeclarer: true, isDeclarerPartner: false, isAttacker: false };
+    expect(pickNoSeizeDiscards(hand, 1, ctxOf(cfg2, { ...declarer, attackerPoints: 0 }))!
+      .map(x => x.id)).toEqual(['C-10-1']);
+  });
+
+  it('庄家副分上限：闲家 70 可垫 5 分（75<80）；75 分不能垫（80 不允许）；10 分同理', () => {
+    const declarer = { isDeclarer: true, isDeclarerPartner: false, isAttacker: false };
+    const h5 = [c('S', 14, 0), c('C', 5, 1)];
+    // 注：主牌 A 本身不可垫（禁用档），这里它只用来占位保证手牌形状
+    expect(pickNoSeizeDiscards(h5, 1, ctxOf(cfg2, { ...declarer, attackerPoints: 70 }))!
+      .map(x => x.id)).toEqual(['C-5-1']);
+    expect(pickNoSeizeDiscards(h5, 1, ctxOf(cfg2, { ...declarer, attackerPoints: 75 })))
+      .toBeNull();
+    expect(pickNoSeizeDiscards([c('S', 14, 0), c('C', 10, 1)], 1,
+      ctxOf(cfg2, { ...declarer, attackerPoints: 70 }))).toBeNull();
+    // 累计 20 分超 ≤10 分上限
+    expect(pickNoSeizeDiscards([c('C', 10, 0), c('D', 10, 1)], 2,
+      ctxOf(cfg2, { ...declarer, attackerPoints: 0 }))).toBeNull();
+  });
+
+  it('副非分对整对可垫（不拆对）；放不下就跳过', () => {
+    const hand = [c('C', 3, 0), c('C', 3, 1)];
+    expect(pickNoSeizeDiscards(hand, 2, ctxOf(cfg2))!.map(x => x.id))
+      .toEqual(['C-3-0', 'C-3-1']);
+    expect(pickNoSeizeDiscards(hand, 1, ctxOf(cfg2))).toBeNull(); // 不拆对凑数
+  });
+
+  it('凑不满 need 返回 null（调用方据此照常毙）', () => {
+    expect(pickNoSeizeDiscards([c('C', 4, 0)], 2, ctxOf(cfg2))).toBeNull();
+  });
+
+  it('NT：常主（级牌/王）一律不得垫，凑数也不用主牌补', () => {
+    const nt2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: null, level: 2 };
+    // 只有一张副牌 → 第二张宁可空缺（调用方改为毙）也不用级牌 ♠2 补
+    expect(pickNoSeizeDiscards([c('S', 2, 0), c('C', 4, 1)], 2, ctxOf(nt2))).toBeNull();
+    // 级牌为 A 的边界：此时 aceEff 取 800，仍不得垫
+    const ntA: TrumpDeclaration = { declarerIndex: 0, trumpSuit: null, level: 14 };
+    expect(pickNoSeizeDiscards([c('D', 14, 0), c('C', 4, 1)], 2, ctxOf(ntA))).toBeNull();
+    // 副牌够 → 照常取，且不碰常主
+    expect(pickNoSeizeDiscards([c('S', 2, 0), c('C', 4, 1), c('D', 6, 2)], 2, ctxOf(nt2))!
+      .map(x => x.id)).toEqual(['C-4-1', 'D-6-2']);
   });
 });

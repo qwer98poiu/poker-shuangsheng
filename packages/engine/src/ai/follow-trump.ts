@@ -494,6 +494,26 @@ export function matchTrumpPattern(
 
 // ---- Trump kill ----
 
+/**
+ * 这组牌是否构成"真正盖过当前最大"的毙牌：全主 + 牌型匹配领出 + 盖过当前最大。
+ * 当前最大非主牌时，匹配牌型的主牌必然盖过；当前最大是主牌时要求 compareTwo 判胜。
+ *
+ * 用途一：第四家"不抢无分墩"把 `trumpKill` 的建议出牌分类成"真毙 / 否则垫牌"；
+ * 用途二：`finishTeammateWin` 判断队友已大时自己是否在盖毙（那里额外要求已有的最大
+ * 是主牌，即 overkill）。
+ */
+export function isBeatingTrumpKill(
+  cards: Card[], leadCards: Card[], ctx: AIContext,
+): boolean {
+  if (cards.length === 0 || cards.length !== leadCards.length) return false;
+  if (!cards.every(c => isTrump(c, ctx))) return false;
+  if (!matchPattern(leadCards, cards, ctx)) return false;
+  const bs = ctx.bestSoFar;
+  if (!bs || bs.cards.length === 0) return true;
+  if (!bs.cards.some(c => isTrump(c, ctx))) return true;
+  return compareTwo(bs.cards, cards, leadCards, ctx) === 'second';
+}
+
 /** Check whether our trump kill actually beats the current best play. */
 function canTrumpKillBeat(killCards: Card[], leadCards: Card[], ctx: AIContext): boolean {
   const bs = ctx.bestSoFar;

@@ -189,6 +189,7 @@ describe('AI follow play compliance', () => {
         isAttacker: false, attackerPoints: 15,
         handCounts: [6, 6, 6, 6], trickHistory: [], reveals: [],
         playCount: 2, leadPlayerIndex: 3,
+        trickPlays: [],
         bestSoFar: { cards: [c('J', 16, 0)], playerIndex: 0 }, // 玩家1 大王
         ntState: null, bottomCards: [], debug: false,
       };
@@ -256,6 +257,7 @@ describe('AI follow play compliance', () => {
         isAttacker: false, attackerPoints: 15,
         handCounts: [15, 15, 15, 15], trickHistory: [], reveals: [],
         playCount: 2, leadPlayerIndex: 1,
+        trickPlays: [],
         bestSoFar: { cards: [c('S', 9, 300), c('S', 9, 301)], playerIndex: 2 },
         ntState: null, bottomCards: [], debug: false,
       };
@@ -284,6 +286,7 @@ describe('AI follow play compliance', () => {
         isAttacker: false, attackerPoints: 0,
         handCounts: [6, 6, 6, 6], trickHistory: [], reveals: [],
         playCount: 2, leadPlayerIndex: 3,
+        trickPlays: [],
         bestSoFar: { cards: [c('S', 9, 300), c('S', 9, 301)], playerIndex: 3 },
         ntState: null, bottomCards: [], debug: false,
       };
@@ -306,6 +309,7 @@ describe('AI follow play compliance', () => {
         isAttacker: false, attackerPoints: 15,
         handCounts: [15, 15, 15, 15], trickHistory: [], reveals: [],
         playCount: 2, leadPlayerIndex: 1,
+        trickPlays: [],
         bestSoFar: { cards: [c('S', 14, 300), c('S', 14, 301)], playerIndex: 2 },
         ntState: null, bottomCards: [], debug: false,
       };
@@ -334,6 +338,7 @@ describe('AI follow play compliance', () => {
         isAttacker: false, attackerPoints: 0,
         handCounts: [16, 16, 16, 16], trickHistory: [], reveals: [],
         playCount: 1, leadPlayerIndex: 3,
+        trickPlays: [],
         bestSoFar: { cards: [c('H', 14, 200)], playerIndex: 3 },
         ntState: null, bottomCards: [], debug: false,
       };
@@ -642,6 +647,7 @@ describe('position-aware point adding (diamonds trump, level=2)', () => {
         reveals: [],
         playCount: 3,
         leadPlayerIndex: 0,
+        trickPlays: [],
         bestSoFar: { cards: bestSoFar.cards, playerIndex: bestSoFar.playerIdx },
         ntState: mockNTState,
         bottomCards: [],
@@ -670,6 +676,7 @@ describe('position-aware point adding (diamonds trump, level=2)', () => {
         isAttacker: true, attackerPoints: 0,
         handCounts: [25, 25, 25, 25] as const, trickHistory: [], reveals: [],
         playCount: 2, leadPlayerIndex: 0,
+        trickPlays: [],
         bestSoFar: { cards: lead, playerIndex: 0 },
         ntState: mockNTState, bottomCards: [], debug: false,
       };
@@ -687,6 +694,7 @@ describe('position-aware point adding (diamonds trump, level=2)', () => {
         isAttacker: true, attackerPoints: 0,
         handCounts: [25, 25, 25, 25] as const, trickHistory: [], reveals: [],
         playCount: 3, leadPlayerIndex: 0,
+        trickPlays: [],
         bestSoFar: { cards: lead, playerIndex: 0 },
         ntState: mockNTState, bottomCards: [], debug: false,
       };
@@ -1606,6 +1614,7 @@ describe('NT throw kill: 拖拉机覆盖领出对子（getCompareKey 空成分�
       isAttacker: false, attackerPoints: 60,          // 60 + 领出 10 分 = 70 → 禁分
       handCounts: [12, 7, 7, 7], trickHistory: [], reveals: [],
       playCount: 3, leadPlayerIndex: 1,               // 第四家
+      trickPlays: [],
       bestSoFar: {
         cards: [createCard(SpecialSuit.Joker, 16, 107), createCard(SpecialSuit.Joker, 16, 53),
           c11('D', 48), c11('D', 102), c11('C', 35)], // 玩家2 全主盖毙
@@ -1660,6 +1669,7 @@ describe('NT throw kill: 拖拉机覆盖领出对子（getCompareKey 空成分�
       isAttacker: false, attackerPoints: 20,           // 避开 70/75 禁分
       handCounts: [12, 7, 7, 7], trickHistory: [], reveals: [],
       playCount: 3, leadPlayerIndex: 1,                // 第四家
+      trickPlays: [],
       bestSoFar: {
         cards: [c11('D', 48), c11('D', 102), c11('C', 35), c11('C', 61), c11('H', 70)], // P3 毙牌，最大 800
         playerIndex: 3,
@@ -1994,6 +2004,7 @@ describe('trump kill point-aware selection (hearts trump, level=5)', () => {
         handCounts: [20, 20, 20, 20] as const,
         trickHistory: [], reveals: [],
         playCount: 3, leadPlayerIndex: 0,
+        trickPlays: [],
         bestSoFar,
         ntState: null, bottomCards: [], debug: false,
       };
@@ -2794,6 +2805,7 @@ describe('NT second position seizing lead (抢牌权)', () => {
       handCounts: [25, 25, 25, 25] as const,
       trickHistory: [], reveals: [],
       playCount, leadPlayerIndex: 0,
+      trickPlays: [],
       bestSoFar: best ? { cards: best.cards, playerIndex: best.playerIdx } : null,
       ntState: mockNT, bottomCards: [], debug: false,
     };
@@ -2927,6 +2939,7 @@ describe('attacker crosses 40-point threshold', () => {
       isDeclarer: false, isDeclarerPartner: false, isAttacker: true,
       attackerPoints: 35, handCounts: [25, 25, 25, 3] as const,
       trickHistory: [], reveals: [], playCount: 3, leadPlayerIndex: 0,
+      trickPlays: [],
       bestSoFar: { cards: best.cards, playerIndex: best.playerIdx },
       ntState: null, bottomCards: [], debug: false,
     };
@@ -2984,6 +2997,7 @@ describe('declarer avoids pushing attacker to 80', () => {
       isDeclarer: false, isDeclarerPartner: true, isAttacker: false,
       attackerPoints: 75, handCounts: [25, 25, 2, 25] as const,
       trickHistory: [], reveals: [], playCount: 2, leadPlayerIndex: 0,
+      trickPlays: [],
       bestSoFar: { cards: best.cards, playerIndex: best.playerIdx },
       ntState: null, bottomCards: [], debug: false,
     };
@@ -3187,6 +3201,7 @@ describe('break pair: score-aware pair breaking', () => {
       handCounts: [25, 25, 25, 25] as const,
       trickHistory: [], reveals: [],
       playCount: 2, leadPlayerIndex: 0,
+      trickPlays: [],
       bestSoFar: { cards: lead, playerIndex: 0 },
       ntState: null, bottomCards: [], debug: false,
     };
@@ -3285,6 +3300,7 @@ describe('fourth position reason always carries add/avoid mark', () => {
       isAttacker: true, attackerPoints: 20,
       handCounts: [16, 12, 12, 12], trickHistory: [], reveals: [],
       playCount: 3, leadPlayerIndex: 0,
+      trickPlays: [],
       bestSoFar,
       ntState: null, bottomCards: [], debug: false,
       ...overrides,
@@ -3389,6 +3405,7 @@ describe('void discard with all-trump hand says 垫主牌', () => {
       isAttacker: true, attackerPoints: 30,
       handCounts: [5, 5, 5, 5], trickHistory: [], reveals: [],
       playCount: 1, leadPlayerIndex: 2,               // 第二家
+      trickPlays: [],
       bestSoFar: { cards: lead, playerIndex: 2 },     // 领出者（队友）最大
       ntState: null, bottomCards: [], debug: false,
     };
@@ -3414,6 +3431,7 @@ describe('trump-kill single picks by tier (pair/tractor preserving)', () => {
       isAttacker: true, attackerPoints: 5,
       handCounts: [14, 13, 13, 13], trickHistory: [], reveals: [],
       playCount: 3, leadPlayerIndex: 0,
+      trickPlays: [],
       bestSoFar: { cards: best, playerIndex: bestOwner },
       ntState: null, bottomCards: [], debug: false,
     };

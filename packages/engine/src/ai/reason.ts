@@ -36,12 +36,15 @@ export function annotateReason(
   position: string,
   tmWin: boolean,
   isTrumpKill: boolean,
-  intent: 'add' | 'avoid' | 'beat_points' | 'none',
+  intent: 'add' | 'avoid' | 'beat_points' | 'noSeize' | 'none',
 ): string {
   // Check unique-play first (not applicable to trump kill)
   if (!isTrumpKill && isOnlyLegalPlay(leadSuitCards, leadLen, leadCombo, ctx)) {
     return `${baseReason}（唯一可出）`;
   }
+
+  // 第四家能毙/盖毙却主动放弃抢无分墩——与"盖不过，不加分"区分开
+  if (intent === 'noSeize') return `${baseReason}（无分墩，不抢）`;
 
   if (intent === 'add') {
     const hasPoints = cards.some(c => isPointRank(c.rank));

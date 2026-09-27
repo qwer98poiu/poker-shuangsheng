@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-09-27 11:45
+
+### 第四家不抢无分墩（避免不必要的毙牌）
+
+**问题**：第四家领出副牌缺门时，只要主牌够就一律毙/盖毙（`ai/index.ts` 的 `killMode` 恒为 `auto`）。于是对手当前最大、本墩前三家**都没出分**、而自己抢到牌权后**又无牌可领**时，这一毙纯属白花一张主牌：抢来的墩里一分没有，下一手还得领出小牌把牌权交还给对手。
+
+**修复**：新增 `packages/engine/src/ai/no-seize.ts` 的 `probeDeclineKill`，在上述局面下改为按避分梯子垫牌（理由 `垫牌（无分墩，不抢）`），接线到常规副牌领出（`index.ts`）与甩副牌领出（`follow-offsuit.ts`）两处。判据用**建议出牌**（取 `trumpKill` 本体，不是顶层建议——顶层建议正是由本 probe 决定的，调它会成环）：建议里含分牌就照常毙；不抢需四条同时成立——本墩无分 / 建议出牌全为非分 / 领出优先级 1–4 找不出含副牌的结果（只有主对或主拖拉机不算"值得出"）/ 垫得起。垫牌只许动副非分单、主牌 A 以下未被对子占用的非分单张、庄家累计 ≤10 分且闲家不过 80 的副分单；主对（含拖拉机成员）、主牌分牌、主牌 A 或更大、非庄家的副分一律不得垫，需要动到就照常毙/盖毙。为精确判定"前三家有没有出分"（原 `visibleTrickPoints` 只看领出 + 当前最大，中间家垫出的分牌看不见），`AIContext` 新增必填字段 `trickPlays`（`buildAIContext` 直取 `state.trickPlays`；长度与 `playCount` 不符视为**未知**，未知按"有分"退回原行为）。另把 `finishTeammateWin` 里重复的盖毙判定抽成 `isBeatingTrumpKill`（行为等价）。顺带更新 arena 镜像冒烟用例里随策略走向变化的常量（207 → 214；下一节推广到 NT 后据实测再改为 211）。
+
+**新增 28 项测试**（ai-position-follow.test.ts：21 项，ai-position-policy.test.ts：7 项）。
+
+- **影响文件**：`packages/engine/src/ai/no-seize.ts`（新）、`packages/engine/src/ai/types.ts`、`packages/engine/src/ai/context.ts`、`packages/engine/src/ai/index.ts`、`packages/engine/src/ai/follow-trump.ts`、`packages/engine/src/ai/follow-offsuit.ts`、`packages/engine/src/ai/position-policy.ts`、`packages/engine/src/ai/lead.ts`、`packages/engine/src/ai/reason.ts`、`packages/engine/src/ai/STRATEGY.md`、`packages/engine/src/__tests__/ai-position-follow.test.ts`、`packages/engine/src/__tests__/ai-position-policy.test.ts`、`packages/engine/src/__tests__/ai-follow.test.ts`、`packages/arena/src/__tests__/arena-e2e.test.ts`、`README.md`
+
+### 不抢无分墩推广到 NT（无主）
+
+**问题**：上一节把「第四家不抢无分墩」只做在有主模式，NT 被 `probeDeclineKill` 里一行 `ctx.trumpSuit === null` 挡掉。但无主下能毙说明手里握有王或级牌，全场只有 12 张常主，白花一张的代价比有主更高；"对手赢一个 0 分墩、抢来又无牌可领"的逻辑也跟有没有主花色无关。而且 NT 不是边角：有人拿到对王就必然亮无主且花色反不动，实测 582 手牌中 NT 占 29.4%（理论约 37%）。
+
+**修复**：删掉那行门禁，两种模式共用同一套触发条件与垫牌梯子。NT 的差异只有一条——**任何常主（级牌、王）一律不得垫**：NT 没有"主牌 A 以下非分单张"这一档（级牌/王的有效大小是 800/900/1000，远在 A 之上），于是 NT 版等价于"只垫副牌，垫不起就照常毙"——若可垫的只剩主牌，那张主牌垫或毙都要花掉（垫 = 白丢控制张且丢牌权，毙 = 花同一张但赢下此墩），落回毙更优。该禁令在 `pickNoSeizeDiscards` 里**显式**判定，不再依赖 `eff >= aceEff` 的算术巧合（它在 NT 恒成立，但级牌为 A 时 `aceEff` 会变成 800），并补了级牌为 A 的边界测试。副分口径（庄家累计 ≤10 分且闲家不过 80）两模式相同。顺带按实测更新 arena 镜像冒烟常量（214 → 211）。
+
+**新增 6 项测试**（ai-position-follow.test.ts：5 项，ai-position-policy.test.ts：1 项），**修改 1 项**（ai-position-follow.test.ts：原「NT 无主模式不适用」负向用例改为 NT 正例），引擎 824 项 + arena 68 项 + CLI 87 项 + client 201 项 = 1180 项通过。真实对局实测（40 场镜像、582 手牌、31050 次跟牌决策）：NT 内触发 9 次且**全部是垫副牌**（无一次垫常主），有主内触发 49 次（两种理由都有）——与"NT 只垫副牌"的设计一致。
+
+- **影响文件**：`packages/engine/src/ai/no-seize.ts`、`packages/engine/src/ai/position-policy.ts`、`packages/engine/src/ai/STRATEGY.md`、`packages/engine/src/__tests__/ai-position-follow.test.ts`、`packages/engine/src/__tests__/ai-position-policy.test.ts`、`packages/arena/src/__tests__/arena-e2e.test.ts`
+
 ## 2026-09-26 22:14
 
 ### CLI 结算改用引擎的 `advanceLevel`；删除 `test-run.ts`
