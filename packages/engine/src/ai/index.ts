@@ -74,11 +74,14 @@ export function aiTryReveal(
     return null;
   }
 
-  // 别人亮的主（或未亮）：按力量亮主/反主
-  if (bigJokers.length >= 2 || smallJokers.length >= 2) {
-    if (!currentReveal || currentReveal.strength < 3) {
-      return { suit: null, reason: '有对王，亮无主' };
-    }
+  // 别人亮的主（或未亮）：按力量亮主/反主。
+  // 判据是"自己可亮的最佳力量 > 当前力量"（力量值 4/3 对应 revealing/index.ts 的
+  // getRevealOptions：对大王 4、对小王 3）。曾经写成 `currentReveal.strength < 3`，
+  // 那等于把对小王(3)与对大王(4)当成同一档：手握对大王也不去反别人的对小王无主，
+  // 与引擎 canOverride 的 4 > 3 不一致（对小王遇对小王仍不反，正确）。
+  const myJokerStrength = bigJokers.length >= 2 ? 4 : smallJokers.length >= 2 ? 3 : 0;
+  if (myJokerStrength > (currentReveal?.strength ?? 0)) {
+    return { suit: null, reason: currentReveal ? '有对王，反无主' : '有对王，亮无主' };
   }
 
   // 亮主过程：无人亮主时只能单张亮（不直接亮一对，见 revealStrength）——

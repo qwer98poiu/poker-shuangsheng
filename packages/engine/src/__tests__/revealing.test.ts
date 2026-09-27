@@ -262,6 +262,39 @@ describe('Revealing — aiTryReveal 对子反主', () => {
   });
 });
 
+describe('Revealing — aiTryReveal 无主反主（对大王 4 反对小王 3）', () => {
+  const bjPair = [createCard('J', Rank.BigJoker, 0), createCard('J', Rank.BigJoker, 1)];
+  const sjPair = [createCard('J', Rank.SmallJoker, 0), createCard('J', Rank.SmallJoker, 1)];
+
+  it('对大王(4) 反对家的对小王无主(3) → 反无主', () => {
+    const r = aiTryReveal(bjPair, [], 1, 5, { suit: null, strength: 3, playerIndex: 0 });
+    expect(r?.suit).toBeNull();
+    expect(r!.reason).toContain('反无主');
+  });
+
+  it('同档不反：对小王(3) 遇对小王无主(3)、对大王(4) 遇对大王无主(4)', () => {
+    expect(aiTryReveal(sjPair, [], 1, 5, { suit: null, strength: 3, playerIndex: 0 })).toBeNull();
+    expect(aiTryReveal(bjPair, [], 1, 5, { suit: null, strength: 4, playerIndex: 0 })).toBeNull();
+  });
+
+  it('力量不够不反：对小王(3) 遇对大王无主(4)', () => {
+    expect(aiTryReveal(sjPair, [], 1, 5, { suit: null, strength: 4, playerIndex: 0 })).toBeNull();
+  });
+
+  it('对王反有主亮主（单张 1 / 级牌对 2）→ 反无主', () => {
+    expect(aiTryReveal(sjPair, [], 1, 5, { suit: Suit.Hearts, strength: 1, playerIndex: 0 })?.suit)
+      .toBeNull();
+    expect(aiTryReveal(bjPair, [], 1, 5, { suit: Suit.Hearts, strength: 2, playerIndex: 0 })?.suit)
+      .toBeNull();
+  });
+
+  it('无人亮主 → 照旧亮无主（理由为"亮"）', () => {
+    const r = aiTryReveal(bjPair, [], 1, 5, null);
+    expect(r?.suit).toBeNull();
+    expect(r!.reason).toContain('亮无主');
+  });
+});
+
 describe('tryReveal — 亮主过程（单张 → 自保，不直接亮一对）', () => {
   const pair = [createCard(Suit.Spades, 5, 0), createCard(Suit.Spades, 5, 1)];
   const mkState = (hand: typeof pair, currentReveal: any = null) => ({
@@ -287,6 +320,16 @@ describe('tryReveal — 亮主过程（单张 → 自保，不直接亮一对）
       mkState([createCard('J', Rank.BigJoker, 0), createCard('J', Rank.BigJoker, 1)]),
       0, null,
     );
+    expect(s.currentReveal).toEqual({ playerIndex: 0, suit: null, strength: 4 });
+  });
+
+  it('AI 的对大王反主经 tryReveal 真正顶掉对小王无主（4 > 3）', () => {
+    const bjPair = [createCard('J', Rank.BigJoker, 0), createCard('J', Rank.BigJoker, 1)];
+    const sjReveal = { playerIndex: 1, suit: null, strength: 3 };
+    // 先由 aiTryReveal 决策，再交给引擎落子——两段必须一致，否则 AI 白白错过顶庄
+    const r = aiTryReveal(bjPair, [], 0, 5, sjReveal);
+    expect(r?.suit).toBeNull();
+    const s = tryReveal(mkState(bjPair, sjReveal), 0, r!.suit);
     expect(s.currentReveal).toEqual({ playerIndex: 0, suit: null, strength: 4 });
   });
 
