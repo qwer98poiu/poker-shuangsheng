@@ -9,6 +9,7 @@ import { findAllPairs, detectTractors, classify as classifyCombo } from '../patt
 import type { AIContext } from './types.js';
 import { canBeat, maxCardT, groupBySuit, suitLabelCn, getTopOffSuitRank } from './utils.js';
 import { findThrowableOffSuitCombos } from './throw-detector.js';
+import { tryLeadFlushThrow } from './flush-detector.js';
 import { canFormJokerPair, opponentsHaveTrump } from './nt-tracking.js';
 import { rankLabelStr } from './reason.js';
 
@@ -362,6 +363,11 @@ export function _aiLeadPlay(
   ctx: AIContext,
 ): { cards: Card[]; reason: string } {
   const myHandCount = ctx.myIndex >= 0 ? ctx.handCounts[ctx.myIndex] : hand.length;
+
+  // 优先级 0：清对（上一墩已验"该门对子已绝"）——证据只有一墩窗口，
+  // 这一墩领了别的牌就永久作废，故必须排在最前。
+  const flushResult = tryLeadFlushThrow(hand, ctx);
+  if (flushResult) return flushResult;
 
   // Strategy 4: Throw off-suit (highest priority)
   const throwResult = tryLeadThrowOffSuit(hand, ctx);

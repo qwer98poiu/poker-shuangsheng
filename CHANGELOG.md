@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-09-27 15:27
+
+### 出副对清对（利用上一墩的出牌信息）
+
+**问题**：AI 出副牌对子只看"最坏假设"——`throw-detector` 从"整门牌减我的手牌"造最坏手，**把已经打出去的牌也算在内**，从不读 `trickHistory`。于是上一墩明摆着的信息被浪费：领出含对的牌型时，跟牌者只要手上有该花色的对子就**必须**出对（`checkPairFollow` 直接判非法；拖拉机/甩牌走 `computeIdealFollow` 的 `minTotalPairs = played + min(fillCap, needed)`，`fillCap < needed` 时**必须把该花色对子全部出光**），所以"跟的对数 < 领出要求的对数"就**证明**该家该花色的对子已绝。此时我方该门剩下的对子是**引擎保证甩得出去**的（`validateThrow` 的判据同构：纯对子甩牌只会被更大的对/拖拉机阻断），却仍按最坏假设保守处理。
+
+**修复**：新增 `packages/engine/src/ai/flush-detector.ts`，领出新增**优先级 0**：上一墩由自己领出含副对的牌型（单对 / 带对的甩牌 / 拖拉机）并赢下、且两个对手该花色对子已绝时，本墩把该门剩下的对**一次性甩出**（`甩{suit}副牌(对子已绝，{n}对)`；剩 1 对时不走这里，交给优先级 2/4）。排在**最前**是因为这条信息的有效期只有一墩：这一墩领了别的牌，证据就永久作废。
+
+原话有一处**反向漏洞**已修：把"其他玩家都没对"当作安全，会把**缺门者**也算进去（他们跟 0 对，天然满足"对数不足"），而缺门者恰恰是唯一还能盖过我方对子的人（主牌对毙；NT 下常主对毙）。故设两道闸：G1 = 跟的对数 < 领出要求（对子已绝）；G2 = 跟满领出张数（跟不满即已缺门、随时能用主牌对毙）。**G2 只对两个对手生效，队友豁免**——队友缺门不构成威胁。与既有"甩副牌/出大副牌对/出对子"一样**不查被毙**（引擎只校验同花色能否盖过），G2 是相对现状的额外收紧。
+
+**第三家**跟清对领出（`canAddPoints` 第三家分支新增 `isFlushFollow` 钩子）改为按「加分不拆对」/闲家近 40 台阶时按「全力加分」垫牌，但**不得盖过队友**：牌权一旦易主，剩下的对就再也兑现不了。既有代码没有这道闸——第三家缺门时 `index.ts` 会对"一对 J 以下"的队友领出直接 `trumpKill`，`pickBestAddCards` 也会从全手选出主牌分对（= 毙队友），而 `finishTeammateWin` 只认"当前最大本就是主牌"，会把它静默标成 `垫主牌`。故给跟清对的选牌加 `avoidBeatingTeammate` 收口（`compareTwo` 校验后改为"换出一张、主牌对结构最多 1 对"），覆盖缺门（`index.ts`）与甩牌领出（`follow-offsuit.ts`）两条路径。两条例外保留原选牌：① 拆不出不盖的牌（如全手恰为两对主牌）→ 不得不毙；② 闲家本墩加分后**一次达到 80** → 值得把主对 10 打出去。实测"跟牌里只要有一张非主牌就绝不可能盖过队友"，故本约束实际只在手牌接近全主时生效，与"非全力加分时副牌垫完才轮到主牌"一致。第二家已毙时 `tmWin` 为 false，天然走回原盖毙规则。
+
+策略**基于不记牌**：只读 `trickHistory` 的**最后一墩**，不做跨墩累积，也不用 `ntState`。arena 镜像冒烟常量据实测 211 → 226；client 种子局（seed 42 全 AI）结果不变，未改。
+
+**新增 117 项测试**（ai-flush-detector.test.ts：117 项），引擎 947 项 + arena 68 项 + CLI 87 项 + client 201 项 = 1303 项通过。
+
+- **影响文件**：`packages/engine/src/ai/flush-detector.ts`（新）、`packages/engine/src/ai/lead.ts`、`packages/engine/src/ai/helpers.ts`、`packages/engine/src/ai/index.ts`、`packages/engine/src/ai/follow-offsuit.ts`、`packages/engine/src/ai/STRATEGY.md`、`packages/engine/src/__tests__/ai-flush-detector.test.ts`（新）、`packages/arena/src/__tests__/arena-e2e.test.ts`、`README.md`
+
 ## 2026-09-27 13:39
 
 ### Elo 实测数据抽到 `elo-matches.json`（数据与脚本分家）

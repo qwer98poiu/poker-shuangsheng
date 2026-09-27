@@ -31,6 +31,7 @@ import {
   trumpKill, followTrumpThrow, rule1KillMode, isBeatingTrumpKill,
 } from './follow-trump.js';
 import { probeDeclineKill } from './no-seize.js';
+import { isFlushFollow, avoidBeatingTeammate } from './flush-detector.js';
 import { followOffSuit, followOffSuitThrow } from './follow-offsuit.js';
 import {
   pickDiscards, selectFillers, secondShouldAvoid, shouldBreakPairForPoints,
@@ -268,6 +269,23 @@ function _aiFollowPlay(
 
   // Void in lead suit
   if (trumpCards.length >= leadLen) {
+    // 清对领出（优先级 0）：上一墩已验对手该花色对子已绝，本墩必须归队友。
+    // 按加分优先级垫牌，且**不得盖过队友**（牌权一旦易主，剩下的对就再也兑现不了；
+    // 第二家已毙时 tmWin 为 false，走不到这里）。
+    if (tmWin && isFlushFollow(ctx, leadCombo)) {
+      const addMode = canAddPoints(tmWin, position, leadCombo, ctx);
+      if (!addMode) {
+        // 禁分（庄家方 70/75 等）：不加分，同样不得盖过队友
+        const dumps = avoidBeatingTeammate(
+          pickDiscards(hand, leadLen, ctx, 'open'), hand, leadCards, leadCombo, ctx);
+        const reason = annotateReason('垫牌', dumps, [], trumpCards,
+          leadCombo, leadLen, ctx, position, tmWin, false, 'none');
+        return { cards: dumps, reason };
+      }
+      const cards = avoidBeatingTeammate(
+        pickBestAddCards(hand, leadLen, leadCombo, ctx), hand, leadCards, leadCombo, ctx);
+      return finishTeammateWin(cards, leadCards, leadCombo, leadLen, ctx, position, tmWin, trumpCards);
+    }
     // 队友已大且可加分：按加分优先级选牌（第三家有副牌垫副牌、全主出主分；
     // 第四家全手选可含主牌=毙加分；全力加分能跨 40 台阶时用全力加分优先级）
     if (tmWin && canAddPoints(tmWin, position, leadCombo, ctx)) {

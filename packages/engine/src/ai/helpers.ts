@@ -9,6 +9,7 @@ import { isTrump, getEffectiveRank, playOf } from '../model.js';
 import { findAllPairs, detectTractors } from '../pattern/index.js';
 import type { AIContext } from './types.js';
 import { isBigOffSuitCard, discardSort, pairSortAsc } from './utils.js';
+import { isFlushFollow } from './flush-detector.js';
 import {
   visibleTrickPoints, selectFillers, secondShouldAvoid, shouldBreakPairForPoints,
   type DiscardMode,
@@ -106,6 +107,9 @@ export function canAddPoints(tmWin: boolean, position: string, leadCombo: ComboC
   }
   if (position === 'fourth') return true;
   if (position === 'third') {
+    // 清对领出（优先级 0）：上一墩已验两个对手该花色对子已绝，本墩必归队友
+    // → 放心加分（两条例外见 flush-detector.avoidBeatingTeammate）
+    if (isFlushFollow(ctx, leadCombo)) return true;
     const isTrumpLead = leadCombo.cards.every(c => isTrump(c, ctx));
     if (isTrumpLead) {
       if (leadCombo.type === 'throw') return true; // 甩主牌 → 加分
