@@ -58,9 +58,9 @@ npx tsx .claude/skills/check-commits/check-commits.ts --no-tests --no-typecheck
 |---|---|---|
 | S1 | 提交 author date 自旧到新严格递增 | error |
 | S2 | 提交信息前缀在 `fix/feat/strategy/refactor/test/docs/chore/skill` 白名单内 | warn |
-| S3 | 改了代码的提交必须新增 ≥1 个 `## 时间` Changelog 小节（只碰 `.md`/`.gitignore` 的 chore 之类不在此列） | error |
+| S3 | 改了代码的提交必须新增 ≥1 个 `## 时间` Changelog 小节（只碰 `.md`/`.gitignore`/数据 `.json` 的提交不在此列） | error |
 | S4 | 纯文档提交不得**新增** Changelog 小节（修正既有正文不受限） | error |
-| S5 | 纯文档提交不得改动 `packages/**`、根 `package.json`、`tsconfig*.json` | error |
+| S5 | 纯文档提交不得改动 `packages/**`、根 `package.json`、`tsconfig*.json`（数据 `.json` 除外） | error |
 | S6 | 新增的 `## 时间` 行必须位于文件首个 `## ` 位置（新条目置顶） | warn |
 | S7 | Changelog 全文 `## ` 时间严格递减 | error |
 | S8 | Changelog 无缺少 `## ` 前缀的孤立时间行 | error |
@@ -99,6 +99,8 @@ npx tsx .claude/skills/check-commits/check-commits.ts --no-tests --no-typecheck
 **两处例外都以「该哈希在 main 上可达」为前提**（不可达报 error，不再豁免）。例外允许哈希的唯一理由是「只留日期无法唯一定位提取源」——定位能力就是哈希的全部价值；而只判「能否解析成 commit 对象」不够：被改写掉的旧对象在 GC 之前一直解析得到，却已无法在 main 上 checkout 复现。判据是 `git merge-base --is-ancestor <hash> <基准>`，基准依次取本地 `main` → `origin/main` → `HEAD`（取本地 `main` 而非远端主线：出处可以指向尚未 push 的提交，基线提取的源提交常是本地主线刚提交不久的，用 `origin/main` 会误报；三者都取不到时**跳过**本项判定，宁可不报也不要让每个出处哈希一起误报）。与其余 S11 判据一致，只扫本次提交新增行。
 
 **S3 只认「改了代码」**：判据是 `codeFilesOf(files)` 非空（`packages/**`、根 `package.json`、`tsconfig*.json`，与 S5 共用一套），**不是**「前缀不属纯文档」。`CLAUDE.md` 的原话是「Changelog 只在更新代码时写」，纯文档前缀只是这句话的代理；原判据把「只改 `.gitignore` 的 chore」也算了进来，而那类提交没有行为可记。实测全history：`feat`/`refactor`/`strategy` 零违规（98 个提交），活跃误报只有 2 个 `chore`——`09-25 16:22`（只改 `.gitignore`）放行，`08-30 10:08`（动了根 `package.json`）仍报。**不采用「按前缀豁免 `chore:`」**：`07-01 21:02` 那位 chore 改了 10 个引擎文件、且历史上确实写了条目，按前缀豁免会让这类逃逸——前缀是自报的意图，判据该看事实。
+
+**数据文件（`.json`）同样看事实**：实测数据、基线快照这类文件换的只是数，不是行为，但"改了 `packages/` 下某个文件"在路径口径下与改代码无法区分。这里不维护"数据文件白名单"——那与按前缀豁免同类，都是**自报**（检查器无法验证某个 `.ts` 里没有逻辑）。改为按**格式**判：JSON 只能装数据、装不下逻辑，"是数据"因此可验证，于是 `packages/` 下的 `.json` 一律从「代码/配置」口径摘出（`package.json` 与 `tsconfig*.json` 除外——它们改的是行为与构建）。`elo-matches.json`（Elo 实测胜率）`layout-baseline.json`（布局基线）属此类：换数据不必写 Changelog，但提交标题要写明测量/生成时点，否则无从追溯某行数据是哪次来的。
 
 **S4 只认「新增小节」**：判据是 `addedSections`（本提交引入的 `## 时间` 行）非空，**不是**「diff 里出现 `CHANGELOG.md`」。原判据把两件事混成一件——「给文档提交补写 Changelog 条目」（规范禁止）与「修正 Changelog 既有正文」（维护 Changelog 本身必需）。`09-25 17:37` 那条把早期条目里指代快照的短哈希改写成条目时间，10 余行全落在既有正文上，却因碰了 `CHANGELOG.md` 被判 S4 error。`CLAUDE.md` 的原话是「Changelog 只在更新代码时写」，针对的是**写条目**，不含修正文。
 

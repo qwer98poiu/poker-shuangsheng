@@ -24,9 +24,24 @@ const VALID_PREFIXES = ['fix', 'feat', 'strategy', 'refactor', 'test', 'docs', '
 /** 纯文档前缀：不写 Changelog、不改代码、不跑测试 */
 const DOC_PREFIXES = ['docs', 'skill'];
 
-/** 「代码/配置」路径口径：S5 判纯文档提交越界、S3 判是否该写 Changelog，共用一套 */
+/**
+ * 纯数据文件：JSON 结构上只能装数据、装不下逻辑，「是数据」因此是**可验证的事实**
+ * 而不是自报的意图——`packages/` 下的 `.json` 由这里从「代码/配置」口径中摘出，
+ * 改动它不触发 S3/S5（重测换几个数不必写 Changelog）。
+ *
+ * 两个例外：`package.json`（脚本入口）与 `tsconfig*.json`（编译配置）同为 JSON，
+ * 改的却是行为与构建，仍算代码/配置。
+ */
+function isDataFile(f: string): boolean {
+  return f.endsWith('.json')
+    && !/(^|\/)package(-lock)?\.json$/.test(f)
+    && !/(^|\/)tsconfig[^/]*\.json$/.test(f);
+}
+
+/** 「代码/配置」路径口径：S5 判纯文档提交越界、S3 判是否该写 Changelog，共用一套；数据文件不计 */
 function codeFilesOf(files: string[]): string[] {
-  return files.filter((f) => f.startsWith('packages/') || f === 'package.json' || /^tsconfig.*\.json$/.test(f));
+  return files.filter((f) => !isDataFile(f)
+    && (f.startsWith('packages/') || f === 'package.json' || /^tsconfig.*\.json$/.test(f)));
 }
 
 /** 冻结快照目录（extract-ai-baseline 产物），创建后只读 */
