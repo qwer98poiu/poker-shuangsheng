@@ -4,14 +4,19 @@
  * 运行：npx tsx packages/arena/scripts/elo-calc.ts
  *
  * 用法：
- * 1. 编辑脚本顶部 `MATCHES`：每行 [策略A, 策略B, p̂(A), 对局数 n]——p̂ 为 A 对 B 的
- *    含平局胜率（来自竞技场报告），n 为对局数。
- * 2. 确认 `ANCHOR`（锚点策略名）与 `ANCHOR_ELO`（其 Elo 分，实测给定）——两者是
- *    整个刻度唯一的自由参数，`GIVEN` 由它们派生，不必也不能单独改。
+ * 1. 编辑同目录的 `elo-matches.json` 更新实测数据：每行
+ *    `{ a, b, pHat, n }`——`pHat` 为 a 对 b 的含平局胜率（来自竞技场报告），
+ *    `n` 为对局数。数据与逻辑分家：该文件是**纯数据**，改动它不写 Changelog
+ *    （check-commits 把 packages 下的 .json 数据文件排除在「代码/配置」口径外），
+ *    所以**重测提交的标题必须写明测量日期**，否则以后无从追溯某行是哪次测的，
+ *    例如 `docs: Elo table updated with 2026-09-27 measurements — ai 1249`。
+ * 2. 确认本文件的 `ANCHOR`（锚点策略名）与 `ANCHOR_ELO`（其 Elo 分，实测给定）——
+ *    两者是整个刻度唯一的自由参数，`GIVEN` 由它们派生，不必也不能单独改。
+ *    它们留在本文件（不随数据搬走）：换锚点/重定刻度是**决策**，仍按代码提交。
  * 3. 运行脚本：输出各边 ΔR、各策略 Elo（1 位小数）、拟合残差（自洽性检查）。
  *
  * 补充新数据：
- * - 新对决：在 `MATCHES` 数组追加一行即可；新出现的策略名自动进入求解集合。
+ * - 新对决：在 `elo-matches.json` 追加一行即可；新出现的策略名自动进入求解集合。
  * - 更换锚点策略：改 `ANCHOR`；重定刻度：改 `ANCHOR_ELO`。
  * - 读数进 README：某策略新拟合值与表中原值**只差 1** 时保留原值——新增对决会让整条
  *   刻度轻微漂移，逐次跟随只会让历史分数无谓抖动（差 2 及以上才改）。
@@ -25,22 +30,36 @@
  * 已知近似：visibleTrickPoints 相关近似不涉及本脚本；p̂ 的统计误差（n 不同）由
  * 权重 n 自动体现。
  */
+import matchesRaw from './elo-matches.json' with { type: 'json' };
 
-const MATCHES: ReadonlyArray<readonly [string, string, number, number]> = [
-  // A           B           p̂(A)      n(对局数)
-  ['ai-0808', 'ai-0802', 0.5326, 10000],
-  ['ai-0809', 'ai-0802', 0.5551, 10000],
-  ['ai-0816', 'ai-0802', 0.5888, 10000],
-  ['ai-0809', 'ai-0808', 0.5350, 10000],
-  ['ai-0816', 'ai-0808', 0.5654, 10000],
-  ['ai-0816', 'ai-0809', 0.5360, 10000],
-  ['ai-0907', 'ai-0802', 0.6967, 10000],
-  ['ai-0907', 'ai-0809', 0.6479, 10000],
-  ['ai-0907', 'ai-0816', 0.6183, 10000],
-  ['ai', 'ai-0802', 0.7145, 10000],
-  ['ai', 'ai-0816', 0.6334, 10000],
-  ['ai', 'ai-0907', 0.5107, 17000],
-];
+interface MatchRow {
+  readonly a: string;
+  readonly b: string;
+  readonly pHat: number;
+  readonly n: number;
+}
+
+/**
+ * 校验数据文件形状——喂错立刻炸，不把脏数据静默算进刻度
+ * （与 `aiChooseBottomCards` 的 33 张断言同一口径）。
+ */
+function parseMatches(raw: unknown): MatchRow[] {
+  if (!Array.isArray(raw) || raw.length === 0) {
+    throw new Error('elo-matches.json：应为非空数组');
+  }
+  return raw.map((row: unknown, i: number) => {
+    const { a, b, pHat, n } = (row ?? {}) as Record<string, unknown>;
+    const bad = typeof a !== 'string' || typeof b !== 'string'
+      || typeof pHat !== 'number' || !(pHat > 0 && pHat < 1)
+      || typeof n !== 'number' || !Number.isInteger(n) || n <= 0;
+    if (bad) {
+      throw new Error(`elo-matches.json 第 ${i + 1} 行形状不对：${JSON.stringify(row)}`);
+    }
+    return { a, b, pHat, n } as MatchRow;
+  });
+}
+
+const MATCHES: readonly MatchRow[] = parseMatches(matchesRaw);
 
 /** 锚点策略：其 Elo 由 ANCHOR_ELO 给定，其余策略都是相对它解出来的。 */
 const ANCHOR = 'ai-0802';
@@ -94,8 +113,8 @@ function fitWls(names: string[]): Map<string, number> {
   const N = freeNames.length;
   const AtA = Array.from({ length: N }, () => new Array<number>(N).fill(0));
   const Atb = new Array<number>(N).fill(0);
-  for (const [a, b, p, n] of MATCHES) {
-    const d = deltaFromWinRate(p);
+  for (const { a, b, pHat, n } of MATCHES) {
+    const d = deltaFromWinRate(pHat);
     // 方程：R_a − R_b = d。锚点策略的 R 固定为 ANCHOR_ELO，折入右侧：
     // x_a − x_b = d − ANCHOR_ELO·(anchor_a − anchor_b)，解出的 x 即绝对 Elo。
     const i = a === ANCHOR ? -1 : freeIdx.get(a)!;
@@ -114,13 +133,13 @@ function fitWls(names: string[]): Map<string, number> {
 }
 
 function main(): void {
-  const names = [...new Set(MATCHES.flatMap(([a, b]) => [a, b]))];
+  const names = [...new Set(MATCHES.flatMap(({ a, b }) => [a, b]))];
   const ratings = fitWls(names);
 
   console.log('=== 1. 单场对决的 Elo 差（ΔR = 400·log10(p̂/(1−p̂))） ===');
-  for (const [a, b, p, n] of MATCHES) {
-    const d = deltaFromWinRate(p);
-    console.log(`  ${a} vs ${b}: p̂=${p} n=${n}  ΔR=${d.toFixed(2)}`);
+  for (const { a, b, pHat, n } of MATCHES) {
+    const d = deltaFromWinRate(pHat);
+    console.log(`  ${a} vs ${b}: p̂=${pHat} n=${n}  ΔR=${d.toFixed(2)}`);
   }
 
   console.log(`\n=== 2. 加权最小二乘解（锚定 ${ANCHOR} = ${ANCHOR_ELO}，权重 = n） ===`);
@@ -137,12 +156,12 @@ function main(): void {
   console.log(`\n  最大偏差 = ${maxDiff.toFixed(2)}（容差 0.051，1 位小数舍入）`);
 
   console.log('\n=== 3. 拟合残差：重算 Elo 预测的胜率 vs 报告实测 ===');
-  for (const [a, b, p, n] of MATCHES) {
+  for (const { a, b, pHat } of MATCHES) {
     const ra = ratings.get(a)!;
     const rb = ratings.get(b)!;
     const pred = 1 / (1 + Math.pow(10, (rb - ra) / 400));
-    const resid = 400 * log10(p / (1 - p)) - (ra - rb);
-    console.log(`  ${a} vs ${b}: 实测 p̂=${p.toFixed(4)}  预测=${pred.toFixed(4)}  残差 ΔR=${resid.toFixed(2)}`);
+    const resid = 400 * log10(pHat / (1 - pHat)) - (ra - rb);
+    console.log(`  ${a} vs ${b}: 实测 p̂=${pHat.toFixed(4)}  预测=${pred.toFixed(4)}  残差 ΔR=${resid.toFixed(2)}`);
   }
 
   console.log(`\n结论: ${ok ? '✓ 拟合完成（残差自洽）' : '✗ 拟合偏差超出容差'}`);

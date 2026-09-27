@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-09-27 13:39
+
+### Elo 实测数据抽到 `elo-matches.json`（数据与脚本分家）
+
+**问题**：`elo-calc.ts` 把 12 行实测胜率（`MATCHES`）写死在脚本里，于是每次重测——纯粹换几个数——在文件层面都表现为"改了代码"，必须写一条 Changelog。数据不是代码，但在同一文件里无从区分。
+
+**修复**：实测数据搬到同目录 `packages/arena/scripts/elo-matches.json`，每行 `{a, b, pHat, n}`（字段自述，替代原先的列注）；`elo-calc.ts` 改为 import 并加**形状校验**——字段缺失/类型不符、p̂ 不在 (0,1)、n 非正整数一律抛错，不把脏数据静默算进刻度。`ANCHOR`/`ANCHOR_ELO` 留在脚本里：换锚点、重定刻度是**决策**，不是重测产物，仍按代码提交。抽取是纯搬家：同数据下新旧脚本输出**逐字节一致**（已实测 diff），形状校验也实测喂坏数据会炸。
+
+**无新增测试**，引擎 830 项 + arena 68 项 + CLI 87 项 + client 201 项 = 1186 项通过。
+
+- **影响文件**：`packages/arena/scripts/elo-calc.ts`、`packages/arena/scripts/elo-matches.json`（新）
+
 ## 2026-09-27 12:12
 
 ### 亮主：对大王现在会反对小王的无主（AI 与引擎规则对齐）
