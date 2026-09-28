@@ -3,12 +3,12 @@
  * it's our turn to start a trick.
  */
 import type { Card, ComboClass } from '../types.js';
-import { Rank, SpecialSuit, Suit, isPointRank } from '../types.js';
+import { Rank, SpecialSuit, Suit, SUIT_ORDER, isPointRank } from '../types.js';
 import { isTrump, getEffectiveRank } from '../model.js';
 import { findAllPairs, detectTractors, classify as classifyCombo } from '../pattern/index.js';
 import type { AIContext } from './types.js';
 import { canBeat, maxCardT, groupBySuit, suitLabelCn, getTopOffSuitRank } from './utils.js';
-import { findThrowableOffSuitCombos } from './throw-detector.js';
+import { findThrowableOffSuitCombos, findThrowableSuitCards } from './throw-detector.js';
 import { tryLeadFlushThrow } from './flush-detector.js';
 import { canFormJokerPair, opponentsHaveTrump } from './nt-tracking.js';
 import { rankLabelStr } from './reason.js';
@@ -356,6 +356,57 @@ export function hasWorthLeadCards(hand: Card[], ctx: AIContext): boolean {
   return hasOffSuit(tryLeadPairs(hand, ctx, myHandCount));
 }
 
+// ---- NT declarer: drain a side suit in one play (断门) ----
+
+/**
+ * 断门档位：甩(1) > 含顶张(2) > 拖拉机(3) > 对子(4) > 其他单张(6)。
+ * 不能一次出空整门时返回 null。`group` 必须是**该门的非主牌**（级牌是常主，由调用方剔除）。
+ */
+function drainClass(group: Card[], suit: Suit, ctx: AIContext): number | null {
+  if (group.length === 0) return null;
+  const combo = classifyCombo(group, ctx);
+  // 整门恰为一个牌型（单张 / 一对 / 拖拉机）：打出即断门，不查对手能否盖过。
+  // 只有复合甩牌才需要最坏情况分析，且要求整门都盖不过。
+  if (combo.type === 'throw') {
+    if (findThrowableSuitCards(group, suit, ctx).length !== group.length) return null;
+    return 1;
+  }
+  if (group.some(c => c.rank === getTopOffSuitRank(suit, ctx))) return 2;
+  if (combo.type === 'tractor') return 3;
+  if (combo.type === 'pair') return 4;
+  return 6;
+}
+
+/**
+ * 领出优先级 0.5（仅 NT 庄家）：把某一门副牌一次出空（断门）。
+ * 与优先级 1 甩副牌的区别：这里的结果恒为**整门**，所以能真正断门；
+ * 优先级 1 只保证那一手可甩（`findThrowableOffSuitCombos` 还要求 >= 3 张、取最长套），
+ * 且从不覆盖 2 张的门。
+ * 多门可选时按牌型优先级取最高档，同档取张数更多者。
+ */
+function tryLeadDrainSuit(
+  hand: Card[],
+  ctx: AIContext,
+): { cards: Card[]; reason: string } | null {
+  if (ctx.trumpSuit !== null || !ctx.isDeclarer || ctx.myIndex < 0 || !ctx.ntState) return null;
+
+  let best: { cards: Card[]; suit: Suit; cls: number } | null = null;
+  for (const suit of SUIT_ORDER) {
+    const group = hand.filter(c => c.suit === suit && !isTrump(c, ctx));
+    const cls = drainClass(group, suit, ctx);
+    if (cls === null) continue;
+    if (!best || cls < best.cls || (cls === best.cls && group.length > best.cards.length)) {
+      best = { cards: group, suit, cls };
+    }
+  }
+
+  if (!best) return null;
+  return {
+    cards: best.cards,
+    reason: `断门${suitLabelCn(best.suit)}(${best.cards.length}张)`,
+  };
+}
+
 // ---- Main lead orchestrator ----
 
 export function _aiLeadPlay(
@@ -368,6 +419,17 @@ export function _aiLeadPlay(
   // 这一墩领了别的牌就永久作废，故必须排在最前。
   const flushResult = tryLeadFlushThrow(hand, ctx);
   if (flushResult) return flushResult;
+
+  // 优先级 0.5：断门 + 吊主提前（仅 NT 庄家）。断门的收益是"这门以后可用主牌毙"，
+  // 故先按花色把能一次出空的门断掉，再吊主；其余副牌好牌（1/2/3/4）让位到吊主之后。
+  const isNtDeclarer =
+    ctx.trumpSuit === null && ctx.isDeclarer && ctx.myIndex >= 0 && ctx.ntState !== null;
+  if (isNtDeclarer) {
+    const drainResult = tryLeadDrainSuit(hand, ctx);
+    if (drainResult) return drainResult;
+    const ntDrawResult = tryDrawTrump(hand, ctx, myHandCount);
+    if (ntDrawResult) return ntDrawResult;
+  }
 
   // Strategy 4: Throw off-suit (highest priority)
   const throwResult = tryLeadThrowOffSuit(hand, ctx);
@@ -386,8 +448,11 @@ export function _aiLeadPlay(
   if (pairResult) return pairResult;
 
   // Strategy 5: Draw trump (smallest trump, not applicable in NT generally)
-  const drawResult = tryDrawTrump(hand, ctx, myHandCount);
-  if (drawResult) return drawResult;
+  // NT 庄家已在优先级 0.5 吊过（tryDrawTrump 是纯函数，结果相同）
+  if (!isNtDeclarer) {
+    const drawResult = tryDrawTrump(hand, ctx, myHandCount);
+    if (drawResult) return drawResult;
+  }
 
   // Strategy 6: Lead small off-suit single
   const smallResult = tryLeadSmall(hand, ctx);
