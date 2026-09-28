@@ -31,6 +31,7 @@ export * as ai0809 from './ai-0809/index.js'; // ai/ as of b77a7b1 (2026-08-14),
 export * as ai0816 from './ai-0816/index.js'; // ai/ as of 2d56a13 (2026-08-16), README 1055 Elo measurement target
 export * as ai0907 from './ai-0907/index.js'; // ai/ as of 6aa2b80 (2026-09-07), before the trump-kill single-card tier selection
 export * as ai0927 from './ai-0927/index.js'; // ai/ as of 45c8f78 (2026-09-27), before the NT-reveal 4-over-3 fix & the drained-pair throw
+export * as ai0928 from './ai-0928/index.js'; // ai/ as of ba9f9a0 (2026-09-27), after the drained-pair throw & before the NT drain-lead reorder
 
 // Serialization (reusing old model/serialize.ts)
 export * from './model/serialize.js';
