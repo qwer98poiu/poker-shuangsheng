@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-09-29 22:37
+
+### NT 记牌器：对子扣减改按「领出里有没有对子」判定
+
+**问题**：`ai/nt-tracking.ts` 用 `classify(leadCards).pairCount > 0 || hasTractor` 判「领出含对」，而 `classify` 对**单张**也返回 `pairCount = 1`（`pattern/index.ts:16`）。于是任何**主牌单张领出**都会触发「跟牌者没出对 ⇒ 该家没有主对」这条扣减：三家跟一张主后，常主张数被统一压平成每键 ≤1、`canFormPair` 全 false——对手手里的主对（暗对）就此从记牌器消失。该结果直接喂给吊主判断（`lead.ts` 规则 3「对手无王对」、规则 6「对手无对」），会让 AI 把对手盖得住的级牌对当安全牌甩出。冻结快照 `ai-0802/0809/0816/0907/0927` 带同一行代码，按规范不动。
+
+**修复**：判据改为 `findAllPairs(leadCards).length > 0`，只问「领出里有没有对子」（拖拉机必含对，一并覆盖）。不写成 `type !== 'single'`：`throw` 分两种——含对的甩牌（甩 ♥2♥2+大王）强制跟牌者出对，纯单张的甩牌（甩大王+小王）不强制，只看 type 会让后者误触发。实测确认跟牌规则确实是「手握该门对子必须出对」（拆对出两张单判非法），扣减本身成立，错的只是触发条件。
+
+**新增 3 项测试**（ai-nt-tracking.test.ts：3 项），引擎 950 项 + arena 68 项 + CLI 87 项 + client 201 项 = 1306 项通过。
+
+- **影响文件**：`packages/engine/src/ai/nt-tracking.ts`、`packages/engine/src/__tests__/ai-nt-tracking.test.ts`、`packages/arena/src/__tests__/arena-e2e.test.ts`（A==A 冒烟指纹 oppLevel 226 → 217，注释日志补一行）、`README.md`（中英的「当前」行改「待重测」——策略目录行为变更）
+
 ## 2026-09-27 17:36
 
 ### 提取 ai-0927 基线（09-27 11:45，亮主 4>3 修复与出副对清对之前）

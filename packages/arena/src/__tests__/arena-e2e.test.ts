@@ -76,9 +76,11 @@ describe('arena e2e', () => {
     //  第四家不抢无分墩（对手大 + 本墩无分 + 抢来无牌可领时改垫牌）后为 214；
     //  同规则推广到 NT（NT 下常主一律不得垫 → 只垫副牌）后为 211；
     //  出副对清对（优先级 0：上一墩验对手该花色对子已绝则甩出该门剩下的对，
-    //  第三家跟清对按加分垫牌且不得盖过队友）后为 226）
-    expect(statsA.matches.oppLevel).toEqual({ n: 226, d: 20 });
-    expect(statsB.matches.oppLevel).toEqual({ n: 226, d: 20 });
+    //  第三家跟清对按加分垫牌且不得盖过队友）后为 226；
+    //  NT 记牌器对子扣减改按"领出是否含对"判定（单张主领出不再把三家主张数
+    //  压平、不再抹掉对手的主对）后为 217）
+    expect(statsA.matches.oppLevel).toEqual({ n: 217, d: 20 });
+    expect(statsB.matches.oppLevel).toEqual({ n: 217, d: 20 });
     expect(statsA.handsPlayed).toBe(statsB.handsPlayed);
     expect(statsA.abortedHands).toBe(0);
     const sig = checkSignificance(statsA.matches.won, statsB.matches.won, statsA.matches.drawn, statsA.matches.played);

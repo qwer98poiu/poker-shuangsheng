@@ -214,6 +214,49 @@ describe('NT trump tracking', () => {
       const s = call(hand, 0, [trick], [], cfg2, false, []);
       expect(s.possibleTrumps[4]).not.toBeNull();
     });
+
+    // classify 对单张也返回 pairCount=1（pattern/index.ts:16），照搬 pairCount
+    // 判"领出含对"就会让单张主领出触发扣减：跟牌者只被要求跟一张主，出单张
+    // 完全不能说明他没有主对。
+    it('single trump lead: following with one trump says nothing about pairs', () => {
+      const hand: Card[] = [];
+      const trick = mockTrick(
+        [
+          [c('D', 2, 0)],   // P0 领单张 ♦2
+          [c('C', 2, 0)],   // 三家各跟一张主单张，无人出对
+          [c('S', 2, 0)],
+          [c('H', 2, 0)],
+        ],
+        0, 0,
+      );
+      const s = call(hand, 0, [trick], [], cfg2, false, []);
+      expect(s.canFormPair).toEqual([false, true, true, true]);
+      // 无人碰过的键仍是 ×2
+      expect(cnt(s.possibleTrumps[1], 'J-16')).toBe(2);
+      expect(cnt(s.possibleTrumps[1], 'J-15')).toBe(2);
+      // 打出的那张按上限扣减，另一张仍可能在该家手上
+      expect(cnt(s.possibleTrumps[1], 'C-2')).toBe(1);
+    });
+
+    // 甩牌（throw）分两种：含对的甩牌与纯单张的甩牌。只有前者强制跟牌者出对，
+    // 所以判据必须是"领出里有没有对子"，不能只看 type（type≠single 就会让
+    // 大王+小王 这种纯单张甩牌误触发）。
+    it('throw of two singles (BJ+SJ): no pair in the lead, so no pair deduction', () => {
+      const hand: Card[] = [];
+      const trick = mockTrick(
+        [
+          [c('J', Rank.BigJoker, 0), c('J', Rank.SmallJoker, 0)],  // P0 甩大王+小王
+          [c('D', 2, 0), c('C', 2, 0)],
+          [c('S', 2, 0), c('C', 2, 1)],
+          [c('S', 2, 1), c('D', 2, 1)],
+        ],
+        0, 0,
+      );
+      const s = call(hand, 0, [trick], [], cfg2, false, []);
+      expect(s.canFormPair).toEqual([false, true, true, true]);
+      // ♥2 无人碰过 -> 仍是 ×2（若误触发扣减会被压成 ×1）
+      expect(cnt(s.possibleTrumps[1], 'H-2')).toBe(2);
+    });
   });
 
   describe('full determination', () => {
@@ -1591,5 +1634,55 @@ describe('save scenario: after 5 tricks, P1 has BJ', () => {
     expect(s.playersWithNoTrump.has(3)).toBe(true);
     // P1 has BJ (J-16) in possible list
     expect(cnt(s.possibleTrumps[1], 'J-16')).toBeGreaterThan(0);
+  });
+});
+
+// ================================================================
+// 用户反馈的真实牌局：无主 2 级、庄家 P0、AI-4 亮对小王无主
+// 第 2 墩 AI-2 领的是**单张大王**——修复前它被 classify 的 pairCount=1
+// 当成"含对领出"，把三家记牌器全部压平（每键 ≤1、无人能成对）。
+// ================================================================
+describe('reported position: single big-joker lead in trick 2', () => {
+  const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: null, level: 2 };
+  const SUITS: Record<string, CardSuit> = { '♠': 'S', '♥': 'H', '♣': 'C', '♦': 'D' };
+  const RANKS: Record<string, number> = { A: 14, K: 13, Q: 12, J: 11, '10': 10 };
+  /** 按导出文本构造手牌（避免手抄 40+ 张），id 仅需在同一串内唯一。 */
+  function parse(text: string): Card[] {
+    return text.split(/\s+/).filter(Boolean).map((tok, i) => {
+      if (tok === 'JOKER') return createCard(SpecialSuit.Joker, Rank.BigJoker, i);
+      if (tok === 'joker') return createCard(SpecialSuit.Joker, Rank.SmallJoker, i);
+      return createCard(SUITS[tok[0]], RANKS[tok.slice(1)] ?? Number(tok.slice(1)), i);
+    });
+  }
+
+  it('P0 view: 单张大王领出后 AI-2/AI-3 仍可持有主对', () => {
+    const hand = parse('♥2 ♣6 ♦A ♦7 ♣5 ♣3 ♠Q ♣A ♣3 ♣9 ♣4 ♦8 ♦J ♦A ♣6 ♣8 ♥2 JOKER ♦6 ♦5 ♦9');
+    const bottom = parse('♥7 ♥8 ♥6 ♠6 ♥9 ♠3 ♥3 ♥3');
+    // 第 1 墩 P0 领 ♠8♠8；第 2 墩 P0 领单张 ♦2，AI-2 出单张大王；第 3 墩 AI-2 领 ♠A
+    const t1 = mockTrick([parse('♠8 ♠8'), parse('♠J ♠Q'), parse('♠4 ♠4'), parse('♠6 ♠7')], 0, 0);
+    const t2 = mockTrick([parse('♦2'), parse('JOKER'), parse('♦2'), parse('♣2')], 0, 1);
+    const t3 = mockTrick([parse('♠A'), parse('♠3'), parse('♠9'), parse('♠J')], 1, 1);
+    const current = [
+      { cards: parse('♥5 ♥5 ♥4 ♥4') },
+      { cards: parse('♥10 ♥Q ♥K ♥A') },
+      { cards: parse('♥K ♥8 ♥9 ♥J') },
+    ];
+    const reveals: Reveal[] = [{ playerIndex: 3, suit: null, strength: 3 }];
+    const s = computeNTTrumpState(hand, 0, [t1, t2, t3], reveals, cfg, true, bottom, current, 1);
+
+    // 修复前这里是 [false,false,false,true]：三家被压平，只有亮主的 AI-4 靠
+    // knownTrumps 重加回对小王才留下 canFormPair=true。
+    expect(s.canFormPair).toEqual([false, true, true, true]);
+    expect(s.minTrumpCounts).toEqual([3, 0, 0, 2]);
+    expect(s.maxTrumpCounts).toEqual([3, 3, 3, 5]);
+    expect(s.remainingBigJokers).toBe(0);
+    expect(s.remainingSmallJokers).toBe(0);
+    // AI-4 亮对小王 -> 两张小王钉死在 AI-4
+    expect(cnt(s.possibleTrumps[3], 'J-15')).toBe(2);
+    // 单张大王领出不得压平：AI-2 未碰过的 ♠2 仍是 ×2、打出的 ♣2 扣 1
+    expect(cnt(s.possibleTrumps[1], 'S-2')).toBe(2);
+    expect(cnt(s.possibleTrumps[1], 'C-2')).toBe(1);
+    // 两张 ♥2 都在自己手上，其它位置为 0
+    expect(cnt(s.possibleTrumps[1], 'H-2')).toBe(0);
   });
 });
