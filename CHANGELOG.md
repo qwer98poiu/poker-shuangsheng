@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-10-01 01:01
+
+### tsx 装成本地依赖（钉 `~4.16.5`）：`npx tsx` 不再联网
+
+**问题**：仓库从未声明过 tsx——全历史 package.json 里没有 tsx，`package-lock.json` 里没有 tsx 条目，`node_modules/.bin/tsx` 只是 08-08 留下的一条悬空链接（指向不存在的 `../tsx/dist/cli.mjs`）。因此凡是经 `npx tsx` 启动的入口（竞技场、CLI、`elo-calc.ts`、`layout-regression.ts`、README/CLAUDE.md 里的命令）**每次启动都要先向 npm registry 解析一次 tsx**（npm 日志实测：每个 `npx tsx` 一行 `http fetch GET 200 https://registry.npmjs.org/tsx … (cache revalidated)`，间隔几秒也照样重新验证，缓存新鲜也不省），这条请求慢则 1.0~2.6 秒、卡住即永久挂起——这也是 09-30 那晚竞技场「无任何输出」的成因（那一节修掉的是 worker 池，**父进程与其余 npx 入口仍在联网**）。离线环境下同样跑不起来：npx 的语义是「本地解析不到就联网下载」。
+
+**修复**：根 `devDependencies` 加 `tsx: ~4.16.5`（lock 新增 3 条：tsx / get-tsconfig / resolve-pkg-maps，共 552K，**没有**新增 esbuild）；`packages/arena` 的 `arena`、`packages/cli` 的 `start`/`dev` 由 `npx tsx …` 改为直接调本地 `tsx …`（`npm run` 会把 `node_modules/.bin` 放进 PATH，顺带省掉 npm 冷启动：实测 `./node_modules/.bin/tsx --version` 0.147s vs `npx tsx --version` 1.48s）。
+
+**为什么钉 4.16.5 而不是最新**：tsx 4.17 起要求 esbuild `~0.23`+，而本仓库根已有 esbuild 0.21.5（vite/vitest 那条线）。npm 8 在「同名平台包已在顶层」时不会为嵌套的 esbuild 装 `@esbuild/darwin-x64`（实测嵌套目录建了但为空），esbuild 的 postinstall 便拿根那份 0.21.5 去校验 0.28.2，报 `Expected "0.28.2" but got "0.21.5"`，`npm i -D tsx` 直接失败并回滚；`--ignore-scripts` 也救不了（平台包缺失，tsx 一启动就 TransformError）。4.16.5 的区间正好是 `~0.21.5`，dedupe 到已有那份，无嵌套、无冲突。**因此区间写 `~` 而非 `^`**：`^4.16.5` 会在将来的 `npm install` 解析回 4.23，把安装再次弄坏。
+
+**验证**：从 `packages/arena`、`packages/client` 分别以 `npm_config_registry=http://127.0.0.1:9/`（连不上的 registry）跑 `npx tsx --version`，均正常输出且 debug 日志 0 次 http fetch；竞技场 `--pairs 50` 端到端（默认 4 workers，走本地 tsx 的 loader）200 场跑通、无子进程报错。文档与脚本注释里的 `npx tsx …` 有意**不改**：那些命令在普通终端里执行，PATH 上没有 `node_modules/.bin`，写 `tsx` 会 command not found；本地有依赖后 npx 已不再联网。
+
+**无新增测试**，引擎 950 项 + arena 70 项 + CLI 87 项 + client 201 项 = 1308 项通过。
+
+- **影响文件**：`package.json`、`package-lock.json`、`packages/arena/package.json`、`packages/cli/package.json`、`CLAUDE.md`（新增「依赖」一节记下这个钉版本的理由）
+
 ## 2026-09-30 23:45
 
 ### 竞技场 worker 池不再经 npx 启动：npx 解析 tsx 卡死导致「无响应」

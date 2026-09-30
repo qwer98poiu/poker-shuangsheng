@@ -18,6 +18,7 @@
     "prepare": "[ -d .git ] && git config core.hooksPath .githooks || true"
   },
   "devDependencies": {
+    "tsx": "~4.16.5",
     "typescript": "^5.7.0"
   }
 }

@@ -110,6 +110,11 @@ Changelog 的测试数行与提交信息不同：列出子包分项与总数（`
 - **花色类型**：`Suit`/`SpecialSuit` 是 `as const` 对象 + 同名联合类型（2026-09-19 由**字符串枚举**改来；字符串枚举是名义类型，那时 `'S'` 赋给 `CardSuit` 会报 TS2345，没有任何编译器开关能放宽）。现在 `Suit.Spades` 与 `'S'` 都合法，不需要任何 cast；`Rank` 仍是数值枚举，传裸数字合法（`createCard(Suit.Spades, 14, 200)`）。
 - **不要用 `as any` 消音**：那会把整条链路的类型检查一起关掉——`createCard(s, r as any, i)` 就是反例，它同时掩盖了 rank 传错这类真错误。类型实在对不上时用最小必要的 cast（`as CardSuit` 而非 `as any`）。
 
+## 依赖
+
+- **tsx 钉在 `~4.16.5`，不要升到 4.17+**（2026-10-01 起本地依赖）。4.17 起 tsx 要求 esbuild `~0.23`+，而根已有 esbuild 0.21.5（vite/vitest 那条线）：npm 8 不会为嵌套的 esbuild 装同名平台包 `@esbuild/darwin-x64`（嵌套目录建了但为空），esbuild 的 postinstall 便拿根那份去校验，报 `Expected "0.28.2" but got "0.21.5"`，`npm i` 失败回滚；`--ignore-scripts` 也不行（平台包缺失，tsx 一启动就 TransformError）。4.16.5 要 `~0.21.5`，dedupe 到已有那份，零新增 esbuild——**区间必须写 `~` 而非 `^`**，`^4.16.5` 会在下次 `npm install` 解析回 4.23 并把安装弄坏。
+- **`npx tsx` 与本地 `tsx` 的取舍**：仓库自己的入口（`npm run arena`、`npm start -w packages/cli`）直接调本地 `tsx`；文档与脚本注释里的 `npx tsx …` 保持原样——那些命令在普通终端里跑，PATH 上没有 `node_modules/.bin`。本地有依赖后 npx 不再联网（解析不到才会联网下载，2026-09-30 那晚的竞技场卡死正是这个形态）。
+
 ## 布局回归检查
 
 - **用途**：修改任意 GUI 组件的位置后，验证其他所有组件位置不变（历史教训：给 `.center-area` 加 `position: relative` 导致等级框掉到桌布上——定位祖先被劫持）。

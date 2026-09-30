@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "arena": "npx tsx src/run.ts",
+    "arena": "tsx src/run.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.scripts.json"
   },
