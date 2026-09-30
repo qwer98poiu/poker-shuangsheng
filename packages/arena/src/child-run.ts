@@ -7,7 +7,8 @@
  * import/message patterns). A child process runs its own loader in its main
  * thread, which is reliable.
  *
- * Usage: npx tsx src/child-run.ts <seed> <strategyA> <strategyB>
+ * 启动方式见 run.ts 的 ChildPool.spawnOne（同一个 node + tsx loader，不经 npx），
+ * 参数为 <seed> <strategyA> <strategyB>。
  */
 import readline from 'node:readline';
 import { runPairs } from './run-pairs.js';

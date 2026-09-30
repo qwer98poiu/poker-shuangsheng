@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-09-30 23:45
+
+### 竞技场 worker 池不再经 npx 启动：npx 解析 tsx 卡死导致「无响应」
+
+**问题**：竞技场会**完全无输出**地永久空转（进程 0% CPU）。根因在 `ChildPool.spawnOne` 用 `spawn('npx', ['tsx', child-run.ts, …])` 起 worker：本仓库 `node_modules` 里根本没有 tsx（`node_modules/.bin/tsx` 是指向不存在文件的悬空链接，也没有任何 package.json 声明它），于是每次 `npx tsx` 都要经 npm registry / npx 缓存解析 tsx。4 个 worker 并发解析时部分请求会一直挂着（TCP 已建立但服务端不返回），该子进程既不打印 `ready` 也不退出；`waitAllReady` 只数 ready、不看退出，池便永久等待——而进度行与检查点都要等第一批 50 对决跑完才写，所以现象是「无任何输出、也不耗 CPU」。实测（seed 45）：同样 4 个子进程用 npx 启动 6 轮只有 0~3/4 就绪，换成下面的命令 3 轮 4/4 全部就绪。**与策略无关**——ai-0802 / ai-0907 / ai-0927 都卡（`--workers 1` 进程内则一向正常），「只有 ai-0802 卡」是并发解析的运气；中止后 `results/checkpoint.json` 里 `pairsDone: 0` 正是这一形态的指纹。
+
+**修复**：worker 改用**父进程自己的 node + tsx loader**（`process.execArgv`）启动，不经 npx、不碰网络（`worker-cmd.ts` 的 `workerCommand`）。另给池补两道失败闸：子进程**未就绪即退出**（含 code 0）立刻 reject；60s 看门狗仍未全部就绪则以「只有 N/M 个子进程就绪」报错退出，并在 `main().catch` 里 `ChildPool.killAll()` 清掉残留子进程——把这类卡死从「无输出空转」变成一条明确错误。
+
+**新增 2 项测试**（worker-cmd.test.ts：2 项），引擎 950 项 + arena 70 项 + CLI 87 项 + client 201 项 = 1308 项通过。
+
+- **影响文件**：`packages/arena/src/run.ts`、`packages/arena/src/worker-cmd.ts`、`packages/arena/src/child-run.ts`（启动方式注释）、`packages/arena/src/__tests__/worker-cmd.test.ts`
+
 ## 2026-09-29 22:37
 
 ### NT 记牌器：对子扣减改按「领出里有没有对子」判定
