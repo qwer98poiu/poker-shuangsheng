@@ -20,6 +20,7 @@ export interface NTLadderArgs {
   minDeals: number;
   stepDeals: number;
   maxDeals: number;
+  untilSignificant: boolean;
 }
 
 /** 阶梯的可变状态：CLI 的中断处理与结果输出在循环外读它。 */
@@ -104,7 +105,8 @@ export async function runNTLadder(
   let nextDeal = 0;
   let nextProgress = BATCH_DEALS;
   let nextSignificance = args.stepDeals;
-  state.target = args.minDeals;
+  // --until-significant 无最小样本，进度基准先按第一次检查（stepDeals）计
+  state.target = args.untilSignificant ? args.stepDeals : args.minDeals;
 
   for (;;) {
     while (state.acc.deals < state.target && !state.interrupted) {

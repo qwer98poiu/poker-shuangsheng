@@ -51,11 +51,13 @@ interface Args {
   strategyA: string;
   strategyB: string;
   out: string | null;   // null = 默认路径; '' = 不导出
+  untilSignificant: boolean; // 不设最小样本：任一显著即停（与 --pairs 互斥）
 }
 
 function printUsage(): void {
   console.log(`用法: npm run arena -w packages/arena -- [选项]
-  --pairs N          初始对决数（=2N 场对局），默认 5000
+  --pairs N          初始对决数（=2N 场对局，最小样本），默认 5000
+  --until-significant 不设最小样本：任一次检查显著即停（与 --pairs 互斥）
   --max-matches N    对局上限，默认 100000（须 ≥ 2×pairs）
   --step-matches N   显著性检查与检查点的间隔场数，默认 1000
   --seed N           随机种子（确定性），默认随机
@@ -71,7 +73,8 @@ function printUsage(): void {
 进度: 每 100 场原地刷新一行（含预估剩余时间，覆盖上一行）；每 stepMatches 场
       （默认 1000）输出显著性结果（leader/p̂/99% CI）——该行保留在屏幕上直到
       下一处显著性结果刷新，并写入 results/checkpoint.json；
-      达到最小样本（默认 10000 场）且显著即停止；Ctrl+C 保存部分结果后优雅退出。`);
+      达到最小样本（默认 10000 场）且显著即停止，--until-significant 则不限
+      最小样本、任一显著即停；Ctrl+C 保存部分结果后优雅退出。`);
 }
 
 function parseArgs(argv: string[]): Args {
@@ -86,7 +89,9 @@ function parseArgs(argv: string[]): Args {
     strategyA: 'ai',
     strategyB: 'ai-0929',
     out: null,
+    untilSignificant: false,
   };
+  let pairsGiven = false;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const val = (): string => {
@@ -96,7 +101,8 @@ function parseArgs(argv: string[]): Args {
       return v;
     };
     switch (a) {
-      case '--pairs': args.pairs = parseInt(val(), 10); break;
+      case '--pairs': args.pairs = parseInt(val(), 10); pairsGiven = true; break;
+      case '--until-significant': args.untilSignificant = true; break;
       case '--max-matches': args.maxMatches = parseInt(val(), 10); break;
       case '--step-matches': args.stepMatches = parseInt(val(), 10); break;
       case '--seed': args.seed = parseInt(val(), 10) >>> 0; break;
@@ -116,7 +122,12 @@ function parseArgs(argv: string[]): Args {
         throw new Error(`未知参数: ${a}`);
     }
   }
-  if (args.pairs < 1) throw new Error('--pairs 必须 ≥ 1');
+  if (args.untilSignificant) {
+    if (pairsGiven) throw new Error('--until-significant 不设最小样本，不能再给 --pairs');
+    args.pairs = 0; // 最小样本 0：任一次检查显著即停
+  } else if (args.pairs < 1) {
+    throw new Error('--pairs 必须 ≥ 1');
+  }
   if (args.maxMatches < 2 * args.pairs) throw new Error(`--max-matches (${args.maxMatches}) 必须 ≥ 2×pairs (${2 * args.pairs})`);
   if (args.workers < 1) throw new Error('--workers 必须 ≥ 1');
   if (args.stepMatches < 2) throw new Error('--step-matches 必须 ≥ 2（镜像对决按对计数）');
@@ -260,7 +271,9 @@ async function main(): Promise<void> {
   //   胜率推算显著所需总场数（动态调整，变化时说明原因）
   const PROGRESS_MATCHES = 100;
   const CHECKPOINT_MATCHES = args.stepMatches;
-  let targetMatches = 2 * args.pairs;
+  // --until-significant 无最小样本，进度基准先按第一次检查（stepMatches）计，
+  // 第一次检查后由下面的推算接管
+  let targetMatches = args.untilSignificant ? args.stepMatches : 2 * args.pairs;
   let accA = createStats();
   let accB = createStats();
   let pairsDone = 0;
@@ -277,6 +290,7 @@ async function main(): Promise<void> {
         strategyA: args.strategyA,
         strategyB: args.strategyB,
         minMatches: 2 * args.pairs,
+        untilSignificant: args.untilSignificant,
         maxMatches: args.maxMatches,
         stepMatches: args.stepMatches,
         startedAt,
@@ -300,6 +314,7 @@ async function main(): Promise<void> {
         strategyA: args.strategyA,
         strategyB: args.strategyB,
         minMatches: 2 * args.pairs,
+        untilSignificant: args.untilSignificant,
         maxMatches: args.maxMatches,
         stepMatches: args.stepMatches,
         createdAt: startedAt,

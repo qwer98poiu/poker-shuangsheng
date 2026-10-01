@@ -35,16 +35,16 @@ const deps = (runBatch: (dealStart: number, dealCount: number) => Promise<NTStat
 });
 
 function args(over: Partial<NTLadderArgs>): NTLadderArgs {
-  return { workers: 1, minDeals: 25, stepDeals: 25, maxDeals: 1000, ...over };
+  return { workers: 1, minDeals: 0, stepDeals: 25, maxDeals: 1000, untilSignificant: true, ...over };
 }
 
 describe('NT 样本阶梯：检查点显著即停', () => {
-  it('回归：达标未显著→目标上调到上限，之后过线须立即停而非跑满上限', () => {
+  it('回归（until-significant）：首个检查点未显著→目标上调到上限，之后过线须立即停而非跑满上限', () => {
     // 首个检查点（25 副）p̂=0.52 未显著，推算所需 1025 副 > 上限 1000 → 目标计为 1000；
     // 第 2 个检查点（50 副，累计 p̂=0.76）已显著——若不在此处判停会一路跑到 1000 副。
     const state = makeState();
     return runNTLadder(
-      args({ maxDeals: 1000 }),
+      args({ untilSignificant: true, stepDeals: 25, maxDeals: 1000 }),
       state,
       deps(sequenceBatch([batch(25, 13), batch(25, 25)])),
     ).then(() => {
@@ -55,15 +55,15 @@ describe('NT 样本阶梯：检查点显著即停', () => {
     });
   });
 
-  it('回归（不同上限）：目标上调到上限后过线同样立即停', () => {
+  it('回归（默认最小样本）：达标未显著→目标上调到上限，之后过线同样立即停', () => {
     const state = makeState();
     return runNTLadder(
-      args({ minDeals: 25, maxDeals: 500 }),
+      args({ untilSignificant: false, minDeals: 25, stepDeals: 25, maxDeals: 1000 }),
       state,
       deps(sequenceBatch([batch(25, 13), batch(25, 25)])),
     ).then(() => {
       expect(state.acc.deals).toBe(50);
-      expect(state.target).toBe(500);
+      expect(state.target).toBe(1000);
       expect(state.outcome.significant).toBe(true);
     });
   });
@@ -71,7 +71,7 @@ describe('NT 样本阶梯：检查点显著即停', () => {
   it('首个检查点即显著：停在第一个检查点（stepDeals 副）', () => {
     const state = makeState();
     return runNTLadder(
-      args({ stepDeals: 25, maxDeals: 1000 }),
+      args({ untilSignificant: true, stepDeals: 25, maxDeals: 1000 }),
       state,
       deps(sequenceBatch([batch(25, 20)])),
     ).then(() => {
@@ -83,7 +83,7 @@ describe('NT 样本阶梯：检查点显著即停', () => {
   it('未达最小样本时显著不提前停（继续跑到 minDeals）', () => {
     const state = makeState();
     return runNTLadder(
-      args({ minDeals: 50, stepDeals: 25, maxDeals: 1000 }),
+      args({ untilSignificant: false, minDeals: 50, stepDeals: 25, maxDeals: 1000 }),
       state,
       deps(sequenceBatch([batch(25, 20)])),
     ).then(() => {
@@ -95,7 +95,7 @@ describe('NT 样本阶梯：检查点显著即停', () => {
   it('始终未过半：显著性不可达，跑到上限即停（不空转）', () => {
     const state = makeState();
     return runNTLadder(
-      args({ stepDeals: 25, maxDeals: 100 }),
+      args({ untilSignificant: true, stepDeals: 25, maxDeals: 100 }),
       state,
       deps(sequenceBatch([batch(25, 0, 25)])), // 全平：leader 为空，p̂=0.5
     ).then(() => {

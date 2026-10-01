@@ -72,6 +72,8 @@ export interface CheckpointMeta {
   strategyA: string;
   strategyB: string;
   minMatches: number;
+  /** 不设最小样本、任一显著即停（--until-significant）。 */
+  untilSignificant: boolean;
   maxMatches: number;
   stepMatches: number;
   startedAt: string;
