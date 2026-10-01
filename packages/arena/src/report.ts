@@ -5,6 +5,7 @@
  * 宽度算好填充再套色。颜色由调用方按是否 TTY 决定（重定向到文件时不输出 ANSI 码）。
  */
 import type { CountPair } from './stats.js';
+import { levelLabel } from './level-label.js';
 
 /** 指标方向：high = 越大越好，low = 越小越好，neutral = 中性（不判定优劣）。 */
 export type Direction = 'high' | 'low' | 'neutral';
@@ -32,6 +33,35 @@ export function betterSide(a: CountPair, b: CountPair, dir: Direction): Verdict 
   const vb = b.n / b.d;
   if (va === vb) return 'tie';
   return (dir === 'high' ? va > vb : va < vb) ? 'a' : 'b';
+}
+
+/** 比值文本：`0.5234 (n/d)`；无样本（d=0）输出 —。 */
+export function ratioText(p: CountPair): string {
+  if (p.d === 0) return '—';
+  return `${(p.n / p.d).toFixed(4)} (${p.n}/${p.d})`;
+}
+
+/** 一条待比较的指标：标签 + 双方比值 + 方向。 */
+export type MetricSpec = [label: string, a: CountPair, b: CountPair, dir: Direction];
+
+/** 各等级（2..10、J、Q、K、A）的胜负率展开成 13 条指标。 */
+export function perLevelSpecs(
+  prefix: string,
+  a: Map<number, CountPair>,
+  b: Map<number, CountPair>,
+): MetricSpec[] {
+  const out: MetricSpec[] = [];
+  for (let lv = 2; lv <= 14; lv++) {
+    out.push([`${prefix} ${levelLabel(lv)} 胜率`, a.get(lv) ?? { n: 0, d: 0 }, b.get(lv) ?? { n: 0, d: 0 }, 'high']);
+  }
+  return out;
+}
+
+/** 指标规格 → 表格行（算好文本与优劣；两个竞技场的报告共用）。 */
+export function rowsFrom(specs: readonly MetricSpec[]): TableRow[] {
+  return specs.map(([label, a, b, dir]) => ({
+    label, a: ratioText(a), b: ratioText(b), verdict: betterSide(a, b, dir),
+  }));
 }
 
 /** 终端显示宽度：CJK/全角字符占 2 列，其余 1 列。 */

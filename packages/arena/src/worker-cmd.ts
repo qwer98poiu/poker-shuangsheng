@@ -13,10 +13,10 @@
  * 即可：既不经 npm，也不碰网络，启动还更快。
  */
 export function workerCommand(
-  childEntry: string, seed: number, strategyA: string, strategyB: string,
+  childEntry: string, args: readonly string[],
 ): { cmd: string; args: string[] } {
   return {
     cmd: process.execPath,
-    args: [...process.execArgv, childEntry, String(seed), strategyA, strategyB],
+    args: [...process.execArgv, childEntry, ...args],
   };
 }

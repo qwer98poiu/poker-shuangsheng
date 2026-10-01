@@ -44,6 +44,25 @@ export interface PlayHandOptions {
   attackerLevel: number;
   isFirstHand: boolean;
   strategies: [Strategy, Strategy];
+  /**
+   * Override the declaration the reveal produced. Used by the NT arena, which
+   * sweeps every seat × level over the same deal and always plays no-trump —
+   * the reveal is still run (the deal filter guarantees it lands on NT
+   * naturally), it just does not get to pick the declarer or the level.
+   */
+  forceDeclaration?: { declarerIdx: number; level: number };
+}
+
+/**
+ * The four hands as dealt: card i goes to seat i % 4. `playHand` deals the same
+ * way (round-robin, interleaved with the reveal), so anything that inspects a
+ * deck before playing it — the NT arena's joker-pair filter, the bottom-exchange
+ * tests — must split it with this function to see the hands the game will see.
+ */
+export function dealtHands(deck: Card[]): Card[][] {
+  const hands: Card[][] = [[], [], [], []];
+  for (let i = 0; i < 100; i++) hands[i % 4].push(deck[i]);
+  return hands;
 }
 
 function countBySuit(hand: Card[]): Record<string, number> {
@@ -101,6 +120,14 @@ export function playHand(opts: PlayHandOptions): HandEvent {
     phase: GamePhase.Revealing,
   };
   state = finalizeReveal(state, isFirstHand);
+  if (opts.forceDeclaration) {
+    const fd = opts.forceDeclaration;
+    state = {
+      ...state,
+      declarerIndex: fd.declarerIdx,
+      trumpDeclaration: { declarerIndex: fd.declarerIdx, trumpSuit: null, level: fd.level },
+    };
+  }
   const t = state.trumpDeclaration!;
   const declarer = t.declarerIndex;
   const teamBanker = (declarer % 2) as 0 | 1;
@@ -202,11 +229,15 @@ export function playHand(opts: PlayHandOptions): HandEvent {
   const kouDiAdd = attackerWonLastTrick ? bp * mult : 0;
 
   let tricksWonByTeam0 = 0;
+  let cardsWonByTeam0 = 0;
   let leadsByTeam0 = 0;
   let leadCardsByTeam0 = 0;
   let leadCardsTotal = 0;
   for (const trick of state.trickHistory) {
-    if (trick.winnerIndex % 2 === 0) tricksWonByTeam0 += 1;
+    if (trick.winnerIndex % 2 === 0) {
+      tricksWonByTeam0 += 1;
+      cardsWonByTeam0 += trick.plays[0].cards.length;
+    }
     if (trick.leadPlayerIndex % 2 === 0) {
       leadsByTeam0 += 1;
       leadCardsByTeam0 += trick.plays[0].cards.length;
@@ -229,6 +260,7 @@ export function playHand(opts: PlayHandOptions): HandEvent {
     bankerWon: finalPts < 80,
     tricksPlayed: state.trickHistory.length,
     tricksWonByTeam0,
+    cardsWonByTeam0,
     leadsByTeam0,
     leadCardsByTeam0,
     leadCardsTotal,

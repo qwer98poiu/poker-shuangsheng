@@ -161,6 +161,24 @@ npm run arena -w packages/arena -- --pairs 5000 --seed 42 --strategy-b ai-0929
 | `--out PATH` | `results/arena-<ts>.json` | JSON report path |
 | `--no-json` | — | Skip JSON export |
 
+#### NT-only arena
+
+```bash
+npm run arena:nt -w packages/arena -- --min-deals 2000 --seed 42
+# or from the repo root: npm run arena:nt -- --min-deals 2000 ...
+```
+
+The general arena plays whole matches, where NT rounds are a minority; the NT arena isolates them. Deals where no seat holds a joker pair are **filtered out** (they would never be played as NT), and every kept deal is swept over 4 declarers × 13 levels = 52 小局 and then played **again with the strategies swapped** — A on seats 0&2 for one sweep, on 1&3 for the other, same deck. The pair of sweeps (104 小局) is the mirror: seats 0&2 play 1st/3rd each trick and 1&3 play 2nd/4th, so the positional difference cancels instead of favouring one side. There is no match concept: every statistic is 小局-based. Significance is judged **per deal** (A takes a deal when it wins more of its 小局; 52-52 is a draw), because the 104 小局 inside one deal share the same cards and are not independent samples.
+
+| Flag | Default | Description |
+|---|---|---|
+| `--min-deals N` | 2000 | Deals required before the first significance check |
+| `--step-deals N` | 200 | Significance-check interval, and the granularity the projected target is rounded up to |
+| `--max-deals N` | 10000 | Deal cap |
+| `--seed N` / `--workers W` / `--strategy-a NAME` / `--strategy-b NAME` / `--out PATH` / `--no-json` | as above | `--strategy-b` defaults to `ai-0929` |
+
+As in the general arena, missing significance raises the target to the number the current p̂ projects (same `requiredMatchesForSignificance` function, rounded up to `--step-deals`), and Ctrl+C writes the partial report plus a `"partial": true` JSON before exiting.
+
 Run tests:
 
 ```bash
@@ -360,6 +378,24 @@ npm run arena -w packages/arena -- --pairs 5000 --seed 42 --strategy-b ai-0929
 | `--detail-pair N` | — | 输出第 N 个对决的镜像升级记录后退出 |
 | `--out PATH` | `results/arena-<时间>.json` | JSON 报告导出路径 |
 | `--no-json` | — | 不导出 JSON |
+
+#### 无主（NT）竞技场
+
+```bash
+npm run arena:nt -w packages/arena -- --min-deals 2000 --seed 42
+# 仓库根目录也可直接：npm run arena:nt -- --min-deals 2000 ...
+```
+
+整体竞技场打的是完整对局，无主只占其中少数；无主竞技场把它单独拎出来。四家都没有对王的发牌被**过滤掉**（那种牌本来也不会打成无主），保留下来的每副牌按 4 庄家 × 13 等级打 52 小局，再**对调策略重打一遍**（A 一轮坐 0/2 号位、一轮坐 1/3 号位，同一副牌）。两轮合起来 104 小局即镜像：0/2 号位每墩第 1、3 个出牌，1/3 号位是第 2、4 个，位置差在两轮里对消，不会偏袒任何一方。没有整场概念，全部指标都是小局口径。显著性以**发牌**为单位（一副牌里 A 赢的小局多则算 A 胜，52-52 算平）——同一副牌的 104 小局共用一副牌、彼此相关，不是独立样本。
+
+| 参数 | 默认 | 说明 |
+|---|---|---|
+| `--min-deals N` | 2000 | 首次显著性检查所需的发牌数 |
+| `--step-deals N` | 200 | 显著性检查的间隔，也是推算目标向上取整的粒度 |
+| `--max-deals N` | 10000 | 发牌数上限 |
+| `--seed N` / `--workers W` / `--strategy-a NAME` / `--strategy-b NAME` / `--out PATH` / `--no-json` | 同上 | `--strategy-b` 默认 `ai-0929` |
+
+与整体竞技场同口径：未显著时按当前 p̂ 推算显著所需发牌数并上调目标（同一个 `requiredMatchesForSignificance`，向上取整到 `--step-deals`）；Ctrl+C 写出部分报告与 `"partial": true` 的 JSON 后退出。
 
 测试：
 
