@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-10-01 10:57
+
+### 竞技场根脚本补 `--`：`npm run arena -- …` 的参数不再被外层 npm 吃掉
+
+**问题**：根 `package.json` 的 `arena` 脚本写成 `npm run arena -w packages/arena`，末尾缺 `--`。从仓库根执行 `npm run arena -- --pairs 5000` 时，外层 npm 拼出的命令是 `npm run arena -w packages/arena "--pairs" "5000"`，内层 npm 遂把 `--pairs` 当作自己的 config 参数消费掉，只把**值** `5000` 作为位置参数透给脚本——`tsx src/run.ts "5000"` 报 `未知参数: 5000`。README 中英两处（「仓库根目录也可直接：`npm run arena -- --pairs 5000 ...`」）承诺的正是这条路径，等于文档在教一个跑不通的命令。
+
+**修复**：脚本末尾补 `--`。带参数与不带参数两种调用都成立：前者原样转发给 `run.ts`（实测 `npm run arena -- --pairs 5 --max-matches 10 --workers 1` 与直达写法 `-w packages/arena -- …` 输出一致），后者仍是 `tsx src/run.ts`。
+
+**无新增测试**。
+
+- **影响文件**：`package.json`
+
+### 竞技场 worker 池：worker 死亡判整池失败，不再静默挂死
+
+**问题**：worker 子进程中途死亡（引擎在某副牌上抛异常、被 OOM killer 杀、被外部 kill）时，父进程只打一行 `子进程异常退出` 便再无动静——在途任务的 Promise 再也无人 settle，`main` 里的 `Promise.all` 永久挂起；死掉的 worker 又不会回到 idle 表，而每批仍按 `args.workers` 提交固定个数的任务，队列里那个任务永远排不到 worker。两条路径互相独立，所以 worker 死在空闲期同样会挂。09-30 的看门狗只管启动期（子进程既不 ready 也不退出），这是运行期的另一半。实测（`--pairs 500 --max-matches 1000 --workers 4`，t≈16s `kill -9` 一个 worker）：改动前 60 秒零输出、只能被外层 alarm 强杀；对照组同样工作量在此窗口内已推进到 700 场。
+
+**修复**：`ChildPool` 抽成 `child-pool.ts`（独立模块，测试 import 它不会触发 `run.ts` 的 `main()`——否则没法在进程内测这个池），并补上故障语义：**任何** worker 意外退出都判整池失败——在途的与仍在排队的任务全部 reject，之后的 `submit` 立即失败，错误信息给出 pid / code / signal 与死时正在跑的对决区间（可用 `--detail-pair` 直接复现）。两处同源补丁：死掉的 worker 从 idle 表移除（否则还会被派发）；接住 `stdin` 的 EPIPE（向已死 worker 写任务会触发未处理的 `'error'` 事件，父进程直接崩）。修复后同一实验 16 秒内以 `rc=1` 退出，输出 `❌ worker 子进程死亡 (pid=68244, code=null, signal=SIGKILL)，对决 89..99 丢失，本轮已中止`，无孤儿进程。
+
+**Elo 不失效**：本次动了 `run.ts`，但只增失败路径、不改测量口径。定种子对照（`--seed 42 --pairs 100 --max-matches 200 --workers 4`，新旧代码各跑一次）报告全文逐字节一致，仅进度行的「已用/预计剩余」秒数不同，故 README 的 Elo 表不动。
+
+**新增 4 项测试**（child-pool.test.ts：4 项），引擎 950 项 + arena 74 项 + CLI 87 项 + client 201 项 = 1312 项通过。
+
+- **影响文件**：`packages/arena/src/child-pool.ts`（新增）、`packages/arena/src/run.ts`、`packages/arena/src/__tests__/child-pool.test.ts`（新增）
+
 ## 2026-10-01 01:01
 
 ### tsx 装成本地依赖（钉 `~4.16.5`）：`npx tsx` 不再联网

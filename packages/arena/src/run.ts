@@ -8,15 +8,14 @@
  * 流程：至少跑 --pairs 对决（=2×pairs 场对局），随后每追加 --step-matches
  * 场检查一次 99% 显著性；显著即停，否则继续直到 --max-matches 上限（无法判定）。
  */
-import { spawn } from 'node:child_process';
-import type { ChildProcess } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
 import { runPairs } from './run-pairs.js';
 import { strategyByName } from './strategies.js';
-import { workerCommand } from './worker-cmd.js';
+import { ChildPool } from './child-pool.js';
+import type { WorkerResult } from './child-pool.js';
 import { createStats, mergeStats, fromJSON, toJSON } from './stats.js';
 import type { StrategyStats } from './stats.js';
 import { checkSignificance, requiredMatchesForSignificance, Z } from './significance.js';
@@ -113,153 +112,7 @@ function parseArgs(argv: string[]): Args {
 }
 
 // ---- child-process pool ----
-// worker_threads + tsx 在 Node 17.5 下多种消息模式都会死锁（实测），
-// 改用子进程：每个子进程是独立的 tsx 主线程，loader 完全可靠。
-
-/** 子进程启动（含 tsx 加载）常态 1~3s；60s 仍未全部就绪即判定池启动失败。 */
-const STARTUP_TIMEOUT_MS = 60_000;
-
-interface WorkerResult { id: number; statsA: Record<string, any>; statsB: Record<string, any> }
-
-interface Task { id: number; pairStart: number; pairCount: number }
-
-class ChildPool {
-  /** 全局子进程注册表：SIGINT 时即使池尚未完成创建也能全部终止。 */
-  private static all: ChildProcess[] = [];
-  private idle: ChildProcess[] = [];
-  private queue: { task: Task; resolve: (m: WorkerResult) => void }[] = [];
-  /** 在途任务（已派发、等待响应）：id → resolve。 */
-  private pending = new Map<number, (m: WorkerResult) => void>();
-  private nextId = 1;
-
-  static killAll(): void {
-    for (const c of ChildPool.all) c.kill();
-  }
-
-  static async create(count: number, seed: number, strategyA: string, strategyB: string): Promise<ChildPool> {
-    const pool = new ChildPool();
-    for (let i = 0; i < count; i++) {
-      pool.spawnOne(seed, strategyA, strategyB);
-    }
-    await pool.waitAllReady(count);
-    return pool;
-  }
-
-  private spawnOne(seed: number, strategyA: string, strategyB: string): void {
-    const { cmd, args } = workerCommand(path.join(ARENA_ROOT, 'src/child-run.ts'), seed, strategyA, strategyB);
-    const child = spawn(cmd, args, {
-      cwd: ARENA_ROOT,
-      stdio: ['pipe', 'pipe', 'inherit'],
-    });
-    ChildPool.all.push(child);
-    let ready = false;
-    let buffer = '';
-    child.stdout!.on('data', (chunk: Buffer) => {
-      buffer += chunk.toString();
-      const lines = buffer.split('\n');
-      buffer = lines.pop() ?? '';
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        let m: WorkerResult & { type?: string };
-        try {
-          m = JSON.parse(line);
-        } catch {
-          console.error(`子进程输出异常: ${line}`);
-          continue;
-        }
-        if (m.type === 'ready') {
-          ready = true;
-          this.idle.push(child);
-          this.onReady?.();
-          continue;
-        }
-        const resolve = this.pending.get(m.id);
-        if (resolve) {
-          this.pending.delete(m.id);
-          resolve(m);
-        } else {
-          console.error(`子进程返回未知任务 id=${m.id}`);
-        }
-        this.idle.push(child);
-        this.dispatch();
-      }
-    });
-    child.on('error', (e: Error) => {
-      console.error(`子进程错误: ${e.message}`);
-      process.exitCode = 1;
-    });
-    child.on('exit', code => {
-      if (this.closed) return;
-      if (code !== 0) {
-        console.error(`子进程异常退出: code=${code}`);
-        process.exitCode = 1;
-      }
-      // 未就绪就退出（code 0 也算）：ready 永远不会到来，立刻失败而不是永久等待
-      if (!ready) this.failStartup?.(new Error(`子进程未就绪即退出 (code=${code}, pid=${child.pid})`));
-    });
-  }
-
-  private onReady: (() => void) | null = null;
-  private readyCount = 0;
-  /** 全部就绪 / 已失败，之后忽略 ready 与失败回调。 */
-  private readySettled = false;
-  private failStartup: ((e: Error) => void) | null = null;
-  private startupTimer: ReturnType<typeof setTimeout> | null = null;
-
-  private waitAllReady(count: number): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const clear = (): void => {
-        if (this.startupTimer) clearTimeout(this.startupTimer);
-        this.startupTimer = null;
-      };
-      const fail = (e: Error): void => {
-        if (this.readySettled) return;
-        this.readySettled = true;
-        clear();
-        reject(e);
-      };
-      this.failStartup = fail;
-      this.onReady = () => {
-        if (this.readySettled) return;
-        this.readyCount += 1;
-        if (this.readyCount < count) return;
-        this.readySettled = true;
-        clear();
-        resolve();
-      };
-      // 看门狗：子进程既不 ready 也不退出时（2026-09-30 的 npx 卡死即此形态），
-      // 必须报错退出，而不是让 CLI 无任何输出地永久等待。
-      this.startupTimer = setTimeout(
-        () => fail(new Error(`${STARTUP_TIMEOUT_MS / 1000}s 内只有 ${this.readyCount}/${count} 个子进程就绪，无法启动 worker 池`)),
-        STARTUP_TIMEOUT_MS,
-      );
-    });
-  }
-
-  private dispatch(): void {
-    while (this.idle.length > 0 && this.queue.length > 0) {
-      const c = this.idle.pop()!;
-      const q = this.queue.shift()!;
-      this.pending.set(q.task.id, q.resolve);
-      c.stdin!.write(JSON.stringify(q.task) + '\n');
-    }
-  }
-
-  submit(pairStart: number, pairCount: number): Promise<WorkerResult> {
-    const task: Task = { id: this.nextId++, pairStart, pairCount };
-    return new Promise(resolve => {
-      this.queue.push({ task, resolve });
-      this.dispatch();
-    });
-  }
-
-  private closed = false;
-
-  close(): void {
-    this.closed = true;
-    ChildPool.killAll();
-  }
-}
+// worker 池见 child-pool.ts：独立成模块，测试 import 它不会触发本文件的 main()。
 
 // ---- reporting ----
 
