@@ -54,6 +54,7 @@ describe('buildCheckpointDoc', () => {
       strategyA: 'ai',
       strategyB: 'ai-0801',
       minMatches: 10_000,
+      untilSignificant: false,
       maxMatches: 100_000,
       stepMatches: 1000,
       startedAt: '2026-08-02T02:00:00.000Z',

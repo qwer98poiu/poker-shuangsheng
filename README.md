@@ -150,6 +150,7 @@ npm run arena -w packages/arena -- --pairs 5000 --seed 42 --strategy-b ai-0929
 | Flag | Default | Description |
 |---|---|---|
 | `--pairs N` | 5000 | Initial 对决 count (= 2N matches; the minimum sample) |
+| `--until-significant` | — | Drop the minimum sample: stop at the first check that comes back significant (mutually exclusive with `--pairs`) |
 | `--max-matches N` | 100000 | Match cap (must be ≥ 2×pairs) |
 | `--step-matches N` | 1000 | Interval (in matches) for significance checks and checkpoints |
 | `--seed N` | random | Random seed — same seed + flags reproduce identical results |
@@ -173,6 +174,7 @@ The general arena plays whole matches, where NT rounds are a minority; the NT ar
 | Flag | Default | Description |
 |---|---|---|
 | `--min-deals N` | 2000 | Deals required before the first significance check |
+| `--until-significant` | — | Drop the minimum sample: stop at the first check that comes back significant (mutually exclusive with `--min-deals`) |
 | `--step-deals N` | 200 | Significance-check interval, and the granularity the projected target is rounded up to |
 | `--max-deals N` | 10000 | Deal cap |
 | `--seed N` / `--workers W` / `--strategy-a NAME` / `--strategy-b NAME` / `--out PATH` / `--no-json` | as above | `--strategy-b` defaults to `ai-0929` |
@@ -368,6 +370,7 @@ npm run arena -w packages/arena -- --pairs 5000 --seed 42 --strategy-b ai-0929
 | 参数 | 默认 | 说明 |
 |---|---|---|
 | `--pairs N` | 5000 | 初始对决数（=2N 场对局，最小样本） |
+| `--until-significant` | — | 不设最小样本：任一次检查显著即停（与 `--pairs` 互斥） |
 | `--max-matches N` | 100000 | 对局上限（须 ≥ 2×pairs） |
 | `--step-matches N` | 1000 | 显著性检查与检查点的间隔场数 |
 | `--seed N` | 随机 | 随机种子——同 seed 同参数结果可完全复现 |
@@ -391,6 +394,7 @@ npm run arena:nt -w packages/arena -- --min-deals 2000 --seed 42
 | 参数 | 默认 | 说明 |
 |---|---|---|
 | `--min-deals N` | 2000 | 首次显著性检查所需的发牌数 |
+| `--until-significant` | — | 不设最小样本：任一次检查显著即停（与 `--min-deals` 互斥） |
 | `--step-deals N` | 200 | 显著性检查的间隔，也是推算目标向上取整的粒度 |
 | `--max-deals N` | 10000 | 发牌数上限 |
 | `--seed N` / `--workers W` / `--strategy-a NAME` / `--strategy-b NAME` / `--out PATH` / `--no-json` | 同上 | `--strategy-b` 默认 `ai-0929` |

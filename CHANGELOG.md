@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-10-02 00:25
+
+### 两个竞技场新增 --until-significant：不设最小样本，显著即停
+
+**问题**：两个竞技场都是「跑满最小样本（对局 2×pairs / 发牌 min-deals）才允许因显著而停」，只想尽快看结论时这段最小样本是硬性等待。
+
+**做法**：新增 `--until-significant`——最小样本置 0，任一次显著性检查过线即停，直到上限。与 `--pairs`/`--min-deals` **互斥**（同给即报错，避免「给了却被忽略」的错觉）；`--step-matches`/`--step-deals` 仍是检查间隔与目标取整粒度，`--max-matches`/`--max-deals` 仍是上限。进度基准在首次检查前按 step 计，之后照旧由当前 p̂ 的推算接管。`results/checkpoint.json` 与导出 JSON 的 meta 增记 `untilSignificant`（整体竞技场）/ `minDeals` + `untilSignificant`（无主竞技场）。
+
+**无新增测试**（参数解析未纳入单测，与既有 CLI 参数同口径；已实测：两个竞技场都在第一次检查处停下——无主 26 副 p̂=0.8846 显著即停，整体 100 场 p̂=0.7300 显著即停；互斥报错与 `--help` 文案亦实测），引擎 951 项 + arena 112 项 + CLI 87 项 + client 201 项 = 1351 项通过。
+
+- **影响文件**：`packages/arena/src/run.ts`、`packages/arena/src/nt-run.ts`、`packages/arena/src/progress.ts`、`packages/arena/src/__tests__/progress.test.ts`、`README.md`
+
 ## 2026-10-01 22:09
 
 ### 引入无主（NT）竞技场：只打无主小局，显著性以发牌为单位

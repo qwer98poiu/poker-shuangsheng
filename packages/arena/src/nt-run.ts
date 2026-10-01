@@ -53,6 +53,7 @@ interface Args {
   maxDeals: number;
   out?: string;
   noJson: boolean;
+  untilSignificant: boolean;
 }
 
 function printUsage(): void {
@@ -67,6 +68,7 @@ function printUsage(): void {
   --strategy-a NAME  策略 A，默认 ai（当前策略）
   --strategy-b NAME  策略 B，默认 ai-0929
   --min-deals N      起跑发牌数下限（单位：副），默认 2000
+  --until-significant 不设最小样本：任一次检查显著即停（与 --min-deals 互斥）
   --step-deals N     显著性检查的间隔与目标取整粒度（单位：副），默认 200
   --max-deals N      发牌数上限（单位：副），默认 10000
   --out PATH         结果 JSON 输出路径，默认 results/nt-arena-<时间>.json
@@ -89,7 +91,9 @@ function parseArgs(argv: string[]): Args {
     stepDeals: 200,
     maxDeals: 10000,
     noJson: false,
+    untilSignificant: false,
   };
+  let minDealsGiven = false;
   const val = (i: number, name: string): string => {
     const v = argv[i + 1];
     if (v === undefined) throw new Error(`${name} 需要一个参数`);
@@ -102,7 +106,8 @@ function parseArgs(argv: string[]): Args {
       case '--workers': args.workers = parseInt(val(i, a), 10); i++; break;
       case '--strategy-a': args.strategyA = val(i, a); i++; break;
       case '--strategy-b': args.strategyB = val(i, a); i++; break;
-      case '--min-deals': args.minDeals = parseInt(val(i, a), 10); i++; break;
+      case '--min-deals': args.minDeals = parseInt(val(i, a), 10); minDealsGiven = true; i++; break;
+      case '--until-significant': args.untilSignificant = true; break;
       case '--step-deals': args.stepDeals = parseInt(val(i, a), 10); i++; break;
       case '--max-deals': args.maxDeals = parseInt(val(i, a), 10); i++; break;
       case '--out': args.out = val(i, a); i++; break;
@@ -112,7 +117,12 @@ function parseArgs(argv: string[]): Args {
     }
   }
   if (args.workers < 1) throw new Error('--workers 必须 ≥ 1');
-  if (args.minDeals < BATCH_DEALS) throw new Error(`--min-deals 必须 ≥ ${BATCH_DEALS}`);
+  if (args.untilSignificant) {
+    if (minDealsGiven) throw new Error('--until-significant 不设最小样本，不能再给 --min-deals');
+    args.minDeals = 0; // 最小样本 0：任一次检查显著即停
+  } else if (args.minDeals < BATCH_DEALS) {
+    throw new Error(`--min-deals 必须 ≥ ${BATCH_DEALS}`);
+  }
   if (args.stepDeals < 1) throw new Error('--step-deals 必须 ≥ 1');
   if (args.maxDeals < args.minDeals) throw new Error('--max-deals 必须 ≥ --min-deals');
   return args;
@@ -173,7 +183,9 @@ async function main(): Promise<void> {
 
   console.log(`无主（NT）竞技场  seed=${args.seed}`);
   console.log(`A: ${args.strategyA}  B: ${args.strategyB}  workers=${args.workers}`);
-  console.log(`样本阶梯: ${args.minDeals} 副起，之后按当前胜率推算显著所需，上限 ${args.maxDeals} 副\n`);
+  console.log(args.untilSignificant
+    ? `样本阶梯: 不设最小样本，任一次检查显著即停；上限 ${args.maxDeals} 副\n`
+    : `样本阶梯: ${args.minDeals} 副起，之后按当前胜率推算显著所需，上限 ${args.maxDeals} 副\n`);
 
   const pool = args.workers > 1
     ? await ChildPool.create(
@@ -185,7 +197,8 @@ async function main(): Promise<void> {
 
   const t0 = Date.now();
   let acc = createNTStats();
-  let target = args.minDeals;
+  // --until-significant 无最小样本，进度基准先按第一次检查（stepDeals）计
+  let target = args.untilSignificant ? args.stepDeals : args.minDeals;
   let nextDeal = 0;
   let outcome = dealOutcome(acc);
   let verdict = verdictOf(acc, args.strategyA, args.strategyB);
@@ -201,7 +214,8 @@ async function main(): Promise<void> {
     fs.writeFileSync(outPath, JSON.stringify({
       meta: {
         seed: args.seed, strategyA: args.strategyA, strategyB: args.strategyB,
-        workers: args.workers, targetDeals: target, elapsedMs: Date.now() - t0,
+        workers: args.workers, minDeals: args.minDeals, targetDeals: target,
+        untilSignificant: args.untilSignificant, elapsedMs: Date.now() - t0,
         createdAt: new Date().toISOString(), partial,
       },
       outcome: {
