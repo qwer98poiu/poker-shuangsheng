@@ -17,6 +17,8 @@ import {
   attackerNearThreshold,
 } from './helpers.js';
 import { trumpKill, throwKillMode, rule1KillMode } from './follow-trump.js';
+import { probeDeclineKill } from './no-seize.js';
+import { isFlushFollow, avoidBeatingTeammate } from './flush-detector.js';
 import {
   hasStrongFollowUp, minEff, maxEff, pickDiscards, selectFillers,
   secondShouldAvoid, shouldBreakPairForPoints, pickBestAddCards,
@@ -477,6 +479,19 @@ export function followOffSuitThrow(
   // dump points instead of wasting trump.
   if (trumpCards.length >= leadLen) {
     const throwCombo = classifyCombo(leadCards, ctx);
+    // 清对领出（优先级 0）：上一墩已验对手该花色对子已绝，本墩必须归队友 →
+    // 垫牌且**不得盖过队友**（牌权易主则剩下的对再也兑现不了；第二家已毙时
+    // tmWin 为 false，走不到这里）
+    if (tmWin && isFlushFollow(ctx, throwCombo)) {
+      const addOk = canAddPoints(tmWin, position, throwCombo, ctx);
+      const picked = addOk
+        ? pickBestAddCards(hand, leadLen, throwCombo, ctx)
+        : pickDiscards(hand, leadLen, ctx, 'open');
+      const cards = avoidBeatingTeammate(picked, hand, leadCards, throwCombo, ctx);
+      const reason = annotateReason('垫牌', cards, [], trumpCards,
+        throwCombo, leadLen, ctx, position, tmWin, false, addOk ? 'add' : 'none');
+      return { cards, reason };
+    }
     if (tmWin && canAddPoints(tmWin, position, throwCombo, ctx)) {
       // 垫分（加分）：第三家/第四家按加分优先级选牌（第三家有副牌垫副牌，
       // 全主才出主牌；第四家全手选，可含主牌=毙加分；闲家跨 40 台阶全力加分）
@@ -486,6 +501,10 @@ export function followOffSuitThrow(
       return { cards, reason };
     }
     const killMode = throwKillMode(throwCombo, ctx, leadCards);
+    // 第四家：对手大 + 无分墩 + 抢来无牌可领 → 不抢（垫不起则照常毙）
+    const declined = probeDeclineKill(
+      hand, leadCards, throwCombo, leadLen, ctx, position, tmWin, trumpCards, { killMode });
+    if (declined) return declined;
     return trumpKill(trumpCards, hand, leadCards, throwCombo, leadLen, ctx, position, tmWin,
       { killMode });
   }

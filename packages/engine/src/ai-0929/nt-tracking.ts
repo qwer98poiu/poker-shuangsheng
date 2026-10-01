@@ -5,10 +5,10 @@
  * individual virtual copy IDs. This avoids the pair-deduction / card-removal
  * divergence bug.
  */
-import type { Card, Trick, Reveal } from '../types.js';
+import type { Card, Trick, Reveal, CardSuit } from '../types.js';
 import { SpecialSuit } from '../types.js';
 import { createCard, isTrump, getEffectiveRank } from '../model.js';
-import { classify, findAllPairs } from '../pattern/index.js';
+import { findAllPairs } from '../pattern/index.js';
 import type { TrumpDeclaration } from '../types.js';
 import type { NTTrumpState } from './types.js';
 
@@ -52,9 +52,10 @@ function countBySuitRank(cards: Card[]): Map<string, number> {
 
 function reconstructFromKey(key: string): Card {
   const dashIdx = key.indexOf('-');
-  const suit = key.slice(0, dashIdx);
+  // key 由 suitRankKey 生成，花色段必然是 'S'|'H'|'C'|'D'|'J' 之一
+  const suit = key.slice(0, dashIdx) as CardSuit;
   const rank = parseInt(key.slice(dashIdx + 1), 10);
-  return createCard(suit as any, rank as any, 0);
+  return createCard(suit, rank, 0);
 }
 
 // ---- Tracking state ----
@@ -236,8 +237,13 @@ export function computeNTTrumpState(
     const leadLen = leadCards.length;
     let leadHasPairOrTractor = false;
     if (isTrumpLead) {
-      const leadCombo = classify(leadCards, cfg);
-      leadHasPairOrTractor = leadCombo.pairCount > 0 || leadCombo.hasTractor;
+      // 判据是"领出里有没有对子"（拖拉机必含对，一并覆盖）。不能写成
+      // classify(...).pairCount > 0：classify 对单张也返回 pairCount = 1
+      // （pattern/index.ts:16），单张主领出会被当成"含对"，把跟牌者的一手
+      // 单主读成"该家没有主对"，进而压平该家全部常主张数。
+      // 也不能只看 type ≠ single：throw 含对的（甩 ♥2♥2+大王）与纯单张的
+      // （甩大王+小王）信息量不同，只有前者强制跟牌者出对。
+      leadHasPairOrTractor = findAllPairs(leadCards).length > 0;
     }
 
     for (let pi = 0; pi < entry.plays.length; pi++) {

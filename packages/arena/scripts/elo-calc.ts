@@ -62,14 +62,16 @@ function parseMatches(raw: unknown): MatchRow[] {
 const MATCHES: readonly MatchRow[] = parseMatches(matchesRaw);
 
 /** 锚点策略：其 Elo 由 ANCHOR_ELO 给定，其余策略都是相对它解出来的。 */
-const ANCHOR = 'ai-0802';
+const ANCHOR = 'ai-0929';
 
 /**
  * 锚点策略的 Elo 分（实测给定）——**整个刻度唯一的自由参数**，
  * 想换刻度只改这一个常量；脚本里其余地方一律引用它，不再写字面量。
- * 当前值 = 扣底口径修复（2026-09-16）后的实测分。
+ * 当前值 = 旧锚点（ai-0802 = 1082.7）刻度上 ai-0929 的实测分：直测
+ * `ai-0929 vs ai-0802` 得 ΔR = 181.2（p̂=0.7394, n=30000），
+ * 1082.7 + 181.2 ≈ 1263.9，取 1263.8 使全表与原刻度对齐（ai-0802 复现 1082.6）。
  */
-const ANCHOR_ELO = 1082.7;
+const ANCHOR_ELO = 1263.8;
 
 /** 用户给定值（仅锚点策略；其余策略为求解对象，显示重算值本身）。 */
 const GIVEN: Record<string, number> = {

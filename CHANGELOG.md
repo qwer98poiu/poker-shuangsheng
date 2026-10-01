@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-10-01 12:46
+
+### 提取 ai-0929 基线（09-29 22:37 的 NT 记牌器对子扣减修复），Elo 锚点改为它
+
+**做法**：`git archive` 提取 09-29 22:37 的 `ai/` 为 `packages/engine/src/ai-0929/`（17 文件，含 STRATEGY.md），引擎注册 `ai0929` 命名空间、竞技场注册 `ai0929Strategy` 并同步 `--strategy-b` 默认值（`ai-0927` → `ai-0929`，中英 README 的参数表与示例命令一并改），`historical-strategies.test.ts` 补 pair 20/21 合法性用例（无中止、无验牌回退）。
+
+**锚点**：`ANCHOR` 由 `ai-0802` 改为 `ai-0929`，`ANCHOR_ELO` = 1263.8，**刻度不变**——该值是旧刻度上 ai-0929 的实测分：直测 `ai-0929 vs ai-0802` 得 ΔR = 181.2（p̂=0.7394, n=30000），1082.7 + 181.2 ≈ 1263.9，回代后 ai-0802 复现 1082.6（≈ 原 1082.7）。`ai/` 自 09-29 起只改过注释，故 ai-0929 与当前 `ai` **是同一份代码**：`elo-matches.json` 里原 `ai` 的三条实测（vs ai-0802 0.7394/n=30000、vs ai-0907 0.5415、vs ai-0927 0.5149，分别实测于 10-01 11:09、09-30 23:02、09-29 22:54）改标为 `ai-0929`——既是它的实测，也让新锚点成为拟合图里的节点（不连通则矩阵奇异）。README 中英两表按新读数更新：`ai-0929` 1264（新行）、`ai-0927` 1249 → 1252、`ai-0907` 1229 → 1232、`ai-0816` 1147（不变）、`ai-0802` 1083（拟合 1084.3，与原值差 1，按读数约定保留原值）；`ai`（当前）行与 ai-0929 同分并加注说明。
+
+**新增 1 项测试**（historical-strategies.test.ts：1 项）
+
+### 归档移除 ai-0809
+
+**问题**：基线累积到六个（`ai-0802`/`ai-0809`/`ai-0816`/`ai-0907`/`ai-0927`/`ai-0929`），最旧的 `ai-0809`（08-14 的快照，第二家避分修复前）与 `ai-0802` 只隔一次跟牌重构，对照价值已被 `ai-0816` 覆盖。
+
+**做法**：删除 `packages/engine/src/ai-0809/`（17 文件），移除四处接线——引擎的 `ai0809` 命名空间导出、竞技场的 `ai0809Strategy` 与 `strategyByName` 分支（含抛错信息里的可选列表）、`historical-strategies.test.ts` 的 pair 14/15 用例；README 中英把 `ai-0809` 从历史基线列表移入「已归档移除」括号。**Elo 行与 `elo-matches.json` 的数据保留**：既有约定是已归档基线的分数仅保留展示，且该数据同时是 `ai-0816`/`ai-0907` 等边的拟合输入，删行会改动整条刻度。
+
+**删除 1 项测试**（historical-strategies.test.ts：1 项），引擎 951 项 + arena 74 项 + CLI 87 项 + client 201 项 = 1313 项通过。
+
+- **影响文件**：`packages/engine/src/ai-0929/`（新目录，17 文件）、`packages/engine/src/index.ts`、`packages/engine/src/ai-0809/`（删除）、`packages/arena/src/strategies.ts`、`packages/arena/src/run.ts`、`packages/arena/src/__tests__/historical-strategies.test.ts`、`packages/arena/scripts/elo-calc.ts`、`packages/arena/scripts/elo-matches.json`、`README.md`
+
 ## 2026-10-01 12:05
 
 ### 修复 classify：单张的 pairCount 由占位 1 改为 0，并清掉三处补偿

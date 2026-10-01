@@ -3,7 +3,7 @@
  * One-line delegations; identical input → identical output (guarded by the
  * engine-side differential tests).
  */
-import { aiTryReveal, aiChooseBottomCards, aiLeadPlay, aiFollowPlay, ai0802, ai0809, ai0816, ai0907, ai0927 } from '@poker/engine';
+import { aiTryReveal, aiChooseBottomCards, aiLeadPlay, aiFollowPlay, ai0802, ai0816, ai0907, ai0927, ai0929 } from '@poker/engine';
 import type { Strategy } from './types.js';
 
 export const engineStrategy: Strategy = {
@@ -21,15 +21,6 @@ export const ai0802Strategy: Strategy = {
   chooseBottom: (hand, config) => ai0802.aiChooseBottomCards(hand, config),
   lead: (hand, config) => ai0802.aiLeadPlay(hand, config),
   follow: (hand, lead, suit, config) => ai0802.aiFollowPlay(hand, lead, suit, config),
-};
-
-/** 快照基线：ai/ 在 b77a7b1（2026-08-14，第二家避分修复前）时的版本，README 中 1037 Elo 的测量对象。 */
-export const ai0809Strategy: Strategy = {
-  name: 'ai-0809',
-  tryReveal: (hand, dealt, pi, level, cur) => ai0809.aiTryReveal(hand, dealt, pi, level, cur),
-  chooseBottom: (hand, config) => ai0809.aiChooseBottomCards(hand, config),
-  lead: (hand, config) => ai0809.aiLeadPlay(hand, config),
-  follow: (hand, lead, suit, config) => ai0809.aiFollowPlay(hand, lead, suit, config),
 };
 
 /** 快照基线：ai/ 在 2d56a13（2026-08-16，扣底策略重构前）时的版本，README 中 1055 Elo 的测量对象。 */
@@ -59,13 +50,22 @@ export const ai0927Strategy: Strategy = {
   follow: (hand, lead, suit, config) => ai0927.aiFollowPlay(hand, lead, suit, config),
 };
 
-/** Resolve a strategy by name ('ai' | 'ai-0802' | 'ai-0809' | 'ai-0816' | 'ai-0907' | 'ai-0927'). */
+/** 快照基线：ai/ 在 be6026c（2026-09-29，NT 记牌器对子扣减修复）时的版本，Elo 刻度锚点。 */
+export const ai0929Strategy: Strategy = {
+  name: 'ai-0929',
+  tryReveal: (hand, dealt, pi, level, cur) => ai0929.aiTryReveal(hand, dealt, pi, level, cur),
+  chooseBottom: (hand, config) => ai0929.aiChooseBottomCards(hand, config),
+  lead: (hand, config) => ai0929.aiLeadPlay(hand, config),
+  follow: (hand, lead, suit, config) => ai0929.aiFollowPlay(hand, lead, suit, config),
+};
+
+/** Resolve a strategy by name ('ai' | 'ai-0802' | 'ai-0816' | 'ai-0907' | 'ai-0927' | 'ai-0929'). */
 export function strategyByName(name: string): Strategy {
   if (name === 'ai') return engineStrategy;
   if (name === 'ai-0802') return ai0802Strategy;
-  if (name === 'ai-0809') return ai0809Strategy;
   if (name === 'ai-0816') return ai0816Strategy;
   if (name === 'ai-0907') return ai0907Strategy;
   if (name === 'ai-0927') return ai0927Strategy;
-  throw new Error(`未知策略: ${name}（可选: ai, ai-0802, ai-0809, ai-0816, ai-0907, ai-0927）`);
+  if (name === 'ai-0929') return ai0929Strategy;
+  throw new Error(`未知策略: ${name}（可选: ai, ai-0802, ai-0816, ai-0907, ai-0927, ai-0929）`);
 }
