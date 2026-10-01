@@ -44,7 +44,14 @@ describe('upgradeLinesForMatch', () => {
   it('庄家在 A(14) 打赢 → 胜出', () => {
     const lines = upgradeLinesForMatch([ev({ level: 14, attackerLevel: 10, finalPts: 40, bankerWon: true })], 0);
     expect(lines[0].upgradeTo).toBe('胜出');
-    expect(formatUpgrade(lines[0])).toBe('A 14->胜出');
+    // 等级 11-14 显示为 J/Q/K/A：A(14) 记作 A
+    expect(formatUpgrade(lines[0])).toBe('A A->胜出');
+  });
+
+  it('等级 11-14 显示为 J/Q/K/A：闲家 J 上台 +1 → Q', () => {
+    // B 坐庄输 120（闲家 A 得 +1）→ A 11->12
+    const lines = upgradeLinesForMatch([ev({ teamBanker: 1, level: 5, attackerLevel: 11, finalPts: 120, bankerWon: false })], 0);
+    expect(formatUpgrade(lines[0])).toBe('A J->Q');
   });
 
   it('中止局跳过', () => {

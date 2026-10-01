@@ -7,6 +7,7 @@
  * 闲家上台不升级输出 x->x；庄家在 A(14) 打赢输出 x->胜出）。
  */
 import { advanceLevel } from './advance-level.js';
+import { levelLabel } from './level-label.js';
 import type { HandEvent } from './types.js';
 
 export interface UpgradeLine {
@@ -51,5 +52,6 @@ export function upgradeLinesForMatch(events: HandEvent[], aParity: 0 | 1): Upgra
 }
 
 export function formatUpgrade(l: UpgradeLine): string {
-  return `${l.upgradeSide} ${l.upgradeFrom}->${l.upgradeTo}`;
+  const to = l.upgradeTo === '胜出' ? '胜出' : levelLabel(l.upgradeTo);
+  return `${l.upgradeSide} ${levelLabel(l.upgradeFrom)}->${to}`;
 }

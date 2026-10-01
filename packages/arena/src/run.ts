@@ -20,14 +20,25 @@ import { createStats, mergeStats, fromJSON, toJSON } from './stats.js';
 import type { StrategyStats } from './stats.js';
 import { checkSignificance, requiredMatchesForSignificance, Z } from './significance.js';
 import type { SignificanceResult } from './significance.js';
-import { formatDuration, estimateRemaining, buildCheckpointDoc } from './progress.js';
+import { formatDuration, estimateRemaining, buildCheckpointDoc, ProgressLines } from './progress.js';
 import { upgradeLinesForMatch, formatUpgrade } from './upgrade-log.js';
 import type { UpgradeLine } from './upgrade-log.js';
+import { levelLabel } from './level-label.js';
+import { renderTable, betterSide } from './report.js';
+import type { Direction, TableRow } from './report.js';
 import { playMatch } from './match.js';
 import type { MatchResult } from './types.js';
 
 const ARENA_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT_DIR = path.join(ARENA_ROOT, 'results');
+
+/** 非 TTY（重定向到文件/管道）时进度行逐行打印、表格不染色。 */
+const STDOUT_TTY = process.stdout.isTTY === true;
+
+const lines = new ProgressLines(STDOUT_TTY, {
+  write: (s): void => { process.stdout.write(s); },
+  log: (s): void => { console.log(s); },
+});
 
 interface Args {
   pairs: number;        // 初始对决数（最小样本）
@@ -57,8 +68,9 @@ function printUsage(): void {
   --no-json          不导出 JSON
   -h, --help         显示帮助
 
-进度: 每 100 场更新一行（含预估剩余时间）；每 stepMatches 场（默认 1000）
-      输出显著性结果（leader/p̂/99% CI）并写入 results/checkpoint.json；
+进度: 每 100 场原地刷新一行（含预估剩余时间，覆盖上一行）；每 stepMatches 场
+      （默认 1000）输出显著性结果（leader/p̂/99% CI）——该行保留在屏幕上直到
+      下一处显著性结果刷新，并写入 results/checkpoint.json；
       达到最小样本（默认 10000 场）且显著即停止；Ctrl+C 保存部分结果后优雅退出。`);
 }
 
@@ -116,7 +128,7 @@ function parseArgs(argv: string[]): Args {
 
 // ---- reporting ----
 
-function ratio(p: { n: number; d: number }): string {
+function ratioText(p: { n: number; d: number }): string {
   if (p.d === 0) return '—';
   return `${(p.n / p.d).toFixed(4)} (${p.n}/${p.d})`;
 }
@@ -129,7 +141,7 @@ function printUpgradeTable(
   const l2 = upgradeLinesForMatch(m2.events, 1); // 对局2: A 坐 1/3 号位
   const maxHands = Math.max(l1.length, l2.length);
   const fmt = (l: UpgradeLine | undefined): string => l
-    ? `${l.banker}   ${String(l.levelA).padStart(2)}  ${String(l.levelB).padStart(2)}  ${String(l.finalPts).padStart(3)}  ${formatUpgrade(l)}`
+    ? `${l.banker}   ${levelLabel(l.levelA).padStart(2)}  ${levelLabel(l.levelB).padStart(2)}  ${String(l.finalPts).padStart(3)}  ${formatUpgrade(l)}`
     : '—';
   console.log(`\n对决 ${pairIndex}（seed=${seed}）| A=${nameA}  B=${nameB}（同一副牌的两场镜像）`);
   console.log('手 | 对局1: 庄家 A级 B级 得分 升级            | 对局2: 庄家 A级 B级 得分 升级');
@@ -139,13 +151,59 @@ function printUpgradeTable(
   console.log(`中止小局: 对局1=${m1.abortedHands}  对局2=${m2.abortedHands}`);
 }
 
-function perLevelTable(title: string, m: Map<number, { n: number; d: number }>): string {
-  const lines: string[] = [];
+/** 一条待比较的指标：标签 + 双方比值 + 方向。 */
+type MetricSpec = [label: string, a: { n: number; d: number }, b: { n: number; d: number }, dir: Direction];
+
+/** 某侧的各等级胜率展开成 13 条指标（2..10、J、Q、K、A）。 */
+function perLevelSpecs(
+  prefix: string,
+  a: Map<number, { n: number; d: number }>,
+  b: Map<number, { n: number; d: number }>,
+): MetricSpec[] {
+  const out: MetricSpec[] = [];
   for (let lv = 2; lv <= 14; lv++) {
-    const p = m.get(lv);
-    lines.push(`    L${lv}: ${p ? ratio(p) : '—'}`);
+    out.push([`${prefix} ${levelLabel(lv)} 胜率`, a.get(lv) ?? { n: 0, d: 0 }, b.get(lv) ?? { n: 0, d: 0 }, 'high']);
   }
-  return `${title}:\n${lines.join('\n')}`;
+  return out;
+}
+
+/**
+ * A/B 对比表的数据行。方向约定（用户确认）：
+ * - high：胜率、各类胜率、保底/抠底成功、抠底平均加分
+ * - low：台上平均失分、胜出时对方平均等级（赢得越早、对手等级越低，说明越早拿下）
+ * - neutral：当庄频率、扣底平均分数、扣绝一门频率、抠底频率、领出类、各局均量
+ */
+function comparisonRows(accA: StrategyStats, accB: StrategyStats): TableRow[] {
+  const hands = accA.handsPlayed;
+  const winRate = (s: StrategyStats): { n: number; d: number } =>
+    ({ n: s.matches.won + 0.5 * s.matches.drawn, d: s.matches.played });
+  const specs: MetricSpec[] = [
+    ['胜率', winRate(accA), winRate(accB), 'high'],
+    ['胜出时对方平均等级', accA.matches.oppLevel, accB.matches.oppLevel, 'low'],
+    ['当庄频率', { n: accA.banker.hands, d: hands }, { n: accB.banker.hands, d: hands }, 'neutral'],
+    ['台上胜率', { n: accA.banker.wins, d: accA.banker.hands }, { n: accB.banker.wins, d: accB.banker.hands }, 'high'],
+    ...perLevelSpecs('台上', accA.banker.perLevel, accB.banker.perLevel),
+    ['台上打有主胜率', accA.banker.trumpHands, accB.banker.trumpHands, 'high'],
+    ['台上打NT胜率', accA.banker.ntHands, accB.banker.ntHands, 'high'],
+    ['台上平均失分', accA.banker.avgLoss, accB.banker.avgLoss, 'low'],
+    ['台上扣底平均分数', accA.banker.avgBottomPts, accB.banker.avgBottomPts, 'neutral'],
+    ['台上扣绝一门频率', accA.banker.killSuitFreq, accB.banker.killSuitFreq, 'neutral'],
+    ['庄家保底频率', accA.banker.keepBottom, accB.banker.keepBottom, 'high'],
+    ['台下胜率', { n: accA.attacker.wins, d: accA.attacker.hands }, { n: accB.attacker.wins, d: accB.attacker.hands }, 'high'],
+    ...perLevelSpecs('台下', accA.attacker.perLevel, accB.attacker.perLevel),
+    ['台下打有主胜率', accA.attacker.trumpHands, accB.attacker.trumpHands, 'high'],
+    ['台下打NT胜率', accA.attacker.ntHands, accB.attacker.ntHands, 'high'],
+    ['抠底频率', accA.attacker.kouDiFreq, accB.attacker.kouDiFreq, 'neutral'],
+    ['抠底成功频率', accA.attacker.kouDiSuccess, accB.attacker.kouDiSuccess, 'high'],
+    ['闲家抠底平均加分', accA.attacker.avgKouDi, accB.attacker.avgKouDi, 'high'],
+    ['每墩胜率', accA.tricks.won, accB.tricks.won, 'high'],
+    // leads 的 d 存的是总墩数，本指标分母是小局数
+    ['每局平均领出次数', { n: accA.tricks.leads.n, d: hands }, { n: accB.tricks.leads.n, d: hands }, 'neutral'],
+    ['每局平均每墩领出张数', accA.tricks.leadCards, accB.tricks.leadCards, 'neutral'],
+  ];
+  return specs.map(([label, a, b, dir]) => ({
+    label, a: ratioText(a), b: ratioText(b), verdict: betterSide(a, b, dir),
+  }));
 }
 
 function printReport(
@@ -155,6 +213,7 @@ function printReport(
 ): void {
   const globalHands = accA.handsPlayed;
   const globalTricks = accA.tricks.won.d;
+  lines.endLine(); // 先与原地进度行断开
   console.log('\n' + '='.repeat(64));
   console.log('策略竞技场报告');
   console.log('='.repeat(64));
@@ -164,36 +223,18 @@ function printReport(
   if (outcome && outcome.n > 0) {
     console.log(`  leader=${outcome.leader}  p̂=${outcome.pHat.toFixed(4)}  99% CI 下界=${outcome.ciLower.toFixed(4)}  (n=${outcome.n})`);
   }
-  console.log('\n全局指标:');
-  console.log(`  平均小局数/场: ${ratio({ n: globalHands, d: matches })}`);
-  console.log(`  每局平均墩数: ${ratio({ n: globalTricks, d: globalHands })}`);
+  console.log('\n全局指标（双方共享）:');
+  console.log(`  平均小局数/场: ${ratioText({ n: globalHands, d: matches })}`);
+  console.log(`  每局平均墩数: ${ratioText({ n: globalTricks, d: globalHands })}`);
   console.log(`  平局(封顶)场次: ${accA.matches.drawn}   中止小局: ${accA.abortedHands}`);
 
-  for (const [label, s] of [['A', accA], ['B', accB]] as const) {
-    const name = label === 'A' ? nameA : nameB;
-    const winRate = { n: s.matches.won + 0.5 * s.matches.drawn, d: s.matches.played };
-    console.log(`\n策略 ${label} (${name}):`);
-    console.log(`  胜率: ${winRate.d === 0 ? '—' : `${(winRate.n / winRate.d).toFixed(4)} (${winRate.n}/${winRate.d})`}`);
-    console.log(`  胜出时对方平均等级: ${ratio(s.matches.oppLevel)}`);
-    console.log(`  当庄频率: ${ratio({ n: s.banker.hands, d: globalHands })}`);
-    console.log(`  台上胜率: ${ratio({ n: s.banker.wins, d: s.banker.hands })}`);
-    console.log(perLevelTable('  台上各等级胜率', s.banker.perLevel));
-    console.log(`  台上打有主胜率: ${ratio(s.banker.trumpHands)}`);
-    console.log(`  台上打NT胜率: ${ratio(s.banker.ntHands)}`);
-    console.log(`  台上平均失分: ${ratio(s.banker.avgLoss)}`);
-    console.log(`  台上扣底平均分数: ${ratio(s.banker.avgBottomPts)}`);
-    console.log(`  台上扣绝一门频率: ${ratio(s.banker.killSuitFreq)}`);
-    console.log(`  庄家保底频率: ${ratio(s.banker.keepBottom)}`);
-    console.log(`  台下胜率: ${ratio({ n: s.attacker.wins, d: s.attacker.hands })}`);
-    console.log(perLevelTable('  台下各等级胜率', s.attacker.perLevel));
-    console.log(`  台下打有主胜率: ${ratio(s.attacker.trumpHands)}`);
-    console.log(`  台下打NT胜率: ${ratio(s.attacker.ntHands)}`);
-    console.log(`  抠底频率: ${ratio(s.attacker.kouDiFreq)}`);
-    console.log(`  抠底成功频率: ${ratio(s.attacker.kouDiSuccess)}`);
-    console.log(`  闲家抠底平均加分: ${ratio(s.attacker.avgKouDi)}`);
-    console.log(`  每墩胜率: ${ratio(s.tricks.won)}`);
-    console.log(`  每局平均领出次数: ${ratio({ n: s.tricks.leads.n, d: globalHands })}`);
-    console.log(`  每局平均每墩领出张数: ${ratio(s.tricks.leadCards)}`);
+  console.log('\n对比表（绿 = 该侧更优；相等都标绿；中性指标不染色）:');
+  for (const line of renderTable(
+    ['指标', `策略A（${nameA}）`, `策略B（${nameB}）`],
+    comparisonRows(accA, accB),
+    STDOUT_TTY,
+  )) {
+    console.log(line);
   }
   console.log('='.repeat(64));
 }
@@ -309,7 +350,8 @@ async function main(): Promise<void> {
   const onInterrupt = (): void => {
     if (interrupted) return;
     interrupted = true;
-    console.log('\n⏹ 收到中断信号，保存部分结果…');
+    lines.endLine();
+    console.log('⏹ 收到中断信号，保存部分结果…');
     outcome = checkSignificance(accA.matches.won, accB.matches.won, accA.matches.drawn, accA.matches.played);
     verdict = '已中止（SIGINT，部分结果）';
     writeCheckpoint();
@@ -351,8 +393,8 @@ async function main(): Promise<void> {
     const eta = formatDuration(estimateRemaining(elapsedMs, matches, targetMatches));
 
     if (matches % CHECKPOINT_MATCHES !== 0 && pairsDone < maxPairs) {
-      // 普通进度行（每 100 场）：进度/ETA 以动态基准 targetMatches 计算
-      console.log(
+      // 普通进度行（每 100 场）：原地覆盖上一行，进度/ETA 以动态基准 targetMatches 计算
+      lines.progress(
         `已完赛 ${matches} 场（${pairsDone} 对决）| 进度 ${((matches / targetMatches) * 100).toFixed(1)}% ` +
         `| 已用 ${formatDuration(elapsedMs)} | 预计剩余 ${eta} | 目标 ${targetMatches} 场`,
       );
@@ -387,7 +429,8 @@ async function main(): Promise<void> {
       }
     }
 
-    console.log(
+    // 显著性行：覆盖当前进度行后保留，直到下一处显著性结果刷新
+    lines.sticky(
       `已完赛 ${matches} 场（${pairsDone} 对决）| 进度 ${((matches / targetMatches) * 100).toFixed(1)}% ` +
       `| 已用 ${formatDuration(elapsedMs)} | 预计剩余 ${eta} | 目标 ${targetMatches} 场 ` +
       `| leader=${leader} p̂=${outcome.pHat.toFixed(4)} | 99% CI 下界=${outcome.ciLower.toFixed(4)} | ${status}` +

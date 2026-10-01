@@ -1,5 +1,17 @@
 import { describe, it, expect } from 'vitest';
-import { formatDuration, estimateRemaining, buildCheckpointDoc } from '../progress.js';
+import { formatDuration, estimateRemaining, buildCheckpointDoc, ProgressLines, CLEAR_LINE } from '../progress.js';
+
+/** 记录 write/log 调用的假输出端。 */
+function recorder(): { calls: string[]; sink: { write(s: string): void; log(s: string): void } } {
+  const calls: string[] = [];
+  return {
+    calls,
+    sink: {
+      write: (s: string): void => { calls.push(`w:${s}`); },
+      log: (s: string): void => { calls.push(`l:${s}`); },
+    },
+  };
+}
 
 describe('formatDuration', () => {
   it('秒级：0s / 59s', () => {
@@ -52,5 +64,52 @@ describe('buildCheckpointDoc', () => {
     expect(doc.pairsDone).toBe(1500);
     expect(doc.strategies.A).toEqual({ name: 'ai', handsPlayed: 100 });
     expect(doc.strategies.B).toEqual({ name: 'ai-0801', handsPlayed: 100 });
+  });
+});
+
+describe('ProgressLines', () => {
+  it('TTY：进度行原地覆盖上一行（清行、不带换行）', () => {
+    const { calls, sink } = recorder();
+    const lines = new ProgressLines(true, sink);
+    lines.progress('a');
+    lines.progress('b');
+    expect(calls).toEqual([`w:${CLEAR_LINE}a`, `w:${CLEAR_LINE}b`]);
+  });
+
+  it('TTY：保留行覆盖进度行后换行，其后的进度另起一行', () => {
+    const { calls, sink } = recorder();
+    const lines = new ProgressLines(true, sink);
+    lines.progress('p1');
+    lines.sticky('sig');
+    lines.progress('p2');
+    expect(calls).toEqual([`w:${CLEAR_LINE}p1`, `w:${CLEAR_LINE}sig\n`, `w:${CLEAR_LINE}p2`]);
+  });
+
+  it('TTY：endLine 只补一次换行；无未闭合行时不输出', () => {
+    const { calls, sink } = recorder();
+    const lines = new ProgressLines(true, sink);
+    lines.endLine();
+    expect(calls).toEqual([]);
+    lines.progress('p');
+    lines.endLine();
+    lines.endLine();
+    expect(calls).toEqual([`w:${CLEAR_LINE}p`, 'w:\n']);
+  });
+
+  it('TTY：保留行已换行后 endLine 不再补', () => {
+    const { calls, sink } = recorder();
+    const lines = new ProgressLines(true, sink);
+    lines.sticky('sig');
+    lines.endLine();
+    expect(calls).toEqual([`w:${CLEAR_LINE}sig\n`]);
+  });
+
+  it('非 TTY：进度行与保留行都按普通行打印，不出现 \\r', () => {
+    const { calls, sink } = recorder();
+    const lines = new ProgressLines(false, sink);
+    lines.progress('p');
+    lines.sticky('sig');
+    lines.endLine();
+    expect(calls).toEqual(['l:p', 'l:sig']);
   });
 });

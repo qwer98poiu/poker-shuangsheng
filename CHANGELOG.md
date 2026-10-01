@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-10-01 16:46
+
+### 竞技场进度行原地刷新，显著性行保留到下一次刷新
+
+**问题**：每 100 场一行进度、每 1000 场一行显著性，两者都往终端里追加，长时间跑下来进度行刷屏，显著性结果被淹在后面。
+
+**做法**：新增 `ProgressLines`（progress.ts）承接所有进度/结果输出——TTY 下进度行以 `\r\x1b[K` 原地覆盖上一行（屏幕上永远只占一行），显著性结果行则覆盖当前进度行后换行「落盘」，其后的进度刷新另起一行，直到下一处显著性结果才把它顶掉（满足「保留至下一次显著性结果刷新」）。非 TTY（重定向到文件/管道）时两者都降级为普通逐行打印，不留 `\r` 残迹；报告与 Ctrl+C 提示前先 `endLine()`，避免与未闭合的原地行粘连。
+
+### 报告改为 A/B 合并对比表，按显示宽度对齐 + 更优侧染色
+
+**做法**：原先左右两份「策略 A/B」指标清单合并成一张三列表（指标 | 策略A | 策略B）。三列按**终端显示宽度**对齐（CJK/全角字符按 2 列计，染色码零宽故先按原文算填充再套色），空格分隔、无分隔线。更优的一侧套绿、**两方指标相等时都标绿**、中性指标不染色（非 TTY 时不输出 ANSI 码）。指标方向（已与用户逐项确认）：`high` = 胜率、各类胜率、庄家保底频率、抠底成功频率、闲家抠底平均加分；`low` = 台上平均失分、胜出时对方平均等级（赢得越早、对手等级越低，说明越早拿下）；`neutral` = 当庄频率、台上扣底平均分数、台上扣绝一门频率、抠底频率、每局平均领出次数、每局平均每墩领出张数。全局指标（平均小局数/场、每局平均墩数、平局、中止小局）为双方共享，仍单列在表格上方。等级标签 11-14 由数字改为 `J/Q/K/A`（`levelLabel`），报告表与 `--detail-pair` 升级记录一并生效——`--detail-pair` 的升级列因此出现 `A A->胜出`（策略 A 在 A 级打赢）这类同名字母，属预期。渲染与比较逻辑落在 `report.ts`（`betterSide`/`displayWidth`/`renderTable`），`perLevelTable` 随之删除。
+
+**不影响 Elo**：改动只落在竞技场 CLI 的输出层（`run.ts` 及其新模块），不触及引擎、策略与对局结算，README 中英两张 Elo 表不失效。
+
+**新增 26 项测试**（report.test.ts：20 项 + progress.test.ts：5 项 + upgrade-log.test.ts：1 项），引擎 951 项 + arena 100 项 + CLI 87 项 + client 201 项 = 1339 项通过。
+
+- **影响文件**：`packages/arena/src/run.ts`、`packages/arena/src/progress.ts`、`packages/arena/src/report.ts`（新）、`packages/arena/src/level-label.ts`（新）、`packages/arena/src/upgrade-log.ts`、`packages/arena/src/__tests__/report.test.ts`（新）、`packages/arena/src/__tests__/progress.test.ts`、`packages/arena/src/__tests__/upgrade-log.test.ts`
+
 ## 2026-10-01 12:46
 
 ### 提取 ai-0929 基线（09-29 22:37 的 NT 记牌器对子扣减修复），Elo 锚点改为它
