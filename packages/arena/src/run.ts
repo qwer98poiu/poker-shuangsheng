@@ -24,8 +24,8 @@ import { formatDuration, estimateRemaining, buildCheckpointDoc, ProgressLines } 
 import { upgradeLinesForMatch, formatUpgrade } from './upgrade-log.js';
 import type { UpgradeLine } from './upgrade-log.js';
 import { levelLabel } from './level-label.js';
-import { renderTable, betterSide } from './report.js';
-import type { Direction, TableRow } from './report.js';
+import { renderTable, perLevelSpecs, rowsFrom, ratioText } from './report.js';
+import type { MetricSpec, TableRow } from './report.js';
 import { playMatch } from './match.js';
 import type { MatchResult } from './types.js';
 
@@ -128,11 +128,6 @@ function parseArgs(argv: string[]): Args {
 
 // ---- reporting ----
 
-function ratioText(p: { n: number; d: number }): string {
-  if (p.d === 0) return '—';
-  return `${(p.n / p.d).toFixed(4)} (${p.n}/${p.d})`;
-}
-
 function printUpgradeTable(
   m1: MatchResult, m2: MatchResult,
   nameA: string, nameB: string, seed: number, pairIndex: number,
@@ -151,25 +146,9 @@ function printUpgradeTable(
   console.log(`中止小局: 对局1=${m1.abortedHands}  对局2=${m2.abortedHands}`);
 }
 
-/** 一条待比较的指标：标签 + 双方比值 + 方向。 */
-type MetricSpec = [label: string, a: { n: number; d: number }, b: { n: number; d: number }, dir: Direction];
-
-/** 某侧的各等级胜率展开成 13 条指标（2..10、J、Q、K、A）。 */
-function perLevelSpecs(
-  prefix: string,
-  a: Map<number, { n: number; d: number }>,
-  b: Map<number, { n: number; d: number }>,
-): MetricSpec[] {
-  const out: MetricSpec[] = [];
-  for (let lv = 2; lv <= 14; lv++) {
-    out.push([`${prefix} ${levelLabel(lv)} 胜率`, a.get(lv) ?? { n: 0, d: 0 }, b.get(lv) ?? { n: 0, d: 0 }, 'high']);
-  }
-  return out;
-}
-
 /**
  * A/B 对比表的数据行。方向约定（用户确认）：
- * - high：胜率、各类胜率、保底/抠底成功、抠底平均加分
+ * - high：胜率、各类胜率、保底/抠底成功、抠底平均加分、平均每局赢得张数
  * - low：台上平均失分、胜出时对方平均等级（赢得越早、对手等级越低，说明越早拿下）
  * - neutral：当庄频率、扣底平均分数、扣绝一门频率、抠底频率、领出类、各局均量
  */
@@ -200,10 +179,9 @@ function comparisonRows(accA: StrategyStats, accB: StrategyStats): TableRow[] {
     // leads 的 d 存的是总墩数，本指标分母是小局数
     ['每局平均领出次数', { n: accA.tricks.leads.n, d: hands }, { n: accB.tricks.leads.n, d: hands }, 'neutral'],
     ['每局平均每墩领出张数', accA.tricks.leadCards, accB.tricks.leadCards, 'neutral'],
+    ['平均每局赢得张数', accA.tricks.cardsWon, accB.tricks.cardsWon, 'high'],
   ];
-  return specs.map(([label, a, b, dir]) => ({
-    label, a: ratioText(a), b: ratioText(b), verdict: betterSide(a, b, dir),
-  }));
+  return rowsFrom(specs);
 }
 
 function printReport(
@@ -363,7 +341,11 @@ async function main(): Promise<void> {
   process.on('SIGINT', onInterrupt);
 
   pool = args.workers > 1
-    ? await ChildPool.create(args.workers, args.seed, args.strategyA, args.strategyB)
+    ? await ChildPool.create(
+        args.workers, 'child-run.ts',
+        [String(args.seed), args.strategyA, args.strategyB],
+        { describeTask: t => `对决 ${t.pairStart}..${t.pairStart + t.pairCount - 1}` },
+      )
     : null;
 
   while (pairsDone < maxPairs && !interrupted) {
@@ -376,7 +358,7 @@ async function main(): Promise<void> {
       const count = Math.min(chunkLen, batch - i * chunkLen);
       if (count <= 0) break;
       if (pool) {
-        tasks.push(pool.submit(start, count));
+        tasks.push(pool.submit({ pairStart: start, pairCount: count }));
       } else {
         const { statsA, statsB } = runPairs(args.seed, start, count, stratA, stratB);
         tasks.push(Promise.resolve({ id: 0, statsA: toJSON(statsA) as Record<string, any>, statsB: toJSON(statsB) as Record<string, any> }));

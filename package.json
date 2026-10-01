@@ -15,6 +15,7 @@
     "typecheck": "npm run typecheck -w packages/engine && npm run typecheck -w packages/arena && npm run typecheck -w packages/cli && npm run typecheck -w packages/client && npm run typecheck:skills",
     "typecheck:skills": "tsc --noEmit -p tsconfig.skills.json",
     "arena": "npm run arena -w packages/arena --",
+    "arena:nt": "npm run arena:nt -w packages/arena --",
     "prepare": "[ -d .git ] && git config core.hooksPath .githooks || true"
   },
   "devDependencies": {

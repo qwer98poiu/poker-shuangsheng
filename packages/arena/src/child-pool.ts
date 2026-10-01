@@ -1,5 +1,6 @@
 /**
- * 竞技场 worker 池：把对决区间切片派发给 N 个常驻子进程。
+ * 竞技场 worker 池：把一个区间的任务切片派发给 N 个常驻子进程。
+ * 整体竞技场（对决区间）与无主竞技场（发牌区间）共用这一份实现。
  *
  * 用子进程而不是 worker_threads：tsx 的 loader 在 Node 17.5 的 worker 线程里
  * 并发工作会死锁（多种消息模式实测均如此）；子进程各有独立主线程，loader 可靠。
@@ -15,14 +16,14 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { workerCommand } from './worker-cmd.js';
 
-const ARENA_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+export const ARENA_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 /** 子进程启动（含 tsx 加载）常态 1~3s；60s 仍未全部就绪即判定池启动失败。 */
 const STARTUP_TIMEOUT_MS = 60_000;
 
-export interface WorkerResult { id: number; statsA: Record<string, any>; statsB: Record<string, any> }
-
-interface Task { id: number; pairStart: number; pairCount: number }
+/** 任务与结果的公共形状：id 由池分配，其余字段由调用方定义（对决/发牌区间）。 */
+export interface Task { id: number; [key: string]: any }
+export interface WorkerResult { id: number; [key: string]: any }
 
 /** 一个任务的 settle 回调；派发到 worker 前后都得留着，池判废时要主动 reject。 */
 interface Settle {
@@ -33,10 +34,16 @@ interface Settle {
 interface QueuedTask extends Settle { task: Task }
 
 /** 生成 worker 启动命令。默认 workerCommand；测试注入假 worker 以摆脱 tsx 依赖。 */
-export type SpawnFn = (seed: number, strategyA: string, strategyB: string) => { cmd: string; args: string[] };
+export type SpawnFn = (script: string, args: string[]) => { cmd: string; args: string[] };
 
-const defaultSpawn: SpawnFn = (seed, strategyA, strategyB) =>
-  workerCommand(path.join(ARENA_ROOT, 'src/child-run.ts'), seed, strategyA, strategyB);
+const defaultSpawn: SpawnFn = (script, args) =>
+  workerCommand(path.join(ARENA_ROOT, 'src', script), args);
+
+export interface PoolOptions {
+  spawnFn?: SpawnFn;
+  /** 在途任务的描述（worker 死亡时报出「丢了什么」），默认只报任务 id。 */
+  describeTask?: (task: Task) => string;
+}
 
 export class ChildPool {
   /** 全局子进程注册表：SIGINT 时即使池尚未完成创建也能全部终止。 */
@@ -64,23 +71,29 @@ export class ChildPool {
     for (const c of ChildPool.all) c.kill();
   }
 
+  /**
+   * 起 `count` 个常驻子进程，每个跑 `src/<script>` 并原样带上 `args`
+   * （child-run.ts / nt-child-run.ts 都取 `<seed> <strategyA> <strategyB>`）。
+   */
   static async create(
-    count: number, seed: number, strategyA: string, strategyB: string,
-    spawnFn: SpawnFn = defaultSpawn,
+    count: number, script: string, args: string[], opts: PoolOptions = {},
   ): Promise<ChildPool> {
-    const pool = new ChildPool(spawnFn);
+    const pool = new ChildPool(opts.spawnFn ?? defaultSpawn, opts.describeTask);
     for (let i = 0; i < count; i++) {
-      pool.spawnOne(seed, strategyA, strategyB);
+      pool.spawnOne(script, args);
     }
     await pool.waitAllReady(count);
     return pool;
   }
 
-  private constructor(private readonly spawnFn: SpawnFn) {}
+  private constructor(
+    private readonly spawnFn: SpawnFn,
+    private readonly describeTask?: (task: Task) => string,
+  ) {}
 
-  private spawnOne(seed: number, strategyA: string, strategyB: string): void {
-    const { cmd, args } = this.spawnFn(seed, strategyA, strategyB);
-    const child = spawn(cmd, args, {
+  private spawnOne(script: string, args: string[]): void {
+    const { cmd, args: argv } = this.spawnFn(script, args);
+    const child = spawn(cmd, argv, {
       cwd: ARENA_ROOT,
       stdio: ['pipe', 'pipe', 'inherit'],
     });
@@ -135,7 +148,7 @@ export class ChildPool {
       if (at >= 0) this.idle.splice(at, 1); // 死掉的 worker 不能再被派发
       const task = this.inFlight.get(child);
       const where = task
-        ? `对决 ${task.pairStart}..${task.pairStart + task.pairCount - 1} 丢失`
+        ? `${this.describeTask ? this.describeTask(task) : `任务 id=${task.id}`} 丢失`
         : '空闲等待时死亡';
       this.failPool(new Error(
         ready
@@ -186,11 +199,12 @@ export class ChildPool {
     }
   }
 
-  submit(pairStart: number, pairCount: number): Promise<WorkerResult> {
+  /** 派发一个任务（id 由池分配）；结果原样带回 worker 的 JSON 行。 */
+  submit(task: Record<string, any>): Promise<WorkerResult> {
     if (this.broken) return Promise.reject(this.broken);
-    const task: Task = { id: this.nextId++, pairStart, pairCount };
+    const full: Task = { ...task, id: this.nextId++ };
     return new Promise((resolve, reject) => {
-      this.queue.push({ task, resolve, reject });
+      this.queue.push({ task: full, resolve, reject });
       this.dispatch();
     });
   }

@@ -1,16 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { engineStrategy } from '../strategies.js';
-import { playMatch } from '../match.js';
+import { playMatch, dealtHands } from '../match.js';
 import { deckForHand } from '../rng.js';
-import type { Card } from '@poker/engine';
 import type { Strategy } from '../types.js';
-
-/** 分牌口径（与 match.ts 一致）：第 i 张发给 i % 4 号位。 */
-function dealtHands(deck: Card[]): Card[][] {
-  const hands: Card[][] = [[], [], [], []];
-  for (let i = 0; i < 100; i++) hands[i % 4].push(deck[i]);
-  return hands;
-}
 
 /**
  * 扣底决策的输入口径：庄家先拿进 8 张底牌（共 33 张），再从 33 张里扣 8 张。
@@ -34,7 +26,7 @@ describe('bottom exchange input (33 cards)', () => {
       },
     };
 
-    // 多跑几对，保证 A 队（0/2 号位）确实当过庄：3 对 × 每对最多 4 局，
+    // 多跑几对，保证 A 队确实当过庄：3 对 × 每对最多 4 局，
     // 其中 A 当庄 8 次（庄家赢则连庄，故不等于半数）。
     for (const pair of [0, 1, 2]) {
       playMatch({ seed: 42, pairIndex: pair, maxHands: 4, strategies: [spy, engineStrategy] });

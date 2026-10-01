@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-10-01 22:09
+
+### 引入无主（NT）竞技场：只打无主小局，显著性以发牌为单位
+
+**问题**：整体竞技场打的是完整对局，无主只占其中少数（谁亮出对王谁打无主），NT 领出层的信号淹没在其余牌局里；而同一副牌的 52 个小局共用一副牌、彼此相关，也不是独立样本。
+
+**做法**：新增无主竞技场，复用整体竞技场的子进程池、进度行与报告组件：
+
+- **发牌过滤**：四家都没有对王的发牌直接跳过（那副牌本来也不会打成无主），保留的每副牌按 4 庄家 × 13 等级 = 52 小局全跑一遍，再**对调策略重打一遍**（A 一轮坐 0/2 号位、一轮坐 1/3 号位，同一副牌）——两轮合起来 104 小局即镜像，0/2 号位每墩第 1、3 个出牌、1/3 号位第 2、4 个，位置差在两轮里对消（A == B 时每副必然是 52-52）。
+- **显著性以发牌为单位**：一副牌里 A 赢的小局多则这副算 A 胜（52-52 算平），99% Wilson 下界过 0.5 即显著。
+- **动态目标**：2000 副起跑，到达目标仍未显著时按当前胜率推算显著所需（与整体竞技场同一个 `requiredMatchesForSignificance`，向上取整到 `--step-deals`，默认 200 副），上限 `--max-deals`（默认 10000 副）——不再是固定步长加码。
+- **进度与中断**：每 25 副一行，与整体竞技场同一套 `ProgressLines`——原地刷新，每 `--step-deals` 副的显著性行覆盖后保留到下一次刷新；Ctrl+C 保存部分结果（部分报告 + `"partial": true` 的 JSON）后优雅退出，与整体竞技场同口径；`--strategy-b` 默认 `ai-0929`（与整体竞技场一致）。
+
+### 共享基建：worker 池泛化 + 新增「平均每局赢得张数」
+
+**做法**：`child-pool.ts` 的任务从写死的「对决区间」泛化为任意 JSON 任务——`create(count, script, args, { spawnFn, describeTask })` 与 `submit(task)`，两个竞技场共用同一份池、同一套启动看门狗与死亡判废语义（死亡时按 `describeTask` 报出「对决 X..Y 丢失」或「发牌 X..Y 丢失」）；`worker-cmd.ts` 的参数改为透传数组。`match.ts` 新增 `forceDeclaration`（无主竞技场把每个座位 × 等级强制跑成无主；亮主仍照跑，发牌过滤保证它自然落在无主上）与 `cardsWonByTeam0`，`stats.ts` 据此新增 `cardsWon`，两张报告的末尾都加「平均每局赢得张数」行。
+
+**报告格式对齐**：无主竞技场的报告不再自带一套 `padEnd` 布局，改用整体竞技场的 `report.ts`（`renderTable`/`rowsFrom`/`perLevelSpecs`：按显示宽度对齐、更优侧标绿、相等两侧都标绿、中性不染色），指标集合只去掉无主局不存在的项（打有主、胜出时对方平均等级）。**不增加**逐指标显著性附节（`nt-significance.ts` 的 Wilson/Newcombe 实现）——按用户口径只留合并表，显著性在报告开头的「结论」行体现。
+
+**不影响 Elo**：改动只在竞技场的输出层与统计采集（新增的 `cardsWon` 是派生量），不触及策略与对局结算，README 中英两张 Elo 表不失效。
+
+**新增 12 项测试**（nt-arena.test.ts：12 项），引擎 951 项 + arena 112 项 + CLI 87 项 + client 201 项 = 1351 项通过。
+
+- **影响文件**：`packages/arena/src/nt-arena.ts`（新）、`packages/arena/src/nt-run.ts`（新）、`packages/arena/src/nt-report.ts`（新）、`packages/arena/src/nt-child-run.ts`（新）、`packages/arena/src/__tests__/nt-arena.test.ts`（新）、`packages/arena/src/child-pool.ts`、`packages/arena/src/worker-cmd.ts`、`packages/arena/src/run.ts`、`packages/arena/src/report.ts`、`packages/arena/src/match.ts`、`packages/arena/src/stats.ts`、`packages/arena/src/types.ts`、`packages/arena/package.json`、`package.json`、`packages/arena/src/__tests__/child-pool.test.ts`、`packages/arena/src/__tests__/worker-cmd.test.ts`、`packages/arena/src/__tests__/stats.test.ts`、`packages/arena/src/__tests__/upgrade-log.test.ts`、`packages/arena/src/__tests__/bottom-exchange-input.test.ts`、`README.md`
+
 ## 2026-10-01 16:46
 
 ### 竞技场进度行原地刷新，显著性行保留到下一次刷新

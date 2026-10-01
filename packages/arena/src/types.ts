@@ -52,6 +52,8 @@ export interface HandEvent {
   bankerWon: boolean;     // finalPts < 80
   tricksPlayed: number;
   tricksWonByTeam0: number;
+  /** Cards taken by team 0 = sum of the trick sizes it won (每局赢得张数). */
+  cardsWonByTeam0: number;
   leadsByTeam0: number;
   leadCardsByTeam0: number; // sum of lead plays' card counts when a team-0 seat led
   leadCardsTotal: number;   // sum of all lead plays' card counts (both teams)
