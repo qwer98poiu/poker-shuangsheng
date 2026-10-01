@@ -13,6 +13,14 @@ function c(suit: CardSuit, rank: number, idx: number) {
 
 describe('Pattern — classify', () => {
   it('single', () => expect(classify([c('H', 14, 0)], trump5).type).toBe('single'));
+  // pairCount 只数独立对子：单张不是对子，恒为 0。若单张返回 1，「领出是否
+  // 强制跟牌者出对」的判据（pairCount > 0 || hasTractor）对单张即误判为真。
+  it('single 的 pairCount = 0（不是占位 1）', () => {
+    const r = classify([c('H', 14, 0)], trump5);
+    expect(r.pairCount).toBe(0);
+    expect(r.tractors).toEqual([]);
+    expect(r.hasTractor).toBe(false);
+  });
   it('pair', () => {
     const r = classify([c('H', 14, 0), c('H', 14, 1)], trump5);
     expect(r.type).toBe('pair');

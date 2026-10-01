@@ -10,10 +10,20 @@ import type { ComboClass, TrumpDeclaration } from '../types.js';
 import { Rank, SpecialSuit } from '../types.js';
 import { isTrump, getEffectiveRank } from '../model.js';
 
+/**
+ * Classify a set of cards into: single, pair, tractor, throw.
+ *
+ * `pairCount` counts **standalone pairs only** — pairs that are part of a
+ * tractor live in `tractors` and are not counted here. A single card is not a
+ * pair, so a single combo has `pairCount === 0`; callers deciding "does this
+ * lead force a pair?" must read `pairCount > 0 || hasTractor`, and must not
+ * treat `type !== 'single'` as that predicate (a throw of two singles forces
+ * nothing).
+ */
 export function classify(cards: Card[], config: TrumpDeclaration): ComboClass {
   const len = cards.length;
   if (len === 0) return mk('single', cards, 0, []);
-  if (len === 1) return mk('single', cards, 1, []);
+  if (len === 1) return mk('single', cards, 0, []);
   if (len === 2) {
     const isP = cards[0].suit === cards[1].suit && cards[0].rank === cards[1].rank;
     return mk(isP ? 'pair' : 'throw', cards, isP ? 1 : 0, []);

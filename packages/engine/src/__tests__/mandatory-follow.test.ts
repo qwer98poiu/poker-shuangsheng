@@ -216,7 +216,7 @@ describe('AI 建议出牌与必出/不可选约束一致（建议 ⊇ 必出、�
   });
 });
 
-describe('computeMandatoryFollow — 单张领出回归（模拟器发现：classify single 的 pairCount 占位 1）', () => {
+describe('computeMandatoryFollow — 单张领出回归（单张领出无必出、无不可选）', () => {
   it('吊主单张 + 手牌主牌组多张（含一对级牌）→ 无必出无不可选', () => {
     const cfg3S: TrumpDeclaration = { declarerIndex: 1, trumpSuit: Suit.Spades, level: 3 };
     const lead = [c('S', 7, 5)]; // 黑桃 7 单张（主花色）

@@ -215,9 +215,9 @@ describe('NT trump tracking', () => {
       expect(s.possibleTrumps[4]).not.toBeNull();
     });
 
-    // classify 对单张也返回 pairCount=1（pattern/index.ts:16），照搬 pairCount
-    // 判"领出含对"就会让单张主领出触发扣减：跟牌者只被要求跟一张主，出单张
-    // 完全不能说明他没有主对。
+    // 单张主领出只要求跟牌者跟一张主，出单张完全不能说明他没有主对——
+    // 不得触发"跟牌者无主对"的扣减（classify 对单张的 pairCount 已为 0，
+    // 但判据问的是"领出里有没有对子"，单张恒为否）。
     it('single trump lead: following with one trump says nothing about pairs', () => {
       const hand: Card[] = [];
       const trick = mockTrick(

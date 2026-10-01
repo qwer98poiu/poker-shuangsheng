@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-10-01 12:05
+
+### 修复 classify：单张的 pairCount 由占位 1 改为 0，并清掉三处补偿
+
+**问题**：`pattern/index.ts` 的 `classify` 对**单张**返回 `pairCount = 1`（对**空手牌**反而返回 0）。而 `pairCount` 的口径是「独立对子数」（`types.ts` 中 `ComboClass.pairCount` 的注释即如此写），单张不是对子，1 是占位值。占位让「领出是否强制跟牌者出对」这类判据（`pairCount > 0 || hasTractor`）对单张误判为真：09-29 的 NT 记牌器 bug 即由此而来——单张主领出被当成「含对领出」，跟牌者的一手单主被读成「该家没有主对」，三家常主张数被压平。当时只绕开没治本（改用 `findAllPairs(lead).length > 0`），占位留在原地，其余读者（`computeMandatoryFollow`、`computeFollowableCards`、`isOnlyLegalPlay`）各自补 `type === 'single'` 特判。
+
+**修复**：单张的 `pairCount` 改为 0，与 `pair` / `tractor` / `throw` 同一口径。随之清掉三处针对占位的补偿：
+
+- `following/index.ts` 的 `computeMandatoryFollow`：全单判据不再需要 `type === 'single'` 特判——单张下 `leadHasSingles`（`leadLen > 对数×2`）与 `pairCount === 0 && tractorPairCount === 0` 同时成立，本就走同一分支，特判是死代码。
+- `ai/nt-tracking.ts` 的注释「不能写成 `classify(...).pairCount > 0`：classify 对单张也返回 1」在陈述旧代码，改写为对判据本身的陈述（问的是「领出里有没有对子」，单张恒为否）。
+- `mandatory-follow.test.ts` 的 describe 名与 `ai-nt-tracking.test.ts` 的用例注释同理改为陈述不变量；两处用例行为不变，仍守同一条边界。
+
+**行为无变化（已实测）**：改动前后同一 seed 各跑 400 对决（800 场，`--seed 12345`，`ai vs ai-0802`），报告逐项一致——p̂ 均 0.7450、每墩胜率 0.5176/0.4824、各等级胜率、抠底频率、庄家保底频率全等；arena e2e 冒烟的 `oppLevel` 217 与 client 种子局数字亦不变。因此**本提交不使 README 的 Elo 表失效**（口径为「行为是否可能改变 AI 决策或牌局结算」，实测答案是「不」）。
+
+**新增 1 项测试**（pattern.test.ts：1 项），引擎 951 项 + arena 74 项 + CLI 87 项 + client 201 项 = 1313 项通过。
+
+- **影响文件**：`packages/engine/src/pattern/index.ts`、`packages/engine/src/following/index.ts`、`packages/engine/src/ai/nt-tracking.ts`、`packages/engine/src/__tests__/pattern.test.ts`、`packages/engine/src/__tests__/ai-nt-tracking.test.ts`、`packages/engine/src/__tests__/mandatory-follow.test.ts`
+
 ## 2026-10-01 10:57
 
 ### 竞技场根脚本补 `--`：`npm run arena -- …` 的参数不再被外层 npm 吃掉

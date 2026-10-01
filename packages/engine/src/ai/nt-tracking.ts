@@ -237,12 +237,10 @@ export function computeNTTrumpState(
     const leadLen = leadCards.length;
     let leadHasPairOrTractor = false;
     if (isTrumpLead) {
-      // 判据是"领出里有没有对子"（拖拉机必含对，一并覆盖）。不能写成
-      // classify(...).pairCount > 0：classify 对单张也返回 pairCount = 1
-      // （pattern/index.ts:16），单张主领出会被当成"含对"，把跟牌者的一手
-      // 单主读成"该家没有主对"，进而压平该家全部常主张数。
-      // 也不能只看 type ≠ single：throw 含对的（甩 ♥2♥2+大王）与纯单张的
-      // （甩大王+小王）信息量不同，只有前者强制跟牌者出对。
+      // 判据是"领出里有没有对子"（拖拉机必含对，一并覆盖）——只有含对的领出
+      // 才强制跟牌者出对，跟牌者没出对才推得出"他没有对子"。不能只看
+      // type ≠ single：throw 含对的（甩 ♥2♥2+大王）与纯单张的（甩大王+小王）
+      // 信息量不同，只有前者强制出对。
       leadHasPairOrTractor = findAllPairs(leadCards).length > 0;
     }
 
