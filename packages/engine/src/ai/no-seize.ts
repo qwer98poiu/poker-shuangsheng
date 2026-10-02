@@ -29,8 +29,9 @@ function trickFullyKnown(ctx: AIContext): boolean {
   return ctx.playCount > 0 && ctx.trickPlays.length === ctx.playCount;
 }
 
-/** 本墩前三家是否都没出分。未知一律按"有分"处理——退回改动前的行为（照常毙）。 */
-function trickHasNoPoints(ctx: AIContext): boolean {
+/** 本墩已出的牌是否都没分。未知一律按"有分"处理——退回改动前的行为（照常毙）。
+ *  第三家"无分墩不毙"（`followOffSuitThrow`）复用同一口径。 */
+export function trickHasNoPoints(ctx: AIContext): boolean {
   if (!trickFullyKnown(ctx)) return false;
   return !ctx.trickPlays.some(p => p.cards.some(c => isPointRank(c.rank)));
 }

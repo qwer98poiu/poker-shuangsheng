@@ -9,7 +9,7 @@ import { findAllPairs, detectTractors, classify as classifyCombo } from '../patt
 import type { AIContext } from './types.js';
 import { canBeat, maxCardT, groupBySuit, suitLabelCn, getTopOffSuitRank } from './utils.js';
 import { findThrowableOffSuitCombos } from './throw-detector.js';
-import { tryLeadFlushThrow } from './flush-detector.js';
+import { tryLeadFlushThrow, tryLeadDrainedSuitThrow } from './flush-detector.js';
 import { canFormJokerPair, opponentsHaveTrump } from './nt-tracking.js';
 import { rankLabelStr } from './reason.js';
 
@@ -364,8 +364,12 @@ export function _aiLeadPlay(
 ): { cards: Card[]; reason: string } {
   const myHandCount = ctx.myIndex >= 0 ? ctx.handCounts[ctx.myIndex] : hand.length;
 
-  // 优先级 0：清对（上一墩已验"该门对子已绝"）——证据只有一墩窗口，
-  // 这一墩领了别的牌就永久作废，故必须排在最前。
+  // 优先级 0：同一墩窗口的两条甩牌规则（无主才可能触发"整门已绝"那条）——
+  // 这一墩领了别的牌证据就作废，故必须排在最前。
+  //   (a) 整门已绝 → 该门剩下的全甩（牌更多，先试）
+  //   (b) 对子已绝 → 该门剩下的对全甩
+  const drainedResult = tryLeadDrainedSuitThrow(hand, ctx);
+  if (drainedResult) return drainedResult;
   const flushResult = tryLeadFlushThrow(hand, ctx);
   if (flushResult) return flushResult;
 

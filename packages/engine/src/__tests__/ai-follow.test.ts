@@ -5,6 +5,7 @@ import { classify } from '../pattern/index.js';
 import { compareTwo } from '../comparing/index.js';
 import { validateFollow } from '../following/index.js';
 import { aiFollowPlay } from '../ai/index.js';
+import { canAddPoints } from '../ai/helpers.js';
 import type { Card, CardSuit, TrumpDeclaration } from '../types.js';
 import type { AIContext, NTTrumpState } from '../ai/types.js';
 
@@ -3502,5 +3503,303 @@ describe('trump-kill single picks by tier (pair/tractor preserving)', () => {
     checkFollow(r.cards, hand, lead, 'S', S2);
     expect(r.cards[0].id).toBe('S-9-2'); // 旧行为出 S-7-0（拆对）
     expect(r.reason).toBe('同花色出小（但没分可加）');
+  });
+});
+
+// ================================================================
+// NT 第三家跟「队友甩副牌」：记牌器判定第四家毙不了时改加分
+// ================================================================
+// 领出无顶张的甩副牌时，第三家若花主牌盖过**已经最大**的队友就是浪费。无主局里若
+// 记牌器能断定第四家凑不出匹配牌型的主牌（任何主牌都大于副牌，只差牌型），本墩必归
+// 队友 → 不毙、改垫分。该判据现已并入 helpers.canAddPoints（无顶张时改判第四家能否
+// 毙），本组从端到端行为上锁住它。
+describe('NT 第三家甩副牌：第四家毙不了则垫分不毙', () => {
+  const level = 2;
+  const cfgNT: TrumpDeclaration = { declarerIndex: 0, trumpSuit: null, level };
+  const cc = (s: CardSuit, r: number, i: number): Card => createCard(s, r, i);
+  const isTrumpCard = (x: Card): boolean => x.suit === SpecialSuit.Joker || x.rank === level;
+
+  /** 只填 possibleTrumps/maxTrumpCounts 的 NT 记牌器状态（其余字段本路径不读）。 */
+  function p3State(p3: Record<string, number>, max3?: number): NTTrumpState {
+    let total = 0;
+    for (const n of Object.values(p3)) total += Math.min(n, 2);
+    return {
+      knownTrumpsPerPlayer: [[], [], [], []],
+      playersWithNoTrump: new Set(),
+      totalTrumps: 12,
+      opponentTrumpCount: 0,
+      remainingBigJokers: 2,
+      remainingSmallJokers: 2,
+      allUnseenJokersOnOurSide: false,
+      allUnseenBigJokersOnOurSide: false,
+      possibleTrumps: [null, {}, {}, p3, {}],
+      isFullyDetermined: false,
+      canFormPair: [false, false, false, false],
+      canHaveJoker: [false, false, false, false],
+      canHaveBigJoker: [false, false, false, false],
+      canHaveSmallJoker: [false, false, false, false],
+      minTrumpCounts: [0, 0, 0, 0],
+      maxTrumpCounts: [0, 0, 0, max3 ?? total],
+    };
+  }
+
+  // P0（队友）甩 ♣K♣Q♣J（三单张，不含顶张 A）；P2（第三家，myIndex 2）缺 ♣
+  const lead = [cc('C', 13, 200), cc('C', 12, 200), cc('C', 11, 200)];
+  // P2 手牌：4 张主牌（够毙）+ 副牌里 H-10/H-K/H-5 三张分牌
+  const hand = [
+    cc('J', 16, 0), cc('J', 15, 0), cc('H', 2, 0), cc('S', 2, 0),
+    cc('H', 10, 0), cc('H', 13, 0), cc('H', 5, 0),
+    cc('D', 4, 0), cc('D', 6, 0), cc('D', 7, 0), cc('D', 8, 0), cc('D', 9, 0),
+  ];
+
+  function ctx(nt: NTTrumpState | null, attackerPoints = 0, h: Card[] = hand): AIContext {
+    return {
+      declarerIndex: 0, trumpSuit: null, level,
+      myIndex: 2, isDeclarer: false, isDeclarerPartner: true,
+      isAttacker: false, attackerPoints,
+      handCounts: [13, 13, h.length, 13] as const,
+      trickHistory: [], reveals: [],
+      playCount: 2, leadPlayerIndex: 0,
+      trickPlays: [],
+      bestSoFar: { cards: lead, playerIndex: 0 },
+      ntState: nt, bottomCards: [], debug: false,
+    };
+  }
+
+  it('第四家一张主牌都没有 → 不毙，按加分优先级垫 10/K/5', () => {
+    const r = aiFollowPlay(hand, lead, 'C', ctx(p3State({})));
+    checkFollow(r.cards, hand, lead, 'C', cfgNT);
+    expect(r.cards.map(x => x.id)).toEqual(['H-10-0', 'H-13-0', 'H-5-0']);
+    expect(r.cards.some(isTrumpCard)).toBe(false);
+    expect(r.reason).toContain('加分');
+  });
+
+  it('第四家主牌张数不够（2 < 3）→ 同样垫分', () => {
+    const r = aiFollowPlay(hand, lead, 'C', ctx(p3State({ 'H-2': 2 }, 2)));
+    checkFollow(r.cards, hand, lead, 'C', cfgNT);
+    expect(r.cards.map(x => x.id)).toEqual(['H-10-0', 'H-13-0', 'H-5-0']);
+  });
+
+  it('第四家有 3 张主牌能毙 → 照常毙（不改）', () => {
+    const r = aiFollowPlay(hand, lead, 'C', ctx(p3State({ 'H-2': 2, 'S-2': 1 }, 3)));
+    checkFollow(r.cards, hand, lead, 'C', cfgNT);
+    expect(r.cards.every(isTrumpCard)).toBe(true);
+    expect(r.reason).toContain('用主牌毙');
+  });
+
+  it('有主局（ntState 为 null）→ 照常毙（本条只放开 NT）', () => {
+    const r = aiFollowPlay(hand, lead, 'C', ctx(null));
+    checkFollow(r.cards, hand, lead, 'C', cfgNT);
+    expect(r.cards.every(isTrumpCard)).toBe(true);
+    expect(r.reason).toContain('用主牌毙');
+  });
+
+  it('禁分档（闲家 60 + 本墩 10 = 70）→ 照常毙，不放开加分', () => {
+    const r = aiFollowPlay(hand, lead, 'C', ctx(p3State({}), 60));
+    checkFollow(r.cards, hand, lead, 'C', cfgNT);
+    expect(r.cards.every(isTrumpCard)).toBe(true);
+    expect(r.reason).toContain('用主牌毙');
+  });
+
+  it('甩牌含对、第四家主牌全是单张（牌型凑不出）→ 垫分', () => {
+    const lead2 = [cc('C', 13, 200), cc('C', 13, 201), cc('C', 12, 200), cc('C', 11, 200)];
+    const c2 = { ...ctx(p3State({ 'H-2': 1, 'S-2': 1, 'D-2': 1, 'C-2': 1 }, 4)) };
+    c2.bestSoFar = { cards: lead2, playerIndex: 0 };
+    const r = aiFollowPlay(hand, lead2, 'C', c2);
+    checkFollow(r.cards, hand, lead2, 'C', cfgNT);
+    expect(r.cards.map(x => x.id)).toEqual(['H-10-0', 'H-13-0', 'H-5-0', 'D-4-0']);
+    expect(r.cards.some(isTrumpCard)).toBe(false);
+  });
+
+  it('第三家手牌全主（凑不出不盖队友的垫牌）→ 退回照常毙', () => {
+    const allTrump = [
+      cc('J', 16, 0), cc('J', 15, 0), cc('H', 2, 0), cc('S', 2, 0), cc('D', 2, 0), cc('C', 2, 0),
+    ];
+    const r = aiFollowPlay(allTrump, lead, 'C', ctx(p3State({}), 0, allTrump));
+    checkFollow(r.cards, allTrump, lead, 'C', cfgNT);
+    expect(r.cards.every(isTrumpCard)).toBe(true);
+    expect(r.reason).toContain('用主牌毙');
+  });
+
+  it('甩牌含顶张 A → 仍走原有加分分支（不受新口子影响）', () => {
+    const leadA = [cc('C', 14, 200), cc('C', 13, 200), cc('C', 12, 200)];
+    const cA = { ...ctx(p3State({ 'H-2': 2, 'S-2': 1 }, 3)) };
+    cA.bestSoFar = { cards: leadA, playerIndex: 0 };
+    const r = aiFollowPlay(hand, leadA, 'C', cA);
+    checkFollow(r.cards, hand, leadA, 'C', cfgNT);
+    expect(r.cards.map(x => x.id)).toEqual(['H-10-0', 'H-13-0', 'H-5-0']);
+    expect(r.reason).toContain('加分');
+  });
+
+  // ---- 第四家**可能**毙：本墩没分就不值得毙（不喂分、不白花主牌） ----
+
+  describe('第四家可能毙：无分墩不毙', () => {
+    // 甩 ♣Q♣J♣9：无顶张、无分牌，且下面各例的第四家都能毙 → canAddPoints 判否
+    const leadNP = [cc('C', 12, 200), cc('C', 11, 200), cc('C', 9, 200)];
+    /** 外层 isTrumpCard 钉死 level=2，本组要测级牌 5，故按局内的级牌判定。 */
+    const trumpAt = (lv: number) => (x: Card): boolean => x.suit === SpecialSuit.Joker || x.rank === lv;
+    /** 第二家先垫三张无分副牌 / 含一张 ♦10。 */
+    const secondPlays = (withPoint: boolean): { cards: Card[] }[] => [
+      { cards: leadNP },
+      { cards: [cc('D', 3, 100), cc(withPoint ? 'D' : 'D', withPoint ? 10 : 4, 100), cc('D', 6, 100)] },
+    ];
+
+    /** myIndex 2 是闲家 ⟺ 庄家为奇数位；据此设 declarerIndex 保持座位一致。 */
+    function bctx(level: number, attacker: boolean, plays: { cards: Card[] }[], p3: NTTrumpState): AIContext {
+      return {
+        declarerIndex: attacker ? 1 : 0, trumpSuit: null, level,
+        myIndex: 2, isDeclarer: false, isDeclarerPartner: !attacker, isAttacker: attacker,
+        attackerPoints: 0,
+        handCounts: [13, 13, hand.length, 13] as const,
+        trickHistory: [], reveals: [],
+        playCount: plays.length, leadPlayerIndex: 0, trickPlays: plays,
+        bestSoFar: { cards: leadNP, playerIndex: 0 },
+        ntState: p3, bottomCards: [], debug: false,
+      };
+    }
+
+    it('级牌非分 + 无分 + 第四家可能毙（闲家）→ 垫牌不加分、不毙', () => {
+      const c = bctx(2, true, secondPlays(false), p3State({ 'H-2': 2, 'S-2': 1 }, 3));
+      const r = aiFollowPlay(hand, leadNP, 'C', c);
+      checkFollow(r.cards, hand, leadNP, 'C', cfgNT);
+      expect(r.cards.map(x => x.id)).toEqual(['D-4-0', 'D-6-0', 'D-7-0']);
+      expect(r.cards.some(isTrumpCard)).toBe(false);
+      expect(r.reason).toBe('垫牌（无分墩，不毙）');
+    });
+
+    it('级牌为分牌 + 闲家 → 例外，照常毙', () => {
+      const c = bctx(5, true, secondPlays(false), p3State({ 'H-5': 2, 'S-5': 1 }, 3));
+      const r = aiFollowPlay(hand, leadNP, 'C', c);
+      checkFollow(r.cards, hand, leadNP, 'C', cfgNT);
+      expect(r.cards.every(trumpAt(5))).toBe(true);
+      expect(r.reason).toContain('用主牌毙');
+    });
+
+    it('级牌为分牌 + 庄家方 → 不毙（例外只给闲家）', () => {
+      const c = bctx(5, false, secondPlays(false), p3State({ 'H-5': 2, 'S-5': 1 }, 3));
+      const r = aiFollowPlay(hand, leadNP, 'C', c);
+      checkFollow(r.cards, hand, leadNP, 'C', cfgNT);
+      expect(r.cards.map(x => x.id)).toEqual(['H-2-0', 'S-2-0', 'D-4-0']);
+      expect(r.cards.some(trumpAt(5))).toBe(false);
+      expect(r.reason).toBe('垫牌（无分墩，不毙）');
+    });
+
+    it('本墩已出牌含分 → 照常毙（这墩丢不起）', () => {
+      const c = bctx(2, true, secondPlays(true), p3State({ 'H-2': 2, 'S-2': 1 }, 3));
+      const r = aiFollowPlay(hand, leadNP, 'C', c);
+      checkFollow(r.cards, hand, leadNP, 'C', cfgNT);
+      expect(r.cards.every(isTrumpCard)).toBe(true);
+      expect(r.reason).toContain('用主牌毙');
+    });
+
+    it('第四家毙不了 → 走加分（canAddPoints 已判真），不走本条', () => {
+      const c = bctx(2, true, secondPlays(false), p3State({}));
+      const r = aiFollowPlay(hand, leadNP, 'C', c);
+      checkFollow(r.cards, hand, leadNP, 'C', cfgNT);
+      expect(r.cards.map(x => x.id)).toEqual(['H-10-0', 'H-13-0', 'H-5-0']);
+      expect(r.reason).toContain('加分');
+    });
+
+    it('有主局（ntState 为 null）→ 照常毙', () => {
+      const c = { ...bctx(2, true, secondPlays(false), p3State({})) };
+      c.ntState = null;
+      const r = aiFollowPlay(hand, leadNP, 'C', c);
+      checkFollow(r.cards, hand, leadNP, 'C', cfgNT);
+      expect(r.cards.every(isTrumpCard)).toBe(true);
+    });
+  });
+});
+
+// ================================================================
+// canAddPoints：第三家对「无顶张甩副牌」的判据（新规则直测）
+// ================================================================
+// 甩副牌含顶张（或含拖拉机、或甩主牌）→ 加分（原有行为）。无顶张也无拖拉机时改判第四家
+// 能否用主牌毙：记牌器能排除该风险 → 加分（新）；否则不加分。仅无主生效——有主局没有
+// 记牌器（ntState 为 null），逐字节不变。
+describe('canAddPoints — 第三家无顶张甩副牌改判第四家能否毙', () => {
+  const level = 2;
+  const CFG_NT: TrumpDeclaration = { declarerIndex: 0, trumpSuit: null, level };
+  const CFG_SUIT: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level };
+
+  /** 只填 possibleTrumps/maxTrumpCounts 的 NT 记牌器（myIndex 2 → 第四家 = 座位 3）。 */
+  function ntState4th(p3: Record<string, number>, max3?: number): NTTrumpState {
+    let total = 0;
+    for (const n of Object.values(p3)) total += Math.min(n, 2);
+    return {
+      knownTrumpsPerPlayer: [[], [], [], []],
+      playersWithNoTrump: new Set(),
+      totalTrumps: 12,
+      opponentTrumpCount: 0,
+      remainingBigJokers: 2,
+      remainingSmallJokers: 2,
+      allUnseenJokersOnOurSide: false,
+      allUnseenBigJokersOnOurSide: false,
+      possibleTrumps: [null, {}, {}, p3, {}],
+      isFullyDetermined: false,
+      canFormPair: [false, false, false, false],
+      canHaveJoker: [false, false, false, false],
+      canHaveBigJoker: [false, false, false, false],
+      canHaveSmallJoker: [false, false, false, false],
+      minTrumpCounts: [0, 0, 0, 0],
+      maxTrumpCounts: [0, 0, 0, max3 ?? total],
+    };
+  }
+
+  function ctxOf(cfg: TrumpDeclaration, nt: NTTrumpState | null): AIContext {
+    return {
+      ...cfg,
+      myIndex: 2, isDeclarer: false, isDeclarerPartner: true, isAttacker: false,
+      attackerPoints: 0, handCounts: [13, 13, 13, 13], trickHistory: [],
+      reveals: [], playCount: 2, leadPlayerIndex: 0, trickPlays: [],
+      bestSoFar: null, ntState: nt, bottomCards: null, debug: false,
+    };
+  }
+
+  /** 无顶张、无拖拉机的副牌甩牌（♣Q♣J♣9 三单张）。 */
+  const throwNoTop = [c('C', 12, 200), c('C', 11, 200), c('C', 9, 200)];
+  /** 第四家能毙：3 张主牌（♥2♥2 + ♠2），够盖 3 张。 */
+  const canTrump4th = () => ntState4th({ 'H-2': 2, 'S-2': 1 }, 3);
+
+  it('含顶张的甩牌 → 加分（原有行为，回归锁）', () => {
+    const combo = classify([c('C', 14, 200), c('C', 12, 200), c('C', 11, 200)], CFG_NT);
+    expect(canAddPoints(true, 'third', combo, ctxOf(CFG_NT, canTrump4th()))).toBe(true);
+  });
+
+  it('无顶张无拖拉机 + 第四家不能毙 → 加分（新规则）', () => {
+    const combo = classify(throwNoTop, CFG_NT);
+    expect(canAddPoints(true, 'third', combo, ctxOf(CFG_NT, ntState4th({})))).toBe(true);
+  });
+
+  it('无顶张无拖拉机 + 第四家能毙 → 不加分', () => {
+    const combo = classify(throwNoTop, CFG_NT);
+    expect(canAddPoints(true, 'third', combo, ctxOf(CFG_NT, canTrump4th()))).toBe(false);
+  });
+
+  it('无顶张无拖拉机 + 无记牌器（ntState 为 null）→ 不加分', () => {
+    const combo = classify(throwNoTop, CFG_NT);
+    expect(canAddPoints(true, 'third', combo, ctxOf(CFG_NT, null))).toBe(false);
+  });
+
+  it('有主局（ntState 为 null）→ 不加分（行为不变）', () => {
+    const combo = classify(throwNoTop, CFG_SUIT);
+    expect(canAddPoints(true, 'third', combo, ctxOf(CFG_SUIT, null))).toBe(false);
+  });
+
+  it('无顶张但含拖拉机 → 加分（原有行为，回归锁）', () => {
+    const comboT = classify([c('C', 9, 200), c('C', 9, 201), c('C', 8, 200), c('C', 8, 201)], CFG_NT);
+    expect(comboT.hasTractor).toBe(true);
+    expect(canAddPoints(true, 'third', comboT, ctxOf(CFG_NT, canTrump4th()))).toBe(true);
+  });
+
+  it('甩主牌 → 加分（原有行为，回归锁）', () => {
+    const comboT = classify([c('S', 2, 200), c('H', 2, 200), c('D', 2, 200)], CFG_NT);
+    expect(canAddPoints(true, 'third', comboT, ctxOf(CFG_NT, canTrump4th()))).toBe(true);
+  });
+
+  it('单张/对子领出不受新规则影响（回归锁）', () => {
+    const single = classify([c('C', 13, 200)], CFG_NT);
+    const pair = classify([c('C', 13, 200), c('C', 13, 201)], CFG_NT);
+    expect(canAddPoints(true, 'third', single, ctxOf(CFG_NT, ntState4th({})))).toBe(false);
+    expect(canAddPoints(true, 'third', pair, ctxOf(CFG_NT, ntState4th({})))).toBe(false);
   });
 });

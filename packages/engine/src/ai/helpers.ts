@@ -10,6 +10,7 @@ import { findAllPairs, detectTractors } from '../pattern/index.js';
 import type { AIContext } from './types.js';
 import { isBigOffSuitCard, discardSort, pairSortAsc } from './utils.js';
 import { isFlushFollow } from './flush-detector.js';
+import { canPlayerTrumpThrow } from './nt-tracking.js';
 import {
   visibleTrickPoints, selectFillers, secondShouldAvoid, shouldBreakPairForPoints,
   type DiscardMode,
@@ -89,22 +90,32 @@ export function padWithDiscards(
 
 // ---- Point-adding strategy ----
 
+/** 与位置无关的禁分档：庄家方（`!isAttacker`）下，闲家分已接近或正踩台阶时，
+ *  即使领出本身可加分也不加——再加 5/10 分可能把闲家直接送过 80。
+ *  两档：① 闲家 75–79（5 分即可跨线）；② 闲家得分 + 本墩已出分 = 70 或 75。 */
+export function addPointsForbidden(ctx: AIContext, leadCombo: ComboClass): boolean {
+  if (!ctx.isAttacker && ctx.attackerPoints >= 75 && ctx.attackerPoints < 80) return true;
+  if (!ctx.isAttacker) {
+    const vis = visibleTrickPoints(ctx, leadCombo.cards);
+    if (ctx.attackerPoints + vis === 70 || ctx.attackerPoints + vis === 75) return true;
+  }
+  return false;
+}
+
 /** Whether we should add points when teammate is winning.
  *  Fourth: always.
  *  Third: only if lead is max pattern — big card (A/K single or pair),
- *         has tractor, or is a throw (甩牌 already max).
+ *         has tractor, or is a throw. A throw counts as max when it contains a
+ *         top card, or (within a suit, i.e. NT) when the fourth seat cannot
+ *         trump it — an off-suit throw can never be beaten in-suit, because the
+ *         engine validates every throw lead and force-plays a downgraded
+ *         sub-pattern when it would be beaten (game/index.ts).
  *  Never adds if defender team and any point card would push attacker to 80+.
- *  分位置规格：甩副牌只有含顶张才加分；甩主牌加分；庄家方且闲家得分 +
- *  本墩已出分为 70 或 75 时禁分。 */
+ *  分位置规格：甩副牌含顶张、或（无主下）第四家毙不了 → 加分；甩主牌加分；
+ *  庄家方且闲家得分 + 本墩已出分为 70 或 75 时禁分。 */
 export function canAddPoints(tmWin: boolean, position: string, leadCombo: ComboClass, ctx: AIContext): boolean {
   if (!tmWin) return false;
-  // Defender side: never add if attacker is close to 80 (even 5 pts could cross).
-  if (!ctx.isAttacker && ctx.attackerPoints >= 75 && ctx.attackerPoints < 80) return false;
-  // 第三家原则9：庄家方且闲家得分 + 本墩已出分 = 70 或 75 时禁分。
-  if (!ctx.isAttacker) {
-    const vis = visibleTrickPoints(ctx, leadCombo.cards);
-    if (ctx.attackerPoints + vis === 70 || ctx.attackerPoints + vis === 75) return false;
-  }
+  if (addPointsForbidden(ctx, leadCombo)) return false;
   if (position === 'fourth') return true;
   if (position === 'third') {
     // 清对领出（优先级 0）：上一墩已验两个对手该花色对子已绝，本墩必归队友
@@ -117,8 +128,16 @@ export function canAddPoints(tmWin: boolean, position: string, leadCombo: ComboC
     }
     if (leadCombo.hasTractor) return true;
     if (leadCombo.type === 'throw') {
-      // 甩副牌：含顶张才加分（含拖拉机已在 hasTractor 分支提前返回）
-      return leadCombo.cards.some(c => isBigOffSuitCard(c, ctx));
+      // 甩副牌：含顶张 → 加分（含拖拉机已在 hasTractor 分支提前返回）
+      if (leadCombo.cards.some(c => isBigOffSuitCard(c, ctx))) return true;
+      // 无顶张：甩牌不会被同花色盖过——引擎对 type==='throw' 的领出先 validateThrow，
+      // 不合法就罚分并强制降级（game/index.ts），进到比较的永远是合法牌型。
+      // 唯一剩下的风险是「第四家缺门用主牌毙」；记牌器能排除该风险 → 也算 max，照常加分。
+      // 只有无主（有记牌器）时生效：有主局 ntState 为 null，行为完全不变。
+      if (ctx.ntState !== null && ctx.myIndex >= 0) {
+        return !canPlayerTrumpThrow((ctx.myIndex + 1) % 4, leadCombo.cards, ctx.ntState, ctx);
+      }
+      return false;
     }
     if (leadCombo.type === 'single' || leadCombo.type === 'pair') {
       return leadCombo.cards.every(c => isBigOffSuitCard(c, ctx));

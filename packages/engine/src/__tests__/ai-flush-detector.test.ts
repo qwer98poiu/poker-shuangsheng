@@ -21,7 +21,9 @@ import { compareTwo } from '../comparing/index.js';
 import type { AIContext } from '../ai/types.js';
 import {
   detectFlushEvidence, tryLeadFlushThrow, isFlushFollow, avoidBeatingTeammate,
+  detectDrainedSuit, tryLeadDrainedSuitThrow,
 } from '../ai/flush-detector.js';
+import type { NTTrumpState } from '../ai/types.js';
 import { canAddPoints } from '../ai/helpers.js';
 import { aiLeadPlay, aiFollowPlay } from '../ai/index.js';
 
@@ -70,6 +72,38 @@ interface CtxOpts {
   trickPlays?: { cards: Card[] }[];
   bestSoFar?: { cards: Card[]; playerIndex: number } | null;
   attackerPoints?: number;
+  /** 无主局：传 NT 记牌器状态并把 trumpSuit 置 null。 */
+  ntState?: NTTrumpState;
+}
+
+/** 只填 possibleTrumps/maxTrumpCounts 的 NT 记牌器状态（其余字段本组测试不读）。 */
+function ntStateOf(possible: Record<number, Record<string, number>>): NTTrumpState {
+  const slots: (Record<string, number> | null)[] = [null, {}, {}, {}, {}];
+  const maxes: [number, number, number, number] = [0, 0, 0, 0];
+  for (const [idx, rec] of Object.entries(possible)) {
+    slots[Number(idx)] = rec;
+    let t = 0;
+    for (const n of Object.values(rec)) t += Math.min(n, 2);
+    maxes[Number(idx)] = t;
+  }
+  return {
+    knownTrumpsPerPlayer: [[], [], [], []],
+    playersWithNoTrump: new Set(),
+    totalTrumps: 12,
+    opponentTrumpCount: 0,
+    remainingBigJokers: 2,
+    remainingSmallJokers: 2,
+    allUnseenJokersOnOurSide: false,
+    allUnseenBigJokersOnOurSide: false,
+    possibleTrumps: slots,
+    isFullyDetermined: false,
+    canFormPair: [false, false, false, false],
+    canHaveJoker: [false, false, false, false],
+    canHaveBigJoker: [false, false, false, false],
+    canHaveSmallJoker: [false, false, false, false],
+    minTrumpCounts: [0, 0, 0, 0],
+    maxTrumpCounts: maxes,
+  };
 }
 
 function ctxOf(o: CtxOpts = {}): AIContext {
@@ -77,6 +111,7 @@ function ctxOf(o: CtxOpts = {}): AIContext {
   const declIdx = CFG.declarerIndex;
   return {
     ...CFG,
+    trumpSuit: o.ntState ? null : CFG.trumpSuit,
     myIndex,
     isDeclarer: myIndex === declIdx,
     isDeclarerPartner: myIndex === (declIdx + 2) % 4,
@@ -89,7 +124,7 @@ function ctxOf(o: CtxOpts = {}): AIContext {
     leadPlayerIndex: o.leadPlayerIndex ?? myIndex,
     trickPlays: o.trickPlays ?? [],
     bestSoFar: o.bestSoFar ?? null,
-    ntState: null,
+    ntState: o.ntState ?? null,
     bottomCards: null,
     debug: false,
   };
@@ -525,5 +560,167 @@ describe('端到端 — aiLeadPlay / aiFollowPlay', () => {
     const hand = [c(Suit.Spades, 8), c(Suit.Spades, 8), c(Suit.Spades, 6), c(Suit.Spades, 6)];
     const r = aiLeadPlay(hand, { trumpSuit: Suit.Hearts, level: Rank.Two, declarerIndex: 0 });
     expect(r.reason).not.toContain('对子已绝');
+  });
+});
+
+// ================================================================
+// 整门已绝 → 下一墩全甩（领出优先级 0 的第二支，仅无主）
+// ================================================================
+// 上一墩我领出某副花色、三家跟完**一张都没出该花色**（跟牌强制出尽 ⇒ 三家全缺门）、
+// 我赢下 → 该门剩下的全在我手上，本墩把它一次性甩出去。甩出去引擎不会判罚
+// （validateThrow 只看同花色组，三家该门一张没有 ⇒ 必然合法），风险只有被主牌毙：
+// 含对时接受该风险直接甩；纯单张时要求两个对手都毙不了（记牌器）。
+
+const DRAIN_SUIT = Suit.Spades;
+/** 证据墩：hero 领 ♠ 两对，三家全缺 ♠。 */
+const drainedTrick = (hero: number): Trick =>
+  trickOf(hero, hero, [leadOf(DRAIN_SUIT), voidOf(), voidOf(), voidOf()]);
+
+describe('detectDrainedSuit — 整门已绝（无主）', () => {
+  for (const hero of [0, 1, 2, 3]) {
+    for (const suit of SIDE_SUITS) {
+      it(`P${hero} 领 ${SUIT_CN[suit]}、三家全缺、自己赢下 → 有证据`, () => {
+        const t = trickOf(hero, hero, [leadOf(suit), voidOf(), voidOf(), voidOf()]);
+        const ctx = ctxOf({ myIndex: hero, history: [t], ntState: ntStateOf({}) });
+        expect(detectDrainedSuit(ctx, hero)).toEqual({ suit });
+      });
+    }
+  }
+
+  for (let slot = 1; slot <= 3; slot++) {
+    it(`第 ${slot} 家跟满 4 张 → 无证据（该家手上还有这门）`, () => {
+      const plays: Card[][] = [leadOf(DRAIN_SUIT), voidOf(), voidOf(), voidOf()];
+      plays[slot] = noPair(DRAIN_SUIT);
+      const ctx = ctxOf({ history: [trickOf(0, 0, plays)], ntState: ntStateOf({}) });
+      expect(detectDrainedSuit(ctx, 0)).toBeNull();
+    });
+
+    it(`第 ${slot} 家只跟 1 张（< 领出 4 张）→ 有证据（跟不满 ⇒ 出尽 ⇒ 已缺门）`, () => {
+      const plays: Card[][] = [leadOf(DRAIN_SUIT), voidOf(), voidOf(), voidOf()];
+      plays[slot] = [c(DRAIN_SUIT, 7), ...voidOf().slice(0, 3)];
+      const ctx = ctxOf({ history: [trickOf(0, 0, plays)], ntState: ntStateOf({}) });
+      expect(detectDrainedSuit(ctx, 0)).toEqual({ suit: DRAIN_SUIT });
+    });
+  }
+
+  it('领一对、三家各跟 1 张该花色 + 垫 1 张 → 有证据', () => {
+    // 跟牌强制出尽：手上只有 1 张就必须把它出掉，跟完即缺门（引擎实测合法）
+    const plays: Card[][] = [
+      [c(DRAIN_SUIT, 13), c(DRAIN_SUIT, 13)],
+      [c(DRAIN_SUIT, 7), c(Suit.Hearts, 6)],
+      [c(DRAIN_SUIT, 8), c(Suit.Hearts, 7)],
+      [c(DRAIN_SUIT, 9), c(Suit.Hearts, 8)],
+    ];
+    const ctx = ctxOf({ history: [trickOf(0, 0, plays)], ntState: ntStateOf({}) });
+    expect(detectDrainedSuit(ctx, 0)).toEqual({ suit: DRAIN_SUIT });
+  });
+
+  it('自己没有赢下这墩 → 无证据', () => {
+    const t = trickOf(0, 1, [leadOf(DRAIN_SUIT), voidOf(), voidOf(), voidOf()]);
+    expect(detectDrainedSuit(ctxOf({ history: [t], ntState: ntStateOf({}) }), 0)).toBeNull();
+  });
+
+  it('领出的是主牌 → 无证据（只认副牌）', () => {
+    const trumpLead = [c(Suit.Hearts, 6), c(Suit.Hearts, 6)];
+    const t = trickOf(0, 0, [trumpLead, voidOf(), voidOf(), voidOf()]);
+    expect(detectDrainedSuit(ctxOf({ history: [t], ntState: ntStateOf({}) }), 0)).toBeNull();
+  });
+});
+
+describe('tryLeadDrainedSuitThrow — 全甩', () => {
+  const threeSingles = [c(DRAIN_SUIT, 13), c(DRAIN_SUIT, 12), c(DRAIN_SUIT, 11), c(Suit.Diamonds, 3)];
+  const withPair = [c(DRAIN_SUIT, 13), c(DRAIN_SUIT, 13), c(DRAIN_SUIT, 12), c(DRAIN_SUIT, 11)];
+  const twoCards = [c(DRAIN_SUIT, 13), c(DRAIN_SUIT, 12), c(Suit.Diamonds, 3)];
+  const tractor = [c(DRAIN_SUIT, 13), c(DRAIN_SUIT, 13), c(DRAIN_SUIT, 12), c(DRAIN_SUIT, 12)];
+
+  it('三家都不能毙 → 全甩', () => {
+    const ctx = ctxOf({ myIndex: 0, playCount: 0, history: [drainedTrick(0)], ntState: ntStateOf({}) });
+    const r = tryLeadDrainedSuitThrow(threeSingles, ctx);
+    expect(r?.cards.map(x => x.id)).toEqual(threeSingles.slice(0, 3).map(x => x.id));
+    expect(r?.reason).toBe('甩♠副牌(该门已绝，3张)');
+  });
+
+  it('第二家可能毙 → 不甩（交回既有优先级）', () => {
+    const ctx = ctxOf({ myIndex: 0, playCount: 0, history: [drainedTrick(0)],
+      ntState: ntStateOf({ 1: { 'H-2': 2, 'C-2': 1 } }) });
+    expect(tryLeadDrainedSuitThrow(threeSingles, ctx)).toBeNull();
+  });
+
+  it('第四家可能毙 → 不甩', () => {
+    const ctx = ctxOf({ myIndex: 0, playCount: 0, history: [drainedTrick(0)],
+      ntState: ntStateOf({ 3: { 'H-2': 2, 'C-2': 1 } }) });
+    expect(tryLeadDrainedSuitThrow(threeSingles, ctx)).toBeNull();
+  });
+
+  it('含对 → 即使两家都可能毙也直接甩', () => {
+    const ctx = ctxOf({ myIndex: 0, playCount: 0, history: [drainedTrick(0)],
+      ntState: ntStateOf({ 1: { 'H-2': 2, 'C-2': 1 }, 3: { 'H-2': 2, 'C-2': 1 } }) });
+    const r = tryLeadDrainedSuitThrow(withPair, ctx);
+    expect(r?.reason).toBe('甩♠副牌(该门已绝，4张)');
+  });
+
+  it('剩余不足 3 张 → 不走这条通道', () => {
+    const ctx = ctxOf({ myIndex: 0, playCount: 0, history: [drainedTrick(0)], ntState: ntStateOf({}) });
+    expect(tryLeadDrainedSuitThrow(twoCards, ctx)).toBeNull();
+  });
+
+  it('剩余是单一牌型（拖拉机）→ 不走这条通道', () => {
+    const ctx = ctxOf({ myIndex: 0, playCount: 0, history: [drainedTrick(0)], ntState: ntStateOf({}) });
+    expect(tryLeadDrainedSuitThrow(tractor, ctx)).toBeNull();
+  });
+
+  it('有主局（无记牌器）→ 不走这条通道', () => {
+    const ctx = ctxOf({ myIndex: 0, playCount: 0, history: [drainedTrick(0)] });
+    expect(tryLeadDrainedSuitThrow(threeSingles, ctx)).toBeNull();
+  });
+
+  it('三家跟不满（各跟 1 张 + 垫 1 张）→ 同样全甩', () => {
+    const plays: Card[][] = [
+      [c(DRAIN_SUIT, 13), c(DRAIN_SUIT, 13)],
+      [c(DRAIN_SUIT, 7), c(Suit.Hearts, 6)],
+      [c(DRAIN_SUIT, 8), c(Suit.Hearts, 7)],
+      [c(DRAIN_SUIT, 9), c(Suit.Hearts, 8)],
+    ];
+    const hand = [c(DRAIN_SUIT, 12), c(DRAIN_SUIT, 12), c(DRAIN_SUIT, 11), c(DRAIN_SUIT, 10)];
+    const ctx = ctxOf({ myIndex: 0, playCount: 0, history: [trickOf(0, 0, plays)], ntState: ntStateOf({}) });
+    const r = tryLeadDrainedSuitThrow(hand, ctx);
+    expect(r?.cards.map(x => x.id)).toEqual(hand.map(x => x.id));
+    expect(r?.reason).toBe('甩♠副牌(该门已绝，4张)');
+  });
+
+  it('不是领出（playCount > 0）→ 不触发', () => {
+    const ctx = ctxOf({ myIndex: 0, playCount: 1, history: [drainedTrick(0)], ntState: ntStateOf({}) });
+    expect(tryLeadDrainedSuitThrow(threeSingles, ctx)).toBeNull();
+  });
+
+  it('执有的牌不在手上/无证据 → 不触发', () => {
+    const ctx = ctxOf({ myIndex: 0, playCount: 0, history: [], ntState: ntStateOf({}) });
+    expect(tryLeadDrainedSuitThrow(threeSingles, ctx)).toBeNull();
+  });
+});
+
+describe('G2 放宽：仅无主、仅领出侧', () => {
+  /** 上一墩 hero 领 ♠ 两对；P2 短门（只跟 2 张 ♠）、P3 缺门。 */
+  const g2Trick = (): Trick =>
+    trickOf(0, 0, [leadOf(DRAIN_SUIT), noPair(DRAIN_SUIT), shortOf(DRAIN_SUIT), voidOf()]);
+  const flushHand = [c(DRAIN_SUIT, 10), c(DRAIN_SUIT, 10), c(DRAIN_SUIT, 8), c(DRAIN_SUIT, 8)];
+
+  it('无主：对手短门不再拦截（跳过 G2）', () => {
+    const ctx = ctxOf({ myIndex: 0, playCount: 0, history: [g2Trick()], ntState: ntStateOf({}) });
+    expect(detectFlushEvidence(ctx, 0, { skipOpponentFullFollow: true }))
+      .toEqual({ suit: DRAIN_SUIT, leadLen: 4, reqPairs: 2 });
+    expect(tryLeadFlushThrow(flushHand, ctx)?.reason).toBe('甩♠副牌(对子已绝，2对)');
+  });
+
+  it('有主：同样局面仍无证据（G2 保留，有主策略不受影响）', () => {
+    const ctx = ctxOf({ myIndex: 0, playCount: 0, history: [g2Trick()] });
+    expect(detectFlushEvidence(ctx, 0)).toBeNull();
+    expect(tryLeadFlushThrow(flushHand, ctx)).toBeNull();
+  });
+
+  it('isFlushFollow 在无主下仍要求对手跟满（跟牌侧不得放开 G2）', () => {
+    const ctx = ctxOf({ myIndex: 2, leadPlayerIndex: 0, playCount: 0,
+      history: [g2Trick()], ntState: ntStateOf({}) });
+    expect(isFlushFollow(ctx, classify(leadOf(DRAIN_SUIT), { ...CFG, trumpSuit: null }))).toBe(false);
   });
 });

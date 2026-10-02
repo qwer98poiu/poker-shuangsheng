@@ -78,9 +78,12 @@ describe('arena e2e', () => {
     //  出副对清对（优先级 0：上一墩验对手该花色对子已绝则甩出该门剩下的对，
     //  第三家跟清对按加分垫牌且不得盖过队友）后为 226；
     //  NT 记牌器对子扣减改按"领出是否含对"判定（单张主领出不再把三家主张数
-    //  压平、不再抹掉对手的主对）后为 217）
-    expect(statsA.matches.oppLevel).toEqual({ n: 217, d: 20 });
-    expect(statsB.matches.oppLevel).toEqual({ n: 217, d: 20 });
+    //  压平、不再抹掉对手的主对）后为 217；
+    //  无主两项新规（上一墩整门已绝则甩光该门副牌、第三家跟队友甩牌时第四家
+    //  可能毙且本墩无分则不毙改垫牌）后为 220；
+    //  "整门已绝"判据放宽——跟不满领出张数也算已缺门（原先只认"一张没出"）后为 219）
+    expect(statsA.matches.oppLevel).toEqual({ n: 219, d: 20 });
+    expect(statsB.matches.oppLevel).toEqual({ n: 219, d: 20 });
     expect(statsA.handsPlayed).toBe(statsB.handsPlayed);
     expect(statsA.abortedHands).toBe(0);
     const sig = checkSignificance(statsA.matches.won, statsB.matches.won, statsA.matches.drawn, statsA.matches.played);

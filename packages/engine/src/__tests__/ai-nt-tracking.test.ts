@@ -3,8 +3,10 @@ import { Rank, SpecialSuit, Suit } from '../types.js';
 import { createCard } from '../model.js';
 import { computeNTTrumpState, canFormJokerPair, opponentsHaveTrump,
   canPlayerBeatSingle, canPlayerBeatPair, canAnyOpponentBeatSingle, canAnyOpponentBeatPair,
+  canPlayerTrumpThrow,
 } from '../ai/nt-tracking.js';
 import type { Card, CardSuit, Reveal, Trick, TrumpDeclaration } from '../types.js';
+import type { NTTrumpState } from '../ai/types.js';
 
 /** Create a minimal NT config at the given level. */
 function ntCfg(level: number, declarerIdx = 0): TrumpDeclaration {
@@ -1684,5 +1686,117 @@ describe('reported position: single big-joker lead in trick 2', () => {
     expect(cnt(s.possibleTrumps[1], 'C-2')).toBe(1);
     // 两张 ♥2 都在自己手上，其它位置为 0
     expect(cnt(s.possibleTrumps[1], 'H-2')).toBe(0);
+  });
+});
+
+// ================================================================
+// canPlayerTrumpThrow —— 某玩家能否用主牌毙掉这手副牌领出
+// 级牌 2 的无主局：主牌 = 大王/小王/四门 2（共 12 张，每个 key 至多 2 张）。
+// 判据只跟**牌型**有关——任何一张主牌都大于副牌，所以只要凑得出匹配牌型就能毙。
+// ================================================================
+describe('canPlayerTrumpThrow — 能否主牌毙掉副牌领出', () => {
+  const cfg = ntCfg(2);
+
+  /** 只填 possibleTrumps 与 maxTrumpCounts 的记牌器状态（其余字段本函数不读）。 */
+  function mkState(p3: Record<string, number>, max3?: number): NTTrumpState {
+    let total = 0;
+    for (const n of Object.values(p3)) total += Math.min(n, 2);
+    return {
+      knownTrumpsPerPlayer: [[], [], [], []],
+      playersWithNoTrump: new Set(),
+      totalTrumps: 12,
+      opponentTrumpCount: 0,
+      remainingBigJokers: 2,
+      remainingSmallJokers: 2,
+      allUnseenJokersOnOurSide: false,
+      allUnseenBigJokersOnOurSide: false,
+      possibleTrumps: [null, {}, {}, p3, {}],
+      isFullyDetermined: false,
+      canFormPair: [false, false, false, false],
+      canHaveJoker: [false, false, false, false],
+      canHaveBigJoker: [false, false, false, false],
+      canHaveSmallJoker: [false, false, false, false],
+      minTrumpCounts: [0, 0, 0, 0],
+      maxTrumpCounts: [0, 0, 0, max3 ?? total],
+    };
+  }
+
+  // 领出全部取 ♣ 的非主牌（级牌 2 → ♣2 是主，故只用 K..A 以下的 9..14）
+  const L3S = [c('C', 13, 200), c('C', 12, 200), c('C', 11, 200)];              // 3 单张
+  const L2S = [c('C', 13, 200), c('C', 12, 200)];                                // 2 单张
+  const L4S = [c('C', 14, 200), c('C', 13, 200), c('C', 12, 200), c('C', 11, 200)]; // 4 单张
+  const LPAIR2S = [c('C', 13, 200), c('C', 13, 201), c('C', 12, 200), c('C', 11, 200)]; // 一对+2 单
+  const LPAIR1S = [c('C', 13, 200), c('C', 13, 201), c('C', 12, 200)];           // 一对+1 单
+  const L2PAIR = [c('C', 13, 200), c('C', 13, 201), c('C', 12, 200), c('C', 12, 201)]; // 两对（拖拉机）
+
+  it('本身份（possibleTrumps 为 null）→ false', () => {
+    expect(canPlayerTrumpThrow(0, L3S, mkState({ 'S-2': 2 }), cfg)).toBe(false);
+  });
+
+  it('第四家一张主牌都没有 → false', () => {
+    expect(canPlayerTrumpThrow(3, L3S, mkState({}), cfg)).toBe(false);
+  });
+
+  it('三单张领出：张数够任意三张主牌即可，不够则否', () => {
+    expect(canPlayerTrumpThrow(3, L3S, mkState({ 'S-2': 2 }), cfg)).toBe(false);
+    expect(canPlayerTrumpThrow(3, L3S, mkState({ 'S-2': 1, 'H-2': 1 }), cfg)).toBe(false);
+    expect(canPlayerTrumpThrow(3, L3S, mkState({ 'S-2': 2, 'H-2': 1 }), cfg)).toBe(true);
+    expect(canPlayerTrumpThrow(3, L3S, mkState({ 'S-2': 1, 'H-2': 1, 'D-2': 1 }), cfg)).toBe(true);
+    expect(canPlayerTrumpThrow(3, L3S, mkState({ 'J-16': 1, 'J-15': 1 }), cfg)).toBe(false);
+    expect(canPlayerTrumpThrow(3, L3S, mkState({ 'J-16': 2, 'J-15': 1 }), cfg)).toBe(true);
+  });
+
+  it('两单张领出：一对主牌可当两张单张跟', () => {
+    expect(canPlayerTrumpThrow(3, L2S, mkState({ 'S-2': 1 }), cfg)).toBe(false);
+    expect(canPlayerTrumpThrow(3, L2S, mkState({ 'S-2': 2 }), cfg)).toBe(true);
+    expect(canPlayerTrumpThrow(3, L2S, mkState({ 'J-16': 1, 'J-15': 1 }), cfg)).toBe(true);
+  });
+
+  it('四单张领出：三张主牌不够', () => {
+    expect(canPlayerTrumpThrow(3, L4S, mkState({ 'S-2': 2, 'H-2': 1 }), cfg)).toBe(false);
+    expect(canPlayerTrumpThrow(3, L4S, mkState({ 'S-2': 2, 'H-2': 1, 'D-2': 1 }), cfg)).toBe(true);
+    expect(canPlayerTrumpThrow(3, L4S, mkState({ 'J-16': 2, 'J-15': 1 }), cfg)).toBe(false);
+  });
+
+  it('含对领出：必须是主牌对（全单张凑不出牌型）', () => {
+    expect(canPlayerTrumpThrow(3, LPAIR2S, mkState({ 'S-2': 2, 'H-2': 1 }), cfg)).toBe(false);
+    expect(canPlayerTrumpThrow(3, LPAIR2S, mkState({ 'S-2': 2, 'H-2': 1, 'D-2': 1 }), cfg)).toBe(true);
+    expect(canPlayerTrumpThrow(3, LPAIR2S, mkState({ 'S-2': 1, 'H-2': 1, 'D-2': 1, 'C-2': 1 }), cfg)).toBe(false);
+    expect(canPlayerTrumpThrow(3, LPAIR2S, mkState({ 'J-16': 2, 'J-15': 1 }), cfg)).toBe(false);
+    expect(canPlayerTrumpThrow(3, LPAIR1S, mkState({ 'S-2': 2, 'H-2': 1 }), cfg)).toBe(true);
+    expect(canPlayerTrumpThrow(3, LPAIR1S, mkState({ 'S-2': 1, 'H-2': 1, 'D-2': 1 }), cfg)).toBe(false);
+    expect(canPlayerTrumpThrow(3, LPAIR1S, mkState({ 'J-16': 2, 'J-15': 1 }), cfg)).toBe(true);
+  });
+
+  it('单张领出：手上有主牌就盖得过（不比大小）', () => {
+    const one = [c('C', 13, 200)];
+    expect(canPlayerTrumpThrow(3, one, mkState({}), cfg)).toBe(false);
+    expect(canPlayerTrumpThrow(3, one, mkState({ 'S-2': 1 }), cfg)).toBe(true);
+    expect(canPlayerTrumpThrow(3, one, mkState({ 'J-15': 1 }), cfg)).toBe(true);
+  });
+
+  it('对子领出：必须是主牌对（两张单张盖不过）', () => {
+    const pair = [c('C', 13, 200), c('C', 13, 201)];
+    expect(canPlayerTrumpThrow(3, pair, mkState({}), cfg)).toBe(false);
+    expect(canPlayerTrumpThrow(3, pair, mkState({ 'S-2': 1, 'H-2': 1 }), cfg)).toBe(false);
+    expect(canPlayerTrumpThrow(3, pair, mkState({ 'S-2': 2 }), cfg)).toBe(true);
+    expect(canPlayerTrumpThrow(3, pair, mkState({ 'J-16': 2 }), cfg)).toBe(true);
+  });
+
+  it('拖拉机领出：级牌四门同点，两对级牌不构成拖拉机；大王对+小王对才是', () => {
+    expect(canPlayerTrumpThrow(3, L2PAIR, mkState({ 'S-2': 2, 'H-2': 2 }), cfg)).toBe(false);
+    expect(canPlayerTrumpThrow(3, L2PAIR, mkState({ 'S-2': 2, 'H-2': 2, 'D-2': 2 }), cfg)).toBe(false);
+    expect(canPlayerTrumpThrow(3, L2PAIR, mkState({ 'J-16': 2, 'J-15': 2 }), cfg)).toBe(true);
+    expect(canPlayerTrumpThrow(3, L2PAIR, mkState({ 'J-15': 2, 'S-2': 2 }), cfg)).toBe(true);
+  });
+
+  it('maxTrumpCounts 上限小于领出张数 → false（不瞎算）', () => {
+    expect(canPlayerTrumpThrow(3, L2S, mkState({ 'S-2': 2 }, 1), cfg)).toBe(false);
+    expect(canPlayerTrumpThrow(3, L3S, mkState({ 'S-2': 2, 'H-2': 2 }, 2), cfg)).toBe(false);
+  });
+
+  it('每 key 至多按 2 张计（possibleTrumps 不会超过 2）', () => {
+    // 即便调用方给出 3，也只按 2 张算 → 3 单张领出仍毙不了
+    expect(canPlayerTrumpThrow(3, L3S, mkState({ 'S-2': 3 }), cfg)).toBe(false);
   });
 });

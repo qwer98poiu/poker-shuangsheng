@@ -1,5 +1,44 @@
 # Changelog
 
+## 2026-10-02 14:09
+
+### 无主新增「整门已绝 → 全甩」（领出优先级 0 的第二支）
+
+**问题**：优先级 0 原来只有「对子已绝 → 甩对」。三家跟完都没这门花色是更强的证据——该门剩下的**全在自己手上**，此时只甩对会把单牌留到后面，白白多打几墩。
+
+**做法**：`flush-detector.ts` 新增 `detectDrainedSuit` 与 `tryLeadDrainedSuitThrow`：上一墩自己领出该副花色、三家**都跟不满领出张数**、自己赢下时，把该门**全部**甩出，排在 `tryLeadFlushThrow` 之前。含对时直接甩（接受被主牌毙的风险）；只有单张时要求第二家与第四家都毙不了（`canPlayerTrumpThrow`，仅无主有记牌器）。剩余不足 3 张、或剩余本身是单一牌型（单张/对/拖拉机）时不算"甩"，交给优先级 2–4——也让队友侧「跟队友甩牌」按 `leadCombo.type === 'throw'` 的判据保持一致。
+
+判据是"跟出的该花色张数 < 领出张数"（与 G2 同口径）：跟牌强制出尽该花色，手上不够领出张数就必须把这门全部出掉，所以"跟不满"与"一张没出"同样意味着跟完即缺门。`leadLen = 1` 时退化为后者。领一对、三家各跟 1 张 + 垫 1 张即属此类——该门已经绝了，若只认"一张没出"就会漏掉它，只走甩对、把单张留到后面。
+
+不会被判罚：`validateThrow` 只校验同花色组，三家该门此刻一张没有 ⇒ 必然合法。
+
+**新增 31 项测试**（ai-flush-detector.test.ts：31 项）
+
+### 无主放宽清对甩对的 G2 守卫
+
+**做法**：`detectFlushEvidence` 新增 `skipOpponentFullFollow` 选项，`tryLeadFlushThrow` 在无主下跳过 G2（对手缺门/短门不再拦截甩对，接受被毙风险）。**跟牌侧 `isFlushFollow` 保持严格**——那里的结论是"本墩必归队友"，对手缺门时该结论不成立，放开等于在第四家可能毙时喂分（与下面「第四家可能毙且本墩无分时不毙」那节矛盾）。有主局原样保留 G2。
+
+**新增 3 项测试**（ai-flush-detector.test.ts：3 项）
+
+### NT 第三家跟队友甩副牌：按第四家能否毙决定加分与不毙
+
+**问题**：第三家缺门、队友的甩副牌已大（第二家没毙）时，原行为一律用主牌盖过队友——盖了也可能被第四家盖毙，白送主牌还给对方喂分；而加分判据（`canAddPoints`）只认「领出含顶张或拖拉机」，领出无顶张时判否，于是一路走到毙牌。无主局里这种浪费尤其明显：主牌只有级牌与王，一张都金贵。那条判据防的其实是件不可能的事：引擎对 `type === 'throw'` 的领出先跑 `validateThrow`，不合法就罚分并强制改出降级子牌型（`game/index.ts`），进到比较的永远是合法牌型——**甩牌被同花色盖过在结构上不可能**（20,000 副实测：副牌甩牌 18,182 墩，被同花色盖 0 次）。唯一真实的风险是第四家缺门用主牌毙。
+
+**做法**：`nt-tracking.ts` 新增 `canPlayerTrumpThrow(playerIndex, leadCards, state, config)`——无主局里任何一张主牌都大于副牌，能否毙只取决于**牌型**。它把 `possibleTrumps`（每 key 至多 2 张）摊成该玩家的「最大可能主牌」一手，再按领出牌型判这手牌是否覆盖领出：甩牌直接交给 `matchPattern`（它对甩牌本就是「跟牌覆盖领出」的判据：跟牌须全主、拖拉机数/长度不少于领出、对数经 extraPairs 折算后不少于领出）；单张/对子/拖拉机按牌型取值（更长的拖拉机可截短）。一次调用即出结果，不再枚举子集。证不出「凑不出」时返回 true（宁可照常毙，不误判而漏毙）。
+
+第三家据此分两支，都在凑不出「不盖过队友」的垫牌（手牌接近全主）时退回照常毙：
+
+- **记牌器判毙不了 → 加分**：`canAddPoints` 的甩副牌分支改判——含顶张、含拖拉机、甩主牌按原有行为，**无顶张也无拖拉机**时看记牌器；按加分优先级（`pickBestAddCards`）垫牌且**不毙**。原先 `follow-offsuit.ts` 里那条独立的「NT 加分口子」随之不可达，并进共享路径后删掉其死代码，其 `isBeatingTrumpKill` 兜底一并上提（顺带修掉「手牌接近全主时垫牌反而抢走队友的墩」这个老问题）。
+- **判能毙（或无记牌器）→ 不毙、不加分**：本墩已出牌没分（复用 `trickHasNoPoints`，未知按"有分"保守）且不是"级牌为分牌 + 自己是闲家"时，按避分优先级垫牌且**不毙**（理由 `垫牌（无分墩，不毙）`，`annotateReason` 新增 `noKill`）；本墩有分、或级牌为分牌且自己是闲家 → 照常毙（这墩丢不起）。
+
+与位置无关的禁分档（庄家方闲家 75–79、70/75 台阶）从 `canAddPoints` 里抽成 `addPointsForbidden` 后共用，任何一支都不放行禁分。仅无主生效（有主局没有记牌器，行为完全不变）。
+
+**新增 33 项测试**（ai-nt-tracking.test.ts：11 项；ai-follow.test.ts：22 项），引擎 1018 项 + arena 117 项 + CLI 87 项 + client 201 项 = 1423 项通过。
+
+**有主策略零影响**（实测）：改动前后各 675 局有主局面（♠/♥/♦ 各 225 局 × 3 级牌 × 3 庄家）出牌逐张一致；同口径无主对照组 6 处不同（探针有分辨力）。竞技场种子局基准会变（通用竞技场含无主局）：A==A 冒烟「胜时对方平均等级」217 → 219。
+
+- **影响文件**：`packages/engine/src/ai/nt-tracking.ts`、`packages/engine/src/ai/flush-detector.ts`、`packages/engine/src/ai/lead.ts`、`packages/engine/src/ai/follow-offsuit.ts`、`packages/engine/src/ai/helpers.ts`、`packages/engine/src/ai/no-seize.ts`、`packages/engine/src/ai/reason.ts`、`packages/engine/src/ai/STRATEGY.md`、`packages/engine/src/__tests__/ai-nt-tracking.test.ts`、`packages/engine/src/__tests__/ai-flush-detector.test.ts`、`packages/engine/src/__tests__/ai-follow.test.ts`、`packages/arena/src/__tests__/arena-e2e.test.ts`、`README.md`
+
 ## 2026-10-02 00:25
 
 ### 两个竞技场新增 --until-significant：不设最小样本，显著即停

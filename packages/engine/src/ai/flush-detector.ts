@@ -26,6 +26,7 @@ import { compareTwo } from '../comparing/index.js';
 import { suitGroup } from '../leading/index.js';
 import type { ComboClass } from '../types.js';
 import type { AIContext } from './types.js';
+import { canPlayerTrumpThrow } from './nt-tracking.js';
 import { suitLabelCn } from './utils.js';
 import { visibleTrickPoints } from './position-policy.js';
 
@@ -48,8 +49,17 @@ const ATTACKER_TARGET = 80;
  * 成立条件：上一墩由 hero 领出、hero 赢下；领出是含对的副牌牌型；
  * 三家**都没出满要求的对数**（G1）；两个对手都**跟满了领出张数**（G2）。
  * 返回 null 表示无证据 / 信息不足。
+ *
+ * `skipOpponentFullFollow`（无主领出侧用）跳过 G2：G2 只拦"对手缺门 ⇒ 可能用主牌对
+ * 毙"的风险，与 G1 的对子推断无关（缺门者本来就一对没有）。无主甩对接受被毙风险，
+ * 故放开；**跟牌侧（`isFlushFollow`）不得放开**——那里的结论是"本墩必归队友"，
+ * 对手缺门时该结论不成立，放开会变成在第四家可能毙时喂分。
  */
-export function detectFlushEvidence(ctx: AIContext, heroIndex: number): FlushEvidence | null {
+export function detectFlushEvidence(
+  ctx: AIContext,
+  heroIndex: number,
+  opts?: { skipOpponentFullFollow?: boolean },
+): FlushEvidence | null {
   if (heroIndex < 0 || ctx.myIndex < 0) return null;
 
   const history = ctx.trickHistory;
@@ -79,7 +89,8 @@ export function detectFlushEvidence(ctx: AIContext, heroIndex: number): FlushEvi
     if (findAllPairs(inSuit).length >= reqPairs) return null;
 
     // G2：跟该花色张数不足 ⇒ 该家现已缺门，可能用主牌对毙。队友豁免。
-    if (p !== partnerIndex && inSuit.length !== leadCards.length) return null;
+    if (!opts?.skipOpponentFullFollow
+        && p !== partnerIndex && inSuit.length !== leadCards.length) return null;
   }
 
   return { suit: leadCards[0].suit, leadLen: leadCards.length, reqPairs };
@@ -93,7 +104,9 @@ export function tryLeadFlushThrow(
   hand: Card[], ctx: AIContext,
 ): { cards: Card[]; reason: string } | null {
   if (ctx.playCount !== 0) return null; // 只在领出时
-  const evidence = detectFlushEvidence(ctx, ctx.myIndex);
+  // 无主：甩对接受被毙风险，跳过 G2（对手缺门不构成对子推断的缺口）；有主维持原样
+  const evidence = detectFlushEvidence(ctx, ctx.myIndex,
+    { skipOpponentFullFollow: ctx.ntState !== null });
   if (!evidence) return null;
 
   const group = String(evidence.suit);
@@ -105,6 +118,78 @@ export function tryLeadFlushThrow(
   return {
     cards,
     reason: `甩${suitLabelCn(evidence.suit)}副牌(对子已绝，${pairs.length}对)`,
+  };
+}
+
+/** 上一墩留下的"该副花色整门已绝"证据。 */
+export interface DrainedSuitEvidence {
+  readonly suit: CardSuit;
+}
+
+/**
+ * 从上一墩推断 `heroIndex` 领出的某副花色是否**整门已绝**。
+ *
+ * 成立条件：上一墩由 hero 领出、hero 赢下；领出是单一副花色的牌型；三家**都跟不满
+ * 领出张数**。跟牌强制出尽该花色（手上不够领出张数就必须把这门全部出掉），故
+ * "跟不满"⟺三家此刻已缺门，该门剩余全在 hero 手上。返回 null 表示无证据 / 信息不足。
+ *
+ * 判据与 G2 同口径（`inSuit.length < leadLen`），`leadLen === 1` 时退化为"一张没出"。
+ */
+export function detectDrainedSuit(ctx: AIContext, heroIndex: number): DrainedSuitEvidence | null {
+  if (heroIndex < 0 || ctx.myIndex < 0) return null;
+  const history = ctx.trickHistory;
+  if (history.length === 0) return null;
+  const last = history[history.length - 1];
+  if (last.leadPlayerIndex !== heroIndex || last.winnerIndex !== heroIndex) return null;
+
+  const leadCards = last.plays[0].cards;
+  if (leadCards.length < 2) return null;
+  if (leadCards.some(c => isTrump(c, ctx))) return null;
+  const group = suitGroup(leadCards[0], ctx);
+  if (!leadCards.every(c => suitGroup(c, ctx) === group)) return null;
+
+  for (let i = 1; i <= 3; i++) {
+    const inSuit = last.plays[i].cards.filter(c => suitGroup(c, ctx) === group);
+    if (inSuit.length >= leadCards.length) return null; // 跟满 ⇒ 该家手上还有这门，信息不足
+  }
+  return { suit: leadCards[0].suit as CardSuit };
+}
+
+/**
+ * 领出优先级 0（无主）：上一墩我领出某副花色、三家一张都没跟出该花色、我赢下
+ * → 该门剩下的**全部**在我手上，本墩把它一次性甩出去。
+ *
+ * **不会被判罚**：`validateThrow` 只看同花色组的阻断，三家该门此刻一张没有 ⇒ 必然合法。
+ * 唯一风险是被主牌毙：含对时接受该风险直接甩；纯单张时要求**两个对手都毙不了**
+ * （记牌器判定），否则交回既有优先级。
+ *
+ * 剩余是单一牌型（单张/对/拖拉机）时不走这里——那分别是出单/出对/出拖拉机，交给
+ * 优先级 2–4；这也让队友侧"跟队友甩牌"（`leadCombo.type === 'throw'`）的判据一致。
+ */
+export function tryLeadDrainedSuitThrow(
+  hand: Card[], ctx: AIContext,
+): { cards: Card[]; reason: string } | null {
+  if (!ctx.ntState) return null; // 仅无主：纯单张那支的"毙不了"依赖记牌器
+  if (ctx.playCount !== 0) return null;
+  const evidence = detectDrainedSuit(ctx, ctx.myIndex);
+  if (!evidence) return null;
+
+  const group = String(evidence.suit);
+  const cards = hand.filter(c => suitGroup(c, ctx) === group);
+  if (cards.length < 3) return null; // 与 findThrowableOffSuitCombos 同口径：< 3 张不算甩
+
+  const combo = classify(cards, ctx);
+  if (combo.type !== 'throw') return null;
+
+  if (combo.pairCount === 0 && !combo.hasTractor) {
+    const nt = ctx.ntState;
+    if (canPlayerTrumpThrow((ctx.myIndex + 1) % 4, cards, nt, ctx)) return null;
+    if (canPlayerTrumpThrow((ctx.myIndex + 3) % 4, cards, nt, ctx)) return null;
+  }
+
+  return {
+    cards,
+    reason: `甩${suitLabelCn(evidence.suit)}副牌(该门已绝，${cards.length}张)`,
   };
 }
 
