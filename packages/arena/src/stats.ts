@@ -82,6 +82,17 @@ export function createStats(): StrategyStats {
   };
 }
 
+/**
+ * 小局口径胜率 = 我方所在队赢下的小局 / 总小局。
+ *
+ * 台上 + 台下的合并汇总：每一小局按"我方是庄家方还是闲家"只进这两个桶之一
+ * （中止局不进任何桶），所以分母恒等于 `handsPlayed`，分子 = 我方赢下的局数。
+ * 镜像对打下 A 与 B 逐局直接对垒，故 0.5 即无差异基准。
+ */
+export function handWinRate(s: StrategyStats): CountPair {
+  return { n: s.banker.wins + s.attacker.wins, d: s.banker.hands + s.attacker.hands };
+}
+
 function bump(map: Map<number, CountPair>, level: number, n: number, d: number): void {
   const cur = map.get(level) ?? { n: 0, d: 0 };
   cur.n += n;

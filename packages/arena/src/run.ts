@@ -16,7 +16,7 @@ import { runPairs } from './run-pairs.js';
 import { strategyByName } from './strategies.js';
 import { ChildPool } from './child-pool.js';
 import type { WorkerResult } from './child-pool.js';
-import { createStats, mergeStats, fromJSON, toJSON } from './stats.js';
+import { createStats, mergeStats, fromJSON, toJSON, handWinRate } from './stats.js';
 import type { StrategyStats } from './stats.js';
 import { checkSignificance, requiredMatchesForSignificance, Z } from './significance.js';
 import type { SignificanceResult } from './significance.js';
@@ -159,7 +159,7 @@ function printUpgradeTable(
 
 /**
  * A/B 对比表的数据行。方向约定（用户确认）：
- * - high：胜率、各类胜率、保底/抠底成功、抠底平均加分、平均每局赢得张数
+ * - high：胜率（两种口径）、各类胜率、保底/抠底成功、抠底平均加分、平均每局赢得张数
  * - low：台上平均失分、胜出时对方平均等级（赢得越早、对手等级越低，说明越早拿下）
  * - neutral：当庄频率、扣底平均分数、扣绝一门频率、抠底频率、领出类、各局均量
  */
@@ -168,7 +168,8 @@ function comparisonRows(accA: StrategyStats, accB: StrategyStats): TableRow[] {
   const winRate = (s: StrategyStats): { n: number; d: number } =>
     ({ n: s.matches.won + 0.5 * s.matches.drawn, d: s.matches.played });
   const specs: MetricSpec[] = [
-    ['胜率', winRate(accA), winRate(accB), 'high'],
+    ['胜率（整场口径）', winRate(accA), winRate(accB), 'high'],
+    ['胜率（小局口径）', handWinRate(accA), handWinRate(accB), 'high'],
     ['胜出时对方平均等级', accA.matches.oppLevel, accB.matches.oppLevel, 'low'],
     ['当庄频率', { n: accA.banker.hands, d: hands }, { n: accB.banker.hands, d: hands }, 'neutral'],
     ['台上胜率', { n: accA.banker.wins, d: accA.banker.hands }, { n: accB.banker.wins, d: accB.banker.hands }, 'high'],

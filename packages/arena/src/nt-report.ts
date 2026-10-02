@@ -8,6 +8,7 @@
  * 数）；其余各行是小局口径，与整体竞技场的「整场 vs 小局」分层同理。
  */
 import type { NTStats } from './nt-arena.js';
+import { handWinRate } from './stats.js';
 import { renderTable, perLevelSpecs, rowsFrom, ratioText } from './report.js';
 import type { MetricSpec, TableRow } from './report.js';
 import type { SignificanceResult } from './significance.js';
@@ -20,6 +21,7 @@ function comparisonRows(s: NTStats): TableRow[] {
   const deals = s.dealsWonA + s.dealsWonB + s.dealsDrawn;
   const specs: MetricSpec[] = [
     ['胜率（发牌口径）', { n: s.dealsWonA + 0.5 * s.dealsDrawn, d: deals }, { n: s.dealsWonB + 0.5 * s.dealsDrawn, d: deals }, 'high'],
+    ['胜率（小局口径）', handWinRate(a), handWinRate(b), 'high'],
     ['当庄频率', { n: a.banker.hands, d: hands }, { n: b.banker.hands, d: hands }, 'neutral'],
     ['台上胜率', { n: a.banker.wins, d: a.banker.hands }, { n: b.banker.wins, d: b.banker.hands }, 'high'],
     ...perLevelSpecs('台上', a.banker.perLevel, b.banker.perLevel),

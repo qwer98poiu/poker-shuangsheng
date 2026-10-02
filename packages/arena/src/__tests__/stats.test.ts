@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { Suit } from '@poker/engine';
 import type { HandEvent } from '../types.js';
-import { createStats, addHandStats, addMatchOutcome, mergeStats, toJSON } from '../stats.js';
+import { createStats, addHandStats, addMatchOutcome, mergeStats, toJSON, handWinRate } from '../stats.js';
 
 /** 庄家(team0)在 Q(12) 有主 打赢：闲家 40 分保庄。 */
 const evBankerWin: HandEvent = {
@@ -168,5 +168,40 @@ describe('抠底频率与抠底成功频率', () => {
     addHandStats(s, win, 0);
     addHandStats(s, lose, 0);
     expect(s.banker.ntHands).toEqual({ n: 1, d: 2 });
+  });
+});
+
+describe('handWinRate — 小局口径胜率（台上 + 台下合并）', () => {
+  it('坐庄赢 + 坐闲赢 → 2/2', () => {
+    const s = createStats();
+    addHandStats(s, evBankerWin, 0);   // 我方即 team0（庄家方）→ 台上赢
+    addHandStats(s, evAttackerWin, 0); // teamBanker 1 → 我方坐闲，闲家上台 → 台下赢
+    expect(s.banker).toMatchObject({ hands: 1, wins: 1 });
+    expect(s.attacker).toMatchObject({ hands: 1, wins: 1 });
+    expect(handWinRate(s)).toEqual({ n: 2, d: 2 });
+  });
+
+  it('坐庄赢 + 坐闲输 → 1/2', () => {
+    const s = createStats();
+    addHandStats(s, evBankerWin, 0); // 台上赢
+    addHandStats(s, evBankerWin, 1); // 同一局换我方视角：teamBanker 0 ≠ 1 → 坐闲且庄家赢 → 台下输
+    expect(handWinRate(s)).toEqual({ n: 1, d: 2 });
+  });
+
+  it('中止小局不进分子也不进分母', () => {
+    const s = createStats();
+    addHandStats(s, evAborted, 0);
+    expect(s.handsPlayed).toBe(0);
+    expect(handWinRate(s)).toEqual({ n: 0, d: 0 });
+  });
+
+  it('分母恒等于 handsPlayed（每局只进台上/台下一个桶）', () => {
+    const s = createStats();
+    addHandStats(s, evBankerWin, 0);
+    addHandStats(s, evAttackerWin, 0);
+    addHandStats(s, evBankerWin, 1);
+    addHandStats(s, evAborted, 0);
+    expect(s.handsPlayed).toBe(3);
+    expect(handWinRate(s)).toEqual({ n: 2, d: 3 });
   });
 });

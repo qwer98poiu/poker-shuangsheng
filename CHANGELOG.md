@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-10-02 15:04
+
+### 两个竞技场对比表新增「胜率（小局口径）」
+
+**问题**：表里只有整场（通用）/发牌（无主）口径的头条胜率，以及分角色的台上/台下胜率，缺一个"逐小局、不分角色"的合并数字——镜像对打下每一小局就是 A 的队对 B 的队，这个数才是最直接的对比（0.5 即无差异）。
+
+**做法**：`stats.ts` 新增 `handWinRate(s) = (banker.wins + attacker.wins) / (banker.hands + attacker.hands)`——每一小局按"我方是庄家方还是闲家"只进这两个桶之一，中止局不进任何桶，故分母恒等于 `handsPlayed`。两张对比表各加一行 `胜率（小局口径）`，排在各自头条胜率下面；通用竞技场的头条同时补上口径标注（`胜率` → `胜率（整场口径）`），三级粒度（整场/发牌、小局）读法一致。
+
+无主竞技场本来就有 north-star 计数 `handWinsA/B`，与新行同源同值，新增断言把两者锁在一起。**只改报告输出层，不动统计采集与策略**——Elo 与 arena/client 的种子局数字均不受影响。
+
+**新增 4 项测试**（stats.test.ts：4 项；另在 nt-arena.test.ts 补 1 项一致性断言），引擎 1018 项 + arena 121 项 + CLI 87 项 + client 201 项 = 1427 项通过。
+
+- **影响文件**：`packages/arena/src/stats.ts`、`packages/arena/src/run.ts`、`packages/arena/src/nt-report.ts`、`packages/arena/src/__tests__/stats.test.ts`、`packages/arena/src/__tests__/nt-arena.test.ts`
+
 ## 2026-10-02 14:09
 
 ### 无主新增「整门已绝 → 全甩」（领出优先级 0 的第二支）

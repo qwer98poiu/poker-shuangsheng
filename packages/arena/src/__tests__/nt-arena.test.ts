@@ -7,6 +7,7 @@ import {
 } from '../nt-arena.js';
 import { dealtHands } from '../match.js';
 import { deckForHand } from '../rng.js';
+import { handWinRate } from '../stats.js';
 import { engineStrategy, ai0816Strategy } from '../strategies.js';
 
 /** Deck with both jokers of `rank` forced into seat `seat`. */
@@ -115,6 +116,9 @@ describe('NT arena — stats accumulation', () => {
     addNTDeal(acc, res!);
     expect(ntHandsPlayed(acc)).toBe(HANDS_PER_DEAL);
     expect(acc.handWinsA + acc.handWinsB).toBe(HANDS_PER_DEAL);
+    // 报告里的「胜率（小局口径）」由 per-strategy 累加器导出，必须与 north-star 计数一致
+    expect(handWinRate(acc.statsA)).toEqual({ n: acc.handWinsA, d: HANDS_PER_DEAL });
+    expect(handWinRate(acc.statsB)).toEqual({ n: acc.handWinsB, d: HANDS_PER_DEAL });
     expect(acc.deals).toBe(1);
     expect(acc.skippedDeals).toBe(0);
     // Every 小局 is banked by exactly one side.
