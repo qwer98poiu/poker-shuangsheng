@@ -209,4 +209,21 @@ describe('runSoloDeal / runSoloDeals', () => {
     expect(acc.skippedDeals).toBe(26);
     expect(acc.handsPlayed).toBe(14 * 3);
   });
+
+  it('--deal-filter long-suit 与 --nt-only 叠加：只留任一座位有长花色的对王发牌', () => {
+    // seed 7 的前 200 副：78 副有对王，其中 16 副某座位有长花色（庄家按 33 张池算；
+    // 发牌确定性 → 精确值）。
+    const acc = runSoloDeals(7, 0, 200, [LEVEL], engineStrategy, engineStrategy, true, ['long-suit']);
+    expect(acc.attemptedDeals).toBe(200);
+    expect(acc.keptDeals).toBe(16);
+    expect(acc.skippedDeals).toBe(184);
+    expect(acc.handsPlayed).toBe(16 * 3);
+  });
+
+  it('不带 --nt-only 时长花色按该副自然主牌判：被亮成主牌的那门不算', () => {
+    // 同一区间、同一过滤器，去掉 --nt-only 后多留下有主局里的长花色发牌：36 副。
+    const acc = runSoloDeals(7, 0, 200, [LEVEL], engineStrategy, engineStrategy, false, ['long-suit']);
+    expect(acc.keptDeals).toBe(36);
+    expect(acc.skippedDeals).toBe(164);
+  });
 });

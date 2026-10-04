@@ -218,7 +218,7 @@ function chooseNTBottom(
 // ---- Long-suit (长花色) designation (NT only) ----
 
 /** Shape of a long suit candidate: total >= 9 and control cards >= 6. */
-function longShape(info: OffSuitControlInfo): boolean {
+export function longShape(info: OffSuitControlInfo): boolean {
   return info.cards.length >= 9 && info.tier1.length + info.tier2.length >= 6;
 }
 

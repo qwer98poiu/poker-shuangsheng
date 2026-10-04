@@ -62,7 +62,11 @@ function printUsage(): void {
   --seed N             随机种子（确定性），默认随机
   --level LIST         等级（逗号分隔），默认 ${DEFAULT_LEVELS.join(',')}；all = 2..A（13 档）
   --nt-only            过滤掉四家都没有对王的发牌（自然亮主即无主），默认关
-  --deal-filter NAMES  额外发牌过滤器（逗号分隔，仓库内置），默认无${availableFilterNames().length ? '' : '（当前无可用过滤器，预留接口）'}
+  --deal-filter NAMES  发牌过滤器（逗号分隔，仓库内置），默认无
+                       可选: ${availableFilterNames().join(', ') || '（无）'}
+                       long-suit = 任一座位在该副（该等级）的自然主牌下有长花色即保留
+                       （庄家 P0 按 33 张池＝发到 25＋底牌 8，其余三家各 25 张）；
+                       与 --nt-only 共用即「NT 长花色」（此时主牌恒为无主）
   --strategy-a NAME    策略 A，默认 ai
   --strategy-b NAME    策略 B，默认 ai-0929
   --min-deals N        起跑有效发牌数下限，默认 2000

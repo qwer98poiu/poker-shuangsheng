@@ -50,6 +50,9 @@ export { groupBySuit };
 export { buildAIContext, computeBestSoFar } from './context.js';
 export type { AIContext, NTTrumpState, PlayPosition } from './types.js';
 export { findThrowableOffSuitCombos } from './throw-detector.js';
+export { computeOffSuitControls } from './bottom-controls.js';
+export type { OffSuitControlInfo } from './bottom-controls.js';
+export { longShape } from './bottom-strategy.js';
 
 /** try to reveal trump during dealing */
 export function aiTryReveal(

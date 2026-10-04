@@ -2,11 +2,12 @@
  * 单副牌 A/B 竞技场的两个「入口侧」纯工具：
  *
  * 1. 等级列表解析 —— `--level 2,5,10,Q,K,A` / `--level all`。
- * 2. 发牌过滤器注册表 —— `--deal-filter` 的**接口/管道**。本次不注册任何具体
- *    过滤器（注册表为空），只把「名字 → 谓词」的解析、校验与求值就位；以后要加
- *    一个过滤器，就是在 `DEAL_FILTERS` 里加一行（谓词是仓库内代码，不从外部文件加载）。
+ * 2. 发牌过滤器注册表 —— `--deal-filter` 的「名字 → 谓词」解析、校验与求值。
+ *    具体谓词放在 `solo-deal-filters.ts`，在这里显式登记（注册即确定，不靠 import
+ *    副作用；谓词文件只 type-only 反引本文件的类型，运行时无环）。
  */
-import type { Card } from '@poker/engine';
+import type { Card, TrumpDeclaration } from '@poker/engine';
+import { longSuitDealFilter } from './solo-deal-filters.js';
 
 /** 2..A 的全部 13 个等级。 */
 export const ALL_LEVELS: readonly number[] = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
@@ -45,7 +46,7 @@ export function parseLevels(spec: string): number[] {
   return [...out].sort((a, b) => a - b);
 }
 
-/** 过滤器求值所需的上下文：这一副牌的发出手牌、整副牌、以及正在跑的等级。 */
+/** 过滤器求值所需的上下文：这一副牌的发出手牌、整副牌、正在跑的等级、以及自然亮主。 */
 export interface DealFilterContext {
   /** `dealtHands(deck)`：第 i 张归座位 i % 4。 */
   hands: readonly Card[][];
@@ -53,6 +54,12 @@ export interface DealFilterContext {
   deck: readonly Card[];
   /** 当前等级（牌点是主牌的那个等级）——过滤器可以依赖它。 */
   level: number;
+  /**
+   * 该副（该等级）的自然亮主 —— 判「哪几门是副牌」要用它。由竞技场按基准腿
+   * [B, B] 的亮主重放得到（见 `naturalDeclaration`）；`--nt-only` 下恒为
+   * `trumpSuit: null`（对王亮无主压过一切有主亮主）。
+   */
+  decl: TrumpDeclaration;
 }
 
 /** 一个发牌过滤器：为真表示「这一副（在这个等级下）保留」。 */
@@ -61,12 +68,14 @@ export type DealFilter = (ctx: DealFilterContext) => boolean;
 /**
  * 过滤器注册表 —— `--deal-filter NAME` 的取名字处，也是唯一的扩展点。
  *
- * 目前**故意为空**：本次只落接口/管道。加一个过滤器即在此加一行，例如
- * 长花色（与 `--nt-only` 共用即「NT 长花色」）可用
- * `computeOffSuitControls(hands[0], decl).some(longShape)` 之类现成的谓词。
- * 谓词必须是仓库内代码，`--deal-filter` 不支持外部文件。
+ * 加一个过滤器：在 `solo-deal-filters.ts` 写谓词，在此加一行登记。谓词必须是仓库
+ * 内代码，`--deal-filter` 不支持外部文件。当前已登记：
+ * - `long-suit`：任一座位在该副自然主牌下有长花色（庄家 P0 按 33 张池＝发到 25＋底牌 8，
+ *   其余三家各 25 张；与 `--nt-only` 共用即「NT 长花色」）。
  */
-export const DEAL_FILTERS: Map<string, DealFilter> = new Map();
+export const DEAL_FILTERS: Map<string, DealFilter> = new Map([
+  ['long-suit', longSuitDealFilter],
+]);
 
 /** 当前可用的过滤器名（升序），供帮助文本与报错列举。 */
 export function availableFilterNames(): string[] {
@@ -83,7 +92,7 @@ export function resolveDealFilters(names: readonly string[]): string[] {
       const avail = availableFilterNames();
       throw new Error(avail.length > 0
         ? `未知的发牌过滤器: ${name}（可选: ${avail.join(', ')}）`
-        : `未知的发牌过滤器: ${name}（目前无可用过滤器——--deal-filter 是预留接口）`);
+        : `未知的发牌过滤器: ${name}（当前无可用过滤器）`);
     }
   }
   return [...names];

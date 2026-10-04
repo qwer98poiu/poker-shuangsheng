@@ -86,17 +86,21 @@ function countVoidedSuits(before: Card[], after: Card[], config: TrumpDeclaratio
   return killed;
 }
 
-/** Play one hand (小局) from a pre-shuffled deck. Returns the stat event. */
-export function playHand(opts: PlayHandOptions): HandEvent {
-  const { deck, handIndex, declarerIdx, level, attackerLevel, isFirstHand, strategies } = opts;
-
-  const players = [0, 1, 2, 3].map(i => ({
+/** The four empty seats, spelled the way playHand and naturalDeclaration both build them. */
+function makePlayers(): [PlayerState, PlayerState, PlayerState, PlayerState] {
+  return [0, 1, 2, 3].map(i => ({
     hand: [] as Card[], isHuman: false, name: `AI-${i + 1}`, index: i,
   })) as [PlayerState, PlayerState, PlayerState, PlayerState];
+}
 
-  let state = createInitialState(players, declarerIdx, level, false);
-
-  // --- deal (round-robin, reveal interleaved per card) ---
+/**
+ * Deal round-robin (reveal interleaved per card) and finalize the reveal.
+ * Shared by playHand and naturalDeclaration so the two can never drift.
+ */
+function dealAndReveal(
+  state: GameState, deck: Card[], level: number, isFirstHand: boolean,
+  strategies: [Strategy, Strategy],
+): GameState {
   const dealt: Card[][] = [[], [], [], []];
   for (let i = 0; i < 100; i++) {
     const pi = i % 4;
@@ -119,7 +123,36 @@ export function playHand(opts: PlayHandOptions): HandEvent {
     dealingComplete: true,
     phase: GamePhase.Revealing,
   };
-  state = finalizeReveal(state, isFirstHand);
+  return finalizeReveal(state, isFirstHand);
+}
+
+/**
+ * The declaration a deal's reveal lands on, without playing it. The solo arena
+ * needs it *before* deciding whether to play a (deal, level): the long-suit
+ * filter's longShape depends on which suits are 副牌. Replays the same reveal
+ * as playHand, so the two agree by construction.
+ *
+ * Caveat: the reveal is strategy-driven (ai-0927's aiTryReveal differs from
+ * ai's in the 4>3 case), so this is only well-defined when the caller's A and B
+ * reveal alike — which the solo arena's L1/L2-vs-L0 isolation already assumes.
+ */
+export function naturalDeclaration(
+  deck: Card[], declarerIdx: number, level: number, isFirstHand: boolean,
+  strategies: [Strategy, Strategy],
+): TrumpDeclaration {
+  const state = dealAndReveal(
+    createInitialState(makePlayers(), declarerIdx, level, false), deck, level, isFirstHand, strategies);
+  return state.trumpDeclaration!;
+}
+
+/** Play one hand (小局) from a pre-shuffled deck. Returns the stat event. */
+export function playHand(opts: PlayHandOptions): HandEvent {
+  const { deck, handIndex, declarerIdx, level, attackerLevel, isFirstHand, strategies } = opts;
+
+  let state = createInitialState(makePlayers(), declarerIdx, level, false);
+
+  // --- deal (round-robin, reveal interleaved per card) ---
+  state = dealAndReveal(state, deck, level, isFirstHand, strategies);
   if (opts.forceDeclaration) {
     const fd = opts.forceDeclaration;
     state = {

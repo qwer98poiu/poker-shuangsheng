@@ -1,5 +1,32 @@
 # Changelog
 
+## 2026-10-04 22:45
+
+### 单副牌 A/B 竞技场新增长花色发牌过滤器（`--deal-filter long-suit`）
+
+**问题**：solo 竞技场落了 `--deal-filter` 的接口/管道，但注册表为空，跑不了「NT 长花色」
+这类要挑发牌的 A/B——长花色层只在一部分发牌上触发，不把「有长花色」的发牌筛出来，信号
+就被大量无关发牌淹没。
+
+**做法**：新增 `packages/arena/src/solo-deal-filters.ts` 放谓词，`solo-filter.ts` 里显式登记
+`long-suit`（注册即确定，不靠 import 副作用）。谓词 = **任一座位**在该副（该等级）的**自然
+主牌**下有一门副牌满足 `longShape`（≥9 张且 T1+T2 控制 ≥6，与 `ai/bottom-strategy.ts` 同源）；
+牌数按座位取：庄家 P0 用 **33 张池**＝发到 25＋底牌 8（扣底前它拿到底牌后的手牌），其余三家
+各 25 张 —— 与长花色层实际看到的手牌口径一致。主牌由新加入 `DealFilterContext` 的 `decl` 给出：竞技场对有
+过滤器的每个（副, 等级）用新抽出的 `naturalDeclaration`（`match.ts`，与 `playHand` 共用
+`dealAndReveal`，差分测试钉住二者一致）按基准腿 [B, B] 重放一次亮主取 decl——只在有过滤器
+时才算，无过滤器时 `passesDealFilters` 不看 ctx、省掉这次重放。谓词本身**不限无主**：与
+`--nt-only` 共用时主牌恒为无主（对王亮无主压过一切有主亮主）即「NT 长花色」；不带
+`--nt-only` 时按自然主牌判，被亮成主牌的那门不算副牌。二值过滤器无法复现按座位分组
+（仅 P0/仅 P2/都有/都没有），故只做整体保留/剔除。引擎侧导出 `computeOffSuitControls`、
+`longShape`、`OffSuitControlInfo`（纯 re-export，无行为变更）。
+
+**新增 10 项测试**（solo-filter.test.ts：6 项，solo-arena.test.ts：2 项，natural-declaration.test.ts：2 项）。
+
+引擎 1020 项 + arena 182 项 + CLI 87 项 + client 201 项 = 1490 项通过。
+
+- **影响文件**：`packages/engine/src/ai/bottom-strategy.ts`、`packages/engine/src/ai/index.ts`、`packages/arena/src/match.ts`、`packages/arena/src/solo-deal-filters.ts`、`packages/arena/src/solo-filter.ts`、`packages/arena/src/solo-arena.ts`、`packages/arena/src/solo-run.ts`、`packages/arena/src/__tests__/solo-filter.test.ts`、`packages/arena/src/__tests__/solo-arena.test.ts`、`packages/arena/src/__tests__/natural-declaration.test.ts`
+
 ## 2026-10-04 20:21
 
 ### 新增第三个竞技场：单副牌 A/B 竞技场（`npm run arena:solo`）

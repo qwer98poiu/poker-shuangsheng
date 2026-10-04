@@ -14,7 +14,7 @@
  */
 import type { Card } from '@poker/engine';
 import { deckForHand } from './rng.js';
-import { playHand, dealtHands } from './match.js';
+import { playHand, dealtHands, naturalDeclaration } from './match.js';
 import { hasJokerPairDeal } from './nt-arena.js';
 import type { HandEvent, Strategy } from './types.js';
 import { passesDealFilters } from './solo-filter.js';
@@ -137,7 +137,13 @@ export function runSoloDeal(o: SoloRunOptions): SoloDealResult {
   let tricksPlayed = 0;
   let tried = 0;
   for (const level of o.levels) {
-    if (!passesDealFilters(o.dealFilters, { hands, deck, level })) continue;
+    if (o.dealFilters.length > 0) {
+      // 过滤器要「该副该等级的自然主牌」来判副牌，所以先重放一遍亮主取 decl（只在
+      // 有过滤器时才算；无过滤器时 passesDealFilters 不看 ctx，省掉这次重放）。
+      // 以基准腿 [B, B] 的亮主为该副的规范主牌 —— solo 本就假定 A/B 亮主一致。
+      const decl = naturalDeclaration(deck, 0, level, false, [o.strategyB, o.strategyB]);
+      if (!passesDealFilters(o.dealFilters, { hands, deck, level, decl })) continue;
+    }
     tried += 1;
     const r = runTrial(deck, level, o);
     abortedHands += r.aborted;
