@@ -79,7 +79,7 @@ In NT (no-trump) mode, 12 constant trump cards (Big Joker × 2, Small Joker × 2
 - **Upgrade log** — `--detail-pair N` prints the per-hand upgrade records of both mirrored matches side by side (same deck), showing banker side, both levels at hand start, attacker points, and the upgrade result.
 - **Historical baselines** — `ai-0802` (2026-08-02, position-based follow refactor), `ai-0816` (2026-08-16, before the bottom-card strategy rewrite), `ai-0907` (2026-09-07, before the trump-kill single-card tier selection), `ai-0927` (2026-09-27, before the NT-reveal 4-over-3 fix and the drained-pair throw) and `ai-0929` (2026-09-29, the NT pair-deduction fix — the Elo scale anchor) were extracted from git history to PK against the current `ai`. (Archived: `ai-0707`, `ai-0712`, `ai-0726` — removed 2026-08-07; `ai-0801` and `ai-0719` — removed 2026-09-16; `ai-0808` — removed 2026-09-27; `ai-0809` — removed 2026-10-01. Elo scores below kept for reference.)
 - **Strategy Elo ratings** — two scales, one per bottom-card convention (computed by `packages/arena/scripts/elo-calc.ts`; the anchor's score is set by `ANCHOR_ELO` in that script):
-  - **Current scale** — measured after the 2026-09-16 fix; the declarer now decides the bottom from all 33 cards. Anchor: `ai-0929` = 1263.8 (shown rounded to integers). `ai` diverged from `ai-0929` on 2026-10-02 (a batch of NT-only changes that day), so its score is **TBD** until re-measured.
+  - **Current scale** — measured after the 2026-09-16 fix; the declarer now decides the bottom from all 33 cards. Anchor: `ai-0929` = 1263.8 (shown rounded to integers). `ai` diverged from `ai-0929` on 2026-10-02 (a batch of NT-only changes that day) and again on 2026-10-04 (the NT tracker's known-trump count fix), so its score is **TBD** until re-measured.
 
     | Strategy | Elo |
     |---|---|
@@ -299,7 +299,7 @@ MIT — see [LICENSE](LICENSE).
 - **升级记录**：`--detail-pair N` 并排输出该对决镜像两场的逐手升级记录（同一副牌），含庄家方、双方等级、闲家得分与升级结果。
 - **历史基线策略**：`ai-0802`（2026-08-02，分位置跟牌重构）、`ai-0816`（2026-08-16，扣底策略重构前）、`ai-0907`（2026-09-07，毙牌单张按档位选牌之前）、`ai-0927`（2026-09-27，亮主 4>3 修复与出副对清对之前）、`ai-0929`（2026-09-29，NT 记牌器对子扣减修复——Elo 刻度锚点）从 git 历史提取，用于与当前策略 `ai` 对比。（已归档移除：`ai-0707`、`ai-0712`、`ai-0726`，2026-08-07 删除；`ai-0801`、`ai-0719`，2026-09-16 删除；`ai-0808`，2026-09-27 删除；`ai-0809`，2026-10-01 删除。下方 Elo 分数仅保留展示。）
 - **策略 Elo 评分**——两套刻度，对应扣底决策的两种口径（由 `packages/arena/scripts/elo-calc.ts` 计算；锚点分数由该脚本的 `ANCHOR_ELO` 给定）：
-  - **现行刻度**——2026-09-16 修复后实测；庄家改为拿进底牌后按 33 张决策。锚点：`ai-0929` = 1263.8（表中取整）。`ai` 自 2026-10-02 起与 `ai-0929` 不再是同一份代码（当日一批仅无主生效的改动），分数**待重测**。
+  - **现行刻度**——2026-09-16 修复后实测；庄家改为拿进底牌后按 33 张决策。锚点：`ai-0929` = 1263.8（表中取整）。`ai` 自 2026-10-02 起与 `ai-0929` 不再是同一份代码（当日一批仅无主生效的改动；2026-10-04 又修正记牌器已明主牌的计数），分数**待重测**。
 
     | 策略 | Elo |
     |---|---|

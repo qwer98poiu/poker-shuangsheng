@@ -362,7 +362,10 @@ function buildState(
       // computeNTTrumpState clamps counts to totalUnseen, so definitives
       // must be re-added even when totalUnseen is 0 (all copies placed —
       // e.g. viewer holds the other copy), or the revealer's card vanishes.
-      if (p >= 0 && p <= 3 && totalPossible(counts, p) > 0) {
+      // Known cards belong to the player regardless of whether they still
+      // have unseen copies: an empty unseen pool means the unknown sources
+      // are gone, not that the player's revealed cards are.
+      if (p >= 0 && p <= 3) {
         for (const c of knownTrumpsPerPlayer[p]) {
           const key = suitRankKey(c.id);
           rec[key] = (rec[key] || 0) + 1;
@@ -401,10 +404,10 @@ function buildState(
   }
 
   // ---- minTrumpCounts / maxTrumpCounts ----
-  // Known cards of void players were already played → don't inflate max.
-  function isVoidPlayer(p: number): boolean {
-    return totalPossible(counts, p) === 0;
-  }
+  // A player's trump count is their definitively known cards plus the upper
+  // bound on unseen copies. The known part must not be dropped when the
+  // player has no unseen copies left (totalPossible === 0): that only means
+  // no unknown source remains, not that they hold nothing.
   const minTrumpCounts: [number, number, number, number] = [
     knownTrumpsPerPlayer[0].length,
     knownTrumpsPerPlayer[1].length,
@@ -413,9 +416,9 @@ function buildState(
   ];
   const maxTrumpCounts: [number, number, number, number] = [
     knownTrumpsPerPlayer[0].length + totalPossible(counts, 0),
-    (isVoidPlayer(1) ? 0 : knownTrumpsPerPlayer[1].length) + totalPossible(counts, 1),
-    (isVoidPlayer(2) ? 0 : knownTrumpsPerPlayer[2].length) + totalPossible(counts, 2),
-    (isVoidPlayer(3) ? 0 : knownTrumpsPerPlayer[3].length) + totalPossible(counts, 3),
+    knownTrumpsPerPlayer[1].length + totalPossible(counts, 1),
+    knownTrumpsPerPlayer[2].length + totalPossible(counts, 2),
+    knownTrumpsPerPlayer[3].length + totalPossible(counts, 3),
   ];
 
   // ---- playersWithNoTrump ----

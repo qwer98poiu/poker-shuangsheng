@@ -1800,3 +1800,74 @@ describe('canPlayerTrumpThrow — 能否主牌毙掉副牌领出', () => {
     expect(canPlayerTrumpThrow(3, L3S, mkState({ 'S-2': 3 }), cfg)).toBe(false);
   });
 });
+
+describe('known trumps when the unseen pool is exhausted', () => {
+  // 牌局末段：12 张主牌或已落地、或已由亮主公开归属。P3 亮过 ♥2 一对，
+  // 其余 10 张在 trickHistory 里出掉 → 每个 suitRank 的 totalUnseen 归零。
+  // 此时「未见主牌为 0」只说明来源未知的主牌没了，P3 手上那对已明的主牌
+  // 仍在他手里。旧代码把 totalPossible(counts, p) > 0 当成「该玩家还有主牌」，
+  // 于是在这一步把 P3 的已明牌一并抹掉：possibleTrumps[3] = {}、
+  // maxTrumpCounts[3] = 0，而 minTrumpCounts[3] = 2 —— 出现 max < min 的
+  // 自相矛盾状态，canPlayerTrumpThrow 随之判「毙不了」。
+  const cfg = ntCfg(2, 0); // 无主 level 2，庄家 P0
+  const reveals: Reveal[] = [
+    { playerIndex: 3, suit: Suit.Hearts, strength: 2 },
+  ];
+  // P0 依次甩出 5 对主牌（大王/小王/♠2/♣2/♦2），其余三家跟副牌。
+  const tricks: Trick[] = [
+    mockTrick([
+      [c('J', Rank.BigJoker, 0), c('J', Rank.BigJoker, 1)],
+      [c('S', 5, 0)], [c('S', 6, 0)], [c('S', 7, 0)],
+    ], 0, 0),
+    mockTrick([
+      [c('J', Rank.SmallJoker, 0), c('J', Rank.SmallJoker, 1)],
+      [c('S', 5, 1)], [c('S', 6, 1)], [c('S', 7, 1)],
+    ], 0, 0),
+    mockTrick([
+      [c('S', 2, 0), c('S', 2, 1)],
+      [c('H', 5, 0)], [c('H', 6, 0)], [c('H', 7, 0)],
+    ], 0, 0),
+    mockTrick([
+      [c('C', 2, 0), c('C', 2, 1)],
+      [c('H', 5, 1)], [c('H', 6, 1)], [c('H', 7, 1)],
+    ], 0, 0),
+    mockTrick([
+      [c('D', 2, 0), c('D', 2, 1)],
+      [c('H', 5, 2)], [c('H', 6, 2)], [c('H', 7, 2)],
+    ], 0, 0),
+  ];
+  // 视点 P2，手上只剩副牌。
+  const hand: Card[] = [c('D', 13, 0), c('D', 13, 1), c('C', 14, 0)];
+
+  /** 记牌器输出的不变量：min <= max，且已知牌都落在可能列表里。 */
+  function expectInvariants(s: NTTrumpState): void {
+    for (let p = 0; p < 4; p++) {
+      expect(s.maxTrumpCounts[p]).toBeGreaterThanOrEqual(s.minTrumpCounts[p]);
+      const rec = s.possibleTrumps[p];
+      if (rec === null) continue;
+      for (const card of s.knownTrumpsPerPlayer[p]) {
+        const key = card.suit === 'J' ? `J-${card.rank}` : `${card.suit}-${card.rank}`;
+        expect(rec[key] ?? 0).toBeGreaterThanOrEqual(1);
+      }
+    }
+    for (const p of s.playersWithNoTrump) {
+      expect(s.minTrumpCounts[p]).toBe(0);
+    }
+  }
+
+  it('P3 的已明 ♥2 对不因未见池归零而消失（max >= min）', () => {
+    const s = call(hand, 2, tricks, reveals, cfg, false, []);
+    expectInvariants(s);
+    expect(s.knownTrumpsPerPlayer[3].length).toBe(2);
+    expect(cnt(s.possibleTrumps[3], 'H-2')).toBe(2);
+    expect(s.minTrumpCounts[3]).toBe(2);
+    expect(s.maxTrumpCounts[3]).toBe(2);
+    expect(s.playersWithNoTrump.has(3)).toBe(false);
+  });
+
+  it('P3 能用这对已明 ♥2 毙掉两张副牌领出', () => {
+    const s = call(hand, 2, tricks, reveals, cfg, false, []);
+    const lead = [c('S', 12, 100), c('S', 13, 101)];
+    expect(canPlayerTrumpThrow(3, lead, s, cfg)).toBe(true);
+  });
+});

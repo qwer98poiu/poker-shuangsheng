@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-10-04 14:17
+
+### 记牌器：未见主牌池归零后，已亮主牌不再从可能列表里消失
+
+**问题**：`buildState` 用 `totalPossible(counts, p) > 0`（该玩家是否还有**未见**主牌）
+当作「该玩家还有主牌」，用它决定要不要把**已亮/已明的牌**补回 `possibleTrumps[p]`，
+并在 `maxTrumpCounts` 里把已知张数一并归零。但 `counts` 只统计来源未知的副本——已亮的
+牌早在 `applyReveals` 里就从未见池扣掉了。于是牌局末段 12 张主牌全部落地或已明时，
+亮过主的玩家**手里仍握着**牌面已明的主牌，却被这一步连同 `possibleTrumps` 一起抹掉：
+`possibleTrumps[p]` 变空、`maxTrumpCounts[p]` = 0，而 `minTrumpCounts[p]` 仍记着那几张，
+出现 `max < min` 的自相矛盾状态，`playersWithNoTrump` 也随之误报该玩家「无主」。
+下游 `canPlayerTrumpThrow` 在第一道张数闸（`maxTrumpCounts[p] < leadLen`）就返回「毙不了」，
+第三家据此以为第四家盖不过、于是给队友的甩牌加分，结果第四家真毙——这一墩连同刚加的
+分一并归对手。原注释自述的就是这个场景（「all copies placed 时也要补回，否则亮主者的牌
+会消失」），守卫与自己的注释相反。
+
+**修复**：「有没有主牌」与「有没有**未见**主牌」分开——补回已明牌不再以未见池非空为前提；
+`maxTrumpCounts[p]` 一律取「已知张数 + 未见上界」，去掉把已知项归零的 `isVoidPlayer` 捷径。
+已知牌在打出时已从 `knownTrumpsPerPlayer` 移除（打出即出局），故直接相加不会虚增。
+
+**新增 2 项测试**（ai-nt-tracking.test.ts：2 项），引擎 1020 项 + arena 121 项 + CLI 87 项 + client 201 项 = 1429 项通过。
+
+- **影响文件**：`packages/engine/src/ai/nt-tracking.ts`、`packages/engine/src/__tests__/ai-nt-tracking.test.ts`、`README.md`
+
 ## 2026-10-02 15:04
 
 ### 两个竞技场对比表新增「胜率（小局口径）」
