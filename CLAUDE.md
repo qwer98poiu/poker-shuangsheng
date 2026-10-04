@@ -59,7 +59,9 @@ Co-Authored-By: DeepSeek V4.1 Flash <noreply@deepseek.com>
 
 出处哈希必须**在 main 上可达**（`git merge-base --is-ancestor <hash> main` 成立）：指向被改写掉的旧对象时，眼下还能 `git show <hash>:<path>`，GC 之后彻底失效。
 
-提交前自检与全量校验见 `.claude/skills/check-commits` 的 **S11**（两处例外报 info，其余报 error）。
+**路径同此**：不得引用 **main 上不存在的路径**（文件、目录、分支名）——它与引用一个被改写的哈希是同一个病：读者打不开。典型是临时实验产物（`scripts/` 下的脚本与笔记）被删掉之后，条目里还留着「详见 `…`」。要留证据就把结论本身写出来（数字、判据），别留指针。提交信息与 Changelog 解释「为什么做、做了什么」时，只能以 main 上存在的东西为参照系。
+
+提交前自检与全量校验见 `.claude/skills/check-commits` 的 **S11**（两处例外报 info，其余报 error）与 **S15**（merge 提交与「反例」行豁免）。
 
 ## Changelog 格式
 

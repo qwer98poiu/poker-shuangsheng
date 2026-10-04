@@ -773,6 +773,63 @@ function checkS14(c: CommitInfo): void {
 }
 
 // ────────────────────────────────────────────────────────────
+// S15：动机与范围必须以 main 为参照系（不得引用分支名）
+// ────────────────────────────────────────────────────────────
+
+/**
+ * 分支名样式：`dev/nt-ab`、`backup/xxx-pre` 这类。
+ *
+ * 用**通用样式**而不是「当前分支列表」——分支被删掉之后引用往往还留在历史里，那正是
+ * 要抓的情形（10-03 18:24 那条「冻结 ai-1004 作为 dev/nt-ab 基线」的条目就是：它把一条
+ * main 上不存在的工作线当参照系，读者在 main 上找不到它）。
+ * 前导 `(?<![\w/-])` 挡住路径里的同名片段（`packages/dev/...`）。
+ *
+ * **`origin/` 有意不在其列**：本项判据是「以 main 上存在的东西为参照系」，而
+ * `origin/main` 就是 main 本身，报了是误报；`origin/dev/x` 仍会被 `dev/` 这一支命中。
+ */
+const BRANCH_TOKEN_RE = /(?<![\w/-])(?:dev|backup|feature|hotfix)\/[A-Za-z0-9._-]{2,}/g;
+
+/**
+ * 文档必须能**点名反例**——CLAUDE.md / SKILL.md 要写「不要写 `dev/xxx`」，那一行自己
+ * 就会命中。判据宽松是有意的（照 S11 例外一的先例：误报一行的代价高于漏报一行）。
+ */
+const BRANCH_EXAMPLE_RE = /✗|反例|反面例子/;
+
+/** 逐行取分支名 token，跳过「反例」行。 */
+function branchTokensByLine(text: string): string[] {
+  const out = new Set<string>();
+  for (const line of text.split('\n')) {
+    if (BRANCH_EXAMPLE_RE.test(line)) continue;
+    for (const m of line.matchAll(BRANCH_TOKEN_RE)) out.add(m[0]);
+  }
+  return [...out];
+}
+
+/**
+ * S15：提交信息与 Changelog 增行里不得出现分支名。
+ *
+ * 「本提交移植了 `dev/xxx` 的 …」「对齐 `dev/xxx` 的结果」把动机与范围挂在一条 main 上
+ * 不存在的工作线上——读者在 main 上无从建立上下文。改法：**从问题出发，不从来源出发**，
+ * 把「从哪来的」翻译成「为什么需要它」。被禁的是参照系而不是结论，「被毙率 18.1% → 12.0%」
+ * 这类自足的数字照写无妨。
+ *
+ * 有意放宽两处：跳过 merge 提交（`Merge branch 'dev/x'` 是合法的分支叙述）；跳过含
+ * 「✗/反例/反面例子」的行。**不扫代码增行**（与 S11 不同）：这一族的载体是「提交条目
+ * 怎么叙述」，且 CLAUDE.md 里的示例会自伤。
+ */
+function checkS15(c: CommitInfo): void {
+  if (c.isMerge) return;
+  for (const token of branchTokensByLine(c.body)) {
+    report('S15', MODE.ERROR, c.short, `提交信息引用了分支名 \`${token}\``,
+      '动机与范围只需 main 就能理解：从问题出发，不从来源出发');
+  }
+  for (const token of branchTokensByLine(c.clAdded.join('\n'))) {
+    report('S15', MODE.ERROR, c.short, `Changelog 引用了分支名 \`${token}\``,
+      '动机与范围只需 main 就能理解：从问题出发，不从来源出发');
+  }
+}
+
+// ────────────────────────────────────────────────────────────
 // 实测：worktree 隔离跑测试 / 类型检查
 // ────────────────────────────────────────────────────────────
 
@@ -1413,6 +1470,7 @@ async function main(): Promise<number> {
     checkS10(c);
     checkS12(c);
     checkS14(c);
+    checkS15(c);
     checkS6(c, readFileAt(c.sha, 'CHANGELOG.md'));
   }
   checkS9(commits);
