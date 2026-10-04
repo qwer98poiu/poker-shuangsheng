@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-10-04 20:21
+
+### 新增第三个竞技场：单副牌 A/B 竞技场（`npm run arena:solo`）
+
+**问题**：整体竞技场以「整场」为单位、无主竞技场只打无主，两者都回答不了
+「固定庄家、固定等级下，策略 A 相对基准 B 究竟强在当庄还是当闲」——发牌运气、
+座位差、等级差、花色差全混在同一个胜率里，想分离就得靠加大样本。
+
+**做法**：固定庄家 P0、按等级列表，每 **（副, 等级）** 打 3 局，同一副牌、同一等级：
+L1 = [A,B]（P0/P2 用 A，测当庄）、L0 = [B,B]（两块共用的基准）、L2 = [B,A]（P1/P3 用 A，测当闲）。
+两两相减，A/B 的差异就从发牌与座位里剥出来。每条腿各跑自己的**自然亮主**
+（`declarerIdx=0` + `isFirstHand=false` 即固定庄家为 P0、花色仍取自亮主，无需改引擎）。
+指标 = 庄家/闲家 × 档位/分差，**逐等级独立统计**：档位走 Wilson 胜率口径、分差走配对差值的
+正态近似；置信度固定 99%（z=2.576），显著性是两侧对称的，A/B 都可能显著领先。
+报告按等级列出 4 行，均为 A 口径（档位 = A 的胜率、分差 = 平均分差；99%CI 判定界列取靠近判定线的
+那一端——A 领先看下界、A 落后看其上界），列序 `指标 | 数值 | 领先方 | 99%CI判定界 | A胜 | B胜 | 平局`
+（表头提成导出的 `SOLO_TABLE_HEADER`，与 `indicatorRow` 的 `cells` 一一对应，测试断言两者列数一致）；
+结论行给出「A x 项显著领先 / B y 项 / 另有 z 项不显著」。
+**档位**取升级量档：0 分（大光）单列 −1 档、其余按 `⌊闲家分 / 40⌋`——闲家得分恒为 5 的倍数，于是
+每一档正好落在 `computeLevelChange` 的一个台阶上（0 / 5–35 / 40–75 / 80–115 / ≥120 …），相邻档恰好
+差 1 级；不这么分的话，0 分大光会与 5–35 分小光并成同一档，等于把差 1 级的两个结果判成平局。
+参数对齐另两个竞技场：`--workers` 子进程并行、`--min/step/max-deals`、`--out`/`--no-json`；
+另有 `--nt-only`（过滤掉四家都没有对王的发牌，自然亮主即无主）、`--until-significant`
+（所有等级 × 4 项指标全显著即停）、`--deal-filter`（发牌过滤器注册表，本次只落接口/管道）。
+Ctrl+C 打印部分结果并导出 `partial: true` 的 JSON。
+
+**新增 51 项测试**（solo-arena.test.ts：15 项，solo-filter.test.ts：9 项，solo-ladder.test.ts：11 项，solo-report.test.ts：16 项），引擎 1020 项 + arena 172 项 + CLI 87 项 + client 201 项 = 1480 项通过。
+
+- **影响文件**：`package.json`、`packages/arena/package.json`、`packages/arena/src/solo-arena.ts`、`packages/arena/src/solo-filter.ts`、`packages/arena/src/solo-ladder.ts`、`packages/arena/src/solo-report.ts`、`packages/arena/src/solo-run.ts`、`packages/arena/src/solo-child-run.ts`、`packages/arena/src/__tests__/solo-arena.test.ts`、`packages/arena/src/__tests__/solo-filter.test.ts`、`packages/arena/src/__tests__/solo-ladder.test.ts`、`packages/arena/src/__tests__/solo-report.test.ts`
+
 ## 2026-10-04 14:17
 
 ### 记牌器：未见主牌池归零后，已亮主牌不再从可能列表里消失
