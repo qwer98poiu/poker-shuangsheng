@@ -38,9 +38,15 @@ function isDataFile(f: string): boolean {
     && !/(^|\/)tsconfig[^/]*\.json$/.test(f);
 }
 
-/** 「代码/配置」路径口径：S5 判纯文档提交越界、S3 判是否该写 Changelog，共用一套；数据文件不计 */
+/**
+ * 「代码/配置」路径口径：S5 判纯文档提交越界、S3 判是否该写 Changelog，共用一套。
+ *
+ * 数据文件（`.json`）与 **`.md`** 都不计：`.md` 放哪儿都是文档——`packages/engine/src/ai/
+ * STRATEGY.md` 曾因「路径以 `packages/` 开头」被算成代码，于是 `docs:` 提交改它被判 S5
+ * 「提交改动了代码/配置（纯文档提交应只动 .md）」，一句话里自相矛盾。
+ */
 function codeFilesOf(files: string[]): string[] {
-  return files.filter((f) => !isDataFile(f)
+  return files.filter((f) => !isDataFile(f) && !f.endsWith('.md')
     && (f.startsWith('packages/') || f === 'package.json' || /^tsconfig.*\.json$/.test(f)));
 }
 
@@ -382,7 +388,12 @@ function checkS3S4S5(c: CommitInfo): void {
     if (c.addedSections.length > 0) {
       report('S4', MODE.ERROR, c.short, `${c.prefix}: 提交新增了 CHANGELOG.md 小节（规范：纯文档提交不写 Changelog 条目）`);
     }
-    // S5：纯文档提交不得改代码
+    // S5：纯文档提交不得改代码。两段口径：
+    //   ① 代码/配置——`codeFilesOf`（与 S3 共用），`docs:` 与 `skill:` 都不得碰；
+    //   ② 技树——`.claude/skills/**` **整条路径归 `skill:`**，含技能自己的 `SKILL.md`，
+    //      所以只有 `docs:` 受这一条约束（`skill:` 改技树是它的本职）。
+    // 技树那一段不并进 `codeFilesOf`：后者同时是 S3 的判据（「改了代码就得写 Changelog」），
+    // 而技树改动按规范不写 Changelog（`skill:` 属纯文档前缀）。
     const codeFiles = codeFilesOf(c.files);
     if (codeFiles.length > 0) {
       report(
@@ -391,6 +402,16 @@ function checkS3S4S5(c: CommitInfo): void {
         c.short,
         `${c.prefix}: 提交改动了代码/配置（纯文档提交应只动 .md）`,
         codeFiles.slice(0, 8).join('、') + (codeFiles.length > 8 ? ` 等 ${codeFiles.length} 个` : ''),
+      );
+    }
+    const skillFiles = c.prefix === 'docs' ? c.files.filter((f) => f.startsWith('.claude/skills/')) : [];
+    if (skillFiles.length > 0) {
+      report(
+        'S5',
+        MODE.ERROR,
+        c.short,
+        `docs: 提交改动了技树（\`.claude/skills/\` 整条路径归 skill: 前缀）`,
+        skillFiles.slice(0, 8).join('、') + (skillFiles.length > 8 ? ` 等 ${skillFiles.length} 个` : ''),
       );
     }
     return;
@@ -839,18 +860,36 @@ interface Measurement {
   testsNote: string;
   typecheckOk: boolean | null; // null = 该提交没有 typecheck 脚本
   typecheckNote: string;
+  /** 非快照目录下的未使用声明（`file:symbol`，已排序去重）；null = 未实测 */
+  unused: string[] | null;
 }
 
 const WT_ROOT = path.join(ROOT, '.git', 'cc-check-wt');
 const CACHE_ROOT = path.join(ROOT, '.git', 'cc-check-cache');
+
+/** 主仓库的 tsc（worktree 垫片里的 .bin 也指向它，直接调省一层 npx） */
+const TS_BIN = path.join(ROOT, 'node_modules', '.bin', 'tsc');
+
+/** 逐提交跑 `--noUnusedLocals` 时覆盖的配置（提交里存在才跑） */
+const TS_CONFIGS = [
+  'tsconfig.skills.json',
+  ...PKGS.flatMap((p) => [`packages/${p}/tsconfig.json`, `packages/${p}/tsconfig.scripts.json`]),
+];
+
+/** `tsc --noUnusedLocals` 的报错行：TS6133 未读的值、TS6196 未用的类型声明 */
+const UNUSED_DECL_RE = /^(.+?)\((\d+),(\d+)\): error TS(?:6133|6196): '(.+?)' is declared/gm;
+
+/** 冻结快照目录（`ai-0802/` 等），按路径段匹配，兼容相对/绝对两种报错路径 */
+const SNAPSHOT_ANYWHERE_RE = /(?:^|\/)(ai-\d{4})\//;
 
 /**
  * 改实测口径（解析方式、要跑的命令等）时必须 +1，否则旧缓存会被当成有效结果复用。
  * v1 → v2：解析测试数前先去掉 ANSI 转义序列。
  * v2 → v3：垫片补上 `packages/<pkg>/node_modules`（漏掉它会让 client 的 playwright-core
  *           解析不到，把干净的提交误判成 typecheck 失败）。
+ * v3 → v4：新增 `unused`（T7 的未使用声明实测），旧缓存没有该字段。
  */
-const CACHE_VERSION = 3;
+const CACHE_VERSION = 4;
 
 function cacheFile(sha: string, runTests: boolean, runTypecheck: boolean): string {
   return path.join(
@@ -1004,6 +1043,26 @@ function tail(s: string, n = 2500): string {
   return t.length <= n ? t : '…' + t.slice(-n);
 }
 
+/**
+ * 跑一遍 `tsc --noEmit --noUnusedLocals`（各包 src + scripts + skills），收齐未使用声明，
+ * 返回 `file:symbol` 的排序去重列表。T7 拿它与上一个非纯文档提交比对。
+ *
+ * **冻结快照 `packages/engine/src/ai-XXXX/` 排除在外**：它们是 `git archive` 产物，自带
+ * 历史、本就含大量未使用声明，且 S14 规定只读——不排除的话每个提交都会刷屏。
+ */
+async function measureUnused(wt: string): Promise<string[]> {
+  const found = new Set<string>();
+  for (const cfg of TS_CONFIGS) {
+    if (!fs.existsSync(path.join(wt, cfg))) continue;
+    const r = await run(TS_BIN, ['--noEmit', '--noUnusedLocals', '-p', cfg], wt);
+    for (const m of stripAnsi(r.out).matchAll(UNUSED_DECL_RE)) {
+      if (SNAPSHOT_ANYWHERE_RE.test(m[1])) continue;
+      found.add(`${m[1]}:${m[4]}`);
+    }
+  }
+  return [...found].sort();
+}
+
 async function measure(
   sha: string,
   opts: Options,
@@ -1027,6 +1086,7 @@ async function measure(
     testsNote: '',
     typecheckOk: null,
     typecheckNote: '',
+    unused: null,
   };
 
   let moduleDirs: string[] = [];
@@ -1069,6 +1129,9 @@ async function measure(
         result.typecheckOk = r.ok;
         result.typecheckNote = r.ok ? '' : tail(stripAnsi(r.out));
       }
+      // T7 的实测：与 T2 同一前提（两者都要跑 tsc，`--no-typecheck` 一并跳过）
+      result.unused = await measureUnused(wt);
+      verbose(`${sha.slice(0, 7)} 未使用声明 ${result.unused.length} 处`);
     }
   } finally {
     if (opts.keep) {
@@ -1344,7 +1407,9 @@ function pad(s: string, n: number): string {
 }
 
 function countsLine(m: Measurement | undefined): string {
-  if (!m) return '（未实测）';
+  // `counts` 为空 = 这一档没跑测试：`--no-tests`，或纯文档提交只被 T7 专测（技能不在测试
+  // 范围内）。这时印 `合计=0` 是在说「这棵树没有测试」——按未实测显示。
+  if (!m || Object.keys(m.counts).length === 0) return '（未实测）';
   const parts = PKGS.map((p) => `${p}=${m.counts[p] ?? '—'}`);
   const total = PKGS.reduce((acc, p) => acc + (m.counts[p] ?? 0), 0);
   return parts.join(' ') + ` 合计=${total}`;
@@ -1462,6 +1527,26 @@ async function main(): Promise<number> {
     return cur;
   };
 
+  /**
+   * T7 口径下的「可能改动未使用声明集合」的提交。判据是**事实**——这次动没动过
+   * `.ts/.tsx`，而不是前缀：非纯文档提交一律算；纯文档提交里只有 `skill:` 改技能代码
+   * 这一种会命中（`docs:`/`skill:` 都改不到 `packages/**`，见 S5）。
+   *
+   * 为什么不沿用 `nearestNonDoc`：T7 的实测含 `tsconfig.skills.json`（`TS_CONFIGS`），
+   * 而 `nearestNonDoc` 会跳过 `skill:` 提交（`DOC_PREFIXES` 含它）。两者相乘就把技能
+   * 代码里的未使用声明算到了**下一个非文档提交**头上——明明是 `skill:` 那笔引入的。
+   */
+  const t7Relevant = (c: CommitInfo): boolean =>
+    !c.isDoc || c.files.some((f) => /\.tsx?$/.test(f));
+
+  /** 自身或最近的祖先里，第一个 `t7Relevant` 的提交（T7 的基准链，与 T3 的链不同） */
+  const nearestT7 = (c: CommitInfo, includeSelf: boolean): CommitInfo | null => {
+    let cur: CommitInfo | null = includeSelf ? c : c.parent ? infoOf(c.parent) : null;
+    let guard = 0;
+    while (cur && !t7Relevant(cur) && guard++ < 500) cur = cur.parent ? infoOf(cur.parent) : null;
+    return cur;
+  };
+
   // ── 结构类
   checkS1Dates(commits);
   for (const c of commits) {
@@ -1486,7 +1571,16 @@ async function main(): Promise<number> {
   // 需要实测的是两类：范围内每个提交的「基准」（自身或最近的非 docs 祖先，纯文档提交
   // 的测试数就等于它——docs 不改代码），以及每个非 docs 提交的「前一个非 docs 提交」
   // （T3 的增量要和它比）。后者可能是范围外的提交（范围首提交的父），也要测。
+  //
+  // 再叠一条 T7 自己的链（`t7Relevant`/`nearestT7`）：改过 `.ts` 的纯文档提交（典型是
+  // `skill:` 改技能的 `check-commits.ts`）既是被检查者、也是后面提交的基准，必须自身
+  // 实测——否则它引入的未使用声明会被算到下一个非文档提交头上。
   const measureSet = new Set<string>();
+  const docT7Set = new Set<string>();
+  const addMeasure = (c: CommitInfo): void => {
+    measureSet.add(c.sha);
+    if (c.isDoc) docT7Set.add(c.sha);
+  };
   for (const c of commits) {
     const self = nearestNonDoc(c, true);
     if (self) measureSet.add(self.sha);
@@ -1494,13 +1588,29 @@ async function main(): Promise<number> {
       const prev = nearestNonDoc(c, false);
       if (prev) measureSet.add(prev.sha);
     }
+    if (t7Relevant(c)) {
+      addMeasure(c);
+      const t7Prev = nearestT7(c, false);
+      if (t7Prev) addMeasure(t7Prev);
+    }
   }
   const measureList = [...measureSet];
 
   const measurements = new Map<string, Measurement>();
   if (opts.runTests || opts.runTypecheck) {
-    const measured = await measureAll(measureList, opts, verbose);
+    // T7 专测的纯文档提交只跑 typecheck 那一档：技能不在四包测试的范围内，为它跑一遍
+    // 测试纯属白跑（结果必然等于其祖先）。`--no-tests` 时两类本就等价，不必拆。
+    const split = opts.runTests && docT7Set.size > 0;
+    const measured = await measureAll(
+      split ? measureList.filter((sha) => !docT7Set.has(sha)) : measureList,
+      opts,
+      verbose,
+    );
     for (const [k, v] of measured) measurements.set(k, v);
+    if (split) {
+      const docMeasured = await measureAll([...docT7Set], { ...opts, runTests: false }, verbose);
+      for (const [k, v] of docMeasured) measurements.set(k, v);
+    }
   }
 
   /** 某提交的测试数：纯文档提交递归取最近的非 docs 祖先 */
@@ -1509,6 +1619,16 @@ async function main(): Promise<number> {
     return base ? measurements.get(base.sha) : undefined;
   };
   const prevNonDoc = (c: CommitInfo): CommitInfo | null => nearestNonDoc(c, false);
+
+  /**
+   * T7 的「末端」：被检查范围最后一个提交所在那棵树的未使用声明集合。纯文档提交不改
+   * 代码，所以取它自己（改过 `.ts` 的 `skill:`）或其最近 `t7Relevant` 祖先的实测即可。
+   *
+   * 末端取不到实测时退化成空集——即全部按 info 报。宁可不拦，也不要凭一个取不到的
+   * 集合去误报 error（与 S11 出处哈希那处「三者都取不到时跳过」同一个取向）。
+   */
+  const tipT7 = nearestT7(tip, true);
+  const tipUnused = new Set(tipT7 ? (measurements.get(tipT7.sha)?.unused ?? []) : []);
 
   for (const c of commits) {
     // ── T1：测试全绿
@@ -1522,6 +1642,47 @@ async function main(): Promise<number> {
     if (opts.runTypecheck && m) {
       if (m.typecheckOk === false) {
         report('T2', MODE.ERROR, c.short, '该提交 `npm run typecheck` 有错误', m.typecheckNote);
+      }
+    }
+
+    // ── T7：未使用声明（不得由本提交留下）
+    // 与「上一个可能改动过未使用声明集合的提交」（`nearestT7`）比集合差：老提交里早就
+    // 存在的未使用声明不追溯，只判本提交**新引入**的那些（含删掉最后一处使用后留下的
+    // 空壳）。基准链走 `nearestT7` 而非 `prevNonDoc`：后者跳过 `skill:` 提交，会把技能
+    // 代码里的未使用声明算到下一个非文档提交头上。
+    //
+    // 级别按「末端还在不在」分：还在被检查范围的末端 → error（可行动，在末端删掉即可）；
+    // 已在范围内被后续提交清掉 → info（记录在案，无需处理——那笔债在范围内已经还了）。
+    // 归因不变，报的都是引入它的那个提交。
+    if (opts.runTypecheck && t7Relevant(c)) {
+      const m7 = measurements.get(c.sha);
+      const prevT7 = nearestT7(c, false);
+      const prevM = prevT7 ? measurements.get(prevT7.sha) : undefined;
+      if (m7?.unused && !prevM?.unused) {
+        if (prevT7) report('T7', MODE.INFO, c.short, `${prevT7.short} 未实测未使用声明，跳过增量比对`);
+      } else if (m7?.unused && prevM?.unused) {
+        const before = new Set(prevM.unused);
+        const added = m7.unused.filter((x) => !before.has(x));
+        const left = added.filter((x) => tipUnused.has(x));
+        const cleared = added.filter((x) => !tipUnused.has(x));
+        if (left.length > 0) {
+          report(
+            'T7',
+            MODE.ERROR,
+            c.short,
+            `本提交新增 ${left.length} 处未使用声明（冻结快照 ai-XXXX/ 除外）`,
+            left.join('\n'),
+          );
+        }
+        if (cleared.length > 0) {
+          report(
+            'T7',
+            MODE.INFO,
+            c.short,
+            `本提交新增的 ${cleared.length} 处未使用声明已在范围内清除（无需处理）`,
+            cleared.join('\n'),
+          );
+        }
       }
     }
 
