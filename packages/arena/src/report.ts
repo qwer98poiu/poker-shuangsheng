@@ -18,6 +18,12 @@ export interface TableRow {
   a: string;
   b: string;
   verdict: Verdict;
+  /**
+   * 第 4 格（平局率）文本，只在表头有 4 列时渲染；缺省渲染成 —。
+   * **只有判据本身三分**（A 胜 / B 胜 / 平）的行才有值——二分判据（如 80 口径的台上/台下、
+   * 每墩胜率）「平」这一态根本不存在，写成 0.0000 会让人当成「测过、恰好为零」。
+   */
+  draw?: string;
 }
 
 const GREEN = '\x1b[32m';
@@ -41,26 +47,58 @@ export function ratioText(p: CountPair): string {
   return `${(p.n / p.d).toFixed(4)} (${p.n}/${p.d})`;
 }
 
-/** 一条待比较的指标：标签 + 双方比值 + 方向。 */
-export type MetricSpec = [label: string, a: CountPair, b: CountPair, dir: Direction];
+/**
+ * 三分（A 胜 / B 胜 / 平）→ 三格：共享同一分母（a + b + 平），相加恒为 1。
+ *
+ * 表里的「平局率」是独立一格，不再把平局按 0.5 摊给两侧——注意**表头的 p̂ 与显著性
+ * 仍走 0.5×平 的旧约定**，所以表头那个数与表内「胜率（发牌口径）」行的 A 格不相等。
+ * 好处是全平时 A/B 是 `0/N`（渲染成 0.0000）而不是 `0/0`（—）。
+ */
+export function trioShares(b: { a: number; b: number; draw: number }): {
+  a: CountPair;
+  b: CountPair;
+  draw: CountPair;
+} {
+  const d = b.a + b.b + b.draw;
+  return { a: { n: b.a, d }, b: { n: b.b, d }, draw: { n: b.draw, d } };
+}
 
-/** 各等级（2..10、J、Q、K、A）的胜负率展开成 13 条指标。 */
+/** 一条待比较的指标：标签 + 双方比值 + 方向（+ 可选的平局率第 4 格）。 */
+export type MetricSpec = [
+  label: string, a: CountPair, b: CountPair, dir: Direction, draw?: CountPair,
+];
+
+/**
+ * 各等级（2..10、J、Q、K、A）的胜负率展开成 13 条指标。
+ * `draw` 给了就一并产出第 4 格（平局率）；缺样本的等级三格都是 —。
+ */
 export function perLevelSpecs(
   prefix: string,
   a: Map<number, CountPair>,
   b: Map<number, CountPair>,
+  draw?: Map<number, CountPair>,
 ): MetricSpec[] {
   const out: MetricSpec[] = [];
   for (let lv = 2; lv <= 14; lv++) {
-    out.push([`${prefix} ${levelLabel(lv)} 胜率`, a.get(lv) ?? { n: 0, d: 0 }, b.get(lv) ?? { n: 0, d: 0 }, 'high']);
+    out.push([
+      `${prefix} ${levelLabel(lv)} 胜率`,
+      a.get(lv) ?? { n: 0, d: 0 },
+      b.get(lv) ?? { n: 0, d: 0 },
+      'high',
+      draw === undefined ? undefined : (draw.get(lv) ?? { n: 0, d: 0 }),
+    ]);
   }
   return out;
 }
 
 /** 指标规格 → 表格行（算好文本与优劣；两个竞技场的报告共用）。 */
 export function rowsFrom(specs: readonly MetricSpec[]): TableRow[] {
-  return specs.map(([label, a, b, dir]) => ({
-    label, a: ratioText(a), b: ratioText(b), verdict: betterSide(a, b, dir),
+  return specs.map(([label, a, b, dir, draw]) => ({
+    label,
+    a: ratioText(a),
+    b: ratioText(b),
+    verdict: betterSide(a, b, dir),
+    draw: draw === undefined ? undefined : ratioText(draw),
   }));
 }
 
@@ -97,25 +135,32 @@ function cell(text: string, width: number, green: boolean, color: boolean): stri
 }
 
 /**
- * 渲染三列表格（指标 | A | B），三列均按显示宽度左对齐。
- * 最优的一侧套绿；verdict 为 tie 时两侧都套绿。最后一列不留尾随空格。
+ * 渲染表格（指标 | A | B，表头给 4 列时末列是平局率），列数由 header 长度决定（3 或 4）。
+ * 各列按显示宽度左对齐，最后一列不留尾随空格。最优的一侧套绿（verdict 为 tie 时两侧都套绿）；
+ * 指标列与平局列不参与优劣判定，不染色。
  */
 export function renderTable(
-  header: readonly [string, string, string],
+  header: readonly string[],
   rows: readonly TableRow[],
   color: boolean,
 ): string[] {
-  const w0 = Math.max(displayWidth(header[0]), ...rows.map(r => displayWidth(r.label)));
-  const w1 = Math.max(displayWidth(header[1]), ...rows.map(r => displayWidth(r.a)));
-  const lines = [cell(header[0], w0, false, false) + '  ' + cell(header[1], w1, false, false) + '  ' + header[2]];
+  const cols = header.length === 4 ? 4 : 3;
+  const cellsOf = (r: TableRow): string[] =>
+    cols === 4 ? [r.label, r.a, r.b, r.draw ?? '—'] : [r.label, r.a, r.b];
+  const body = rows.map(cellsOf);
+  // 最后一列不补白，故宽度只需算到倒数第二列
+  const widthAt = (i: number): number =>
+    Math.max(displayWidth(header[i]), ...body.map(c => displayWidth(c[i])));
+  const line = (cells: readonly string[], greens: readonly boolean[]): string =>
+    cells
+      .map((text, i) => cell(text, i === cells.length - 1 ? 0 : widthAt(i), greens[i], color))
+      .join('  ');
+
+  const lines = [line(header.slice(0, cols), header.slice(0, cols).map(() => false))];
   for (const r of rows) {
     const greenA = r.verdict === 'a' || r.verdict === 'tie';
     const greenB = r.verdict === 'b' || r.verdict === 'tie';
-    lines.push(
-      cell(r.label, w0, false, false) + '  ' +
-      cell(r.a, w1, greenA, color) + '  ' +
-      cell(r.b, 0, greenB, color),
-    );
+    lines.push(line(cellsOf(r), [false, greenA, greenB, false]));
   }
   return lines;
 }

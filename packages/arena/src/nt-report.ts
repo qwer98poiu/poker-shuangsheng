@@ -11,45 +11,47 @@
  * - **80 分口径**（台上/台下两行的胜率与 per-level）：仍是「闲家过 80 即上台」。
  *   升级口径下 A 在一对里恰有一腿当庄、一腿当闲，台上/台下恒等（角色信息被配对消掉），
  *   所以角色维度只能靠这套 80 口径的读数保留。
+ *
+ * 对比表第 4 列是**平局率**：升级口径的三族（发牌口径、小局升级口径、等级 X 胜率）是
+ * A 胜 / B 胜 / 平 三分，三格共享同一分母、相加恒为 1（`trioShares`）；判据本身没有
+ * 「平」这一态的行（80 口径的台上/台下、每墩胜率）与各种频率/均值一律渲染成 —。
+ * ⚠️ 表头的 `p̂` 与显著性仍按「平局算 0.5 胜」的旧约定，所以表头那个数与表内
+ * 「胜率（发牌口径）」行的 **A 格不相等**——前者把平局折半记给双方，后者不含平局。
  */
 import type { NTStats } from './nt-arena.js';
 import type { CountPair } from './stats.js';
 import type { TierBucket } from './tier.js';
-import { renderTable, perLevelSpecs, rowsFrom, ratioText } from './report.js';
+import { renderTable, perLevelSpecs, rowsFrom, ratioText, trioShares } from './report.js';
 import type { MetricSpec, TableRow } from './report.js';
 import type { SignificanceResult } from './significance.js';
 
-/**
- * 配对三分类（a / b / 平）→ A/B 两侧的胜率：平对按 0.5 记给两侧（与发牌口径头条同一约定）。
- * 两侧同分母，所以绿的判定等价于「a 对多于 b 对」。
- */
-function tierSides(b: TierBucket): { a: CountPair; b: CountPair } {
-  const d = b.a + b.b + b.draw;
-  return { a: { n: b.a + 0.5 * b.draw, d }, b: { n: b.b + 0.5 * b.draw, d } };
-}
-
-/** 等级 block：把每等级的配对三分类摊成 A/B 两列的 13 条指标（不分台上/台下）。 */
+/** 等级 block：把每等级的配对三分类摊成 A/B/平 三列的 13 条指标（不分台上/台下）。 */
 function tierLevelSpecs(byLevel: Map<number, TierBucket>): MetricSpec[] {
   const ca = new Map<number, CountPair>();
   const cb = new Map<number, CountPair>();
+  const cd = new Map<number, CountPair>();
   for (const [lv, bucket] of byLevel) {
-    const s = tierSides(bucket);
-    ca.set(lv, s.a);
-    cb.set(lv, s.b);
+    const t = trioShares(bucket);
+    ca.set(lv, t.a);
+    cb.set(lv, t.b);
+    cd.set(lv, t.draw);
   }
-  return perLevelSpecs('等级', ca, cb);
+  return perLevelSpecs('等级', ca, cb, cd);
 }
 
-/** A/B 对比表的数据行；方向约定与整体竞技场一致（见 run.ts 的说明）。 */
-function comparisonRows(s: NTStats): TableRow[] {
+/**
+ * A/B 对比表的数据行；方向约定与整体竞技场一致（见 run.ts 的说明）。
+ * 升级口径三族带上第 4 格（平局率，三格同分母）；其余行不给 draw，渲染成 —。
+ */
+export function comparisonRows(s: NTStats): TableRow[] {
   const a = s.statsA;
   const b = s.statsB;
   const hands = a.handsPlayed;
-  const deals = s.dealsWonA + s.dealsWonB + s.dealsDrawn;
-  const pair = tierSides({ n: s.pairs, a: s.pairWinsA, b: s.pairWinsB, draw: s.pairsDrawn });
+  const deal = trioShares({ a: s.dealsWonA, b: s.dealsWonB, draw: s.dealsDrawn });
+  const pair = trioShares({ a: s.pairWinsA, b: s.pairWinsB, draw: s.pairsDrawn });
   const specs: MetricSpec[] = [
-    ['胜率（发牌口径）', { n: s.dealsWonA + 0.5 * s.dealsDrawn, d: deals }, { n: s.dealsWonB + 0.5 * s.dealsDrawn, d: deals }, 'high'],
-    ['胜率（小局升级口径）', pair.a, pair.b, 'high'],
+    ['胜率（发牌口径）', deal.a, deal.b, 'high', deal.draw],
+    ['胜率（小局升级口径）', pair.a, pair.b, 'high', pair.draw],
     ...tierLevelSpecs(s.tierByLevel),
     ['当庄频率', { n: a.banker.hands, d: hands }, { n: b.banker.hands, d: hands }, 'neutral'],
     ['台上胜率', { n: a.banker.wins, d: a.banker.hands }, { n: b.banker.wins, d: b.banker.hands }, 'high'],
@@ -109,7 +111,7 @@ export function printNTReport(input: NTReportInput): void {
 
   console.log('\n对比表（绿 = 该侧更优；相等都标绿；中性指标不染色）:');
   for (const line of renderTable(
-    ['指标', `策略A（${nameA}）`, `策略B（${nameB}）`],
+    ['指标', `策略A（${nameA}）`, `策略B（${nameB}）`, '平局率'],
     comparisonRows(stats),
     color,
   )) {
