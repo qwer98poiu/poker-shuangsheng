@@ -3,14 +3,16 @@
  * it's our turn to start a trick.
  */
 import type { Card, ComboClass } from '../types.js';
-import { Rank, SpecialSuit, Suit, isPointRank } from '../types.js';
+import { Rank, Suit, isPointRank } from '../types.js';
 import { isTrump, getEffectiveRank } from '../model.js';
 import { findAllPairs, detectTractors, classify as classifyCombo } from '../pattern/index.js';
 import type { AIContext } from './types.js';
 import { canBeat, maxCardT, groupBySuit, suitLabelCn, getTopOffSuitRank } from './utils.js';
 import { findThrowableOffSuitCombos } from './throw-detector.js';
 import { tryLeadFlushThrow, tryLeadDrainedSuitThrow } from './flush-detector.js';
-import { canFormJokerPair, opponentsHaveTrump } from './nt-tracking.js';
+import { shouldDrawTrumpInNT, pickNTTrumpLead } from './nt-trump.js';
+import { tryNTLead } from './nt-lead.js';
+import { computeLongSuit } from './suit-memory.js';
 import { rankLabelStr } from './reason.js';
 
 // ---- Strategy 4: Throw off-suit ----
@@ -191,101 +193,6 @@ function tryDrawTrump(
   return { cards: [trumpCards[0]], reason: '吊主' };
 }
 
-// ---- NT trump drawing ----
-
-function shouldDrawTrumpInNT(ctx: AIContext): boolean {
-  if (!ctx.ntState) return false;
-  const s = ctx.ntState;
-
-  // Rule 1: Opponents have no trump -> stop unless level is points + attacker leading + not yet 80
-  if (!opponentsHaveTrump(s, ctx.myIndex)) {
-    if (!isPointRank(ctx.level as Rank)) return false;
-    if (!ctx.isAttacker || ctx.playCount > 0) return false;
-    if (ctx.attackerPoints >= 80) return false;
-    return true;
-  }
-
-  return true;
-}
-
-function pickNTTrumpLead(
-  hand: Card[],
-  trumpCards: Card[],
-  ctx: AIContext,
-): { cards: Card[]; reason: string } | null {
-  const s = ctx.ntState!;
-  const myTrumpPairs = findAllPairs(trumpCards);
-  const levelPairs = myTrumpPairs.filter(p => p[0].suit !== SpecialSuit.Joker);
-  const jokerPairs = myTrumpPairs.filter(p => p[0].suit === SpecialSuit.Joker);
-  const smallJokerPair = jokerPairs.find(p => p[0].rank === Rank.SmallJoker);
-  const opponents = [0, 1, 2, 3].filter(p => p % 2 !== ctx.myIndex % 2);
-  const oppsHaveTrump = opponents.some(p => s.maxTrumpCounts[p] > 0);
-
-  // Rule 5 (highest): SJ pair + level pair forms tractor -> lead if opponents can't beat
-  if (smallJokerPair && levelPairs.length > 0) {
-    for (const lp of levelPairs) {
-      const tractorCandidate = [...smallJokerPair, ...lp];
-      const tractors = detectTractors(tractorCandidate, ctx);
-      if (tractors.length > 0 && tractors.some(t => t.length === 4)) {
-        // SJ+level tractor can only be beaten by BJ+SJ tractor (BJ+SJ pair from 1 player)
-        const canAnyBeat = opponents.some(p =>
-          s.canFormPair[p] && s.canHaveBigJoker[p] && s.canHaveSmallJoker[p],
-        );
-        if (!canAnyBeat) {
-          return { cards: tractorCandidate, reason: '吊主(小王对+级牌对拖拉机)' };
-        }
-      }
-    }
-  }
-
-  // Rule 3: Level pair exists + no opponent joker pair -> lead level pair
-  if (levelPairs.length > 0) {
-    const noOpponentJokerPair = opponents.every(
-      p => !canFormJokerPair(p, s),
-    );
-    if (noOpponentJokerPair && oppsHaveTrump) {
-      levelPairs.sort((a, b) =>
-        getEffectiveRank(a[0], ctx) - getEffectiveRank(b[0], ctx),
-      );
-      return { cards: levelPairs[0], reason: '吊主(级牌对，对手无王对)' };
-    }
-  }
-
-  // Rule 4: Single big joker or small joker (BJ on our side) -> draw single
-  const myBigJokers = trumpCards.filter(c => c.rank === Rank.BigJoker);
-  const mySmallJokers = trumpCards.filter(c => c.rank === Rank.SmallJoker);
-
-  if (myBigJokers.length > 0 && oppsHaveTrump) {
-    return { cards: [myBigJokers[0]], reason: '吊主(大王)' };
-  }
-
-  if (mySmallJokers.length > 0 && s.allUnseenBigJokersOnOurSide && oppsHaveTrump) {
-    return { cards: [mySmallJokers[0]], reason: '吊主(小王，大王全在我方)' };
-  }
-
-  // Rule 2: All unseen jokers on our side -> draw level cards to clear
-  if (s.allUnseenJokersOnOurSide) {
-    const levelCards = trumpCards.filter(c => c.suit !== SpecialSuit.Joker);
-    if (levelCards.length > 0) {
-      levelCards.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
-      return { cards: [levelCards[0]], reason: '吊主(级牌)' };
-    }
-    if (trumpCards.length > 0) {
-      trumpCards.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
-      return { cards: [trumpCards[0]], reason: '吊主' };
-    }
-  }
-
-  // Rule 6: Opponents can't form pairs -> drawing single is safe
-  const allOpponentsNoPair = opponents.every(p => !s.canFormPair[p]);
-  if (allOpponentsNoPair && trumpCards.length > 0) {
-    trumpCards.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
-    return { cards: [trumpCards[0]], reason: '吊主(对手无对)' };
-  }
-
-  return null; // Not advantageous to draw
-}
-
 // ---- Strategy 6: Lead small off-suit single ----
 
 function tryLeadSmall(
@@ -364,20 +271,35 @@ export function _aiLeadPlay(
 ): { cards: Card[]; reason: string } {
   const myHandCount = ctx.myIndex >= 0 ? ctx.handCounts[ctx.myIndex] : hand.length;
 
+  // 无主长花色：整套长花色策略的总开关。只算一次，喂给 0b 的排除与长花色层，
+  // 免得各层各自重算 computeOffSuitControls。
+  const longSuit = ctx.trumpSuit === null && ctx.myIndex >= 0 && hand.length > 0
+    ? computeLongSuit(hand, ctx)
+    : null;
+
   // 优先级 0：同一墩窗口的两条甩牌规则（无主才可能触发"整门已绝"那条）——
   // 这一墩领了别的牌证据就作废，故必须排在最前。
   //   (a) 整门已绝 → 该门剩下的全甩（牌更多，先试）
   //   (b) 对子已绝 → 该门剩下的对全甩
   const drainedResult = tryLeadDrainedSuitThrow(hand, ctx);
   if (drainedResult) return drainedResult;
-  const flushResult = tryLeadFlushThrow(hand, ctx);
+  const flushResult = tryLeadFlushThrow(hand, ctx, longSuit ?? undefined);
   if (flushResult) return flushResult;
+
+  // 优先级 0.5（仅无主 + 有长花色）：长花色层——非长门断门/拖拉机、长花色应甩尽甩。
+  if (longSuit !== null) {
+    const ntResult = tryNTLead(hand, ctx, longSuit);
+    if (ntResult) return ntResult;
+  }
 
   // Strategy 4: Throw off-suit (highest priority)
   const throwResult = tryLeadThrowOffSuit(hand, ctx);
   if (throwResult) return throwResult;
 
   // Strategy 1: Lead big off-suit A/K (single or pair)
+  // 旧第 6 条曾在此处用 `if (longSuit === null)` 屏蔽本层（无主 + 有长花色时把非长门的
+  // 顶张留作后续抢领出权）。单行消融（15 万副）显示该屏蔽是净负：撤掉后「仅 P0 有长花色」
+  // 组 p̂=0.5136、99% CI 下界 0.5050（无条件口径亦显著）。故本层不再受 longSuit 约束。
   const bigResult = tryLeadBigCard(hand, ctx);
   if (bigResult) return bigResult;
 

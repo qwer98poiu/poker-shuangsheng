@@ -81,9 +81,12 @@ describe('arena e2e', () => {
     //  压平、不再抹掉对手的主对）后为 217；
     //  无主两项新规（上一墩整门已绝则甩光该门副牌、第三家跟队友甩牌时第四家
     //  可能毙且本墩无分则不毙改垫牌）后为 220；
-    //  "整门已绝"判据放宽——跟不满领出张数也算已缺门（原先只认"一张没出"）后为 219）
-    expect(statsA.matches.oppLevel).toEqual({ n: 219, d: 20 });
-    expect(statsB.matches.oppLevel).toEqual({ n: 219, d: 20 });
+    //  "整门已绝"判据放宽——跟不满领出张数也算已缺门（原先只认"一张没出"）后为 219；
+    //  无主长花色层（断门先出、长花色 T1 整段甩出并过拖拉机闸门、对子已绝的通用甩对
+    //  规则不适用于该门）与第三家对队友无顶张副牌甩牌的加分改按形状 × 已出主牌判
+    //  （记牌器判「能毙」时也一般加分，只有 0对2/3张 且台面上主牌 ≤4 张 例外）后为 203）
+    expect(statsA.matches.oppLevel).toEqual({ n: 203, d: 20 });
+    expect(statsB.matches.oppLevel).toEqual({ n: 203, d: 20 });
     expect(statsA.handsPlayed).toBe(statsB.handsPlayed);
     expect(statsA.abortedHands).toBe(0);
     const sig = checkSignificance(statsA.matches.won, statsB.matches.won, statsA.matches.drawn, statsA.matches.played);

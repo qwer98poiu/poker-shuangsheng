@@ -223,7 +223,7 @@ export function longShape(info: OffSuitControlInfo): boolean {
 }
 
 /** Choose the single long suit: strongest first (大者优先), SHCD last. */
-function compareLongCandidate(a: OffSuitControlInfo, b: OffSuitControlInfo): number {
+export function compareLongCandidate(a: OffSuitControlInfo, b: OffSuitControlInfo): number {
   const sumDiff = (b.cards.length + b.tier1.length + b.tier2.length)
     - (a.cards.length + a.tier1.length + a.tier2.length);
   if (sumDiff !== 0) return sumDiff;

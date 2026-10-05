@@ -1,5 +1,43 @@
 # Changelog
 
+## 2026-10-05 14:41
+
+### 无主长花色领出层（`ai/nt-lead.ts` + `ai/suit-memory.ts` + `ai/nt-trump.ts`）
+
+**做法**：新增三个模块，落成一层以「长花色」为轴的领出策略。**长花色**每方至多一门、整回合固定，由**初始手牌**（当前手牌 + 我已打出的牌；庄家再加底牌）按扣底同款判据认定——总张数 ≥9 且控制张 ≥6，多门满足时取最强的一门；被打断（被毙）后依然有效，再获得领出权时继续出该门剩余牌。没有长花色时本层整条不适用，完全走通用领出阶梯。
+
+有长花色时的领出顺序：
+
+- **整门已绝**（上一墩的证据）→ 该门剩下的全甩，**长花色同样适用**；**对子已绝** → 该门剩下的对全甩，但**长花色除外**——该证据只证明对子已绝（单张可能还散在别人手里、整门并未断），且无主下不查是否会挨毙，长花色由本层整段处理。
+- **非长门能一次出空整门** → 出该门整门（多门按档位取最高、同档取张数更多）；非长、又断不了门的门里有拖拉机 → 出该拖拉机。
+- **长花色 T1 非空 → 应甩尽甩**：整段甩出，不再问会不会被毙；甩出去的牌仍过闸门（见下），闸门判不出任何合法子集时交回通用阶梯。受控 A/B（无主，约 9.5 万有效副，逐座位配对）显示「应甩尽甩」在庄 / 闲两侧都显著优于保守替代树（那一版能甩时先查第四家能否毙、能毙就改吊主；mean d 庄 −1.213 / 闲 −0.962）：它把庄家的长花色领出率从 81.3% 提到 92.4%，而「少甩一点、被毙率低一点」补不回来。
+- **庄家整门已绝**（已出 + 底牌 + 手牌 = 24）→ 剩下的全部一起打出。庄家队友与闲家不知道底牌、不许用总数反推，只能用「已出牌」的证据。
+
+**T1（控制张）** 由 `suit-memory.ts` 每次领出从 `trickHistory` 纯函数重建，复用扣底的 tier1 判定（顶张全部副本 + 结构性拖拉机 + 最坏情况可甩张）。「顶张」是**动态**的——扣掉已知不在场的牌（已出牌、庄家底牌）后该门剩余牌里的最高 rank；别人跟出/垫出的同门牌、以及由「跟不满领出张数」推得的缺门者与「由跟的对数不足」推得的无对者都让最坏情况变松，于是可甩的单张、最大对自动升级为控制张；三家都已无对时，该门**所有**对子升级为 T1。`nt-trump.ts` 承担无主吊主（六条优先级）。
+
+**闸门对拖拉机同样做最坏情况校验**：混合甩牌（拖拉机 + 单/对）整手 `classify` 就是 `throw`，引擎的 `validateThrow` 会跑 `checkTractorBlock` 去和别人比拖拉机成分，因此闸门对拖拉机不能无条件放行——否则会出现「AI 自己的闸门放行、引擎一侧照罚」：±10 分 + 强制改出被堵的最小子牌型（常把拖拉机拆掉）。闸门现在对拖拉机逐个过 worst-case 校验，并按**整手**复验（拼接出来的牌成分结构可能与逐个判过的那套不同，而 `validateThrow` 是按整手判的），不合法就依次丢掉最低档成分直到整手合法。非长花色的断门路径不这样处理：`drainClass` 已用 `findThrowableSuitCards` 对整门做过预检，那是有意保留的固定边界。
+
+**新增 52 项测试**（suit-memory.test.ts：22 项，ai-nt-lead.test.ts：25 项，ai-flush-detector.test.ts：5 项）
+
+### 第三家对队友无顶张副牌甩牌的加分改按形状 × 已出主牌
+
+**问题**：第三家面对队友的「无顶张、无拖拉机」副牌甩牌时，判据是记牌器 `canPlayerTrumpThrow` 说第四家能不能毙——判「毙不了」才加分。但记牌器是**刻意保守的上界**（证不出凑不出就返回 true），它说「能毙」只有约 48% 兑现：逐格实测（seed 42 / level 2 / 10 万副）「有实力率」从 53.0%（台面上主牌 0 张）掉到 30.6%（9–12 张），而「意愿率」（有实力就真下手）恒在 86–93%——精度下降**全部**来自记牌器太松，不是第四家不愿毙。按它不加分，等于把该加的分大面积放过。
+
+**做法**：改按**形状 × 已出主牌张数**判。加分 K 分的 EV = K(1−2p)（本墩归我队 +K、被第四家毙 −K），p < 1/2 就该加。记牌器判「毙不了」→ 照常加分（原有行为，不变）；判「能毙」→ 一般也加分，**唯一不加分**的是真毙率过半的两格：0对2张 / 0对3张 且「台面上主牌 ≤4 张」（= 第三家出牌时已完成各墩 + 本墩前两家的主牌数，完全可观测）——实测 85.2% / 67.8%；其余五格全部低于一半（最高的 0对4张 也只有 40.6%，1对3张 34.9%、1对4张 33.6%）。有主局（`ntState === null`）没有记牌器，行为逐字节不变；含顶张提前加分、`addPointsForbidden` 禁分、甩主牌 / 含拖拉机 / 单张对子分支也都不动。
+
+**新增 5 项测试**（ai-follow.test.ts：5 项）
+
+### 共享模块与行为指纹
+
+- `throw-detector.ts` 抽出并导出 `worstCaseSuitHand`，`findThrowableSuitCards` 与 `computeOffSuitControls` 增加可选的「已知出局」`exclude`（默认空数组 ⇒ 扣底调用逐字节不变）；`bottom-strategy.ts` 导出 `compareLongCandidate`。
+- **修改 1 项测试**（arena-e2e.test.ts：`oppLevel` 219 → 203，A/B 两处）；`bottom-exchange-input.test.ts` 与 client 的种子局数字**未变**——长花色层与加分改动都只在无主（`ntState !== null`）下生效，有主局出牌逐字节不变。
+- `STRATEGY.md` 第四章补「长花色层」与理由表；README 中英两处 `ai` 行维持 `待重测`（改的是 `packages/engine/src/ai/`），补记本日的无主长花色改动。
+- **不动** `packages/engine/src/ai-0802|0816|0907|0927|0929/`（冻结基线，各自自包含）。
+
+**修改 1 项测试**（arena-e2e.test.ts：1 项），引擎 1077 项 + arena 198 项 + CLI 87 项 + client 201 项 = 1563 项通过。
+
+- **影响文件**：`packages/engine/src/ai/nt-lead.ts`（新）、`packages/engine/src/ai/suit-memory.ts`（新）、`packages/engine/src/ai/nt-trump.ts`（新）、`packages/engine/src/ai/lead.ts`、`packages/engine/src/ai/throw-detector.ts`、`packages/engine/src/ai/bottom-controls.ts`、`packages/engine/src/ai/bottom-strategy.ts`、`packages/engine/src/ai/flush-detector.ts`、`packages/engine/src/ai/helpers.ts`、`packages/engine/src/ai/STRATEGY.md`、`packages/engine/src/__tests__/suit-memory.test.ts`（新）、`packages/engine/src/__tests__/ai-nt-lead.test.ts`（新）、`packages/engine/src/__tests__/ai-follow.test.ts`、`packages/engine/src/__tests__/ai-flush-detector.test.ts`、`packages/arena/src/__tests__/arena-e2e.test.ts`、`README.md`
+
 ## 2026-10-05 12:20
 
 ### 无主竞技场对比表新增「平局率」列，A/B 胜率不再把平局折半
@@ -108,6 +146,7 @@ Ctrl+C 打印部分结果并导出 `partial: true` 的 JSON。
 **新增 2 项测试**（ai-nt-tracking.test.ts：2 项），引擎 1020 项 + arena 121 项 + CLI 87 项 + client 201 项 = 1429 项通过。
 
 - **影响文件**：`packages/engine/src/ai/nt-tracking.ts`、`packages/engine/src/__tests__/ai-nt-tracking.test.ts`、`README.md`
+
 
 ## 2026-10-02 15:04
 

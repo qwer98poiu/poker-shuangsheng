@@ -1,12 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { Suit, SpecialSuit } from '../types.js';
+import { Suit, SpecialSuit, Rank } from '../types.js';
 import { createCard, isTrump } from '../model.js';
 import { classify } from '../pattern/index.js';
 import { compareTwo } from '../comparing/index.js';
 import { validateFollow } from '../following/index.js';
 import { aiFollowPlay } from '../ai/index.js';
 import { canAddPoints } from '../ai/helpers.js';
-import type { Card, CardSuit, TrumpDeclaration } from '../types.js';
+import { canPlayerTrumpThrow } from '../ai/nt-tracking.js';
+import type { Card, CardSuit, Trick, TrumpDeclaration } from '../types.js';
 import type { AIContext, NTTrumpState } from '../ai/types.js';
 
 const cfg5: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 5 };
@@ -3711,12 +3712,14 @@ describe('NT 第三家甩副牌：第四家毙不了则垫分不毙', () => {
 });
 
 // ================================================================
-// canAddPoints：第三家对「无顶张甩副牌」的判据（新规则直测）
+// canAddPoints：第三家对「无顶张甩副牌」的判据
 // ================================================================
-// 甩副牌含顶张（或含拖拉机、或甩主牌）→ 加分（原有行为）。无顶张也无拖拉机时改判第四家
-// 能否用主牌毙：记牌器能排除该风险 → 加分（新）；否则不加分。仅无主生效——有主局没有
-// 记牌器（ntState 为 null），逐字节不变。
-describe('canAddPoints — 第三家无顶张甩副牌改判第四家能否毙', () => {
+// 甩副牌含顶张（或含拖拉机、或甩主牌）→ 加分（原有行为）。无顶张也无拖拉机时：
+// 记牌器判**毙不了** → 加分（原有行为）；判**能毙** → 一般也加分——记牌器是刻意保守
+// 的上界，它说「能毙」只有约 48% 兑现。唯一不加分的是「0对2张 / 0对3张 且 台面上主牌
+// ≤4 张」（真毙率实测 85.2% / 67.8%，其余形状与阶段全部 < 50%）。仅无主生效——有主局
+// 没有记牌器（ntState 为 null），逐字节不变。
+describe('canAddPoints — 第三家无顶张甩副牌按形状 × 已出主牌判加分', () => {
   const level = 2;
   const CFG_NT: TrumpDeclaration = { declarerIndex: 0, trumpSuit: null, level };
   const CFG_SUIT: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level };
@@ -3759,20 +3762,73 @@ describe('canAddPoints — 第三家无顶张甩副牌改判第四家能否毙',
   const throwNoTop = [c('C', 12, 200), c('C', 11, 200), c('C', 9, 200)];
   /** 第四家能毙：3 张主牌（♥2♥2 + ♠2），够盖 3 张。 */
   const canTrump4th = () => ntState4th({ 'H-2': 2, 'S-2': 1 }, 3);
+  /** 第四家能毙 4 张：♥2♥2 + ♠2♠2。 */
+  const canTrump4thN4 = () => ntState4th({ 'H-2': 2, 'S-2': 2 }, 4);
+  /** 台面上已有 n 张主牌（rank 2 = 级牌 → 常主），放进本墩已出的牌里。 */
+  function withPlayedTrumps(nt: NTTrumpState, n: number): AIContext {
+    const base = ctxOf(CFG_NT, nt);
+    return {
+      ...base,
+      playCount: 1,
+      trickPlays: [{ cards: Array.from({ length: n }, (_, i) => c('S', 2, 900 + i)) }],
+    };
+  }
 
   it('含顶张的甩牌 → 加分（原有行为，回归锁）', () => {
     const combo = classify([c('C', 14, 200), c('C', 12, 200), c('C', 11, 200)], CFG_NT);
     expect(canAddPoints(true, 'third', combo, ctxOf(CFG_NT, canTrump4th()))).toBe(true);
   });
 
-  it('无顶张无拖拉机 + 第四家不能毙 → 加分（新规则）', () => {
+  it('无顶张无拖拉机 + 第四家不能毙 → 加分（原有行为）', () => {
     const combo = classify(throwNoTop, CFG_NT);
     expect(canAddPoints(true, 'third', combo, ctxOf(CFG_NT, ntState4th({})))).toBe(true);
   });
 
-  it('无顶张无拖拉机 + 第四家能毙 → 不加分', () => {
+  it('无顶张无拖拉机 + 第四家能毙 + 例外格（0对3张 × 已出 0）→ 不加分', () => {
     const combo = classify(throwNoTop, CFG_NT);
     expect(canAddPoints(true, 'third', combo, ctxOf(CFG_NT, canTrump4th()))).toBe(false);
+  });
+
+  it('例外格边界：0对3张 × 已出 4 张 → 不加分', () => {
+    const combo = classify(throwNoTop, CFG_NT);
+    const ctx = withPlayedTrumps(canTrump4th(), 4);
+    expect(canPlayerTrumpThrow(3, throwNoTop, ctx.ntState!, CFG_NT)).toBe(true);
+    expect(canAddPoints(true, 'third', combo, ctx)).toBe(false);
+  });
+
+  it('例外格边界：0对3张 × 已出 5 张 → 加分（第四家能毙也不再挡）', () => {
+    const combo = classify(throwNoTop, CFG_NT);
+    const ctx = withPlayedTrumps(canTrump4th(), 5);
+    expect(canPlayerTrumpThrow(3, throwNoTop, ctx.ntState!, CFG_NT)).toBe(true);
+    expect(canAddPoints(true, 'third', combo, ctx)).toBe(true);
+  });
+
+  it('0对2张 × 已出 4 张 → 不加分（例外格）', () => {
+    const throw2 = [c('C', 12, 200), c('C', 11, 200)];
+    const combo = classify(throw2, CFG_NT);
+    expect(combo.type).toBe('throw');
+    expect(combo.pairCount).toBe(0);
+    const ctx = withPlayedTrumps(canTrump4th(), 4);
+    expect(canPlayerTrumpThrow(3, throw2, ctx.ntState!, CFG_NT)).toBe(true);
+    expect(canAddPoints(true, 'third', combo, ctx)).toBe(false);
+  });
+
+  it('0对4张 × 已出 4 张 → 加分（不在例外形状内）', () => {
+    const throw4 = [c('C', 12, 200), c('C', 11, 200), c('C', 9, 200), c('C', 8, 200)];
+    const combo = classify(throw4, CFG_NT);
+    expect(combo.pairCount).toBe(0);
+    const ctx = withPlayedTrumps(canTrump4thN4(), 4);
+    expect(canPlayerTrumpThrow(3, throw4, ctx.ntState!, CFG_NT)).toBe(true);
+    expect(canAddPoints(true, 'third', combo, ctx)).toBe(true);
+  });
+
+  it('1对3张 × 已出 4 张 → 加分（含对，不在例外形状内）', () => {
+    const throw13 = [c('C', 12, 200), c('C', 12, 201), c('C', 9, 200)];
+    const combo = classify(throw13, CFG_NT);
+    expect(combo.pairCount).toBe(1);
+    const ctx = withPlayedTrumps(canTrump4th(), 4);
+    expect(canPlayerTrumpThrow(3, throw13, ctx.ntState!, CFG_NT)).toBe(true);
+    expect(canAddPoints(true, 'third', combo, ctx)).toBe(true);
   });
 
   it('无顶张无拖拉机 + 无记牌器（ntState 为 null）→ 不加分', () => {
@@ -3803,3 +3859,4 @@ describe('canAddPoints — 第三家无顶张甩副牌改判第四家能否毙',
     expect(canAddPoints(true, 'third', pair, ctxOf(CFG_NT, ntState4th({})))).toBe(false);
   });
 });
+

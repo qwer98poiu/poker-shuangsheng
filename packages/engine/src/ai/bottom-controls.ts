@@ -37,9 +37,17 @@ export interface OffSuitControlInfo {
   voidablePairCount: number;
 }
 
+/**
+ * `exclude` lists cards known to be out of play (already played, or in the
+ * bottom). At bury time nothing has been played yet, so the default keeps the
+ * bottom strategy's behaviour byte-for-byte; the lead strategy passes the
+ * long suit's played cards so control cards keep getting promoted, and the
+ * "top" rank moves down as the real top cards are used up.
+ */
 export function computeOffSuitControls(
   hand: Card[],
   config: TrumpDeclaration,
+  exclude: readonly Card[] = [],
 ): OffSuitControlInfo[] {
   const result: OffSuitControlInfo[] = [];
   for (const suit of SUIT_ORDER) {
@@ -59,7 +67,7 @@ export function computeOffSuitControls(
       for (const c of t) tier1Set.add(c.id);
     }
     // c) worst-case throwable cards (per-suit worst-case model)
-    for (const c of findThrowableSuitCards(cards, suit, config)) {
+    for (const c of findThrowableSuitCards(cards, suit, config, exclude)) {
       tier1Set.add(c.id);
     }
     const tier1 = cards.filter(c => tier1Set.has(c.id));

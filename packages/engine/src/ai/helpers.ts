@@ -102,16 +102,29 @@ export function addPointsForbidden(ctx: AIContext, leadCombo: ComboClass): boole
   return false;
 }
 
+/**
+ * 第三家出牌时已落在台面上的主牌张数（已完成各墩 + 本墩前两家的出牌）。
+ * 第三家视角下完全可观测，也是「第四家还能不能毙」最直接的代理量。
+ */
+function playedTrumps(ctx: AIContext): number {
+  const seen = [
+    ...ctx.trickHistory.flatMap(t => t.plays.flatMap(p => p.cards)),
+    ...ctx.trickPlays.flatMap(p => p.cards),
+  ];
+  return seen.filter(c => isTrump(c, ctx)).length;
+}
+
 /** Whether we should add points when teammate is winning.
  *  Fourth: always.
  *  Third: only if lead is max pattern — big card (A/K single or pair),
- *         has tractor, or is a throw. A throw counts as max when it contains a
- *         top card, or (within a suit, i.e. NT) when the fourth seat cannot
- *         trump it — an off-suit throw can never be beaten in-suit, because the
- *         engine validates every throw lead and force-plays a downgraded
- *         sub-pattern when it would be beaten (game/index.ts).
+ *         has tractor, or is a throw. An off-suit throw can never be beaten
+ *         in-suit, because the engine validates every throw lead and
+ *         force-plays a downgraded sub-pattern when it would be beaten
+ *         (game/index.ts), so a throw counts as max when it contains a top
+ *         card and — in NT — otherwise too, unless the fourth seat is very
+ *         likely to trump it (see the throw branch).
  *  Never adds if defender team and any point card would push attacker to 80+.
- *  分位置规格：甩副牌含顶张、或（无主下）第四家毙不了 → 加分；甩主牌加分；
+ *  分位置规格：甩副牌含顶张、或（无主下）第四家真毙率过半的形状 → 加分；甩主牌加分；
  *  庄家方且闲家得分 + 本墩已出分为 70 或 75 时禁分。 */
 export function canAddPoints(tmWin: boolean, position: string, leadCombo: ComboClass, ctx: AIContext): boolean {
   if (!tmWin) return false;
@@ -130,14 +143,19 @@ export function canAddPoints(tmWin: boolean, position: string, leadCombo: ComboC
     if (leadCombo.type === 'throw') {
       // 甩副牌：含顶张 → 加分（含拖拉机已在 hasTractor 分支提前返回）
       if (leadCombo.cards.some(c => isBigOffSuitCard(c, ctx))) return true;
-      // 无顶张：甩牌不会被同花色盖过——引擎对 type==='throw' 的领出先 validateThrow，
-      // 不合法就罚分并强制降级（game/index.ts），进到比较的永远是合法牌型。
-      // 唯一剩下的风险是「第四家缺门用主牌毙」；记牌器能排除该风险 → 也算 max，照常加分。
-      // 只有无主（有记牌器）时生效：有主局 ntState 为 null，行为完全不变。
-      if (ctx.ntState !== null && ctx.myIndex >= 0) {
-        return !canPlayerTrumpThrow((ctx.myIndex + 1) % 4, leadCombo.cards, ctx.ntState, ctx);
-      }
-      return false;
+      // 唯一剩下的风险是「第四家缺门用主牌毙」。
+      // 只有无主（有记牌器）时生效：有主局 ntState 为 null，行为完全不变（一律不加分）。
+      if (ctx.ntState === null || ctx.myIndex < 0) return false;
+      // 记牌器判**毙不了** → 放心加分（原有行为，不变）。
+      if (!canPlayerTrumpThrow((ctx.myIndex + 1) % 4, leadCombo.cards, ctx.ntState, ctx)) return true;
+      // 记牌器判**能毙**：不再因此不加分。加 K 分的 EV = K(1−2p)（本墩归我队 +K，
+      // 被第四家毙 −K），p < 1/2 就该加——而 `canPlayerTrumpThrow` 是刻意保守的上界
+      // （证不出凑不出就回 true），它说「能毙」只有约 48% 兑现（有实力率 53.0% → 30.6%，
+      // 意愿率恒 86–93%），按它不加分会把该加的分大面积放过。
+      // 真正该不加的只有真毙率过半的格：0对2张 / 0对3张 且 台面上主牌 ≤4 张
+      // （实测 85.2% / 67.8%）；其余形状与阶段全部低于一半（0对4张 40.6%、1对3张 34.9%…）。
+      return !(playedTrumps(ctx) <= 4 && leadCombo.pairCount === 0
+        && (leadCombo.length === 2 || leadCombo.length === 3));
     }
     if (leadCombo.type === 'single' || leadCombo.type === 'pair') {
       return leadCombo.cards.every(c => isBigOffSuitCard(c, ctx));

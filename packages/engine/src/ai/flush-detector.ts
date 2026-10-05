@@ -99,15 +99,21 @@ export function detectFlushEvidence(
 /**
  * 领出优先级 0：把证据花色剩下的对一次性甩出。
  * 只在剩 >= 2 对时触发——只剩 1 对是普通出对，不该遮蔽优先级 2/4。
+ *
+ * `skipSuit` 是「无主长花色层的长花色」：该门的甩牌由 `nt-lead.ts` 应甩尽甩
+ * 处理（T1 整段过闸门，含最坏情况校验），这条通用规则不得抢先改写它——它只证明
+ * **对子**已绝、并不证明整门已断，且无主下不查是否会挨毙。其余花色不受影响；
+ * 不传该参即原行为（跟牌侧的 `isFlushFollow` / `avoidBeatingTeammate` 一律走原样）。
  */
 export function tryLeadFlushThrow(
-  hand: Card[], ctx: AIContext,
+  hand: Card[], ctx: AIContext, skipSuit?: CardSuit,
 ): { cards: Card[]; reason: string } | null {
   if (ctx.playCount !== 0) return null; // 只在领出时
   // 无主：甩对接受被毙风险，跳过 G2（对手缺门不构成对子推断的缺口）；有主维持原样
   const evidence = detectFlushEvidence(ctx, ctx.myIndex,
     { skipOpponentFullFollow: ctx.ntState !== null });
   if (!evidence) return null;
+  if (skipSuit !== undefined && evidence.suit === skipSuit) return null;
 
   const group = String(evidence.suit);
   const suitCards = hand.filter(c => suitGroup(c, ctx) === group);

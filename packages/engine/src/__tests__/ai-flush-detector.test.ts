@@ -19,6 +19,8 @@ import { classify } from '../pattern/index.js';
 import { validateThrow } from '../leading/index.js';
 import { compareTwo } from '../comparing/index.js';
 import type { AIContext } from '../ai/types.js';
+import { minimalContext } from '../ai/types.js';
+import { computeLongSuit } from '../ai/suit-memory.js';
 import {
   detectFlushEvidence, tryLeadFlushThrow, isFlushFollow, avoidBeatingTeammate,
   detectDrainedSuit, tryLeadDrainedSuitThrow,
@@ -722,5 +724,59 @@ describe('G2 放宽：仅无主、仅领出侧', () => {
     const ctx = ctxOf({ myIndex: 2, leadPlayerIndex: 0, playCount: 0,
       history: [g2Trick()], ntState: ntStateOf({}) });
     expect(isFlushFollow(ctx, classify(leadOf(DRAIN_SUIT), { ...CFG, trumpSuit: null }))).toBe(false);
+  });
+});
+
+// ---- 6. 0b 不适用于无主长花色（确认口径 6） ----
+
+describe('tryLeadFlushThrow — 无主长花色排除', () => {
+  /** 无主长花色：♠ AAKKQQ J 10 9（9 张、7 控制）。 */
+  const longHand = [
+    c(Suit.Spades, 14), c(Suit.Spades, 14), c(Suit.Spades, 13), c(Suit.Spades, 13),
+    c(Suit.Spades, 12), c(Suit.Spades, 12), c(Suit.Spades, 11), c(Suit.Spades, 10),
+    c(Suit.Spades, 9),
+  ];
+
+  /** 无主局 + 上一墩验出 ♠ 对子已绝（0b 的触发证据）。 */
+  function ntCtx(): AIContext {
+    return {
+      ...minimalContext({ declarerIndex: 0, trumpSuit: null, level: Rank.Two }),
+      myIndex: 0, isDeclarer: true, isDeclarerPartner: false, isAttacker: false,
+      handCounts: [9, 20, 20, 20] as const, trickHistory: [evidenceTrick(0, Suit.Spades)],
+      ntState: null,
+    };
+  }
+
+  it('传长花色 → 不触发（该门的甩牌交给长花色层按 T1 分阶段处理）', () => {
+    expect(computeLongSuit(longHand, ntCtx())).toBe(Suit.Spades);
+    expect(tryLeadFlushThrow(longHand, ntCtx(), Suit.Spades)).toBeNull();
+  });
+
+  it('同一证据不传长花色 → 照旧触发（证明排除确实起作用）', () => {
+    const r = tryLeadFlushThrow(longHand, ntCtx())!;
+    expect(r.reason).toContain('对子已绝');
+  });
+
+  it('传别的花色 → 照旧触发（只排长花色一门）', () => {
+    const r = tryLeadFlushThrow(longHand, ntCtx(), Suit.Hearts)!;
+    expect(r.reason).toContain('对子已绝');
+  });
+
+  it('函数本身无状态：不传 skipSuit 即有主/无长花色的原行为', () => {
+    const suited = ctxOf({ myIndex: 0, history: [evidenceTrick(0, Suit.Spades)] });
+    const hand = [
+      c(Suit.Spades, 8), c(Suit.Spades, 8), c(Suit.Spades, 6), c(Suit.Spades, 6),
+      c(Suit.Spades, 3), c(Suit.Spades, 3), c(Suit.Hearts, 7), c(Suit.Clubs, 4),
+    ];
+    expect(tryLeadFlushThrow(hand, suited)!.reason).toBe('甩♠副牌(对子已绝，3对)');
+  });
+
+  it('接线：有主局的领出阶梯照旧走 0b（调用方不传长花色）', () => {
+    const suited = ctxOf({ myIndex: 0, history: [evidenceTrick(0, Suit.Spades)] });
+    const hand = [
+      c(Suit.Spades, 8), c(Suit.Spades, 8), c(Suit.Spades, 6), c(Suit.Spades, 6),
+      c(Suit.Spades, 3), c(Suit.Spades, 3), c(Suit.Hearts, 7), c(Suit.Clubs, 4),
+    ];
+    expect(aiLeadPlay(hand, suited).reason).toBe('甩♠副牌(对子已绝，3对)');
   });
 });
