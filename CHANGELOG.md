@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-10-05 21:17
+
+### 清理 `--noUnusedLocals` 报出的未使用声明
+
+**问题**：`tsc --noUnusedLocals` 在全仓报出 57 处未使用声明（冻结基线 `packages/engine/src/ai-XXXX/` 除外——那是各自的归档快照，自带历史，不在此列）：37 处 import 绑定 + 20 处局部变量（未用的回调参数、测试里没接线上的辅助常量与函数、CLI 的颜色常量与中间量、解构出的中间绑定）。它们不影响行为，但让「还要用的依赖与辅助」和「已经不要用的」混在一起——改这些文件时得逐个名字回查。
+
+**做法**：逐处删掉声明本身，不改任何一行逻辑；某条 import 因此清空（且没有 default / namespace 绑定）时整条删除。另删掉一处**从未实现校验**的空循环——测试里那个遍历 `Object.entries(playedKeys)` 的循环，循环体只有注释，连只为喂它而写的 `playedKeys` 与两层外层迭代一并作废。清完该检查在本口径下零输出；四包测试数字逐项不变（该空循环本就不产生任何断言）。
+
+**无新增测试**，引擎 1077 项 + arena 198 项 + CLI 87 项 + client 201 项 = 1563 项通过。
+
+- **影响文件**：`packages/arena/src/match.ts`、`packages/arena/src/solo-arena.ts`、`packages/cli/src/index.ts`、`packages/client/scripts/ui-dump.ts`、`packages/client/scripts/ui-smoke.ts`、`packages/client/src/__tests__/autoGrabDealer.test.ts`、`packages/client/src/components/cards/CardFace.tsx`、`packages/client/src/components/game/CenterArea.tsx`、`packages/client/src/components/game/GameTable.tsx`、`packages/client/src/store/gameStore.ts`、`packages/engine/src/__tests__/ai-follow.test.ts`、`packages/engine/src/__tests__/ai-leading.test.ts`、`packages/engine/src/__tests__/ai-nt-tracking.test.ts`、`packages/engine/src/__tests__/ai-position-follow.test.ts`、`packages/engine/src/__tests__/ai-throw-detector.test.ts`、`packages/engine/src/__tests__/bottom-controls.test.ts`、`packages/engine/src/__tests__/comparing.test.ts`、`packages/engine/src/__tests__/declarer-rotation.test.ts`、`packages/engine/src/__tests__/pattern.test.ts`、`packages/engine/src/__tests__/revealing.test.ts`、`packages/engine/src/__tests__/scoring.test.ts`、`packages/engine/src/__tests__/throw-penalty.test.ts`、`packages/engine/src/ai/bottom-strategy.ts`、`packages/engine/src/ai/follow-offsuit.ts`、`packages/engine/src/ai/index.ts`、`packages/engine/src/ai/lead.ts`、`packages/engine/src/ai/nt-tracking.ts`、`packages/engine/src/ai/types.ts`、`packages/engine/src/ai/utils.ts`、`packages/engine/src/bottom-exchange/index.ts`、`packages/engine/src/comparing/index.ts`
+
 ## 2026-10-05 14:41
 
 ### 无主长花色领出层（`ai/nt-lead.ts` + `ai/suit-memory.ts` + `ai/nt-trump.ts`）

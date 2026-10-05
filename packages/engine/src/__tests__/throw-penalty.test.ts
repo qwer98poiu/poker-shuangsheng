@@ -3,7 +3,7 @@ import { createInitialState, GamePhase, Suit } from '../types.js';
 import { createCard } from '../model.js';
 import { playCards } from '../game/index.js';
 import { computeLevelChange } from '../scoring/index.js';
-import type { Card, CardSuit, GameState, PlayerState, TrumpDeclaration } from '../types.js';
+import type { Card, CardSuit, GameState, PlayerState} from '../types.js';
 
 function c(s: CardSuit, r: number, i: number): Card { return createCard(s, r, i); }
 

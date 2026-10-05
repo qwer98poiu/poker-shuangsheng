@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useGameStore } from '../../store/gameStore.js';
 import {
-  GamePhase, sortHand, Suit, suitLabel, rankLabel,
+  GamePhase, sortHand, suitLabel, rankLabel,
   computeRoundOutcome, advanceLevel, buildAIContext,
 } from '@poker/engine';
 import type { GameState, Card, CardSuit } from '@poker/engine';

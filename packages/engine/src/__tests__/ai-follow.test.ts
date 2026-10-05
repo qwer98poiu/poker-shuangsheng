@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Suit, SpecialSuit, Rank } from '../types.js';
+import { Suit, SpecialSuit} from '../types.js';
 import { createCard, isTrump } from '../model.js';
 import { classify } from '../pattern/index.js';
 import { compareTwo } from '../comparing/index.js';
@@ -7,7 +7,7 @@ import { validateFollow } from '../following/index.js';
 import { aiFollowPlay } from '../ai/index.js';
 import { canAddPoints } from '../ai/helpers.js';
 import { canPlayerTrumpThrow } from '../ai/nt-tracking.js';
-import type { Card, CardSuit, Trick, TrumpDeclaration } from '../types.js';
+import type { Card, CardSuit, TrumpDeclaration } from '../types.js';
 import type { AIContext, NTTrumpState } from '../ai/types.js';
 
 const cfg5: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 5 };
@@ -3288,9 +3288,7 @@ describe('break pair: score-aware pair breaking', () => {
 // 第四家出牌理由恒标注（加分/不加分/尽量少加分）
 // ================================================================
 describe('fourth position reason always carries add/avoid mark', () => {
-  const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 6 };
   const c4 = (s: CardSuit, r: number, i: number): Card => createCard(s, r, i);
-  const MARK = /加分|不加分|少加分|分牌盖|最小牌盖|唯一可出|必出/;
 
   function ctx4(
     bestSoFar: { cards: Card[]; playerIndex: number },
@@ -3859,4 +3857,3 @@ describe('canAddPoints — 第三家无顶张甩副牌按形状 × 已出主牌�
     expect(canAddPoints(true, 'third', pair, ctxOf(CFG_NT, ntState4th({})))).toBe(false);
   });
 });
-

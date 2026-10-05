@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Rank, Suit } from '../types.js';
+import { Suit } from '../types.js';
 import { createCard, sortHand } from '../model.js';
 import { cardGreater, compareTwo, determineWinner } from '../comparing/index.js';
 import type { Card, CardSuit, TrumpDeclaration } from '../types.js';

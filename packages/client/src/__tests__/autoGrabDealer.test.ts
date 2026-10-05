@@ -6,7 +6,7 @@ import { decideAutoGrabDealer } from '../store/autoGrabDealer.js';
 const c = (s: CardSuit, r: number, i: number): Card => createCard(s, r, i);
 const rev = (playerIndex: number, suit: Suit | null, strength: number): Reveal =>
   ({ playerIndex, suit, strength });
-const S = Suit.Spades, H = Suit.Hearts;
+const S = Suit.Spades;
 
 describe('decideAutoGrabDealer — 首局自动抢庄决策', () => {
   it('无人亮主 + 有级牌 → 亮枚举序第一门（SHCD）', () => {

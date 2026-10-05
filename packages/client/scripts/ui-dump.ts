@@ -128,7 +128,6 @@ function formatDump(snap: UiSnapshot): string {
     : '-';
   const declarer = gs.trumpDeclaration?.declarerIndex ?? gs.declarerIndex;
   out.push(`round: ${snap.store.roundNumber} | phase: ${gs.phase} | level: ${rankLabel(gs.currentLevel)} | trump: ${trumpStr} | declarer: P${declarer}(${gs.players[declarer].name})`);
-  const attackerTeam = (declarer % 2 === 0) ? 1 : 0;
   const teamPts: [number, number] = [0, 0];
   for (const t of gs.trickHistory) teamPts[t.winnerIndex % 2] += t.points;
   out.push(`scores: attacker=${gs.attackerPoints} | tricks=${gs.tricksPlayed}/25 | team0=${teamPts[0]} | team1=${teamPts[1]}`);

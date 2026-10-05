@@ -1,6 +1,6 @@
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import type { GameState, Trick, Card, Reveal } from '@poker/engine';
-import { GamePhase, suitLabel, rankLabel, suitName, isPointRank, cardPointsFromRank, computeRoundOutcome } from '@poker/engine';
+import { GamePhase, suitLabel, rankLabel, isPointRank, computeRoundOutcome } from '@poker/engine';
 import CardFace from '../cards/CardFace.js';
 import { useGameStore } from '../../store/gameStore.js';
 import { mergeFailedThrow, formatAttackerScore, type ThrowEntry } from '../../store/throwFailure.js';

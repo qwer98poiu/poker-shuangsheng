@@ -6,7 +6,6 @@
  * divergence bug.
  */
 import type { Card, Trick, Reveal, CardSuit } from '../types.js';
-import { SpecialSuit } from '../types.js';
 import { createCard, isTrump, getEffectiveRank } from '../model.js';
 import { findAllPairs, detectTractors, classify } from '../pattern/index.js';
 import { matchPattern } from '../comparing/index.js';

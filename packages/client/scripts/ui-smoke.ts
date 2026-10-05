@@ -135,7 +135,6 @@ function assertRoundTransition(prev: any, next: any): void {
   const outcome = computeRoundOutcome(gsPrev.attackerPoints, gsPrev.bottomCards, lastTrick, gsPrev.trumpDeclaration, declarer);
 
   // advancing team level prediction (same formula as client startNewRound)
-  const advancingTeam = outcome.attackerSits ? (declarer + 1) % 2 : declarer % 2;
   const expectedLevel = advanceLevel(gsPrev.currentLevel, outcome.finalPts).newLevel;
   const expectedDeclarer = outcome.attackerSits ? (declarer + 1) % 4 : (declarer + 2) % 4;
   check(`round transition level (${rankStr(gsPrev.currentLevel)}→?)`, gsNext.currentLevel === expectedLevel,

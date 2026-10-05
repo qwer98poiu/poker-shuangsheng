@@ -2,12 +2,12 @@
  * AI lead play strategies — tactics for choosing what to lead when
  * it's our turn to start a trick.
  */
-import type { Card, ComboClass } from '../types.js';
+import type { Card} from '../types.js';
 import { Rank, Suit, isPointRank } from '../types.js';
 import { isTrump, getEffectiveRank } from '../model.js';
 import { findAllPairs, detectTractors, classify as classifyCombo } from '../pattern/index.js';
 import type { AIContext } from './types.js';
-import { canBeat, maxCardT, groupBySuit, suitLabelCn, getTopOffSuitRank } from './utils.js';
+import { maxCardT, groupBySuit, suitLabelCn, getTopOffSuitRank } from './utils.js';
 import { findThrowableOffSuitCombos } from './throw-detector.js';
 import { tryLeadFlushThrow, tryLeadDrainedSuitThrow } from './flush-detector.js';
 import { shouldDrawTrumpInNT, pickNTTrumpLead } from './nt-trump.js';

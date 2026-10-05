@@ -1,7 +1,7 @@
 /**
  * AI strategy types.
  */
-import type { Card, CardSuit, Trick, Reveal, TrumpDeclaration } from '../types.js';
+import type { Card, Trick, Reveal, TrumpDeclaration } from '../types.js';
 
 /** Position in the current trick. */
 export type PlayPosition = 'lead' | 'second' | 'third' | 'fourth';

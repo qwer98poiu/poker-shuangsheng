@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { Rank, SpecialSuit, Suit } from '../types.js';
 import { createCard } from '../model.js';
 import { computeNTTrumpState, canFormJokerPair, opponentsHaveTrump,
-  canPlayerBeatSingle, canPlayerBeatPair, canAnyOpponentBeatSingle, canAnyOpponentBeatPair,
+  canPlayerBeatSingle, canPlayerBeatPair, canAnyOpponentBeatSingle,
   canPlayerTrumpThrow,
 } from '../ai/nt-tracking.js';
 import type { Card, CardSuit, Reveal, Trick, TrumpDeclaration } from '../types.js';
@@ -416,7 +416,6 @@ describe('NT trump tracking', () => {
       expect(s.canHaveSmallJoker[3]).toBe(false);
       expect(s.canHaveSmallJoker[1]).toBe(true);
       expect(s.remainingSmallJokers).toBe(2);
-      const rec = s.possibleTrumps[4]!;
       expect(has(s.possibleTrumps[4], 'J', 15)).toBe(true);
       expect(s.allUnseenJokersOnOurSide).toBe(false);
     });
@@ -750,9 +749,6 @@ describe('NT trump tracking', () => {
     const p2Hand = [c('D', 2, 1)];
     const p3Hand = [c('S', 2, 1), c('J', Rank.BigJoker, 1)];
 
-    function isr(k: string): boolean { return k === 'J-16'; }
-    function iss(k: string): boolean { return k === 'J-15'; }
-
     const allKeys = ['J-16','J-15','S-2','H-2','C-2','D-2'];
 
     it('knownTrumpsPerPlayer: my-hand cards always in known, no other player private info', () => {
@@ -915,22 +911,6 @@ describe('NT trump tracking', () => {
       expect(sumPossible(s3.possibleTrumps[2])).toBe(0);
       expect(s3.playersWithNoTrump.has(2)).toBe(true);
       expect(sumPossible(s3.possibleTrumps[4])).toBe(5);
-
-      // All views: played cards not in any possibleTrumps
-      const playedKeys: Record<string, number> = {
-        'J-15': 2, 'D-2': 1, 'S-2': 1, 'J-16': 1, 'H-2': 2,
-      };
-      for (const v of [s0, s1, s2, s3]) {
-        for (let p = 0; p < 5; p++) {
-          const rec = v.possibleTrumps[p];
-          if (!rec) continue;
-          for (const [k, _n] of Object.entries(playedKeys)) {
-            // played cards may have been at this location before play,
-            // but after removal they should not appear in other locations.
-            // Just verify the sum across all locations is consistent.
-          }
-        }
-      }
 
       // Verify counts match
       const v0 = call(p0Post, 0, [trick1], reveals, cfg, false, []);
@@ -1181,7 +1161,6 @@ describe('NT trump tracking', () => {
 
 describe('current trick plays — in-progress trick deduction', () => {
   const cfg2 = ntCfg(2);
-  const cfg5 = ntCfg(5);
 
   it('played trump in current trick removed from all possible lists', () => {
     const hand: Card[] = [];
@@ -1453,7 +1432,6 @@ describe('current trick plays — in-progress trick deduction', () => {
     expect(cnt(p3p0,'J-16')).toBe(0);
 
     // Cross-perspective: played suit-ranks have 0 count
-    const playedRanks = { 'J-15': 2, 'J-16': 2, 'C-2': 1, 'H-2': 1 };
     // Actually all 4 jokers and one C-2 and one H-2 were played
     // Remaining: S-2×2, H-2×1, C-2×1, D-2×2 = 6
     // Check that total across all locations sums correctly

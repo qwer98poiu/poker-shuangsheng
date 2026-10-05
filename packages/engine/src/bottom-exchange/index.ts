@@ -6,7 +6,7 @@
  *
  * Provides discarding strategy and a trump-card warning check for human players.
  */
-import type { Card, PlayerState, TrumpDeclaration } from '../types.js';
+import type { Card, TrumpDeclaration } from '../types.js';
 import { isTrump, getEffectiveRank } from '../model.js';
 import { cardPointsFromRank } from '../types.js';
 

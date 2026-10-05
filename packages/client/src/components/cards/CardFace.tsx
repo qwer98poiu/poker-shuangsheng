@@ -38,8 +38,6 @@ const CardFace: React.FC<CardFaceProps> = ({
   const suit = suitLabel(card.suit);
   const isJoker = card.isJoker;
 
-  const displaySuit = isJoker ? '' : suit;
-
   return (
     <div
       className={[

@@ -18,7 +18,7 @@ import {
   classify, bottomMultiplier, countBottomPoints, finalizeAttackerPoints,
   buildAIContext,
 } from '@poker/engine';
-import type { Card, CardSuit, GameState, PlayerState, Suit, TrumpDeclaration } from '@poker/engine';
+import type { Card, CardSuit, GameState, PlayerState, TrumpDeclaration } from '@poker/engine';
 import { Suit as SuitEnum, isPointRank } from '@poker/engine';
 import { deckForHand } from './rng.js';
 import { advanceLevel } from './advance-level.js';

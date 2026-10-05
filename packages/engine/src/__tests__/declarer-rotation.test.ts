@@ -163,7 +163,6 @@ describe('full two-round scenario: initial dealer P0, P2 reveals', () => {
 
   it('after round 2 (attacker sits, 85 pts): next dealer = (P0+1)%4 = P1', () => {
     const prevDeclarer = 0;
-    const attackerSits = true;
     const nextDealer = (prevDeclarer + 1) % 4;
     expect(nextDealer).toBe(1);
   });

@@ -3,7 +3,7 @@ import { Suit, Rank, GamePhase } from '../types.js';
 import type { CardSuit } from '../types.js';
 import { createCard } from '../model.js';
 import {
-  getRevealOptions, canOverride, finalize, revealStrength, canSelfReinforce,
+  getRevealOptions, canOverride, revealStrength, canSelfReinforce,
 } from '../revealing/index.js';
 import { aiTryReveal, buildAIContext } from '../ai/index.js';
 import { tryReveal, finalizeReveal } from '../game/index.js';

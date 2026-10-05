@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { computeLevelChange, accumulateAttackerPoints, finalizeAttackerPoints,
-         bottomMultiplier, countBottomPoints } from '../scoring/index.js';
+         bottomMultiplier} from '../scoring/index.js';
 
 describe('Level change', () => {
   it('大光: 0 pts → defender +3', () => {

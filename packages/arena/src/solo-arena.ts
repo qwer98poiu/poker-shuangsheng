@@ -16,7 +16,7 @@ import type { Card } from '@poker/engine';
 import { deckForHand } from './rng.js';
 import { playHand, dealtHands, naturalDeclaration } from './match.js';
 import { hasJokerPairDeal } from './nt-arena.js';
-import type { HandEvent, Strategy } from './types.js';
+import type { Strategy } from './types.js';
 import { passesDealFilters } from './solo-filter.js';
 import { tierOf, tierOutcome, emptyTier, addTier } from './tier.js';
 import type { TierBucket } from './tier.js';

@@ -14,8 +14,8 @@ import {
   rankLabel, suitLabel, suitName, isRed, isTrump, getEffectiveRank,
   aiTryReveal, aiChooseBottomCards, aiLeadPlay, aiFollowPlay,
   serialize, deserialize, resumeFromTrick,
-  Suit, Rank, validateFollow, validateLead,
-  buildAIContext, computeBestSoFar,
+  Suit, Rank, validateFollow,
+  buildAIContext,
   classify,
 } from '@poker/engine';
 import { computeRoundOutcome } from './round-result.js';
@@ -24,7 +24,7 @@ import { settleRound } from './settle.js';
 import { parseCards, parseHumanCount, parseYesNo, parseSaveChoice, parseTrickNumber, revealLabel, usableRevealOptions, revealHint } from './parse.js';
 import { parseLevelSuit } from './parse-level.js';
 import type {
-  GameState, PlayerState, TrumpDeclaration, Card, CardSuit, AIReason,
+  GameState, PlayerState, TrumpDeclaration, Card, CardSuit,
 } from '@poker/engine';
 
 const SAVE_DIR = path.join(process.cwd(), 'saves');
@@ -75,7 +75,6 @@ const DIM = '\x1b[2m';
 const YELLOW = '\x1b[33m';
 const GREEN = '\x1b[32m';
 const CYAN = '\x1b[36m';
-const MAGENTA = '\x1b[35m';
 const RESET = '\x1b[0m';
 
 // ---- main ----
@@ -604,7 +603,6 @@ async function doPlayerTurn(playerIndex: number) {
   const player = gameState.players[playerIndex];
   const isLeading = gameState.trickPlays.length === 0;
   const leadLen = isLeading ? 0 : gameState.trickPlays[0].cards.length;
-  const config = gameState.trumpDeclaration!;
 
   if (aiPlayers[playerIndex]) {
     // ====== AI turn ======

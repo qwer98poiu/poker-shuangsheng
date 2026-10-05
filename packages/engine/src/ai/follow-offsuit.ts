@@ -13,10 +13,10 @@ import type { AIContext } from './types.js';
 import { canBeat, maxCardT, discardSort, getTopOffSuitRank } from './utils.js';
 import { annotateReason } from './reason.js';
 import {
-  pairKillSort, discardNonTrump, canAddPoints, isMaxPattern, tryMatchTractorSlots,
+  pairKillSort, discardNonTrump, canAddPoints, tryMatchTractorSlots,
   attackerNearThreshold,
 } from './helpers.js';
-import { trumpKill, throwKillMode, rule1KillMode, isBeatingTrumpKill } from './follow-trump.js';
+import { trumpKill, throwKillMode, isBeatingTrumpKill } from './follow-trump.js';
 import { canPlayerTrumpThrow } from './nt-tracking.js';
 import { probeDeclineKill, trickHasNoPoints } from './no-seize.js';
 import { isFlushFollow, avoidBeatingTeammate } from './flush-detector.js';

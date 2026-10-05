@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { Rank, Suit } from '../types.js';
+import { Suit } from '../types.js';
 import { createCard } from '../model.js';
-import { classify, detectTractors, findAllPairs } from '../pattern/index.js';
+import { classify, detectTractors} from '../pattern/index.js';
 import type { CardSuit, TrumpDeclaration } from '../types.js';
 
 const trump5: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 5 };

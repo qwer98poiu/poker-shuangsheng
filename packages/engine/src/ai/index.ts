@@ -13,7 +13,6 @@ import { compareTwo, matchPattern } from '../comparing/index.js';
 import type { AIContext } from './types.js';
 import {
   getPositionInTrick, isTeammateWinning,
-  discardSort, fillerSort,
   groupBySuit, suitLabelCn,
 } from './utils.js';
 import { isOnlyLegalPlay } from '../following/index.js';
@@ -24,7 +23,7 @@ import {
 import { annotateReason } from './reason.js';
 import {
   discardNonTrump,
-  canAddPoints, isMaxPattern, attackerNearThreshold,
+  canAddPoints, attackerNearThreshold,
 } from './helpers.js';
 import {
   followTrumpLead,
@@ -261,7 +260,6 @@ function _aiFollowPlay(
       : fill.some(c => c.suit !== leadSuitCards[0].suit)
         ? '同花色不够，垫其他花色'
         : '垫同花色';
-    const addPoints = tmWin && canAddPoints(tmWin, position, leadCombo, ctx);
     const isPositioned = position === 'second' || position === 'third' || position === 'fourth';
     const intent = (mode === 'add' || mode === 'full') ? 'add'
       : (mode === 'avoid' && isPositioned) ? 'avoid' : 'none';

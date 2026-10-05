@@ -1,16 +1,13 @@
 import { create } from 'zustand';
-import type { Card, GameState, PlayerState, Reveal, AIReason, Trick } from '@poker/engine';
+import type { Card, GameState, PlayerState, AIReason, Trick } from '@poker/engine';
 import {
   createFullDeck, shuffle,
   createInitialState, GamePhase,
   tryReveal, finalizeReveal, playCards,
   computeRoundOutcome, advanceLevel,
   aiTryReveal, aiChooseBottomCards, aiLeadPlay, aiFollowPlay,
-  buildAIContext,
-  getRevealOptions, canOverride,
-  sortHand, suitLabel, rankLabel,
+  buildAIContext, suitLabel, rankLabel,
   seededShuffle,
-  Suit,
 } from '@poker/engine';
 import type { Suit as SuitType } from '@poker/engine';
 import { devParams, seedFor } from '../dev.js';

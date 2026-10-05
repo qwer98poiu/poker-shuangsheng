@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Rank, Suit } from '../types.js';
+import { Suit } from '../types.js';
 import { createCard } from '../model.js';
 import { findThrowableOffSuitCombos } from '../ai/throw-detector.js';
 import type { Card, CardSuit, TrumpDeclaration } from '../types.js';
@@ -40,10 +40,6 @@ const CFG = {
 // ================================================================
 // Helper: check exact card ranks in result
 // ================================================================
-function ranksOf(cards: Card[]): number[] {
-  return cards.map(c => c.rank).sort((a, b) => a - b);
-}
-
 describe('findThrowableOffSuitCombos - basic cases (level=5, trump=Spades)', () => {
   const cfg = CFG.lv5Spade;
 

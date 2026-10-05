@@ -2,7 +2,7 @@
  * Module 6 — Comparing (比较大小).
  * Follows the user-provided pseudocode exactly.
  */
-import type { Card, ComboClass, PlayedCards, TrumpDeclaration } from '../types.js';
+import type { Card, ComboClass, TrumpDeclaration } from '../types.js';
 import { isTrump, getEffectiveRank } from '../model.js';
 import { cardPointsFromRank } from '../types.js';
 import { findAllPairs, detectTractors, classify } from '../pattern/index.js';

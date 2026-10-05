@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Rank, Suit } from '../types.js';
 import { createCard, isTrump } from '../model.js';
-import { classify } from '../pattern/index.js';
 import { validateLead } from '../leading/index.js';
 import { aiLeadPlay } from '../ai/index.js';
 import { minimalContext } from '../ai/types.js';

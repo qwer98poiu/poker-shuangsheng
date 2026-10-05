@@ -437,7 +437,6 @@ describe('第三家：主牌对子领出（第5条）', () => {
 
   it('领出更大且无强牌 → 不盖（出最小）', () => {
     const lead: Card[] = [cc('S', 5, 200), cc('S', 5, 201)];
-    const second = { cards: [cc('S', 3, 100), cc('S', 3, 101)], playerIndex: 1 };
     // 最小对 S3-3 盖不过领出 S5-5，S9-9 能盖过——无强牌 → 不盖，出最小 S3-3
     const hand = [cc('S', 9, 0), cc('S', 9, 1), cc('S', 3, 2), cc('S', 3, 3)];
     const ctx = thirdCtx(cfgS2, lead); // 第二家 S-3-3 没盖过 S-5-5 → 领出者大
