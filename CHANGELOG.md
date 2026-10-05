@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-10-05 10:32
+
+### 无主竞技场改用配对升级量判定胜负
+
+**问题**：无主竞技场的判据是「闲家过 80 分」，只有**跨过这条线**的配对能区分 A/B。实测（seed 42，ai vs ai-0929，31200 对镜像）里两边都过 80 占 52.9%、都没过占 41.4%，只有 **5.7%** 的配对分得开 A/B；而同一 (发牌, 庄家座位, 等级) 下两场闲家分的相关系数是 **0.909**，本该配对比较的两场却被当成两个独立计数去比。
+
+**做法**：改判**配对升级量**。同一 (等级, 庄家座位) 的两场镜像配成一对，比两场闲家分的升级量（`tierOf`：0 分单列 −1 档、其余 ⌊分/40⌋，与单副牌竞技场同源）——A 队当闲那场更高记 a、B 队当闲那场更高记 b、相同记平（等价于「A 当庄让闲家拿更少的分」）；一副牌里 a 对多则这副算 A 胜。升级量档把「差一级」的配对全部变成可判，同 seed 下分得开 A/B 的配对比例升到 10.5%（ai vs ai-0929）/ 46.9%（ai vs ai-0802），可比较对数因而成倍增加。一对里任一条腿中止 → **整对作废**（旧口径只丢那一场小局，这副其余照常计入）——口径变了，新旧读数不可混着比。台上/台下各行与 north star（`handWins*`）仍是 80 分口径：配对升级量下 A 在一对里恰有一条腿当庄、一条腿当闲，「A 当庄让闲家少拿」与「A 当闲多拿」是**同一个不等式**，台上/台下在这口径下恒等；角色维度只能靠 80 口径的台上/台下读数保留。对比表因此新增「胜率（小局升级口径）」（替换原「胜率（小局口径）」）与 13 行「等级 X 胜率」block（排在台上/台下之前），全局指标加「每副平均配对数」。`tierOf`/`tierOutcome`/`TierBucket` 从 `solo-arena.ts` 提到新模块 `tier.ts`（打破 `nt-arena` ↔ `solo-arena` 的循环），`solo-arena` 原样再导出，既有 import 路径不变。
+
+**新增 3 项测试**（nt-arena.test.ts：3 项）。
+
+引擎 1020 项 + arena 185 项 + CLI 87 项 + client 201 项 = 1493 项通过。
+
+- **影响文件**：`packages/arena/src/tier.ts`（新）、`packages/arena/src/nt-arena.ts`、`packages/arena/src/nt-report.ts`、`packages/arena/src/nt-run.ts`、`packages/arena/src/nt-ladder.ts`、`packages/arena/src/solo-arena.ts`、`packages/arena/src/__tests__/nt-arena.test.ts`、`README.md`
+
 ## 2026-10-04 22:45
 
 ### 单副牌 A/B 竞技场新增长花色发牌过滤器（`--deal-filter long-suit`）

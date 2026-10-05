@@ -169,7 +169,9 @@ npm run arena:nt -w packages/arena -- --min-deals 2000 --seed 42
 # or from the repo root: npm run arena:nt -- --min-deals 2000 ...
 ```
 
-The general arena plays whole matches, where NT rounds are a minority; the NT arena isolates them. Deals where no seat holds a joker pair are **filtered out** (they would never be played as NT), and every kept deal is swept over 4 declarers × 13 levels = 52 小局 and then played **again with the strategies swapped** — A on seats 0&2 for one sweep, on 1&3 for the other, same deck. The pair of sweeps (104 小局) is the mirror: seats 0&2 play 1st/3rd each trick and 1&3 play 2nd/4th, so the positional difference cancels instead of favouring one side. There is no match concept: every statistic is 小局-based. Significance is judged **per deal** (A takes a deal when it wins more of its 小局; 52-52 is a draw), because the 104 小局 inside one deal share the same cards and are not independent samples.
+The general arena plays whole matches, where NT rounds are a minority; the NT arena isolates them. Deals where no seat holds a joker pair are **filtered out** (they would never be played as NT), and every kept deal is swept over 4 declarers × 13 levels = 52 小局 and then played **again with the strategies swapped** — A on seats 0&2 for one sweep, on 1&3 for the other, same deck. The pair of sweeps (104 小局) is the mirror: seats 0&2 play 1st/3rd each trick and 1&3 play 2nd/4th, so the positional difference cancels instead of favouring one side. There is no match concept: every statistic is 小局-based.
+
+Wins are judged by **paired tier**: the same (level, declarer seat) in the two sweeps forms one mirror pair (A is 台上 in exactly one leg of it), and the two legs' 闲家分 are compared by tier — `tierOf(pts) = pts === 0 ? -1 : ⌊pts / 40⌋`, i.e. "how many levels this deal is worth". A pair goes to A when A's 闲家 leg scores at a higher tier than B's does (equivalently: A held the bank to fewer points), and A takes a deal when it wins more pairs by tier; equal counts are a draw. Significance is judged **per deal** because the 104 小局 inside one deal share the same cards and are not independent samples. Note this is a different quantity from the 80-point line (the report's 台上/台下 rows still use that) — scores from the two judges are not comparable.
 
 | Flag | Default | Description |
 |---|---|---|
@@ -389,7 +391,9 @@ npm run arena:nt -w packages/arena -- --min-deals 2000 --seed 42
 # 仓库根目录也可直接：npm run arena:nt -- --min-deals 2000 ...
 ```
 
-整体竞技场打的是完整对局，无主只占其中少数；无主竞技场把它单独拎出来。四家都没有对王的发牌被**过滤掉**（那种牌本来也不会打成无主），保留下来的每副牌按 4 庄家 × 13 等级打 52 小局，再**对调策略重打一遍**（A 一轮坐 0/2 号位、一轮坐 1/3 号位，同一副牌）。两轮合起来 104 小局即镜像：0/2 号位每墩第 1、3 个出牌，1/3 号位是第 2、4 个，位置差在两轮里对消，不会偏袒任何一方。没有整场概念，全部指标都是小局口径。显著性以**发牌**为单位（一副牌里 A 赢的小局多则算 A 胜，52-52 算平）——同一副牌的 104 小局共用一副牌、彼此相关，不是独立样本。
+整体竞技场打的是完整对局，无主只占其中少数；无主竞技场把它单独拎出来。四家都没有对王的发牌被**过滤掉**（那种牌本来也不会打成无主），保留下来的每副牌按 4 庄家 × 13 等级打 52 小局，再**对调策略重打一遍**（A 一轮坐 0/2 号位、一轮坐 1/3 号位，同一副牌）。两轮合起来 104 小局即镜像：0/2 号位每墩第 1、3 个出牌，1/3 号位是第 2、4 个，位置差在两轮里对消，不会偏袒任何一方。没有整场概念，全部指标都是小局口径。
+
+胜负按**配对升级**判：同一 (等级, 庄家座位) 在两轮里各一场，配成一对（一对里恰有一条腿 A 当庄、一条腿 A 当闲），比两场闲家分的升级量——`tierOf(分) = 分 === 0 ? −1 : ⌊分 / 40⌋`，即「这局值几级」。**A 队当闲那场升级量更高 = A 更好**（等价于「A 当庄让闲家拿更少的分」），一副牌里这样的配对多则这副算 A 胜，相等算平。用升级量而不用过 80 分，是因为过 80 只在「一边过、一边没过」的少数配对上分得开 A/B，升级量档把所有「差一级」的配对都变成可判。⚠️ 这是换被测物而非测得更准：过 80 是游戏的胜负位（上台与否），升级量是「这局值几级」，两者读数不可混着比（报告里的台上/台下各行仍是 80 分口径）。显著性以**发牌**为单位，因为同一副牌的 104 小局共用一副牌、彼此相关，不是独立样本。
 
 | 参数 | 默认 | 说明 |
 |---|---|---|

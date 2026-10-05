@@ -13,11 +13,19 @@
  *   mirror, same shape as the general arena's two matches: identical deals,
  *   swapped sides — so the positional asymmetry between 0&2 (1st/3rd to play
  *   each trick) and 1&3 (2nd/4th) cancels instead of favouring one side.
- *   104 小局 per kept deal; with A == B every deal is a 52-52 draw.
+ *   104 小局 per kept deal; with A == B every 对 has equal tiers, so every deal
+ *   is a 0-0 draw.
+ * - 胜负按**配对升级**判：同一 (等级, 庄家座位) 的两场镜像配成一对，比两场闲家分的升级量
+ *   （`tierOf`）——A 队当闲那场更高记 a、B 队当闲那场更高记 b、相同记平（等价于「A 当庄
+ *   让闲家拿更少的分」）；一副牌里 a 对多则这副算 A 胜。用升级量而不用过 80 分：过 80 只在
+ *   「一边过、一边没过」的少数配对上分得开 A/B，升级量档把所有「差一级」的配对都变成可判。
+ *   ⚠️ 这是换被测物，不是同一件事测得更准：过 80 是游戏的胜负位（上台与否），升级量是
+ *   「这局值几级」，新旧读数不可混着比。
  * - No match (整场) concept — every statistic is computed over 小局 alone.
  *
- * Stats reuse the general arena's `StrategyStats` / `addHandStats` wholesale;
- * the only thing added here is the north-star win count (A = seats 0&2).
+ * Stats reuse the general arena's `StrategyStats` / `addHandStats` wholesale
+ * (台上/台下各行的 80 分口径不变); this arena adds the 配对升级 counters
+ * (`pairWins*` / `tierByLevel`) and the 80 口径 north star (A = seats 0&2).
  */
 import { Rank } from '@poker/engine';
 import type { Card } from '@poker/engine';
@@ -28,6 +36,8 @@ import {
   createStats, addHandStats, mergeStats, toJSON, fromJSON,
 } from './stats.js';
 import type { StrategyStats } from './stats.js';
+import { tierOf, emptyTier, addTier } from './tier.js';
+import type { TierBucket } from './tier.js';
 
 /** Levels swept for every (deal, declarer) pair: 2 through A. */
 export const NT_LEVELS: readonly number[] = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
@@ -99,14 +109,32 @@ export interface NTStats {
   statsA: StrategyStats;
   /** Seats 1&3. */
   statsB: StrategyStats;
-  /** 小局 won by A / B (aborted 小局 excluded) — the north-star numerator. */
+  /**
+   * 小局 won by A / B **at the 80-point line** (aborted 小局 excluded).
+   * 80 口径的北星，只有 JSON 载荷与测试的一致性断言在用它——报告里的
+   * 「胜率（小局升级口径）」走 `pairWins*`，台上/台下各行走 `statsA`/`statsB`。
+   */
   handWinsA: number;
   handWinsB: number;
   /**
-   * Deal-level outcome: a deal is A's when A takes more 小局 of it than B,
-   * B's when it takes more, drawn on a 52-52 split. 发牌 is the independent
-   * unit (the 104 小局 of one deal share the same cards), so the significance
-   * test runs on these counts rather than on the 小局 counts.
+   * 配对升级口径：同一 (等级, 庄家座位) 的两场镜像小局配成一对，比两场闲家分的升级量
+   * （`tierOf`）——A 队当闲那场更高记 a、B 队当闲那场更高记 b、相同记平（等价于「A 当庄
+   * 让闲家拿更少的分」，别把它读成「A 自己的分更低」）。一对里两条腿的庄家队相同，
+   * A 坐 0/2 与 1/3 各一次 ⇒ **恰有一条腿 A 当庄、一条腿 A 当闲**，于是「A 当庄让闲家
+   * 拿更少的分」与「A 当闲让自家拿更多的分」是同一个不等式：这套口径下台上/台下不可分。
+   * 显著性仍以发牌为单位，这三个只是「胜率（小局升级口径）」那一行与等级 block 的分子。
+   */
+  pairWinsA: number;
+  pairWinsB: number;
+  pairsDrawn: number;
+  /** 可比较的镜像对数（一对里任一条腿中止 → 整对作废，不计入）。 */
+  pairs: number;
+  /** 各等级（2..A）的配对三分类（a/b/平），供报告的「等级 X 胜率」block。只含有样本的等级。 */
+  tierByLevel: Map<number, TierBucket>;
+  /**
+   * Deal-level outcome (发牌口径): 这副牌里 a 对 / b 对 / 平对的数量比大小，
+   * 多者拿下这副牌。发牌是独立单位（同一副牌的 104 小局共用一副牌、彼此相关），
+   * 所以显著性检验跑在这组计数上，而不是小局（或配对）计数上。
    */
   dealsWonA: number;
   dealsWonB: number;
@@ -123,6 +151,11 @@ export function createNTStats(): NTStats {
     statsB: createStats(),
     handWinsA: 0,
     handWinsB: 0,
+    pairWinsA: 0,
+    pairWinsB: 0,
+    pairsDrawn: 0,
+    pairs: 0,
+    tierByLevel: new Map(),
     dealsWonA: 0,
     dealsWonB: 0,
     dealsDrawn: 0,
@@ -143,20 +176,53 @@ export function addNTDeal(acc: NTStats, res: NTDealResult): void {
     return;
   }
   acc.deals += 1;
-  let wonA = 0;
-  let wonB = 0;
+
+  // 按 `等级:庄家座位` 收一对镜像的两条腿。一对里两条腿的庄家队相同，A 坐 0/2 与
+  // 1/3 各一次 ⇒ 恰有一条腿 A 当庄（闲家是 B 队，闲家分记 x_B）、一条腿 A 当闲
+  // （闲家是 A 队，闲家分记 x_A）。
+  const pairs = new Map<string, { level: number; xA: number | null; xB: number | null; aborted: boolean }>();
+
   for (const run of res.runs) {
     for (const ev of run.events) {
       // addHandStats books aborted 小局 itself and keeps them out of every
-      // denominator; the north star counts only completed 小局.
+      // denominator; the 80 口径 north star counts only completed 小局.
       addHandStats(acc.statsA, ev, run.aParity);
       addHandStats(acc.statsB, ev, run.aParity === 0 ? 1 : 0);
-      if (ev.aborted) continue;
+
       const aIsBanker = ev.teamBanker === run.aParity;
-      const aWon = aIsBanker ? ev.bankerWon : !ev.bankerWon;
-      if (aWon) { acc.handWinsA += 1; wonA += 1; }
-      else { acc.handWinsB += 1; wonB += 1; }
+      if (!ev.aborted) {
+        const aWon = aIsBanker ? ev.bankerWon : !ev.bankerWon;
+        if (aWon) acc.handWinsA += 1;
+        else acc.handWinsB += 1;
+      }
+
+      const key = `${ev.level}:${ev.declarerIdx}`;
+      let pair = pairs.get(key);
+      if (!pair) {
+        pair = { level: ev.level, xA: null, xB: null, aborted: false };
+        pairs.set(key, pair);
+      }
+      if (ev.aborted) { pair.aborted = true; continue; }
+      if (aIsBanker) pair.xB = ev.finalPts;
+      else pair.xA = ev.finalPts;
     }
+  }
+
+  // 一对齐备才比升级量；任一条腿中止 ⇒ 整对作废（配不成对）。
+  let wonA = 0;
+  let wonB = 0;
+  for (const pair of pairs.values()) {
+    if (pair.aborted || pair.xA === null || pair.xB === null) continue;
+    const tA = tierOf(pair.xA);
+    const tB = tierOf(pair.xB);
+    const outcome = tA > tB ? 'a' : tB > tA ? 'b' : 'draw';
+    acc.pairs += 1;
+    let bucket = acc.tierByLevel.get(pair.level);
+    if (!bucket) { bucket = emptyTier(); acc.tierByLevel.set(pair.level, bucket); }
+    addTier(bucket, outcome);
+    if (outcome === 'a') { acc.pairWinsA += 1; wonA += 1; }
+    else if (outcome === 'b') { acc.pairWinsB += 1; wonB += 1; }
+    else acc.pairsDrawn += 1;
   }
   if (wonA > wonB) acc.dealsWonA += 1;
   else if (wonB > wonA) acc.dealsWonB += 1;
@@ -178,12 +244,31 @@ export function runNTDeals(
   return acc;
 }
 
+function mergeTierLevels(a: Map<number, TierBucket>, b: Map<number, TierBucket>): Map<number, TierBucket> {
+  const out = new Map<number, TierBucket>();
+  for (const [lv, v] of a) out.set(lv, { ...v });
+  for (const [lv, v] of b) {
+    const cur = out.get(lv);
+    if (!cur) { out.set(lv, { ...v }); continue; }
+    cur.n += v.n;
+    cur.a += v.a;
+    cur.b += v.b;
+    cur.draw += v.draw;
+  }
+  return out;
+}
+
 export function mergeNTStats(a: NTStats, b: NTStats): NTStats {
   return {
     statsA: mergeStats(a.statsA, b.statsA),
     statsB: mergeStats(a.statsB, b.statsB),
     handWinsA: a.handWinsA + b.handWinsA,
     handWinsB: a.handWinsB + b.handWinsB,
+    pairWinsA: a.pairWinsA + b.pairWinsA,
+    pairWinsB: a.pairWinsB + b.pairWinsB,
+    pairsDrawn: a.pairsDrawn + b.pairsDrawn,
+    pairs: a.pairs + b.pairs,
+    tierByLevel: mergeTierLevels(a.tierByLevel, b.tierByLevel),
     dealsWonA: a.dealsWonA + b.dealsWonA,
     dealsWonB: a.dealsWonB + b.dealsWonB,
     dealsDrawn: a.dealsDrawn + b.dealsDrawn,
@@ -193,11 +278,18 @@ export function mergeNTStats(a: NTStats, b: NTStats): NTStats {
 }
 
 export function ntStatsToJSON(s: NTStats): Record<string, unknown> {
+  const tierByLevel: Record<string, TierBucket> = {};
+  for (const [lv, v] of s.tierByLevel) tierByLevel[String(lv)] = v;
   return {
     statsA: toJSON(s.statsA),
     statsB: toJSON(s.statsB),
     handWinsA: s.handWinsA,
     handWinsB: s.handWinsB,
+    pairWinsA: s.pairWinsA,
+    pairWinsB: s.pairWinsB,
+    pairsDrawn: s.pairsDrawn,
+    pairs: s.pairs,
+    tierByLevel,
     dealsWonA: s.dealsWonA,
     dealsWonB: s.dealsWonB,
     dealsDrawn: s.dealsDrawn,
@@ -207,11 +299,20 @@ export function ntStatsToJSON(s: NTStats): Record<string, unknown> {
 }
 
 export function ntStatsFromJSON(j: Record<string, any>): NTStats {
+  const tierByLevel = new Map<number, TierBucket>();
+  for (const [k, v] of Object.entries((j.tierByLevel ?? {}) as Record<string, TierBucket>)) {
+    tierByLevel.set(Number(k), { ...v });
+  }
   return {
     statsA: fromJSON(j.statsA),
     statsB: fromJSON(j.statsB),
     handWinsA: j.handWinsA,
     handWinsB: j.handWinsB,
+    pairWinsA: j.pairWinsA,
+    pairWinsB: j.pairWinsB,
+    pairsDrawn: j.pairsDrawn,
+    pairs: j.pairs,
+    tierByLevel,
     dealsWonA: j.dealsWonA,
     dealsWonB: j.dealsWonB,
     dealsDrawn: j.dealsDrawn,

@@ -18,30 +18,14 @@ import { playHand, dealtHands, naturalDeclaration } from './match.js';
 import { hasJokerPairDeal } from './nt-arena.js';
 import type { HandEvent, Strategy } from './types.js';
 import { passesDealFilters } from './solo-filter.js';
+import { tierOf, tierOutcome, emptyTier, addTier } from './tier.js';
+import type { TierBucket } from './tier.js';
 
-/**
- * 档位 = 升级量档：**0 分单列一档**（−1），其余按 ⌊闲家分 / 40⌋。
- *
- * 双升的升级量是一条阶梯（`computeLevelChange`）：0 分是大光、庄家升 3 级；
- * 5–35 分小光升 2 级；40–75 分保庄升 1 级；80–115 分上台不升；之后每 40 分再 +1 级。
- * 闲家得分恒为 5 的倍数，所以每一段就是 ⌊分/40⌋ 的一档——**前提是把 0 分单独拆出来**，
- * 否则大光与小光会并成同一档，等于把差 1 级的两个结果判成平局。
- */
-export function tierOf(pts: number): number {
-  return pts === 0 ? -1 : Math.floor(pts / 40);
-}
-
-/**
- * 档位口径胜负。`aWantsLower` 为真表示 A 希望分低（A 当庄），为假表示 A 希望分高
- * （A 当闲）。**第一个实参必须是 A 所在那条腿的分数**，否则方向会反过来。
- */
-export function tierOutcome(ptsA: number, ptsBase: number, aWantsLower: boolean): 'a' | 'b' | 'draw' {
-  const tA = tierOf(ptsA);
-  const tB = tierOf(ptsBase);
-  if (tA === tB) return 'draw';
-  const aBetter = aWantsLower ? tA < tB : tA > tB;
-  return aBetter ? 'a' : 'b';
-}
+// 档位定义（tierOf / tierOutcome）与档位三分类计数（TierBucket / addTier）在
+// ./tier.js——无主竞技场也要用，放这里会让 nt-arena ↔ solo-arena 成环。
+// 再导出让既有 import 路径（含 solo-arena.test.ts、solo-report.ts）不变。
+export { tierOf, tierOutcome };
+export type { TierBucket };
 
 /** 一侧一副牌的结果，已定向为「A 更好为正」。 */
 export interface SideOutcome {
@@ -157,14 +141,6 @@ export function runSoloDeal(o: SoloRunOptions): SoloDealResult {
 
 // ---- accumulation ----
 
-/** 档位口径的三分类计数。 */
-export interface TierBucket {
-  n: number;
-  a: number;
-  b: number;
-  draw: number;
-}
-
 /** 分差口径：均值/方差 + 符号三分类计数。 */
 export interface PairedBucket {
   n: number;
@@ -195,7 +171,6 @@ export interface SoloStats {
   tricksPlayed: number;
 }
 
-const emptyTier = (): TierBucket => ({ n: 0, a: 0, b: 0, draw: 0 });
 const emptyPaired = (): PairedBucket => ({ n: 0, sumD: 0, sumD2: 0, pos: 0, neg: 0, zero: 0 });
 
 const emptyLevel = (): SoloLevelStats => ({
@@ -209,13 +184,6 @@ export function createSoloStats(levels: readonly number[]): SoloStats {
     attemptedDeals: 0, keptDeals: 0, skippedDeals: 0,
     handsPlayed: 0, abortedHands: 0, tricksPlayed: 0,
   };
-}
-
-function addTier(b: TierBucket, outcome: 'a' | 'b' | 'draw'): void {
-  b.n += 1;
-  if (outcome === 'a') b.a += 1;
-  else if (outcome === 'b') b.b += 1;
-  else b.draw += 1;
 }
 
 function addPaired(b: PairedBucket, d: number): void {

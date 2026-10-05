@@ -4,14 +4,41 @@
  * （对王/升到 A）概念；本竞技场每一局都是无主，「打NT胜率」与「台上/台下胜率」完全
  * 同值，故不再单列这两行。
  *
- * 头条胜率是**发牌口径**（一副牌里 A 赢的小局多则算 A 胜，显著性检验用的就是这组
- * 数）；其余各行是小局口径，与整体竞技场的「整场 vs 小局」分层同理。
+ * **两个判据并存，别混着比**：
+ * - **升级口径**（「胜率（发牌口径）」按副聚合、「胜率（小局升级口径）」与「等级 X
+ *   胜率」block 按对聚合）：同一 (等级, 庄家座位) 的两场镜像配成一对，比
+ *   `tierOf(闲家分)`——即「这局值几级」；显著性检验跑在发牌口径那组计数上。
+ * - **80 分口径**（台上/台下两行的胜率与 per-level）：仍是「闲家过 80 即上台」。
+ *   升级口径下 A 在一对里恰有一腿当庄、一腿当闲，台上/台下恒等（角色信息被配对消掉），
+ *   所以角色维度只能靠这套 80 口径的读数保留。
  */
 import type { NTStats } from './nt-arena.js';
-import { handWinRate } from './stats.js';
+import type { CountPair } from './stats.js';
+import type { TierBucket } from './tier.js';
 import { renderTable, perLevelSpecs, rowsFrom, ratioText } from './report.js';
 import type { MetricSpec, TableRow } from './report.js';
 import type { SignificanceResult } from './significance.js';
+
+/**
+ * 配对三分类（a / b / 平）→ A/B 两侧的胜率：平对按 0.5 记给两侧（与发牌口径头条同一约定）。
+ * 两侧同分母，所以绿的判定等价于「a 对多于 b 对」。
+ */
+function tierSides(b: TierBucket): { a: CountPair; b: CountPair } {
+  const d = b.a + b.b + b.draw;
+  return { a: { n: b.a + 0.5 * b.draw, d }, b: { n: b.b + 0.5 * b.draw, d } };
+}
+
+/** 等级 block：把每等级的配对三分类摊成 A/B 两列的 13 条指标（不分台上/台下）。 */
+function tierLevelSpecs(byLevel: Map<number, TierBucket>): MetricSpec[] {
+  const ca = new Map<number, CountPair>();
+  const cb = new Map<number, CountPair>();
+  for (const [lv, bucket] of byLevel) {
+    const s = tierSides(bucket);
+    ca.set(lv, s.a);
+    cb.set(lv, s.b);
+  }
+  return perLevelSpecs('等级', ca, cb);
+}
 
 /** A/B 对比表的数据行；方向约定与整体竞技场一致（见 run.ts 的说明）。 */
 function comparisonRows(s: NTStats): TableRow[] {
@@ -19,9 +46,11 @@ function comparisonRows(s: NTStats): TableRow[] {
   const b = s.statsB;
   const hands = a.handsPlayed;
   const deals = s.dealsWonA + s.dealsWonB + s.dealsDrawn;
+  const pair = tierSides({ n: s.pairs, a: s.pairWinsA, b: s.pairWinsB, draw: s.pairsDrawn });
   const specs: MetricSpec[] = [
     ['胜率（发牌口径）', { n: s.dealsWonA + 0.5 * s.dealsDrawn, d: deals }, { n: s.dealsWonB + 0.5 * s.dealsDrawn, d: deals }, 'high'],
-    ['胜率（小局口径）', handWinRate(a), handWinRate(b), 'high'],
+    ['胜率（小局升级口径）', pair.a, pair.b, 'high'],
+    ...tierLevelSpecs(s.tierByLevel),
     ['当庄频率', { n: a.banker.hands, d: hands }, { n: b.banker.hands, d: hands }, 'neutral'],
     ['台上胜率', { n: a.banker.wins, d: a.banker.hands }, { n: b.banker.wins, d: b.banker.hands }, 'high'],
     ...perLevelSpecs('台上', a.banker.perLevel, b.banker.perLevel),
@@ -74,6 +103,7 @@ export function printNTReport(input: NTReportInput): void {
   }
   console.log('\n全局指标（双方共享）:');
   console.log(`  每副平均小局数: ${ratioText({ n: hands, d: deals })}`);
+  console.log(`  每副平均配对数: ${ratioText({ n: stats.pairs, d: deals })}（中止小局的配对会整对作废）`);
   console.log(`  每局平均墩数: ${ratioText({ n: a.tricks.won.d, d: hands })}`);
   console.log(`  平局发牌: ${stats.dealsDrawn}   中止小局: ${a.abortedHands}`);
 

@@ -48,7 +48,7 @@ export function estimateAttempts(needDeals: number, acc: NTStats): number {
   return Math.max(1, Math.ceil(needDeals / Math.max(0.05, passRate)));
 }
 
-/** 发牌数为单位的胜负（一副牌里 A 赢的小局多则算 A 胜）。 */
+/** 发牌数为单位的胜负（一副牌里 A 队当闲那场升级量更高的配对多则算 A 胜）。 */
 export function dealOutcome(acc: NTStats): SignificanceResult {
   const n = acc.dealsWonA + acc.dealsWonB + acc.dealsDrawn;
   return checkSignificance(acc.dealsWonA, acc.dealsWonB, acc.dealsDrawn, n);
