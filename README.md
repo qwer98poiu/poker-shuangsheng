@@ -77,7 +77,7 @@ In NT (no-trump) mode, 12 constant trump cards (Big Joker × 2, Small Joker × 2
 - **Dynamic progress target** — Before the minimum sample the progress denominator is fixed at 2×pairs; afterwards, if not yet significant, it projects the total matches needed under the current p̂ (rounded up to a `stepMatches` multiple), with the reason printed when it changes.
 - **Progress & checkpoints** — A progress line every 100 matches (with ETA); every `stepMatches` matches the significance result is printed and `results/checkpoint.json` is written; Ctrl+C saves partial results and exits gracefully. No resume — every run starts from 0.
 - **Upgrade log** — `--detail-pair N` prints the per-hand upgrade records of both mirrored matches side by side (same deck), showing banker side, both levels at hand start, attacker points, and the upgrade result.
-- **Historical baselines** — `ai-0802` (2026-08-02, position-based follow refactor), `ai-0816` (2026-08-16, before the bottom-card strategy rewrite), `ai-0907` (2026-09-07, before the trump-kill single-card tier selection), `ai-0927` (2026-09-27, before the NT-reveal 4-over-3 fix and the drained-pair throw) and `ai-0929` (2026-09-29, the NT pair-deduction fix — the Elo scale anchor) were extracted from git history to PK against the current `ai`. (Archived: `ai-0707`, `ai-0712`, `ai-0726` — removed 2026-08-07; `ai-0801` and `ai-0719` — removed 2026-09-16; `ai-0808` — removed 2026-09-27; `ai-0809` — removed 2026-10-01. Elo scores below kept for reference.)
+- **Historical baselines** — `ai-0816` (2026-08-16, before the bottom-card strategy rewrite), `ai-0907` (2026-09-07, before the trump-kill single-card tier selection), `ai-0927` (2026-09-27, before the NT-reveal 4-over-3 fix and the drained-pair throw), `ai-0929` (2026-09-29, the NT pair-deduction fix — the Elo scale anchor) and `ai-1002` (2026-10-02, the NT drained-suit/throw-kill/no-point rules — the first divergence after the anchor) were extracted from git history to PK against the current `ai`. (Archived: `ai-0707`, `ai-0712`, `ai-0726` — removed 2026-08-07; `ai-0801` and `ai-0719` — removed 2026-09-16; `ai-0808` — removed 2026-09-27; `ai-0809` — removed 2026-10-01; `ai-0802` — removed 2026-10-06. Elo scores below kept for reference.)
 - **Strategy Elo ratings** — two scales, one per bottom-card convention (computed by `packages/arena/scripts/elo-calc.ts`; the anchor's score is set by `ANCHOR_ELO` in that script):
   - **Current scale** — measured after the 2026-09-16 fix; the declarer now decides the bottom from all 33 cards. Anchor: `ai-0929` = 1263.8 (shown rounded to integers). `ai` diverged from `ai-0929` on 2026-10-02 (a batch of NT-strategy, follow and lead changes that day) and again on 2026-10-04 (the NT tracker's known-trump count fix) and again on 2026-10-05 (the NT long-suit throw changes), so its score is **TBD** until re-measured.
 
@@ -145,7 +145,7 @@ npx tsx packages/client/scripts/ui-smoke.ts --seed 42 --max-rounds 3            
 ### Strategy Arena
 
 ```bash
-npm run arena -w packages/arena -- --pairs 5000 --seed 42 --strategy-b ai-0929
+npm run arena -w packages/arena -- --pairs 5000 --seed 42 --strategy-b ai-1002
 # or from the repo root: npm run arena -- --pairs 5000 ...
 ```
 
@@ -157,8 +157,8 @@ npm run arena -w packages/arena -- --pairs 5000 --seed 42 --strategy-b ai-0929
 | `--step-matches N` | 1000 | Interval (in matches) for significance checks and checkpoints |
 | `--seed N` | random | Random seed — same seed + flags reproduce identical results |
 | `--workers W` | logical cores | Parallel child processes (1 = in-process) |
-| `--strategy-a NAME` | `ai` | Strategy A (`ai` / `ai-0929` / `ai-0927` / `ai-0907` / `ai-0816` / `ai-0802`) |
-| `--strategy-b NAME` | `ai-0929` | Strategy B |
+| `--strategy-a NAME` | `ai` | Strategy A (`ai` / `ai-1002` / `ai-0929` / `ai-0927` / `ai-0907` / `ai-0816`) |
+| `--strategy-b NAME` | `ai-1002` | Strategy B |
 | `--benchmark N` | — | Run N matches for speed measurement, then exit |
 | `--detail-pair N` | — | Print the mirrored upgrade log of 对决 N, then exit |
 | `--out PATH` | `results/arena-<ts>.json` | JSON report path |
@@ -181,7 +181,7 @@ Wins are judged by **paired tier**: the same (level, declarer seat) in the two s
 | `--until-significant` | — | Drop the minimum sample: stop at the first check that comes back significant (mutually exclusive with `--min-deals`) |
 | `--step-deals N` | 200 | Significance-check interval, and the granularity the projected target is rounded up to |
 | `--max-deals N` | 10000 | Deal cap |
-| `--seed N` / `--workers W` / `--strategy-a NAME` / `--strategy-b NAME` / `--out PATH` / `--no-json` | as above | `--strategy-b` defaults to `ai-0929` |
+| `--seed N` / `--workers W` / `--strategy-a NAME` / `--strategy-b NAME` / `--out PATH` / `--no-json` | as above | `--strategy-b` defaults to `ai-1002` |
 
 As in the general arena, missing significance raises the target to the number the current p̂ projects (same `requiredMatchesForSignificance` function, rounded up to `--step-deals`), and Ctrl+C writes the partial report plus a `"partial": true` JSON before exiting.
 
@@ -301,7 +301,7 @@ MIT — see [LICENSE](LICENSE).
 - **动态进度基准**：最小样本前进度分母固定为 2×pairs；之后未显著时按当前胜率推算显著所需总场数（向上取整到 stepMatches 的倍数），基准变化时说明原因。
 - **进度与检查点**：每 100 场一行进度（含 ETA）；每 `stepMatches` 场输出显著性并写 `results/checkpoint.json`；Ctrl+C 保存部分结果后优雅退出。不支持恢复，每次从 0 开始。
 - **升级记录**：`--detail-pair N` 并排输出该对决镜像两场的逐手升级记录（同一副牌），含庄家方、双方等级、闲家得分与升级结果。
-- **历史基线策略**：`ai-0802`（2026-08-02，分位置跟牌重构）、`ai-0816`（2026-08-16，扣底策略重构前）、`ai-0907`（2026-09-07，毙牌单张按档位选牌之前）、`ai-0927`（2026-09-27，亮主 4>3 修复与出副对清对之前）、`ai-0929`（2026-09-29，NT 记牌器对子扣减修复——Elo 刻度锚点）从 git 历史提取，用于与当前策略 `ai` 对比。（已归档移除：`ai-0707`、`ai-0712`、`ai-0726`，2026-08-07 删除；`ai-0801`、`ai-0719`，2026-09-16 删除；`ai-0808`，2026-09-27 删除；`ai-0809`，2026-10-01 删除。下方 Elo 分数仅保留展示。）
+- **历史基线策略**：`ai-0816`（2026-08-16，扣底策略重构前）、`ai-0907`（2026-09-07，毙牌单张按档位选牌之前）、`ai-0927`（2026-09-27，亮主 4>3 修复与出副对清对之前）、`ai-0929`（2026-09-29，NT 记牌器对子扣减修复——Elo 刻度锚点）、`ai-1002`（2026-10-02，NT 缺门/毙甩/无分墩规则——锚点之后的第一次策略分歧）从 git 历史提取，用于与当前策略 `ai` 对比。（已归档移除：`ai-0707`、`ai-0712`、`ai-0726`，2026-08-07 删除；`ai-0801`、`ai-0719`，2026-09-16 删除；`ai-0808`，2026-09-27 删除；`ai-0809`，2026-10-01 删除；`ai-0802`，2026-10-06 删除。下方 Elo 分数仅保留展示。）
 - **策略 Elo 评分**——两套刻度，对应扣底决策的两种口径（由 `packages/arena/scripts/elo-calc.ts` 计算；锚点分数由该脚本的 `ANCHOR_ELO` 给定）：
   - **现行刻度**——2026-09-16 修复后实测；庄家改为拿进底牌后按 33 张决策。锚点：`ai-0929` = 1263.8（表中取整）。`ai` 自 2026-10-02 起与 `ai-0929` 不再是同一份代码（当日一批无主策略、跟牌与领出的改动；2026-10-04 又修正记牌器已明主牌的计数；2026-10-05 又改无主长花色的甩牌），分数**待重测**。
 
@@ -369,7 +369,7 @@ npx tsx packages/client/scripts/ui-smoke.ts --seed 42 --max-rounds 3            
 ### 策略竞技场
 
 ```bash
-npm run arena -w packages/arena -- --pairs 5000 --seed 42 --strategy-b ai-0929
+npm run arena -w packages/arena -- --pairs 5000 --seed 42 --strategy-b ai-1002
 # 仓库根目录也可直接：npm run arena -- --pairs 5000 ...
 ```
 
@@ -381,8 +381,8 @@ npm run arena -w packages/arena -- --pairs 5000 --seed 42 --strategy-b ai-0929
 | `--step-matches N` | 1000 | 显著性检查与检查点的间隔场数 |
 | `--seed N` | 随机 | 随机种子——同 seed 同参数结果可完全复现 |
 | `--workers W` | 逻辑核数 | 并行子进程数（1 = 进程内） |
-| `--strategy-a NAME` | `ai` | 策略 A（`ai` / `ai-0929` / `ai-0927` / `ai-0907` / `ai-0816` / `ai-0802`） |
-| `--strategy-b NAME` | `ai-0929` | 策略 B |
+| `--strategy-a NAME` | `ai` | 策略 A（`ai` / `ai-1002` / `ai-0929` / `ai-0927` / `ai-0907` / `ai-0816`） |
+| `--strategy-b NAME` | `ai-1002` | 策略 B |
 | `--benchmark N` | — | 跑 N 场测速后退出 |
 | `--detail-pair N` | — | 输出第 N 个对决的镜像升级记录后退出 |
 | `--out PATH` | `results/arena-<时间>.json` | JSON 报告导出路径 |
@@ -405,7 +405,7 @@ npm run arena:nt -w packages/arena -- --min-deals 2000 --seed 42
 | `--until-significant` | — | 不设最小样本：任一次检查显著即停（与 `--min-deals` 互斥） |
 | `--step-deals N` | 200 | 显著性检查的间隔，也是推算目标向上取整的粒度 |
 | `--max-deals N` | 10000 | 发牌数上限 |
-| `--seed N` / `--workers W` / `--strategy-a NAME` / `--strategy-b NAME` / `--out PATH` / `--no-json` | 同上 | `--strategy-b` 默认 `ai-0929` |
+| `--seed N` / `--workers W` / `--strategy-a NAME` / `--strategy-b NAME` / `--out PATH` / `--no-json` | 同上 | `--strategy-b` 默认 `ai-1002` |
 
 与整体竞技场同口径：未显著时按当前 p̂ 推算显著所需发牌数并上调目标（同一个 `requiredMatchesForSignificance`，向上取整到 `--step-deals`）；Ctrl+C 写出部分报告与 `"partial": true` 的 JSON 后退出。
 

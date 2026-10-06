@@ -35,29 +35,7 @@ export function findThrowableOffSuitCombos(
     );
     if (mySuitCards.length < 3) continue; // need at least 3 cards to throw
 
-    // Build the worst-case testing hand: all cards of this suit minus mine.
-    // Use rank counting instead of ID matching because test cards and
-    // getAllSuitCards may produce different IDs for the same logical card.
-    const allSuitCards = getAllSuitCards(suit, config.level);
-    const myRankCounts = new Map<number, number>();
-    for (const c of mySuitCards) {
-      myRankCounts.set(c.rank, (myRankCounts.get(c.rank) || 0) + 1);
-    }
-    const worstCase = allSuitCards.filter(c => {
-      const remaining = myRankCounts.get(c.rank) || 0;
-      if (remaining > 0) {
-        myRankCounts.set(c.rank, remaining - 1);
-        return false; // exclude this copy
-      }
-      return true;
-    });
-
-    // Extract components from both my cards and worst case
-    const myComps = extractComponents(mySuitCards, config);
-    const worstComps = extractComponents(worstCase, config);
-
-    // Find which of my components can beat the worst case
-    const throwableCards = findThrowableInSuit(mySuitCards, myComps, worstComps, worstCase, config);
+    const throwableCards = findThrowableSuitCards(mySuitCards, suit, config);
 
     if (throwableCards.length >= 3) {
       const suitName = { S: '♠', H: '♥', C: '♣', D: '♦' }[suit] || suit;
@@ -76,6 +54,42 @@ export function findThrowableOffSuitCombos(
 }
 
 /**
+ * Per-suit worst-case throw analysis: which cards of the given off-suit
+ * could still be thrown together if all remaining same-suit cards were
+ * concentrated in one opponent. Returns the flat list of throwable cards.
+ * `suitCards` must contain only non-trump cards of one off-suit.
+ */
+export function findThrowableSuitCards(
+  suitCards: Card[],
+  suit: Suit,
+  config: TrumpDeclaration,
+): Card[] {
+  // Build the worst-case testing hand: all cards of this suit minus mine.
+  // Use rank counting instead of ID matching because test cards and
+  // getAllSuitCards may produce different IDs for the same logical card.
+  const allSuitCards = getAllSuitCards(suit, config.level);
+  const myRankCounts = new Map<number, number>();
+  for (const c of suitCards) {
+    myRankCounts.set(c.rank, (myRankCounts.get(c.rank) || 0) + 1);
+  }
+  const worstCase = allSuitCards.filter(c => {
+    const remaining = myRankCounts.get(c.rank) || 0;
+    if (remaining > 0) {
+      myRankCounts.set(c.rank, remaining - 1);
+      return false; // exclude this copy
+    }
+    return true;
+  });
+
+  // Extract components from both my cards and worst case
+  const myComps = extractComponents(suitCards, config);
+  const worstComps = extractComponents(worstCase, config);
+
+  // Find which of my components can beat the worst case
+  return findThrowableInSuit(suitCards, myComps, worstComps, worstCase, config);
+}
+
+/**
  * Generate all cards of a given suit at the given level.
  * Handles the fact that level cards of this suit are trump (excluded).
  */
@@ -86,7 +100,7 @@ function getAllSuitCards(suit: Suit, level: number): Card[] {
   for (let d = 0; d < 2; d++) {
     for (let r = 2; r <= 14; r++) {
       if (r === level) continue; // level card is trump, not in this suit group
-      cards.push(createCard(suit, r as any, idx++));
+      cards.push(createCard(suit, r, idx++));
     }
   }
   return cards;

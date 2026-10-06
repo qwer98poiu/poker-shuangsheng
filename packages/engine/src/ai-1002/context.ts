@@ -67,6 +67,10 @@ export function buildAIContext(
 
   const bestSoFar = computeBestSoFar(state.trickPlays, state.leadPlayerIndex, config);
 
+  // 底牌只有庄家见过（他自己扣的底）：闲家（含庄家的对家）一律拿 null，
+  // 不能把底牌无差别发给四个座位（信息泄漏）。
+  const bottom = isDeclarer ? state.bottomCards : null;
+
   const ntState = config.trumpSuit === null
     ? computeNTTrumpState(
         state.players[playerIndex].hand,
@@ -75,7 +79,7 @@ export function buildAIContext(
         state.reveals,
         config,
         isDeclarer,
-        state.bottomCards,
+        bottom ?? [],
         state.trickPlays as readonly { cards: Card[] }[],
         state.leadPlayerIndex,
       )
@@ -95,9 +99,10 @@ export function buildAIContext(
     reveals: state.reveals,
     playCount: state.trickPlays.length,
     leadPlayerIndex: state.leadPlayerIndex,
+    trickPlays: state.trickPlays as readonly { cards: Card[] }[],
     bestSoFar,
     ntState,
-    bottomCards: state.bottomCards,
+    bottomCards: bottom,
     debug: state.debug,
   };
 }

@@ -5,10 +5,12 @@
  */
 import type { Card, ComboClass } from '../types.js';
 import { Rank, isPointRank } from '../types.js';
-import { isTrump, getEffectiveRank } from '../model.js';
+import { isTrump, getEffectiveRank, playOf } from '../model.js';
 import { findAllPairs, detectTractors } from '../pattern/index.js';
 import type { AIContext } from './types.js';
 import { isBigOffSuitCard, discardSort, pairSortAsc } from './utils.js';
+import { isFlushFollow } from './flush-detector.js';
+import { canPlayerTrumpThrow } from './nt-tracking.js';
 import {
   visibleTrickPoints, selectFillers, secondShouldAvoid, shouldBreakPairForPoints,
   type DiscardMode,
@@ -53,8 +55,13 @@ export function discardNonTrump(
   const cards = selectFillers(hand, leadLen, ctx, mode,
     { allowBreakPair: shouldBreakPairForPoints(ctx, combo) });
   const addPt = tmWin && canAddPoints(tmWin, position, combo, ctx);
-  const intent = addPt ? 'add' : 'none';
-  const reason = annotateReason('垫牌', cards, [], [],
+  // 第四家恒标注：不加分时（avoid）标注避分；第二/三家保持原样。
+  // 本函数内 mode 仅来自上方三元（avoid/open/add/full），不产生 forbid。
+  const intent = addPt ? 'add'
+    : (position === 'fourth' && mode === 'avoid') ? 'avoid' : 'none';
+  // 垫出的全是主牌（缺门不能毙、手牌全主）→ 垫主牌（与 finishTeammateWin 一致）
+  const baseReason = cards.every(c => isTrump(c, ctx)) ? '垫主牌' : '垫牌';
+  const reason = annotateReason(baseReason, cards, [], [],
     combo, leadLen, ctx, position, tmWin, false, intent);
   return { cards, reason };
 }
@@ -83,24 +90,37 @@ export function padWithDiscards(
 
 // ---- Point-adding strategy ----
 
+/** 与位置无关的禁分档：庄家方（`!isAttacker`）下，闲家分已接近或正踩台阶时，
+ *  即使领出本身可加分也不加——再加 5/10 分可能把闲家直接送过 80。
+ *  两档：① 闲家 75–79（5 分即可跨线）；② 闲家得分 + 本墩已出分 = 70 或 75。 */
+export function addPointsForbidden(ctx: AIContext, leadCombo: ComboClass): boolean {
+  if (!ctx.isAttacker && ctx.attackerPoints >= 75 && ctx.attackerPoints < 80) return true;
+  if (!ctx.isAttacker) {
+    const vis = visibleTrickPoints(ctx, leadCombo.cards);
+    if (ctx.attackerPoints + vis === 70 || ctx.attackerPoints + vis === 75) return true;
+  }
+  return false;
+}
+
 /** Whether we should add points when teammate is winning.
  *  Fourth: always.
  *  Third: only if lead is max pattern — big card (A/K single or pair),
- *         has tractor, or is a throw (甩牌 already max).
+ *         has tractor, or is a throw. A throw counts as max when it contains a
+ *         top card, or (within a suit, i.e. NT) when the fourth seat cannot
+ *         trump it — an off-suit throw can never be beaten in-suit, because the
+ *         engine validates every throw lead and force-plays a downgraded
+ *         sub-pattern when it would be beaten (game/index.ts).
  *  Never adds if defender team and any point card would push attacker to 80+.
- *  分位置规格：甩副牌只有含顶张才加分；甩主牌加分；庄家方且闲家得分 +
- *  本墩已出分为 70 或 75 时禁分。 */
+ *  分位置规格：甩副牌含顶张、或（无主下）第四家毙不了 → 加分；甩主牌加分；
+ *  庄家方且闲家得分 + 本墩已出分为 70 或 75 时禁分。 */
 export function canAddPoints(tmWin: boolean, position: string, leadCombo: ComboClass, ctx: AIContext): boolean {
   if (!tmWin) return false;
-  // Defender side: never add if attacker is close to 80 (even 5 pts could cross).
-  if (!ctx.isAttacker && ctx.attackerPoints >= 75 && ctx.attackerPoints < 80) return false;
-  // 第三家原则9：庄家方且闲家得分 + 本墩已出分 = 70 或 75 时禁分。
-  if (!ctx.isAttacker) {
-    const vis = visibleTrickPoints(ctx, leadCombo.cards);
-    if (ctx.attackerPoints + vis === 70 || ctx.attackerPoints + vis === 75) return false;
-  }
+  if (addPointsForbidden(ctx, leadCombo)) return false;
   if (position === 'fourth') return true;
   if (position === 'third') {
+    // 清对领出（优先级 0）：上一墩已验两个对手该花色对子已绝，本墩必归队友
+    // → 放心加分（两条例外见 flush-detector.avoidBeatingTeammate）
+    if (isFlushFollow(ctx, leadCombo)) return true;
     const isTrumpLead = leadCombo.cards.every(c => isTrump(c, ctx));
     if (isTrumpLead) {
       if (leadCombo.type === 'throw') return true; // 甩主牌 → 加分
@@ -108,8 +128,16 @@ export function canAddPoints(tmWin: boolean, position: string, leadCombo: ComboC
     }
     if (leadCombo.hasTractor) return true;
     if (leadCombo.type === 'throw') {
-      // 甩副牌：含顶张才加分（含拖拉机已在 hasTractor 分支提前返回）
-      return leadCombo.cards.some(c => isBigOffSuitCard(c, ctx));
+      // 甩副牌：含顶张 → 加分（含拖拉机已在 hasTractor 分支提前返回）
+      if (leadCombo.cards.some(c => isBigOffSuitCard(c, ctx))) return true;
+      // 无顶张：甩牌不会被同花色盖过——引擎对 type==='throw' 的领出先 validateThrow，
+      // 不合法就罚分并强制降级（game/index.ts），进到比较的永远是合法牌型。
+      // 唯一剩下的风险是「第四家缺门用主牌毙」；记牌器能排除该风险 → 也算 max，照常加分。
+      // 只有无主（有记牌器）时生效：有主局 ntState 为 null，行为完全不变。
+      if (ctx.ntState !== null && ctx.myIndex >= 0) {
+        return !canPlayerTrumpThrow((ctx.myIndex + 1) % 4, leadCombo.cards, ctx.ntState, ctx);
+      }
+      return false;
     }
     if (leadCombo.type === 'single' || leadCombo.type === 'pair') {
       return leadCombo.cards.every(c => isBigOffSuitCard(c, ctx));
@@ -153,8 +181,9 @@ export function sideHasBigJoker(ctx: AIContext): boolean {
   const ourTeam = new Set([ctx.myIndex, (ctx.myIndex + 2) % 4]);
   for (const trick of ctx.trickHistory) {
     for (let pi = 0; pi < 4; pi++) {
-      for (const c of trick.plays[pi].cards) {
-        if (c.rank === Rank.BigJoker && ourTeam.has(pi)) return true;
+      if (!ourTeam.has(pi)) continue;
+      for (const c of playOf(trick, pi).cards) {
+        if (c.rank === Rank.BigJoker) return true;
       }
     }
   }
@@ -166,12 +195,12 @@ export function sideHasBigJoker(ctx: AIContext): boolean {
 // ---- Threshold helpers ----
 
 /** Whether the attacker should override shouldAvoid to cross a 40-point
- *  scoring threshold (40, 80, 120). Returns true when attackerPoints are
- *  within 10 points of the next threshold and adding any points would
- *  cross it. */
-export function attackerNearThreshold(ctx: AIContext): boolean {
+ *  scoring threshold (40, 80, 120). Returns true when attackerPoints
+ *  (加上本墩已出分 visiblePts) are within 10 points of the next threshold
+ *  and adding any points would cross it. */
+export function attackerNearThreshold(ctx: AIContext, visiblePts = 0): boolean {
   if (!ctx.isAttacker) return false;
-  const pts = ctx.attackerPoints;
+  const pts = ctx.attackerPoints + visiblePts;
   const next = Math.floor(pts / 40) * 40 + 40;
   return next - pts <= 10;
 }
@@ -193,6 +222,19 @@ export function tryMatchTractorSlots(
     const available = myTractors.filter(t =>
       t.every(c => !usedIds.has(c.id)) && t.length / 2 >= req,
     );
+    if (available.length === 0) {
+      // 无 ≥req 的拖拉机：降级取最长的可用拖拉机（与 computeIdealFollow
+      // 的 closest-shorter 一致，validateFollow 接受更短拖拉机 + 对子填充；
+      // 拆开拖拉机成对子不合法）。手牌无可用拖拉机则跳过该需求。
+      const shorter = myTractors
+        .filter(t => t.every(c => !usedIds.has(c.id)))
+        .sort((a, b) => b.length - a.length);
+      if (shorter.length === 0) continue;
+      const sel = shorter[0];
+      picked.push(...sel);
+      sel.forEach(c => usedIds.add(c.id));
+      continue;
+    }
     if (available.length > 0) {
       available.sort((a, b) => {
         if (pointsStrategy === 'add') {

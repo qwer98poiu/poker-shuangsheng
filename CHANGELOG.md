@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-10-06 17:26
+
+### 提取 ai-1002 基线（10-02 14:09 的 NT 缺门/毙甩/无分墩规则）
+
+**做法**：`git archive` 提取 10-02 14:09 的 `ai/` 为 `packages/engine/src/ai-1002/`（17 文件，含 STRATEGY.md），引擎注册 `ai1002` 命名空间、竞技场注册 `ai1002Strategy`，三个竞技场入口（`run.ts`/`solo-run.ts`/`nt-run.ts`）的 `--strategy-b` 默认值与 usage 一并由 `ai-0929` 改为 `ai-1002`（中英 README 的参数表、默认行与示例命令同步），`historical-strategies.test.ts` 补 pair 22/23 合法性用例（无中止、无验牌回退）。
+
+该快照是 Elo 锚点 `ai-0929` 之后的第一次策略分歧（当日一批无主策略、跟牌与领出的改动），尚无实测分，故两颗 Elo 表不动；README 中英「历史基线策略」列表各加一条 `ai-1002` 说明。
+
+**新增 1 项测试**（historical-strategies.test.ts：1 项）
+
+### 归档移除 ai-0802
+
+**问题**：基线累积到六个（`ai-0802`/`ai-0816`/`ai-0907`/`ai-0927`/`ai-0929`/`ai-1002`），最旧的 `ai-0802`（08-02 的分位置跟牌重构）与其后的每一次策略分歧（08-16 扣底重构、09-07 毙牌档位、09-27 亮主修复、09-29 记牌器修复、10-02 NT 规则）都已被 `ai-0816` 及其后的基线逐一覆盖，对照价值被完全顶替。
+
+**做法**：删除 `packages/engine/src/ai-0802/`（14 文件），移除四处接线——引擎的 `ai0802` 命名空间导出、竞技场的 `ai0802Strategy` 与 `strategyByName` 分支（含抛错信息里的可选列表）、`historical-strategies.test.ts` 的 pair 10/11 用例；README 中英把 `ai-0802` 从历史基线列表移入「已归档移除」括号（`--strategy-a` 可选列表同步）。**Elo 行与 `elo-matches.json` 的数据保留**：既有约定是已归档基线的分数仅保留展示，且该数据同时是 `ai-0816`/`ai-0907`/`ai-0927`/`ai-0929` 四条边的拟合输入，删行会改动整条刻度。
+
+**删除 1 项测试**（historical-strategies.test.ts：1 项），引擎 1077 项 + arena 198 项 + CLI 87 项 + client 201 项 = 1563 项通过。
+
+- **影响文件**：`packages/engine/src/ai-1002/`（新目录，17 文件）、`packages/engine/src/ai-0802/`（删除）、`packages/engine/src/index.ts`、`packages/arena/src/strategies.ts`、`packages/arena/src/run.ts`、`packages/arena/src/solo-run.ts`、`packages/arena/src/nt-run.ts`、`packages/arena/src/__tests__/historical-strategies.test.ts`、`README.md`
+
 ## 2026-10-06 14:27
 
 ### elo-calc 去掉对局数 n，拟合改为等权最小二乘

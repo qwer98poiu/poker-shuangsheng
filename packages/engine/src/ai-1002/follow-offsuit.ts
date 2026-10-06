@@ -5,7 +5,7 @@
  * 分位置跟牌规格：第二家/第三家/第四家分别决策；lead（backward-compat）
  * 保留旧逻辑。
  */
-import type { Card, ComboClass } from '../types.js';
+import type { Card, ComboClass, Rank } from '../types.js';
 import { Suit, isPointRank } from '../types.js';
 import { isTrump, getEffectiveRank } from '../model.js';
 import { findAllPairs, detectTractors, classify as classifyCombo } from '../pattern/index.js';
@@ -16,11 +16,14 @@ import {
   pairKillSort, discardNonTrump, canAddPoints, isMaxPattern, tryMatchTractorSlots,
   attackerNearThreshold,
 } from './helpers.js';
-import { trumpKill, throwKillMode, rule1KillMode } from './follow-trump.js';
+import { trumpKill, throwKillMode, rule1KillMode, isBeatingTrumpKill } from './follow-trump.js';
+import { canPlayerTrumpThrow } from './nt-tracking.js';
+import { probeDeclineKill, trickHasNoPoints } from './no-seize.js';
+import { isFlushFollow, avoidBeatingTeammate } from './flush-detector.js';
 import {
   hasStrongFollowUp, minEff, maxEff, pickDiscards, selectFillers,
   secondShouldAvoid, shouldBreakPairForPoints, pickBestAddCards,
-  type DiscardMode,
+  visibleTrickPoints, type DiscardMode,
 } from './position-policy.js';
 
 // ---- Follow off-suit lead ----
@@ -61,7 +64,7 @@ function breaksPair(card: Card, cards: Card[]): boolean {
 function fillMode(position: string, tmWin: boolean, hand: Card[], leadCombo: ComboClass, ctx: AIContext): DiscardMode {
   if (position === 'second') return secondShouldAvoid(hand) ? 'avoid' : 'open';
   if (tmWin && canAddPoints(tmWin, position, leadCombo, ctx)) {
-    return (ctx.isAttacker && attackerNearThreshold(ctx)) ? 'full' : 'add';
+    return (ctx.isAttacker && attackerNearThreshold(ctx, visibleTrickPoints(ctx, leadCombo.cards))) ? 'full' : 'add';
   }
   if (position === 'third' && tmWin) return 'open';
   if (position === 'third' || position === 'fourth') return 'avoid';
@@ -173,16 +176,18 @@ function followOffSuitSingle(
   }
 
   if (tmWin) {
+    // 队友大但禁分（70/75 等）→ 不加分标注（第四家）
     leadSuitCards.sort(discardSort(false, ctx));
     const cards = [leadSuitCards[0]];
+    const intent = position === 'fourth' ? 'avoid' : 'none';
     const reason = annotateReason('同花色出小', cards, leadSuitCards, trumpCards,
-      leadCombo, 1, ctx, position, tmWin, false, 'none');
+      leadCombo, 1, ctx, position, tmWin, false, intent);
     return { cards, reason };
   }
 
   // Can't beat opponent - play smallest
   if (!canBeat([leadSuitCards[0]], ctx.bestSoFar, ctx)) {
-    const crossThreshold = attackerNearThreshold(ctx);
+    const crossThreshold = attackerNearThreshold(ctx, visibleTrickPoints(ctx, leadCombo.cards));
     leadSuitCards.sort(crossThreshold ? discardSort(true, ctx, leadSuitCards, ctx) : discardSort(false, ctx));
     const cards = [leadSuitCards[0]];
     const shouldAvoid = !crossThreshold && ((position === 'fourth' && !tmWin)
@@ -212,7 +217,9 @@ function followOffSuitSingle(
       }
       beaters.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
       const cards = [beaters[0]];
-      const intent = fourthBeat ? 'beat_points' : 'none';
+      // 第四家恒标注：对手大=抢分，队友大盖过=加分
+      const intent = fourthBeat ? 'beat_points'
+        : (position === 'fourth' && tmWin) ? 'add' : 'none';
       const reason = annotateReason('同花色出大', cards, leadSuitCards, trumpCards,
         leadCombo, 1, ctx, position, tmWin, false, intent);
       return { cards, reason };
@@ -220,8 +227,9 @@ function followOffSuitSingle(
   }
 
   const cards = [leadSuitCards[0]];
+  const intent = position === 'fourth' ? (tmWin ? 'add' : 'beat_points') : 'none';
   const reason = annotateReason('同花色出大', cards, leadSuitCards, trumpCards,
-    leadCombo, 1, ctx, position, tmWin, false, 'none');
+    leadCombo, 1, ctx, position, tmWin, false, intent);
   return { cards, reason };
 }
 
@@ -297,7 +305,8 @@ function followOffSuitMulti(
       } else if (seize && thirdNoSeize) {
         // 第三家领出更大且无强牌：不盖，出最小匹配
         picked = tryMatchTractorSlots(leadCombo, myTractors, leadSuitCards, leadLen, ctx, ptsStrat);
-      } else if (picked && !canBeat(picked, ctx.bestSoFar, ctx)) {
+      } else if (picked && !canBeat(picked, ctx.bestSoFar, ctx)
+          && !(position === 'fourth' && tmWin)) {
         // Sort by max rank descending to try finding a beating tractor
         myTractors.sort((a, b) => {
           const aMax = getEffectiveRank(maxCardT(a, ctx), ctx);
@@ -308,7 +317,8 @@ function followOffSuitMulti(
         if (alt && canBeat(alt, ctx.bestSoFar, ctx)) picked = alt;
       }
       if (picked) {
-        const intent = addPoints ? 'add' : 'none';
+        // 第四家 !addPoints（对手大）垫牌恒标注不加分
+        const intent = addPoints ? 'add' : (shouldAvoidT ? 'avoid' : 'none');
         const beating = canBeat(picked, ctx.bestSoFar, ctx);
         const isThrow3 = leadCombo.type === 'throw';
         const baseReason = isThrow3 ? '垫同花色' : (beating ? '同花色出大' : '同花色出小');
@@ -352,7 +362,8 @@ function followOffSuitMulti(
       }
       chosen = myPairs.slice(0, leadCombo.pairCount).flat();
       const pairBeats = canBeat(chosen, ctx.bestSoFar, ctx);
-      if (!pairBeats && !seize) {
+      // 第四家队友已大：不需要找能盖的对子盖队友（加分走分牌对分支）
+      if (!pairBeats && !seize && !(position === 'fourth' && tmWin)) {
         // 找能盖过的对子（第四家能盖时优先分牌对）
         const beatingPairs = myPairs.filter(p => canBeat(p, ctx.bestSoFar, ctx));
         if (beatingPairs.length >= leadCombo.pairCount) {
@@ -469,15 +480,53 @@ export function followOffSuitThrow(
   // dump points instead of wasting trump.
   if (trumpCards.length >= leadLen) {
     const throwCombo = classifyCombo(leadCards, ctx);
-    if (tmWin && canAddPoints(tmWin, position, throwCombo, ctx)) {
+    // 清对领出（优先级 0）：上一墩已验对手该花色对子已绝，本墩必须归队友 →
+    // 垫牌且**不得盖过队友**（牌权易主则剩下的对再也兑现不了；第二家已毙时
+    // tmWin 为 false，走不到这里）
+    if (tmWin && isFlushFollow(ctx, throwCombo)) {
+      const addOk = canAddPoints(tmWin, position, throwCombo, ctx);
+      const picked = addOk
+        ? pickBestAddCards(hand, leadLen, throwCombo, ctx)
+        : pickDiscards(hand, leadLen, ctx, 'open');
+      const cards = avoidBeatingTeammate(picked, hand, leadCards, throwCombo, ctx);
+      const reason = annotateReason('垫牌', cards, [], trumpCards,
+        throwCombo, leadLen, ctx, position, tmWin, false, addOk ? 'add' : 'none');
+      return { cards, reason };
+    }
+    const addOk = canAddPoints(tmWin, position, throwCombo, ctx);
+    if (tmWin && addOk) {
       // 垫分（加分）：第三家/第四家按加分优先级选牌（第三家有副牌垫副牌，
       // 全主才出主牌；第四家全手选，可含主牌=毙加分；闲家跨 40 台阶全力加分）
       const cards = pickBestAddCards(hand, leadLen, throwCombo, ctx);
-      const reason = annotateReason('垫牌', cards, [], trumpCards,
-        throwCombo, leadLen, ctx, position, tmWin, false, 'add');
-      return { cards, reason };
+      // 第三家垫出的牌反而盖过队友（手牌接近全主时会拿主牌）→ 放弃加分，退回下面照常毙。
+      // 这段兜底原先只长在「NT 第三家甩副牌加分口子」里；该口子的条件已被 canAddPoints 吸收
+      // （见 helpers.canAddPoints：无顶张时改判第四家能否毙），故上提到共享路径。
+      if (!(position === 'third' && isBeatingTrumpKill(cards, leadCards, ctx))) {
+        const reason = annotateReason('垫牌', cards, [], trumpCards,
+          throwCombo, leadLen, ctx, position, tmWin, false, 'add');
+        return { cards, reason };
+      }
+    }
+    // NT 第三家的"无分墩不毙"：第四家**可能**毙时，本墩没分就不值得花主牌盖过队友
+    // （盖了也可能被第四家盖毙，白白送出去），也不给第四家喂分。两处例外照常毙：
+    // ① 级牌为分牌且自己是闲家；② 本墩已出牌含分（这墩丢不起）。垫不出不盖过队友的
+    // 牌（手牌接近全主）时同样退回照常毙。
+    if (tmWin && position === 'third' && ctx.ntState && ctx.myIndex >= 0
+        && !(isPointRank(ctx.level as Rank) && ctx.isAttacker)
+        && trickHasNoPoints(ctx)
+        && canPlayerTrumpThrow((ctx.myIndex + 1) % 4, leadCards, ctx.ntState, ctx)) {
+      const cards = pickDiscards(hand, leadLen, ctx, 'avoid');
+      if (!isBeatingTrumpKill(cards, leadCards, ctx)) {
+        const reason = annotateReason('垫牌', cards, [], trumpCards,
+          throwCombo, leadLen, ctx, position, tmWin, false, 'noKill');
+        return { cards, reason };
+      }
     }
     const killMode = throwKillMode(throwCombo, ctx, leadCards);
+    // 第四家：对手大 + 无分墩 + 抢来无牌可领 → 不抢（垫不起则照常毙）
+    const declined = probeDeclineKill(
+      hand, leadCards, throwCombo, leadLen, ctx, position, tmWin, trumpCards, { killMode });
+    if (declined) return declined;
     return trumpKill(trumpCards, hand, leadCards, throwCombo, leadLen, ctx, position, tmWin,
       { killMode });
   }

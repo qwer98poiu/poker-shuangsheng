@@ -5,10 +5,11 @@
  * individual virtual copy IDs. This avoids the pair-deduction / card-removal
  * divergence bug.
  */
-import type { Card, Trick, Reveal } from '../types.js';
+import type { Card, Trick, Reveal, CardSuit } from '../types.js';
 import { SpecialSuit } from '../types.js';
 import { createCard, isTrump, getEffectiveRank } from '../model.js';
-import { classify, findAllPairs } from '../pattern/index.js';
+import { findAllPairs, detectTractors, classify } from '../pattern/index.js';
+import { matchPattern } from '../comparing/index.js';
 import type { TrumpDeclaration } from '../types.js';
 import type { NTTrumpState } from './types.js';
 
@@ -50,11 +51,12 @@ function countBySuitRank(cards: Card[]): Map<string, number> {
   return m;
 }
 
-function reconstructFromKey(key: string): Card {
+function reconstructFromKey(key: string, id = 0): Card {
   const dashIdx = key.indexOf('-');
-  const suit = key.slice(0, dashIdx);
+  // key 由 suitRankKey 生成，花色段必然是 'S'|'H'|'C'|'D'|'J' 之一
+  const suit = key.slice(0, dashIdx) as CardSuit;
   const rank = parseInt(key.slice(dashIdx + 1), 10);
-  return createCard(suit as any, rank as any, 0);
+  return createCard(suit, rank, id);
 }
 
 // ---- Tracking state ----
@@ -236,8 +238,11 @@ export function computeNTTrumpState(
     const leadLen = leadCards.length;
     let leadHasPairOrTractor = false;
     if (isTrumpLead) {
-      const leadCombo = classify(leadCards, cfg);
-      leadHasPairOrTractor = leadCombo.pairCount > 0 || leadCombo.hasTractor;
+      // 判据是"领出里有没有对子"（拖拉机必含对，一并覆盖）——只有含对的领出
+      // 才强制跟牌者出对，跟牌者没出对才推得出"他没有对子"。不能只看
+      // type ≠ single：throw 含对的（甩 ♥2♥2+大王）与纯单张的（甩大王+小王）
+      // 信息量不同，只有前者强制出对。
+      leadHasPairOrTractor = findAllPairs(leadCards).length > 0;
     }
 
     for (let pi = 0; pi < entry.plays.length; pi++) {
@@ -541,6 +546,49 @@ export function canFormJokerPair(playerIndex: number, state: NTTrumpState): bool
   const rec = state.possibleTrumps[playerIndex];
   if (!rec) return false;
   return (rec['J-16'] ?? 0) >= 2 || (rec['J-15'] ?? 0) >= 2;
+}
+
+/**
+ * 某玩家是否可能用主牌毙掉这手**副牌**领出（单张/对/拖拉机/甩牌）。
+ *
+ * 无主局里主牌只有级牌与王，任何一张主牌都大于副牌——盖过与否只取决于**牌型**能否
+ * 匹配，不比大小。做法：把 `possibleTrumps[playerIndex]`（该玩家可能持牌的上界，
+ * 每个 key 至多 2 张）摊成一手"最大可能主牌"，再按领出牌型判这手牌**是否覆盖**领出
+ * 牌型——甩牌直接用 `matchPattern`（它对甩牌本就是"跟牌覆盖领出"的判据：跟牌须全主，
+ * 拖拉机数/长度不少于领出、对数经 extraPairs 折算后不少于领出），其他牌型按牌型取值
+ * （更长的拖拉机可截短）。
+ *
+ * 保守方向：**证不出"凑不出"就返回 true**（宁可照常毙，也不误判"毙不了"而漏毙）。
+ * 返回 false 表示可以断定该玩家毙不了这手牌。
+ *
+ * 前提：领出必须是副牌。主牌领出的盖过还要比大小，不在本函数范围（调用点见
+ * `followOffSuitThrow` 的缺门分支，只对 `leadCombo.type === 'throw'` 的副牌甩牌调用）。
+ */
+export function canPlayerTrumpThrow(
+  playerIndex: number,
+  leadCards: Card[],
+  state: NTTrumpState,
+  config: TrumpDeclaration,
+): boolean {
+  const rec = state.possibleTrumps[playerIndex];
+  if (!rec) return false;
+  const leadLen = leadCards.length;
+  if (leadLen === 0) return false;
+  if (state.maxTrumpCounts[playerIndex] < leadLen) return false;
+
+  const hand: Card[] = [];
+  for (const [key, n] of Object.entries(rec)) {
+    for (let i = 0; i < Math.min(n, 2); i++) hand.push(reconstructFromKey(key, hand.length));
+  }
+  if (hand.length < leadLen) return false;
+
+  const combo = classify(leadCards, config);
+  if (combo.type === 'throw') return matchPattern(leadCards, hand, config);
+  if (combo.type === 'single') return true; // 手上有主牌就盖得过单张副牌
+  if (combo.type === 'pair') return findAllPairs(hand).length > 0;
+  // tractor：要一副同长的主牌拖拉机（更长的可截短到领出长度）
+  const need = combo.length / 2;
+  return detectTractors(hand, config).some(t => t.length / 2 >= need);
 }
 
 export function opponentsHaveTrump(state: NTTrumpState, myIndex: number): boolean {
