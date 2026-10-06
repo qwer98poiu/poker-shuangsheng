@@ -5,8 +5,8 @@
  *
  * 用法：
  * 1. 编辑同目录的 `elo-matches.json` 更新实测数据：每行
- *    `{ a, b, pHat, n }`——`pHat` 为 a 对 b 的含平局胜率（来自竞技场报告），
- *    `n` 为对局数。数据与逻辑分家：该文件是**纯数据**，改动它不写 Changelog
+ *    `{ a, b, pHat }`——`pHat` 为 a 对 b 的含平局胜率（来自竞技场报告）。
+ *    数据与逻辑分家：该文件是**纯数据**，改动它不写 Changelog
  *    （check-commits 把 packages 下的 .json 数据文件排除在「代码/配置」口径外），
  *    所以**重测提交的标题必须写明测量日期**，否则以后无从追溯某行是哪次测的，
  *    例如 `docs: Elo table updated with 2026-09-27 measurements — ai 1249`。
@@ -22,13 +22,22 @@
  *   刻度轻微漂移，逐次跟随只会让历史分数无谓抖动（差 2 及以上才改）。
  *
  * 方法（与报告口径一致）：
- * 1. 每场对决的 Elo 差 ΔR = 400·log10(p̂/(1−p̂))，p̂ 为含平局（按 0.5 计）的胜率。
- * 2. 各边的 ΔR 互相矛盾（图中有环）时，对 ΔR 做以对局数 n 为权重的加权最小二乘
- *    （WLS），固定锚点策略的 Elo（`ANCHOR_ELO`）解出全体 Elo。
+ * 1. 每场对决的 Elo 差 ΔR = 400·log10(p̂/(1−p̂))，p̂ 为胜率，不存在平局。
+ *    「平」只出现在**镜像对决**层面——一对两条腿各赢一场（1-1）；单场必有胜负，
+ *    README 里「单场 200 小局封顶判平」那条分支在实测中从未触发（实测 300 对决 /
+ *    600 场，`drawn` 恒为 0，132 对 1-1）。故 p̂ 实际就是胜场数 / 场数。
+ * 2. 各边的 ΔR 互相矛盾（图中有环）时，对 ΔR 做**等权**最小二乘（OLS），固定锚点
+ *    策略的 Elo（`ANCHOR_ELO`）解出全体 Elo。
  * 3. 输出拟合残差供自洽性检查（残差应远小于 100 量级的 Elo 差）。
  *
- * 已知近似：visibleTrickPoints 相关近似不涉及本脚本；p̂ 的统计误差（n 不同）由
- * 权重 n 自动体现。
+ * 已知近似：visibleTrickPoints 相关近似不涉及本脚本。
+ *
+ * 对局数不进入拟合：原先每行还带一个 `n`（该条实测跑了多少局），按 n 加权——一条
+ * 30000 局的对决因此压过五条 10000 局的。但 n 只记录「测了多少局」，不代表该条 ΔR
+ * 更可信（各条的 p̂ 本就来自同一套镜像对局口径，且图中有环时权重只是分摊矛盾的
+ * 一种约定）。2026-10-06 起改为等权，README 中英两表在此日期之前落的分是按 n 加权
+ * 读出的，与本脚本的重算值不再逐位相同（实测最大差 1.4）——表按读数约定（差 ≤1
+ * 保留原值）未改，重跑时以脚本输出为准。
  */
 import matchesRaw from './elo-matches.json' with { type: 'json' };
 
@@ -36,7 +45,6 @@ interface MatchRow {
   readonly a: string;
   readonly b: string;
   readonly pHat: number;
-  readonly n: number;
 }
 
 /**
@@ -48,14 +56,13 @@ function parseMatches(raw: unknown): MatchRow[] {
     throw new Error('elo-matches.json：应为非空数组');
   }
   return raw.map((row: unknown, i: number) => {
-    const { a, b, pHat, n } = (row ?? {}) as Record<string, unknown>;
+    const { a, b, pHat } = (row ?? {}) as Record<string, unknown>;
     const bad = typeof a !== 'string' || typeof b !== 'string'
-      || typeof pHat !== 'number' || !(pHat > 0 && pHat < 1)
-      || typeof n !== 'number' || !Number.isInteger(n) || n <= 0;
+      || typeof pHat !== 'number' || !(pHat > 0 && pHat < 1);
     if (bad) {
       throw new Error(`elo-matches.json 第 ${i + 1} 行形状不对：${JSON.stringify(row)}`);
     }
-    return { a, b, pHat, n } as MatchRow;
+    return { a, b, pHat } as MatchRow;
   });
 }
 
@@ -108,14 +115,14 @@ function solveLinear(A: number[][], b: number[]): number[] {
   return M.map((row, i) => row[n] / row[i]);
 }
 
-/** 加权最小二乘：min Σ n·(x_a − x_b − ΔR_ab)²，锚定 ANCHOR = ANCHOR_ELO。 */
-function fitWls(names: string[]): Map<string, number> {
+/** 等权最小二乘：min Σ (x_a − x_b − ΔR_ab)²，锚定 ANCHOR = ANCHOR_ELO。 */
+function fitLeastSquares(names: string[]): Map<string, number> {
   const freeNames = names.filter((x) => x !== ANCHOR);
   const freeIdx = new Map(freeNames.map((x, i) => [x, i]));
   const N = freeNames.length;
   const AtA = Array.from({ length: N }, () => new Array<number>(N).fill(0));
   const Atb = new Array<number>(N).fill(0);
-  for (const { a, b, pHat, n } of MATCHES) {
+  for (const { a, b, pHat } of MATCHES) {
     const d = deltaFromWinRate(pHat);
     // 方程：R_a − R_b = d。锚点策略的 R 固定为 ANCHOR_ELO，折入右侧：
     // x_a − x_b = d − ANCHOR_ELO·(anchor_a − anchor_b)，解出的 x 即绝对 Elo。
@@ -124,8 +131,8 @@ function fitWls(names: string[]): Map<string, number> {
     const rhs = d - (a === ANCHOR ? ANCHOR_ELO : 0) + (b === ANCHOR ? ANCHOR_ELO : 0);
     const coeff = (k: number): number => (i === k ? 1 : 0) - (j === k ? 1 : 0);
     for (let k = 0; k < N; k++) {
-      for (let l = 0; l < N; l++) AtA[k][l] += n * coeff(k) * coeff(l);
-      Atb[k] += n * coeff(k) * rhs;
+      for (let l = 0; l < N; l++) AtA[k][l] += coeff(k) * coeff(l);
+      Atb[k] += coeff(k) * rhs;
     }
   }
   const x = solveLinear(AtA, Atb);
@@ -136,15 +143,15 @@ function fitWls(names: string[]): Map<string, number> {
 
 function main(): void {
   const names = [...new Set(MATCHES.flatMap(({ a, b }) => [a, b]))];
-  const ratings = fitWls(names);
+  const ratings = fitLeastSquares(names);
 
   console.log('=== 1. 单场对决的 Elo 差（ΔR = 400·log10(p̂/(1−p̂))） ===');
-  for (const { a, b, pHat, n } of MATCHES) {
+  for (const { a, b, pHat } of MATCHES) {
     const d = deltaFromWinRate(pHat);
-    console.log(`  ${a} vs ${b}: p̂=${pHat} n=${n}  ΔR=${d.toFixed(2)}`);
+    console.log(`  ${a} vs ${b}: p̂=${pHat}  ΔR=${d.toFixed(2)}`);
   }
 
-  console.log(`\n=== 2. 加权最小二乘解（锚定 ${ANCHOR} = ${ANCHOR_ELO}，权重 = n） ===`);
+  console.log(`\n=== 2. 等权最小二乘解（锚定 ${ANCHOR} = ${ANCHOR_ELO}） ===`);
   console.log('\n  策略     给定值    重算值   偏差');
   let maxDiff = 0;
   for (const name of names) {

@@ -73,7 +73,7 @@ In NT (no-trump) mode, 12 constant trump cards (Big Joker × 2, Small Joker × 2
 
 - **Mirror pairs (对决)** — One 对决 = two matches: strategy A sits seats 0&2 in one, strategy B sits 0&2 in the other. Both matches share the same decks (hand i of both matches uses the same deal), so P0 holds identical 25 cards in both — different strategies still produce different trumps, upgrade pacing, and outcomes.
 - **必打 K/A** — Levels K and A must be *won while banker* to pass: a 闲家 taking over at K stays at K; the banker winning at A ends the match. Takeover/advancement both use the attacker's final points including the bottom (抠底).
-- **Significance** — p̂ = (wins + 0.5×draws)/n; the 99% Wilson lower bound must exceed 0.5. Checks begin at the minimum sample (2×pairs) and repeat every `stepMatches` matches; the run stops immediately once significant. A draw (match capped at 200 hands) counts as 0.5 wins each.
+- **Significance** — p̂ = (wins + 0.5×draws)/n; the 99% Wilson lower bound must exceed 0.5. Checks begin at the minimum sample (2×pairs) and repeat every `stepMatches` matches; the run stops immediately once significant. A draw exists only at the **mirrored-pair** level: a pair whose two legs split 1-1 gives each side one win and one loss (0.5 wins per match). A single match always ends with a winner — the 200-hand cap's draw path has never fired (measured: 300 pairs / 600 matches, `drawn` = 0, 132 pairs split 1-1).
 - **Dynamic progress target** — Before the minimum sample the progress denominator is fixed at 2×pairs; afterwards, if not yet significant, it projects the total matches needed under the current p̂ (rounded up to a `stepMatches` multiple), with the reason printed when it changes.
 - **Progress & checkpoints** — A progress line every 100 matches (with ETA); every `stepMatches` matches the significance result is printed and `results/checkpoint.json` is written; Ctrl+C saves partial results and exits gracefully. No resume — every run starts from 0.
 - **Upgrade log** — `--detail-pair N` prints the per-hand upgrade records of both mirrored matches side by side (same deck), showing banker side, both levels at hand start, attacker points, and the upgrade result.
@@ -91,6 +91,8 @@ In NT (no-trump) mode, 12 constant trump cards (Big Joker × 2, Small Joker × 2
     | `ai-0809` | 1123 |
     | `ai-0808` | 1102 |
     | `ai-0802` | 1083 |
+
+    > **Note (2026-10-06):** the tables were read off an **n-weighted** least-squares fit. `elo-calc.ts` no longer records the match count or weights by it, so re-running it returns slightly different values. The rows are kept as measured under the old convention.
 
   - **Legacy scale (bottom-card bug)** — ⚠️ every value below was measured while the AI declarer still chose its 8 discards from the **25 dealt cards**, before picking up the bottom. Those decisions were made on a strictly smaller option set, so these numbers are **not comparable** with the table above. The row named `ai-0802` is in fact `ai-0802-flawed`: the same code under the old convention, which the whole table was anchored to (= 1000).
 
@@ -295,7 +297,7 @@ MIT — see [LICENSE](LICENSE).
 
 - **镜像对决（对决）**：每对决 = 两场对局——策略 A 坐 0/2 号位一场、策略 B 坐 0/2 号位一场；两场共享同一发牌序列（第 i 小局同副牌），P0 两场拿到相同的 25 张——不同策略仍会产生不同的主花色、升级节奏与结果。
 - **必打 K/A**：K 和 A 必须**当庄打赢**才能越过——闲家在 K 上台只能停在 K；庄家在 A 打赢即胜出。上台判定与升级统一用含抠底的闲家最终分。
-- **显著性判定**：p̂ = (胜 + 0.5×平)/n，99% Wilson 区间下界 > 0.5 即显著。最小样本（2×pairs）后每 `stepMatches` 场检查一次，显著立即停止；单场 200 小局封顶判平局（各记 0.5 胜）。
+- **显著性判定**：p̂ = (胜 + 0.5×平)/n，99% Wilson 区间下界 > 0.5 即显著。最小样本（2×pairs）后每 `stepMatches` 场检查一次，显著立即停止；「平」只出现在**镜像对决**层面：一对的两条腿各赢一场（1-1）时两边各记一胜一负，折合每场 0.5 胜。单场必有胜负——200 小局封顶的平局分支从未触发（实测 300 对决 / 600 场，`drawn` 恒为 0，其中 132 对 1-1）。
 - **动态进度基准**：最小样本前进度分母固定为 2×pairs；之后未显著时按当前胜率推算显著所需总场数（向上取整到 stepMatches 的倍数），基准变化时说明原因。
 - **进度与检查点**：每 100 场一行进度（含 ETA）；每 `stepMatches` 场输出显著性并写 `results/checkpoint.json`；Ctrl+C 保存部分结果后优雅退出。不支持恢复，每次从 0 开始。
 - **升级记录**：`--detail-pair N` 并排输出该对决镜像两场的逐手升级记录（同一副牌），含庄家方、双方等级、闲家得分与升级结果。
@@ -313,6 +315,8 @@ MIT — see [LICENSE](LICENSE).
     | `ai-0809` | 1123 |
     | `ai-0808` | 1102 |
     | `ai-0802` | 1083 |
+
+    > **注（2026-10-06）**：上表为**按对局数加权**的最小二乘读数。`elo-calc.ts` 已不再记录对局数、也不再按它加权，重跑会得到略不同的值。表内分数保持旧口径下的实测值不变。
 
   - **旧刻度（带扣底 bug）**——⚠️ 以下分数均为 AI 庄家**只按发到的 25 张**选 8 张扣底（未拿底牌）时测得；当时每个庄家都在严格更小的可行集上做决策，故与上表**不可比**。表中名为 `ai-0802` 的一行实为 `ai-0802-flawed`（同一份代码 + 旧口径），整套分数即锚定在它 = 1000 上。
 
