@@ -210,6 +210,18 @@ export class ChildPool {
   }
 
   /**
+   * 判废原因（未判废为 null）；判废后 `submit` 一律立即 reject 这条原因。
+   *
+   * 公开出来是给调用方与测试一个**同步点**：worker 死亡是异步事件（`child.on('exit')`），
+   * 除它之外没有别的东西可等。测试只能轮询这里，而不是睡眠一个固定时长去赌「退出已经
+   * 处理完」——高负载下那个窗口会赌输（submit 抢在 exit 处理之前派发，断言就落到另一条
+   * 消息分支上），负载一低又照样通过，于是变成只在忙机器上偶发的假失败。
+   */
+  get failureReason(): Error | null {
+    return this.broken;
+  }
+
+  /**
    * 判废整池：worker 死亡后，在途的与仍在排队的任务都必须有归宿，否则它们的
    * Promise 永远不会 settle，调用方的 Promise.all 静默挂死。
    */

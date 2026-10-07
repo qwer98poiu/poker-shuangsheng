@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { ChildPool } from '../child-pool.js';
 import type { Task } from '../child-pool.js';
 
@@ -59,8 +59,12 @@ describe('ChildPool 故障语义', () => {
   it('空闲期死亡（任务已交回）：同样判废，后续 submit 不挂起', async () => {
     const pool = await createPool(1);
     expect((await pool.submit({ pairStart: 2, pairCount: 5 })).statsA).toEqual({ pairs: 5 });
-    // 等子进程的 exit 事件落地，好断言确定的那条消息分支（否则可能撞上「派发任务失败」）
-    await new Promise(r => setTimeout(r, 100));
+    // 等子进程的 exit 事件落地，好断言确定的那条消息分支（否则可能撞上「派发任务失败」）。
+    // 轮询池子的判废状态，而不是睡眠固定时长——任务已交回，exit 一到就被判废（见
+    // `ChildPool.failureReason`）。固定睡眠是在赌「退出已处理完」，负载高时会赌输。
+    // 超时取 3s（本用例其余部分实测 349ms）：留出的余量让 vitest 自己那 5s 每用例超时
+    // 不会抢先触发，否则报的是「Test timed out in 5000ms」而不是下面这条断言。
+    await vi.waitFor(() => expect(pool.failureReason).not.toBeNull(), { timeout: 3000 });
     await expect(pool.submit({ pairStart: 0, pairCount: 5 })).rejects.toThrow(/空闲等待时死亡/);
     pool.close();
   });

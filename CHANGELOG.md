@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-10-07 12:41
+
+### child-pool 的「空闲期死亡」用例改为等 exit 事件（去掉固定睡眠）
+
+**问题**：`child-pool.test.ts` 的「空闲期死亡（任务已交回）」用例在任务交回后睡眠固定 100 ms，赌子进程的 `exit` 事件已在这段窗口里被池子处理完，好断言确定的那条消息分支。负载一高就赌输：`submit` 抢在 exit 处理之前派发，断言落到「worker 子进程死亡 … 对决 0..4 丢失」那条分支上。机器一闲又照样通过，于是成了只在忙机器上偶发的假失败——实测在 `check-commits --jobs 3` 与另一次 `npm run typecheck` 并行时（4 核）失败一次，还连带把该提交的 T3/T4 增量比对一起带红。
+
+**做法**：`ChildPool` 暴露只读的 `failureReason`（判废原因，未判废为 `null`），测试改用 `vi.waitFor` 轮询它，断言与「事件何时落地」解耦。轮询超时取 3 s——本用例其余部分实测 349 ms，给 vitest 自己那 5 s 每用例超时留出余量（否则真出问题时先报的是 `Test timed out in 5000ms`，而不是断言消息）；真没判废就直接失败，比固定睡眠严格。
+
+**修改 1 项测试**（child-pool.test.ts：1 项），引擎 1077 项 + arena 198 项 + CLI 87 项 + client 201 项 = 1563 项通过。
+
+- **影响文件**：`packages/arena/src/child-pool.ts`、`packages/arena/src/__tests__/child-pool.test.ts`
+
 ## 2026-10-06 17:26
 
 ### 提取 ai-1002 基线（10-02 14:09 的 NT 缺门/毙甩/无分墩规则）
