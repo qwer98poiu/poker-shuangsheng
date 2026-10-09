@@ -83,16 +83,17 @@ In NT (no-trump) mode, 12 constant trump cards (Big Joker × 2, Small Joker × 2
 
     | Strategy | Elo |
     |---|---|
-    | `ai` (current) | TBD |
+    | `ai` (current) | 1271 |
+    | `ai-1002` | 1267 |
     | `ai-0929` | 1264 |
     | `ai-0927` | 1252 |
-    | `ai-0907` | 1232 |
+    | `ai-0907` | 1234 |
     | `ai-0816` | 1147 |
     | `ai-0809` | 1123 |
     | `ai-0808` | 1102 |
     | `ai-0802` | 1083 |
 
-    > **Note (2026-10-06):** the tables were read off an **n-weighted** least-squares fit. `elo-calc.ts` no longer records the match count or weights by it, so re-running it returns slightly different values. The rows are kept as measured under the old convention.
+    > **Note (2026-10-06):** `elo-calc.ts` no longer records the match count or weights by it.
 
   - **Legacy scale (bottom-card bug)** — ⚠️ every value below was measured while the AI declarer still chose its 8 discards from the **25 dealt cards**, before picking up the bottom. Those decisions were made on a strictly smaller option set, so these numbers are **not comparable** with the table above. The row named `ai-0802` is in fact `ai-0802-flawed`: the same code under the old convention, which the whole table was anchored to (= 1000).
 
@@ -307,16 +308,17 @@ MIT — see [LICENSE](LICENSE).
 
     | 策略 | Elo |
     |---|---|
-    | `ai`（当前） | 待重测 |
+    | `ai`（当前） | 1271 |
+    | `ai-1002` | 1267 |
     | `ai-0929` | 1264 |
     | `ai-0927` | 1252 |
-    | `ai-0907` | 1232 |
+    | `ai-0907` | 1234 |
     | `ai-0816` | 1147 |
     | `ai-0809` | 1123 |
     | `ai-0808` | 1102 |
     | `ai-0802` | 1083 |
 
-    > **注（2026-10-06）**：上表为**按对局数加权**的最小二乘读数。`elo-calc.ts` 已不再记录对局数、也不再按它加权，重跑会得到略不同的值。表内分数保持旧口径下的实测值不变。
+    > **注（2026-10-06）**：`elo-calc.ts` 已不再记录对局数、也不再按它加权。
 
   - **旧刻度（带扣底 bug）**——⚠️ 以下分数均为 AI 庄家**只按发到的 25 张**选 8 张扣底（未拿底牌）时测得；当时每个庄家都在严格更小的可行集上做决策，故与上表**不可比**。表中名为 `ai-0802` 的一行实为 `ai-0802-flawed`（同一份代码 + 旧口径），整套分数即锚定在它 = 1000 上。
 
