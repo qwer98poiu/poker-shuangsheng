@@ -570,8 +570,8 @@ describe('端到端 — aiLeadPlay / aiFollowPlay', () => {
 // ================================================================
 // 上一墩我领出某副花色、三家跟完**一张都没出该花色**（跟牌强制出尽 ⇒ 三家全缺门）、
 // 我赢下 → 该门剩下的全在我手上，本墩把它一次性甩出去。甩出去引擎不会判罚
-// （validateThrow 只看同花色组，三家该门一张没有 ⇒ 必然合法），风险只有被主牌毙：
-// 含对时接受该风险直接甩；纯单张时要求两个对手都毙不了（记牌器）。
+// （validateThrow 只看同花色组，三家该门一张没有 ⇒ 必然合法），风险只有被主牌毙——
+// 2026-10-12 起不再据此拦截，门槛同时放宽到 ≥ 2 张（允许两张单牌组成的甩牌）。
 
 const DRAIN_SUIT = Suit.Spades;
 /** 证据墩：hero 领 ♠ 两对，三家全缺 ♠。 */
@@ -635,35 +635,39 @@ describe('tryLeadDrainedSuitThrow — 全甩', () => {
   const twoCards = [c(DRAIN_SUIT, 13), c(DRAIN_SUIT, 12), c(Suit.Diamonds, 3)];
   const tractor = [c(DRAIN_SUIT, 13), c(DRAIN_SUIT, 13), c(DRAIN_SUIT, 12), c(DRAIN_SUIT, 12)];
 
-  it('三家都不能毙 → 全甩', () => {
+  it('纯单张甩牌（3 张）→ 全甩', () => {
     const ctx = ctxOf({ myIndex: 0, playCount: 0, history: [drainedTrick(0)], ntState: ntStateOf({}) });
     const r = tryLeadDrainedSuitThrow(threeSingles, ctx);
     expect(r?.cards.map(x => x.id)).toEqual(threeSingles.slice(0, 3).map(x => x.id));
     expect(r?.reason).toBe('甩♠副牌(该门已绝，3张)');
   });
 
-  it('第二家可能毙 → 不甩（交回既有优先级）', () => {
+  it('第二家、第四家都可能毙 → 仍全甩（不再查被毙）', () => {
     const ctx = ctxOf({ myIndex: 0, playCount: 0, history: [drainedTrick(0)],
-      ntState: ntStateOf({ 1: { 'H-2': 2, 'C-2': 1 } }) });
-    expect(tryLeadDrainedSuitThrow(threeSingles, ctx)).toBeNull();
+      ntState: ntStateOf({ 1: { 'H-2': 2, 'C-2': 1 }, 3: { 'H-2': 2, 'C-2': 1 } }) });
+    const r = tryLeadDrainedSuitThrow(threeSingles, ctx);
+    expect(r?.cards.map(x => x.id)).toEqual(threeSingles.slice(0, 3).map(x => x.id));
+    expect(r?.reason).toBe('甩♠副牌(该门已绝，3张)');
   });
 
-  it('第四家可能毙 → 不甩', () => {
-    const ctx = ctxOf({ myIndex: 0, playCount: 0, history: [drainedTrick(0)],
-      ntState: ntStateOf({ 3: { 'H-2': 2, 'C-2': 1 } }) });
-    expect(tryLeadDrainedSuitThrow(threeSingles, ctx)).toBeNull();
-  });
-
-  it('含对 → 即使两家都可能毙也直接甩', () => {
+  it('含对 → 同样全甩', () => {
     const ctx = ctxOf({ myIndex: 0, playCount: 0, history: [drainedTrick(0)],
       ntState: ntStateOf({ 1: { 'H-2': 2, 'C-2': 1 }, 3: { 'H-2': 2, 'C-2': 1 } }) });
     const r = tryLeadDrainedSuitThrow(withPair, ctx);
     expect(r?.reason).toBe('甩♠副牌(该门已绝，4张)');
   });
 
-  it('剩余不足 3 张 → 不走这条通道', () => {
+  it('两张单牌组成的甩牌 → 全甩（门槛 ≥ 2）', () => {
     const ctx = ctxOf({ myIndex: 0, playCount: 0, history: [drainedTrick(0)], ntState: ntStateOf({}) });
-    expect(tryLeadDrainedSuitThrow(twoCards, ctx)).toBeNull();
+    const r = tryLeadDrainedSuitThrow(twoCards, ctx);
+    expect(r?.cards.map(x => x.id)).toEqual(twoCards.slice(0, 2).map(x => x.id));
+    expect(r?.reason).toBe('甩♠副牌(该门已绝，2张)');
+  });
+
+  it('只剩 1 张该门牌 → 不走这条通道（出单，不是甩）', () => {
+    const oneCard = [c(DRAIN_SUIT, 13), c(Suit.Diamonds, 3)];
+    const ctx = ctxOf({ myIndex: 0, playCount: 0, history: [drainedTrick(0)], ntState: ntStateOf({}) });
+    expect(tryLeadDrainedSuitThrow(oneCard, ctx)).toBeNull();
   });
 
   it('剩余是单一牌型（拖拉机）→ 不走这条通道', () => {

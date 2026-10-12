@@ -26,7 +26,6 @@ import { compareTwo } from '../comparing/index.js';
 import { suitGroup } from '../leading/index.js';
 import type { ComboClass } from '../types.js';
 import type { AIContext } from './types.js';
-import { canPlayerTrumpThrow } from './nt-tracking.js';
 import { suitLabelCn } from './utils.js';
 import { visibleTrickPoints } from './position-policy.js';
 
@@ -166,32 +165,28 @@ export function detectDrainedSuit(ctx: AIContext, heroIndex: number): DrainedSui
  * → 该门剩下的**全部**在我手上，本墩把它一次性甩出去。
  *
  * **不会被判罚**：`validateThrow` 只看同花色组的阻断，三家该门此刻一张没有 ⇒ 必然合法。
- * 唯一风险是被主牌毙：含对时接受该风险直接甩；纯单张时要求**两个对手都毙不了**
- * （记牌器判定），否则交回既有优先级。
+ * 唯一风险是被主牌毙——**不再据此拦截**（2026-10-12 起）：三家跟不满领出张数已经证明该门
+ * 已绝，把这一门清干净的收益盖过挨毙的风险；含对与纯单张一视同仁（原实现只对纯单张查
+ * 记牌器，且查的是刻意保守的上界）。
  *
  * 剩余是单一牌型（单张/对/拖拉机）时不走这里——那分别是出单/出对/出拖拉机，交给
  * 优先级 2–4；这也让队友侧"跟队友甩牌"（`leadCombo.type === 'throw'`）的判据一致。
+ * **张数门槛 ≥ 2**（2026-10-12 起，原为 ≥ 3）：允许两张单牌组成的甩牌。
  */
 export function tryLeadDrainedSuitThrow(
   hand: Card[], ctx: AIContext,
 ): { cards: Card[]; reason: string } | null {
-  if (!ctx.ntState) return null; // 仅无主：纯单张那支的"毙不了"依赖记牌器
+  if (!ctx.ntState) return null; // 仅无主（规格边界）：有主局的同形态由 0b 与后续档处理
   if (ctx.playCount !== 0) return null;
   const evidence = detectDrainedSuit(ctx, ctx.myIndex);
   if (!evidence) return null;
 
   const group = String(evidence.suit);
   const cards = hand.filter(c => suitGroup(c, ctx) === group);
-  if (cards.length < 3) return null; // 与 findThrowableOffSuitCombos 同口径：< 3 张不算甩
+  if (cards.length < 2) return null; // 1 张是出单，不是甩
 
   const combo = classify(cards, ctx);
   if (combo.type !== 'throw') return null;
-
-  if (combo.pairCount === 0 && !combo.hasTractor) {
-    const nt = ctx.ntState;
-    if (canPlayerTrumpThrow((ctx.myIndex + 1) % 4, cards, nt, ctx)) return null;
-    if (canPlayerTrumpThrow((ctx.myIndex + 3) % 4, cards, nt, ctx)) return null;
-  }
 
   return {
     cards,

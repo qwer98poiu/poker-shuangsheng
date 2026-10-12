@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-10-12 23:58
+
+### 领出优先级 0a 放宽：张数门槛 3→2、不再查对手能否用主牌毙
+
+**问题**：`tryLeadDrainedSuitThrow`（优先级 0a：上一墩我领出某副花色、三家跟不满 ⇒ 该门此刻已绝，本墩把我在该门剩下的**全部**甩出去）原有两处收紧。其一，`cards.length < 3` 把"两张单牌组成的甩牌"挡在门外，而这一手是引擎**保证合法**的（`validateThrow` 只看同花色组的阻断，三家该门一张没有），规格也明确允许 2 张。其二，纯单张（不含对/拖拉机）时还要查两个对手能否用主牌毙（`canPlayerTrumpThrow`），命中就交回后续档——而该函数是**刻意保守的上界**（证不出"凑不出"就判能毙），于是最该清掉的一门反被压着不出。
+
+**做法**：删掉纯单张那一支的 `canPlayerTrumpThrow` 检查（连同 import），门槛降到 `>= 2`，注释同步改写。`throw-detector.ts` 的 `findThrowableOffSuitCombos` **保留** `>= 3` 门槛并补上理由——静态判据（worst case 摊着该门剩下的全部牌）下 2 张不可达：两张不同 rank 的单张里较低那张必被盖过，同 rank 两张是对子不是甩，故那条门槛与"≥ 2"等价。竞技场种子局指纹（`oppLevel`）203 → 221。
+
+**修改 5 项测试**（ai-flush-detector.test.ts：5 项），引擎 1077 项 + arena 198 项 + CLI 87 项 + client 201 项 = 1563 项通过。
+
+- **影响文件**：`packages/engine/src/ai/flush-detector.ts`、`packages/engine/src/ai/throw-detector.ts`、`packages/engine/src/__tests__/ai-flush-detector.test.ts`、`packages/arena/src/__tests__/arena-e2e.test.ts`
+
 ## 2026-10-07 12:41
 
 ### child-pool 的「空闲期死亡」用例改为等 exit 事件（去掉固定睡眠）
