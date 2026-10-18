@@ -4,6 +4,7 @@ import type { Card, CardSuit, GameState, PlayerState } from '../types.js';
 import { createCard } from '../model.js';
 import { createInitialState } from '../types.js';
 import { buildAIContext } from '../ai/context.js';
+import { minimalContext } from '../ai/types.js';
 
 function c(s: CardSuit, r: number, i: number): Card { return createCard(s, r, i); }
 
@@ -65,5 +66,17 @@ describe('buildAIContext — 底牌只发给庄家', () => {
     expect(ctx.isDeclarerPartner).toBe(false);
     expect(ctx.isAttacker).toBe(true);
     expect(ctx.trumpSuit).toBe(Suit.Spades);
+  });
+});
+
+describe('AIContext — throwPenalties', () => {
+  it('buildAIContext 透传 state.throwPenalties', () => {
+    const state = { ...playingState(Suit.Spades), throwPenalties: [2, 1] as const };
+    expect(buildAIContext(state, 0)!.throwPenalties).toEqual([2, 1]);
+  });
+
+  it('minimalContext 默认 [0, 0]', () => {
+    const ctx = minimalContext({ declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 });
+    expect(ctx.throwPenalties).toEqual([0, 0]);
   });
 });

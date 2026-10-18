@@ -85,6 +85,7 @@ interface CtxOpts {
   trickPlays?: { cards: Card[] }[];
   bestSoFar?: { cards: Card[]; playerIndex: number } | null;
   attackerPoints?: number;
+  throwPenalties?: readonly [number, number];
   /** 无主局：传 NT 记牌器状态并把 trumpSuit 置 null。 */
   ntState?: NTTrumpState;
 }
@@ -130,6 +131,7 @@ function ctxOf(o: CtxOpts = {}): AIContext {
     isDeclarerPartner: myIndex === (declIdx + 2) % 4,
     isAttacker: myIndex % 2 !== declIdx % 2,
     attackerPoints: o.attackerPoints ?? 0,
+    throwPenalties: o.throwPenalties ?? [0, 0],
     handCounts: [20, 20, 20, 20],
     trickHistory: o.history ?? [],
     reveals: [],
@@ -578,7 +580,9 @@ describe('canAddPoints — 第三家清对领出转为加分（含守卫不变�
     // 领出 ♠8♠8♠6♠6 无分，bestSoFar 即领出者（不重复计）→ vis = 0，故 70 + 0 = 70
     const ctx = ctxOf({
       myIndex: 2, playCount: 2, leadPlayerIndex: 0, history: [evidenceTrick(0, Suit.Spades)],
-      attackerPoints: 70, bestSoFar: { cards: leadCards, playerIndex: 0 },
+      attackerPoints: 70,
+      throwPenalties: [0, 0],
+      bestSoFar: { cards: leadCards, playerIndex: 0 },
     });
     expect(canAddPoints(true, 'third', combo, ctx)).toBe(false);
   });
@@ -586,6 +590,7 @@ describe('canAddPoints — 第三家清对领出转为加分（含守卫不变�
   it('守卫：庄家方且闲家得分 >= 75 → 仍不加分', () => {
     const ctx = ctxOf({
       myIndex: 2, playCount: 2, leadPlayerIndex: 0, history: [evidenceTrick(0, Suit.Spades)], attackerPoints: 75,
+      throwPenalties: [0, 0],
     });
     expect(canAddPoints(true, 'third', combo, ctx)).toBe(false);
   });
@@ -628,7 +633,9 @@ describe('avoidBeatingTeammate — 第三家不得抢队友的牌', () => {
     // P1 是闲家（declarer 0），领出者是队友 P3 —— 证据墩也必须由 P3 领出并赢下
     const ctx = ctxOf({
       myIndex: 1, playCount: 2, leadPlayerIndex: 3, history: [evidenceTrick(3, Suit.Spades)],
-      attackerPoints: 60, bestSoFar: { cards: leadCards, playerIndex: 3 },
+      attackerPoints: 60,
+      throwPenalties: [0, 0],
+      bestSoFar: { cards: leadCards, playerIndex: 3 },
     });
     expect(isFlushFollow(ctx, combo)).toBe(true); // 前提成立，否则本用例会因提前返回而空转
     expect(show(avoidBeatingTeammate(sel, h, leadCards, combo, ctx))).toBe('H10,H10,H13,H13');
@@ -639,7 +646,9 @@ describe('avoidBeatingTeammate — 第三家不得抢队友的牌', () => {
     const sel = h.slice(0, 4);
     const ctx = ctxOf({
       myIndex: 1, playCount: 2, leadPlayerIndex: 3, history: [evidenceTrick(3, Suit.Spades)],
-      attackerPoints: 30, bestSoFar: { cards: leadCards, playerIndex: 3 },
+      attackerPoints: 30,
+      throwPenalties: [0, 0],
+      bestSoFar: { cards: leadCards, playerIndex: 3 },
     });
     expect(show(avoidBeatingTeammate(sel, h, leadCards, combo, ctx))).toBe('H10,H10,H13,H3');
   });

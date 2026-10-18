@@ -380,6 +380,7 @@ function ensureContext(
     isDeclarerPartner: idx === (declIdx + 2) % 4,
     isAttacker: idx >= 0 ? idx % 2 !== declIdx % 2 : false,
     attackerPoints: 0,
+    throwPenalties: [0, 0],
     handCounts: [25, 25, 25, 25] as const,
     trickHistory: [],
     reveals: [],

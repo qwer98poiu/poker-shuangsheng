@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-10-18 09:52
+
+### AIContext 新增 throwPenalties（台阶防护的数据入口）
+
+**问题**：通用领出 12 的台阶防护要判断本方**已用罚分次数**——一方满 3 次后不再有罚分风险，防护失效、可直接甩。`GameState` 已有 `throwPenalties`，但 AI 上下文没有带出来，策略层看不到。
+
+**修复**：`AIContext` 新增 `throwPenalties: readonly [number, number]`（`[庄家方, 闲家方]` 已用次数）。`minimalContext` 默认 `[0, 0]`，`buildAIContext` 透传 `state.throwPenalties`，兼容路径 `ensureContext` 也补 `[0, 0]`（无罚分历史时保守地保留防护）。手工构造 `AIContext` 的测试夹具同步补字段。本次只接线，不改任何出牌决策。
+
+**新增 2 项测试**（ai-context.test.ts：2 项），引擎 1150 项 + arena 199 项 + CLI 87 项 + client 201 项 = 1637 项通过。
+
+- **影响文件**：`packages/engine/src/ai/types.ts`、`packages/engine/src/ai/context.ts`、`packages/engine/src/ai/index.ts`、`packages/engine/src/__tests__/ai-context.test.ts`、`packages/engine/src/__tests__/ai-flush-detector.test.ts`、`packages/engine/src/__tests__/ai-follow.test.ts`、`packages/engine/src/__tests__/ai-position-follow.test.ts`、`packages/engine/src/__tests__/ai-position-policy.test.ts`
+
 ## 2026-10-18 09:46
 
 ### 提取 ai-1005 基线（10-05 无主长花色领出层与第三家甩牌加分改判）

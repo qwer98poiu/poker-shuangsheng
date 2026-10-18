@@ -18,7 +18,8 @@ function ctxOf(cfg: TrumpDeclaration, over: Partial<AIContext> = {}): AIContext 
   return {
     declarerIndex: 0, trumpSuit: cfg.trumpSuit, level: cfg.level,
     myIndex: 1, isDeclarer: false, isDeclarerPartner: false, isAttacker: false,
-    attackerPoints: 0, handCounts: [25, 25, 25, 25], trickHistory: [],
+    attackerPoints: 0, throwPenalties: [0, 0] as const,
+    handCounts: [25, 25, 25, 25], trickHistory: [],
     reveals: [], playCount: 1, leadPlayerIndex: 0, bestSoFar: null,
     trickPlays: [],
     ntState: null, bottomCards: [], debug: false,
