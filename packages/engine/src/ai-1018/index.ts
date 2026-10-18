@@ -13,7 +13,6 @@ import { compareTwo, matchPattern } from '../comparing/index.js';
 import type { AIContext } from './types.js';
 import {
   getPositionInTrick, isTeammateWinning,
-  discardSort, fillerSort,
   groupBySuit, suitLabelCn,
 } from './utils.js';
 import { isOnlyLegalPlay } from '../following/index.js';
@@ -24,7 +23,7 @@ import {
 import { annotateReason } from './reason.js';
 import {
   discardNonTrump,
-  canAddPoints, isMaxPattern, attackerNearThreshold,
+  canAddPoints, attackerNearThreshold,
 } from './helpers.js';
 import {
   followTrumpLead,
@@ -35,7 +34,7 @@ import { isFlushFollow, avoidBeatingTeammate } from './flush-detector.js';
 import { followOffSuit, followOffSuitThrow } from './follow-offsuit.js';
 import {
   pickDiscards, selectFillers, secondShouldAvoid, shouldBreakPairForPoints,
-  pickBestAddCards, visibleTrickPoints, type DiscardMode,
+  pickBestAddCards, pickFlushFollowCards, visibleTrickPoints, type DiscardMode,
 } from './position-policy.js';
 import { _aiLeadPlay } from './lead.js';
 
@@ -50,6 +49,9 @@ export { groupBySuit };
 export { buildAIContext, computeBestSoFar } from './context.js';
 export type { AIContext, NTTrumpState, PlayPosition } from './types.js';
 export { findThrowableOffSuitCombos } from './throw-detector.js';
+export { computeOffSuitControls } from './bottom-controls.js';
+export type { OffSuitControlInfo } from './bottom-controls.js';
+export { longShape } from './bottom-strategy.js';
 
 /** try to reveal trump during dealing */
 export function aiTryReveal(
@@ -258,7 +260,6 @@ function _aiFollowPlay(
       : fill.some(c => c.suit !== leadSuitCards[0].suit)
         ? '同花色不够，垫其他花色'
         : '垫同花色';
-    const addPoints = tmWin && canAddPoints(tmWin, position, leadCombo, ctx);
     const isPositioned = position === 'second' || position === 'third' || position === 'fourth';
     const intent = (mode === 'add' || mode === 'full') ? 'add'
       : (mode === 'avoid' && isPositioned) ? 'avoid' : 'none';
@@ -273,17 +274,15 @@ function _aiFollowPlay(
     // 按加分优先级垫牌，且**不得盖过队友**（牌权一旦易主，剩下的对就再也兑现不了；
     // 第二家已毙时 tmWin 为 false，走不到这里）。
     if (tmWin && isFlushFollow(ctx, leadCombo)) {
-      const addMode = canAddPoints(tmWin, position, leadCombo, ctx);
-      if (!addMode) {
-        // 禁分（庄家方 70/75 等）：不加分，同样不得盖过队友
-        const dumps = avoidBeatingTeammate(
-          pickDiscards(hand, leadLen, ctx, 'open'), hand, leadCards, leadCombo, ctx);
-        const reason = annotateReason('垫牌', dumps, [], trumpCards,
+      const wantAdd = canAddPoints(tmWin, position, leadCombo, ctx);
+      const { cards: picked, added } = pickFlushFollowCards(hand, leadLen, ctx, wantAdd);
+      const cards = avoidBeatingTeammate(picked, hand, leadCards, leadCombo, ctx);
+      if (!added) {
+        // 禁分（庄家方 70/75 等）或只有主牌：不加分，同样不得盖过队友
+        const reason = annotateReason('垫牌', cards, [], trumpCards,
           leadCombo, leadLen, ctx, position, tmWin, false, 'none');
-        return { cards: dumps, reason };
+        return { cards, reason };
       }
-      const cards = avoidBeatingTeammate(
-        pickBestAddCards(hand, leadLen, leadCombo, ctx), hand, leadCards, leadCombo, ctx);
       return finishTeammateWin(cards, leadCards, leadCombo, leadLen, ctx, position, tmWin, trumpCards);
     }
     // 队友已大且可加分：按加分优先级选牌（第三家有副牌垫副牌、全主出主分；

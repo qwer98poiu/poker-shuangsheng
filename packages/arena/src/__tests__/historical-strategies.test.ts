@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { engineStrategy, ai0816Strategy, ai0907Strategy, ai0927Strategy, ai0929Strategy, ai1002Strategy, ai1005Strategy } from '../strategies.js';
+import { engineStrategy, ai0816Strategy, ai0907Strategy, ai0929Strategy, ai1005Strategy, ai1018Strategy } from '../strategies.js';
 import { playMatch } from '../match.js';
 
 /**
@@ -24,14 +24,6 @@ describe('historical strategies legality', () => {
     }
   });
 
-  it('ai-0927（45c8f78, 09-27 亮主 4>3 修复与出副对清对之前）：无中止、无验牌回退', () => {
-    for (const pair of [12, 13]) {
-      const m = playMatch({ seed: 42, pairIndex: pair, strategies: [ai0927Strategy, engineStrategy], captureEvents: true });
-      expect(m.abortedHands).toBe(0);
-      for (const ev of m.events) expect(ev.errors).toBe(0);
-    }
-  });
-
   it('ai-0929（be6026c, 09-29 NT 记牌器对子扣减修复）：无中止、无验牌回退', () => {
     for (const pair of [20, 21]) {
       const m = playMatch({ seed: 42, pairIndex: pair, strategies: [ai0929Strategy, engineStrategy], captureEvents: true });
@@ -40,17 +32,17 @@ describe('historical strategies legality', () => {
     }
   });
 
-  it('ai-1002（2024c08, 10-02 NT 缺门/毙甩/无分墩规则）：无中止、无验牌回退', () => {
-    for (const pair of [22, 23]) {
-      const m = playMatch({ seed: 42, pairIndex: pair, strategies: [ai1002Strategy, engineStrategy], captureEvents: true });
+  it('ai-1005（805b500, 10-05 无主长花色领出层）：无中止、无验牌回退', () => {
+    for (const pair of [24, 25]) {
+      const m = playMatch({ seed: 42, pairIndex: pair, strategies: [ai1005Strategy, engineStrategy], captureEvents: true });
       expect(m.abortedHands).toBe(0);
       for (const ev of m.events) expect(ev.errors).toBe(0);
     }
   });
 
-  it('ai-1005（805b500, 10-05 无主长花色领出层）：无中止、无验牌回退', () => {
-    for (const pair of [24, 25]) {
-      const m = playMatch({ seed: 42, pairIndex: pair, strategies: [ai1005Strategy, engineStrategy], captureEvents: true });
+  it('ai-1018（b5de66, 10-18 领出阶梯按庄/闲分档重写之前）：无中止、无验牌回退', () => {
+    for (const pair of [26, 27]) {
+      const m = playMatch({ seed: 42, pairIndex: pair, strategies: [ai1018Strategy, engineStrategy], captureEvents: true });
       expect(m.abortedHands).toBe(0);
       for (const ev of m.events) expect(ev.errors).toBe(0);
     }

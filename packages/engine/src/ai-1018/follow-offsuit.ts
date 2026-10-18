@@ -5,7 +5,7 @@
  * 分位置跟牌规格：第二家/第三家/第四家分别决策；lead（backward-compat）
  * 保留旧逻辑。
  */
-import type { Card, ComboClass } from '../types.js';
+import type { Card, ComboClass, Rank } from '../types.js';
 import { Suit, isPointRank } from '../types.js';
 import { isTrump, getEffectiveRank } from '../model.js';
 import { findAllPairs, detectTractors, classify as classifyCombo } from '../pattern/index.js';
@@ -13,15 +13,17 @@ import type { AIContext } from './types.js';
 import { canBeat, maxCardT, discardSort, getTopOffSuitRank } from './utils.js';
 import { annotateReason } from './reason.js';
 import {
-  pairKillSort, discardNonTrump, canAddPoints, isMaxPattern, tryMatchTractorSlots,
+  pairKillSort, discardNonTrump, canAddPoints, tryMatchTractorSlots,
   attackerNearThreshold,
 } from './helpers.js';
-import { trumpKill, throwKillMode, rule1KillMode } from './follow-trump.js';
-import { probeDeclineKill } from './no-seize.js';
+import { trumpKill, throwKillMode, isBeatingTrumpKill } from './follow-trump.js';
+import { canPlayerTrumpThrow } from './nt-tracking.js';
+import { probeDeclineKill, trickHasNoPoints } from './no-seize.js';
+import { isFlushFollow, avoidBeatingTeammate } from './flush-detector.js';
 import {
   hasStrongFollowUp, minEff, maxEff, pickDiscards, selectFillers,
   secondShouldAvoid, shouldBreakPairForPoints, pickBestAddCards,
-  visibleTrickPoints, type DiscardMode,
+  pickFlushFollowCards, visibleTrickPoints, type DiscardMode,
 } from './position-policy.js';
 
 // ---- Follow off-suit lead ----
@@ -264,8 +266,12 @@ function followOffSuitMulti(
 ): { cards: Card[]; reason: string } {
   const myPairs = findAllPairs(leadSuitCards);
   const seize = position === 'second' || position === 'third';
+  // 0b（对子已绝）领出：第三家自己的对子可以直接跟，但不得盖过队友——
+  // 即使手里有强牌也不抢（能出最小对/拖拉机就不出大的）。
+  const flushFollow = position === 'third' && tmWin && isFlushFollow(ctx, leadCombo);
   // 第三家领出更大（队友大）且无强牌 → 不盖（出最小）
-  const thirdNoSeize = position === 'third' && tmWin && !hasStrongFollowUp(hand, ctx);
+  const thirdNoSeize = position === 'third' && tmWin
+    && (flushFollow || !hasStrongFollowUp(hand, ctx));
 
   // Tractor lead - try to match with tractor
   if (leadCombo.hasTractor) {
@@ -478,13 +484,45 @@ export function followOffSuitThrow(
   // dump points instead of wasting trump.
   if (trumpCards.length >= leadLen) {
     const throwCombo = classifyCombo(leadCards, ctx);
-    if (tmWin && canAddPoints(tmWin, position, throwCombo, ctx)) {
+    // 清对领出（优先级 0）：上一墩已验对手该花色对子已绝，本墩必须归队友 →
+    // 垫牌且**不得盖过队友**（牌权易主则剩下的对再也兑现不了；第二家已毙时
+    // tmWin 为 false，走不到这里）
+    if (tmWin && isFlushFollow(ctx, throwCombo)) {
+      const wantAdd = canAddPoints(tmWin, position, throwCombo, ctx);
+      const { cards: picked, added } = pickFlushFollowCards(hand, leadLen, ctx, wantAdd);
+      const cards = avoidBeatingTeammate(picked, hand, leadCards, throwCombo, ctx);
+      const reason = annotateReason('垫牌', cards, [], trumpCards,
+        throwCombo, leadLen, ctx, position, tmWin, false, added ? 'add' : 'none');
+      return { cards, reason };
+    }
+    const addOk = canAddPoints(tmWin, position, throwCombo, ctx);
+    if (tmWin && addOk) {
       // 垫分（加分）：第三家/第四家按加分优先级选牌（第三家有副牌垫副牌，
       // 全主才出主牌；第四家全手选，可含主牌=毙加分；闲家跨 40 台阶全力加分）
       const cards = pickBestAddCards(hand, leadLen, throwCombo, ctx);
-      const reason = annotateReason('垫牌', cards, [], trumpCards,
-        throwCombo, leadLen, ctx, position, tmWin, false, 'add');
-      return { cards, reason };
+      // 第三家垫出的牌反而盖过队友（手牌接近全主时会拿主牌）→ 放弃加分，退回下面照常毙。
+      // 这段兜底原先只长在「NT 第三家甩副牌加分口子」里；该口子的条件已被 canAddPoints 吸收
+      // （见 helpers.canAddPoints：无顶张时改判第四家能否毙），故上提到共享路径。
+      if (!(position === 'third' && isBeatingTrumpKill(cards, leadCards, ctx))) {
+        const reason = annotateReason('垫牌', cards, [], trumpCards,
+          throwCombo, leadLen, ctx, position, tmWin, false, 'add');
+        return { cards, reason };
+      }
+    }
+    // NT 第三家的"无分墩不毙"：第四家**可能**毙时，本墩没分就不值得花主牌盖过队友
+    // （盖了也可能被第四家盖毙，白白送出去），也不给第四家喂分。两处例外照常毙：
+    // ① 级牌为分牌且自己是闲家；② 本墩已出牌含分（这墩丢不起）。垫不出不盖过队友的
+    // 牌（手牌接近全主）时同样退回照常毙。
+    if (tmWin && position === 'third' && ctx.ntState && ctx.myIndex >= 0
+        && !(isPointRank(ctx.level as Rank) && ctx.isAttacker)
+        && trickHasNoPoints(ctx)
+        && canPlayerTrumpThrow((ctx.myIndex + 1) % 4, leadCards, ctx.ntState, ctx)) {
+      const cards = pickDiscards(hand, leadLen, ctx, 'avoid');
+      if (!isBeatingTrumpKill(cards, leadCards, ctx)) {
+        const reason = annotateReason('垫牌', cards, [], trumpCards,
+          throwCombo, leadLen, ctx, position, tmWin, false, 'noKill');
+        return { cards, reason };
+      }
     }
     const killMode = throwKillMode(throwCombo, ctx, leadCards);
     // 第四家：对手大 + 无分墩 + 抢来无牌可领 → 不抢（垫不起则照常毙）

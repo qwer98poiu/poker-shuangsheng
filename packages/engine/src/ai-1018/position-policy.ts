@@ -417,6 +417,25 @@ function pickVoidSuitCards(hand: Card[], need: number, ctx: TrumpDeclaration): C
 }
 
 /**
+ * 0b 跟牌（第三家）：队友领出对子已绝的副牌，第三家缺门时的选牌。
+ *
+ * - 有非主分牌 → 加分：只在副牌里选；副牌不够领出张数时才动主牌；
+ * - 无非主分牌（只有主牌）→ **不加分**，按 avoid 垫非分牌。
+ * 返回值 `added` 供理由串使用；"不得盖过队友"由调用方的 `avoidBeatingTeammate` 兜底。
+ */
+export function pickFlushFollowCards(
+  hand: Card[], need: number, ctx: AIContext, wantAdd: boolean,
+): { cards: Card[]; added: boolean } {
+  const nonTrump = hand.filter(c => !isTrump(c, ctx));
+  const hasOffSuitPoints = nonTrump.some(c => isPointRank(c.rank));
+  if (wantAdd && hasOffSuitPoints) {
+    const pool = nonTrump.length >= need ? nonTrump : hand;
+    return { cards: selectFillers(pool, need, ctx, 'add'), added: true };
+  }
+  return { cards: selectFillers(hand, need, ctx, 'avoid'), added: false };
+}
+
+/**
  * 加分选牌：优先含分花色整门垫出（断门，第三/四家加分场景）；
  * 闲家时与"全力加分"（full + 允许拆对）比较，后者跨入更高 40 台阶时采用（闲家全力冲分）。
  */

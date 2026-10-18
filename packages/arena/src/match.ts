@@ -132,7 +132,7 @@ function dealAndReveal(
  * filter's longShape depends on which suits are 副牌. Replays the same reveal
  * as playHand, so the two agree by construction.
  *
- * Caveat: the reveal is strategy-driven (ai-0927's aiTryReveal differs from
+ * Caveat: the reveal is strategy-driven (ai-0907's aiTryReveal differs from
  * ai's in the 4>3 case), so this is only well-defined when the caller's A and B
  * reveal alike — which the solo arena's L1/L2-vs-L0 isolation already assumes.
  */

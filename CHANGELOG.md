@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-10-18 14:55
+
+### 提取 ai-1018 基线（10-18 09:12 的领出 0a/0b 状态）
+
+**做法**：`git archive` 提取 2026-10-18 09:12 的 `ai/` 为 `packages/engine/src/ai-1018/`（20 文件，含当时的 `STRATEGY.md`）。该快照含 10-12 的 0a 与 10-18 的 0b 放宽，但不含随后按庄/闲分档重写领出阶梯的改动。引擎注册 `ai1018` 命名空间，竞技场注册 `ai1018Strategy` 与 `strategyByName` 分支；三个竞技场入口（`run.ts`/`solo-run.ts`/`nt-run.ts`）的 `--strategy-b` 默认值同步由 `ai-1005` 改为 `ai-1018`，README 中英历史基线列表与参数表一并更新。合法性用例使用 pair 26/27（现有基线未占用）。
+
+**Elo**：该快照尚无实测分数，两张 Elo 表不加新行；README 的现行刻度说明补注 `ai-1018` 未测，并更新 `ai` 的分歧时间点。
+
+**新增 1 项测试**（historical-strategies.test.ts：1 项）。
+
+- **影响文件**：`packages/engine/src/ai-1018/`（新目录，20 文件）、`packages/engine/src/index.ts`、`packages/arena/src/strategies.ts`、`packages/arena/src/run.ts`、`packages/arena/src/solo-run.ts`、`packages/arena/src/nt-run.ts`、`packages/arena/src/__tests__/historical-strategies.test.ts`、`README.md`
+
+### 归档移除 ai-0927 与 ai-1002
+
+**做法**：删除 `packages/engine/src/ai-0927/` 与 `packages/engine/src/ai-1002/`；引擎的命名空间导出移入「archived & removed」注释（2026-10-18）；竞技场的 import、`aiXXXXStrategy` 委托、`strategyByName` 分支与报错可选列表一并移除；历史基线合法性用例删除两条。README 中英把两者从「历史基线策略」移入「已归档移除」（2026-10-18 删除），参数表的可选列表同步收窄。`match.ts` 中关于亮主差异的注释改指仍在库的 `ai-0907`。
+
+**删除 2 项测试**（historical-strategies.test.ts：2 项），引擎 1236 项 + arena 198 项 + CLI 87 项 + client 201 项 = 1722 项通过。
+
+- **影响文件**：`packages/engine/src/ai-0927/`（删除）、`packages/engine/src/ai-1002/`（删除）、`packages/engine/src/index.ts`、`packages/arena/src/strategies.ts`、`packages/arena/src/match.ts`、`packages/arena/src/__tests__/historical-strategies.test.ts`、`packages/arena/scripts/elo-matches.json`、`README.md`
+
 ## 2026-10-18 14:12
 
 ### 领出阶梯按队伍分叉，重写通用 5–12
