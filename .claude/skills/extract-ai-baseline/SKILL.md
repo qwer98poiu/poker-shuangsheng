@@ -1,6 +1,6 @@
 ---
 name: extract-ai-baseline
-description: 把某历史提交时刻的 AI 策略冻结为竞技场基线（ai-XXXX，如 ai-0808）——提取快照、注册引擎与竞技场、补合法性测试、更新 README。参照 45c22df（ai-0802）与 3e84b1c（ai-0808）的既有流程。
+description: 把某历史提交时刻的 AI 策略冻结为竞技场基线（ai-XXXX，如 ai-0808）——提取快照、注册引擎与竞技场、补合法性测试、更新 README；归档旧基线时同步移除 elo-matches.json 中该基线的全部记录。参照 45c22df（ai-0802）与 3e84b1c（ai-0808）的既有流程。
 ---
 
 # 提取历史 AI 策略基线（ai-XXXX）
@@ -52,6 +52,21 @@ description: 把某历史提交时刻的 AI 策略冻结为竞技场基线（ai-
    - `npm run test -w packages/engine` / `-w packages/arena`（arena 总数 +1）
    - 提交类型 `feat:`；提交信息含测试数行（`新增 1 项测试，引擎 X 项 + arena X 项 + CLI X 项 + client X 项 = X 项通过。`）
    - **Changelog 时间 = 提交时刻**（写 Changelog 前先 `date "+%Y-%m-%d %H:%M"`，或用提交后的 author date 对齐）
+
+## 归档基线（与提取成对）
+
+「归档」= **从代码库移除**（不是移进某个归档目录）。提取新基线后通常在同一次提交里归档最旧的一条，基线总数保持不变。
+
+要动的六处：
+
+1. 删除 `packages/engine/src/ai-XXXX/`。
+2. `packages/engine/src/index.ts`：删命名空间导出，并把名字写进「archived & removed」注释（日期用当天）。
+3. `packages/arena/src/strategies.ts`：删 import、`aiXXXXStrategy`、`strategyByName` 分支与抛错信息里的可选列表。
+4. `packages/arena/src/__tests__/historical-strategies.test.ts`：删该基线的合法性用例。
+5. **`packages/arena/scripts/elo-matches.json`：删掉所有 `a` 或 `b` 等于该基线名的行**——两个方向的边都要删，不能只删一侧。删完运行 `npx tsx packages/arena/scripts/elo-calc.ts`，确认剩余图仍连通、锚点仍能解出（矩阵奇异会直接报错）；若归档的恰好是 `ANCHOR`，先按 Elo 章节的决策流程换锚点，不能直接删。README 的 Elo 行可以保留展示（历史分数），但 JSON 里的测量记录不再保留。
+6. README（中英同步）：从「历史基线策略」列表移入「已归档移除」（日期用当天），`--strategy-a` 可选列表去掉它。
+
+Changelog 的「影响文件」必须列 `packages/arena/scripts/elo-matches.json`；不要再写「elo-matches.json 的边保留不动」——旧约定已废止。
 
 ## 注意事项
 
