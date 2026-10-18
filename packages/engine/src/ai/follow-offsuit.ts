@@ -23,7 +23,7 @@ import { isFlushFollow, avoidBeatingTeammate } from './flush-detector.js';
 import {
   hasStrongFollowUp, minEff, maxEff, pickDiscards, selectFillers,
   secondShouldAvoid, shouldBreakPairForPoints, pickBestAddCards,
-  visibleTrickPoints, type DiscardMode,
+  pickFlushFollowCards, visibleTrickPoints, type DiscardMode,
 } from './position-policy.js';
 
 // ---- Follow off-suit lead ----
@@ -266,8 +266,12 @@ function followOffSuitMulti(
 ): { cards: Card[]; reason: string } {
   const myPairs = findAllPairs(leadSuitCards);
   const seize = position === 'second' || position === 'third';
+  // 0b（对子已绝）领出：第三家自己的对子可以直接跟，但不得盖过队友——
+  // 即使手里有强牌也不抢（能出最小对/拖拉机就不出大的）。
+  const flushFollow = position === 'third' && tmWin && isFlushFollow(ctx, leadCombo);
   // 第三家领出更大（队友大）且无强牌 → 不盖（出最小）
-  const thirdNoSeize = position === 'third' && tmWin && !hasStrongFollowUp(hand, ctx);
+  const thirdNoSeize = position === 'third' && tmWin
+    && (flushFollow || !hasStrongFollowUp(hand, ctx));
 
   // Tractor lead - try to match with tractor
   if (leadCombo.hasTractor) {
@@ -484,13 +488,11 @@ export function followOffSuitThrow(
     // 垫牌且**不得盖过队友**（牌权易主则剩下的对再也兑现不了；第二家已毙时
     // tmWin 为 false，走不到这里）
     if (tmWin && isFlushFollow(ctx, throwCombo)) {
-      const addOk = canAddPoints(tmWin, position, throwCombo, ctx);
-      const picked = addOk
-        ? pickBestAddCards(hand, leadLen, throwCombo, ctx)
-        : pickDiscards(hand, leadLen, ctx, 'open');
+      const wantAdd = canAddPoints(tmWin, position, throwCombo, ctx);
+      const { cards: picked, added } = pickFlushFollowCards(hand, leadLen, ctx, wantAdd);
       const cards = avoidBeatingTeammate(picked, hand, leadCards, throwCombo, ctx);
       const reason = annotateReason('垫牌', cards, [], trumpCards,
-        throwCombo, leadLen, ctx, position, tmWin, false, addOk ? 'add' : 'none');
+        throwCombo, leadLen, ctx, position, tmWin, false, added ? 'add' : 'none');
       return { cards, reason };
     }
     const addOk = canAddPoints(tmWin, position, throwCombo, ctx);

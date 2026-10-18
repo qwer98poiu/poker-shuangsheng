@@ -34,7 +34,7 @@ import { isFlushFollow, avoidBeatingTeammate } from './flush-detector.js';
 import { followOffSuit, followOffSuitThrow } from './follow-offsuit.js';
 import {
   pickDiscards, selectFillers, secondShouldAvoid, shouldBreakPairForPoints,
-  pickBestAddCards, visibleTrickPoints, type DiscardMode,
+  pickBestAddCards, pickFlushFollowCards, visibleTrickPoints, type DiscardMode,
 } from './position-policy.js';
 import { _aiLeadPlay } from './lead.js';
 
@@ -274,17 +274,15 @@ function _aiFollowPlay(
     // 按加分优先级垫牌，且**不得盖过队友**（牌权一旦易主，剩下的对就再也兑现不了；
     // 第二家已毙时 tmWin 为 false，走不到这里）。
     if (tmWin && isFlushFollow(ctx, leadCombo)) {
-      const addMode = canAddPoints(tmWin, position, leadCombo, ctx);
-      if (!addMode) {
-        // 禁分（庄家方 70/75 等）：不加分，同样不得盖过队友
-        const dumps = avoidBeatingTeammate(
-          pickDiscards(hand, leadLen, ctx, 'open'), hand, leadCards, leadCombo, ctx);
-        const reason = annotateReason('垫牌', dumps, [], trumpCards,
+      const wantAdd = canAddPoints(tmWin, position, leadCombo, ctx);
+      const { cards: picked, added } = pickFlushFollowCards(hand, leadLen, ctx, wantAdd);
+      const cards = avoidBeatingTeammate(picked, hand, leadCards, leadCombo, ctx);
+      if (!added) {
+        // 禁分（庄家方 70/75 等）或只有主牌：不加分，同样不得盖过队友
+        const reason = annotateReason('垫牌', cards, [], trumpCards,
           leadCombo, leadLen, ctx, position, tmWin, false, 'none');
-        return { cards: dumps, reason };
+        return { cards, reason };
       }
-      const cards = avoidBeatingTeammate(
-        pickBestAddCards(hand, leadLen, leadCombo, ctx), hand, leadCards, leadCombo, ctx);
       return finishTeammateWin(cards, leadCards, leadCombo, leadLen, ctx, position, tmWin, trumpCards);
     }
     // 队友已大且可加分：按加分优先级选牌（第三家有副牌垫副牌、全主出主分；

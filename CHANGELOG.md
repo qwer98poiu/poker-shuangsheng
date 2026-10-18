@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-10-18 09:10
+
+### 领出 0b 放宽到一对，并让第三家跟队友 0b 时只回看两个对手
+
+**问题**：0b（对子已绝）原来只在手里剩 **≥2 对**时触发，1 对仍走普通出对，因此 T2 对子没有专门的兑现通道；证据要求**三家**跟对数都不足，第三家是队友、却也被当作阻断条件。第三家跟队友的 0b 一对/拖拉机时，`isFlushFollow` 也要求第三家自己上一墩没对，且无主下仍检查 G2，导致两个对手已验对子绝、第三家却因自己的对子或对手缺门而拿不到加分。
+
+**修复**：
+
+- `tryLeadFlushThrow`：1 对也触发，直接出这一对（理由「出…对子（对子已绝）」）；≥2 对仍把该门剩下的对全部甩出。
+- `detectFlushEvidence`：1 对只查第二/四家的对子数，不要求第三家；新增 `skipPartnerPairCheck` 供跟牌侧跳过第三家。
+- `isFlushFollow`：回看证据时只看两个对手；无主局不检查 G2（与领出侧同口径）。
+- 第三家跟牌：`followOffSuitMulti` 对 0b 领出强制不抢（即使有强牌也出最小对/拖拉机）；缺门时新增 `pickFlushFollowCards`——有非主分牌才加分，只有主牌时按 avoid 垫非分牌；仍由 `avoidBeatingTeammate` 兜底不盖队友。
+- 竞技场种子局指纹（`oppLevel`）221 → 208；README 中英 `ai` 行改为「待重测」/「TBD」。
+
+**新增 71 项测试、修改 6 项测试**（ai-flush-detector.test.ts：新增 71 项、修改 5 项；arena-e2e.test.ts：修改 1 项），引擎 1148 项 + arena 198 项 + CLI 87 项 + client 201 项 = 1634 项通过。
+
+- **影响文件**：`packages/engine/src/ai/flush-detector.ts`、`packages/engine/src/ai/follow-offsuit.ts`、`packages/engine/src/ai/index.ts`、`packages/engine/src/ai/helpers.ts`、`packages/engine/src/ai/position-policy.ts`、`packages/engine/src/__tests__/ai-flush-detector.test.ts`、`packages/arena/src/__tests__/arena-e2e.test.ts`、`README.md`
+
 ## 2026-10-12 23:58
 
 ### 领出优先级 0a 放宽：张数门槛 3→2、不再查对手能否用主牌毙
