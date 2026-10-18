@@ -3,7 +3,7 @@
  * One-line delegations; identical input → identical output (guarded by the
  * engine-side differential tests).
  */
-import { aiTryReveal, aiChooseBottomCards, aiLeadPlay, aiFollowPlay, ai0816, ai0907, ai0927, ai0929, ai1002 } from '@poker/engine';
+import { aiTryReveal, aiChooseBottomCards, aiLeadPlay, aiFollowPlay, ai0816, ai0907, ai0927, ai0929, ai1002, ai1005 } from '@poker/engine';
 import type { Strategy } from './types.js';
 
 export const engineStrategy: Strategy = {
@@ -59,7 +59,16 @@ export const ai1002Strategy: Strategy = {
   follow: (hand, lead, suit, config) => ai1002.aiFollowPlay(hand, lead, suit, config),
 };
 
-/** Resolve a strategy by name ('ai' | 'ai-0816' | 'ai-0907' | 'ai-0927' | 'ai-0929' | 'ai-1002'). */
+/** 快照基线：ai/ 在 805b500（2026-10-05，无主长花色领出层与第三家甩牌加分改判）时的版本。 */
+export const ai1005Strategy: Strategy = {
+  name: 'ai-1005',
+  tryReveal: (hand, dealt, pi, level, cur) => ai1005.aiTryReveal(hand, dealt, pi, level, cur),
+  chooseBottom: (hand, config) => ai1005.aiChooseBottomCards(hand, config),
+  lead: (hand, config) => ai1005.aiLeadPlay(hand, config),
+  follow: (hand, lead, suit, config) => ai1005.aiFollowPlay(hand, lead, suit, config),
+};
+
+/** Resolve a strategy by name ('ai' | 'ai-0816' | 'ai-0907' | 'ai-0927' | 'ai-0929' | 'ai-1002' | 'ai-1005'). */
 export function strategyByName(name: string): Strategy {
   if (name === 'ai') return engineStrategy;
   if (name === 'ai-0816') return ai0816Strategy;
@@ -67,5 +76,6 @@ export function strategyByName(name: string): Strategy {
   if (name === 'ai-0927') return ai0927Strategy;
   if (name === 'ai-0929') return ai0929Strategy;
   if (name === 'ai-1002') return ai1002Strategy;
-  throw new Error(`未知策略: ${name}（可选: ai, ai-0816, ai-0907, ai-0927, ai-0929, ai-1002）`);
+  if (name === 'ai-1005') return ai1005Strategy;
+  throw new Error(`未知策略: ${name}（可选: ai, ai-0816, ai-0907, ai-0927, ai-0929, ai-1002, ai-1005）`);
 }

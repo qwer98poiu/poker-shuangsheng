@@ -68,7 +68,7 @@ function printUsage(): void {
                        （庄家 P0 按 33 张池＝发到 25＋底牌 8，其余三家各 25 张）；
                        与 --nt-only 共用即「NT 长花色」（此时主牌恒为无主）
   --strategy-a NAME    策略 A，默认 ai
-  --strategy-b NAME    策略 B，默认 ai-1002
+  --strategy-b NAME    策略 B，默认 ai-1005
   --min-deals N        起跑有效发牌数下限，默认 2000
   --until-significant  不设最小样本：所有等级 × 4 项指标全显著即停（与 --min-deals 互斥）
   --step-deals N       显著性检查间隔与目标取整粒度（单位：副），默认 1000
@@ -95,7 +95,7 @@ function parseArgs(argv: string[]): Args {
     seed: (Math.random() * 2 ** 31) >>> 0,
     workers: Math.max(1, Math.min(8, os.cpus().length)),
     strategyA: 'ai',
-    strategyB: 'ai-1002',
+    strategyB: 'ai-1005',
     levels: [...DEFAULT_LEVELS],
     ntOnly: false,
     dealFilters: [],

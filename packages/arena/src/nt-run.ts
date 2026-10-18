@@ -61,7 +61,7 @@ function printUsage(): void {
   --seed N           随机种子（确定性），默认随机
   --workers N        子进程数，默认 min(8, CPU 核数)
   --strategy-a NAME  策略 A，默认 ai（当前策略）
-  --strategy-b NAME  策略 B，默认 ai-1002
+  --strategy-b NAME  策略 B，默认 ai-1005
   --min-deals N      起跑发牌数下限（单位：副），默认 2000
   --until-significant 不设最小样本：任一次检查显著即停（与 --min-deals 互斥）
   --step-deals N     显著性检查的间隔与目标取整粒度（单位：副），默认 200
@@ -82,7 +82,7 @@ function parseArgs(argv: string[]): Args {
     seed: (Math.random() * 2 ** 31) >>> 0,
     workers: Math.max(1, Math.min(8, os.cpus().length)),
     strategyA: 'ai',
-    strategyB: 'ai-1002',
+    strategyB: 'ai-1005',
     minDeals: 2000,
     stepDeals: 200,
     maxDeals: 10000,

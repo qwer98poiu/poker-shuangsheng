@@ -31,6 +31,7 @@ export * as ai0907 from './ai-0907/index.js'; // ai/ as of 6aa2b80 (2026-09-07),
 export * as ai0927 from './ai-0927/index.js'; // ai/ as of 45c8f78 (2026-09-27), before the NT-reveal 4-over-3 fix & the drained-pair throw
 export * as ai0929 from './ai-0929/index.js'; // ai/ as of be6026c (2026-09-29), the NT pair-deduction fix — Elo scale anchor
 export * as ai1002 from './ai-1002/index.js'; // ai/ as of 2024c08 (2026-10-02), the NT drained-suit/throw-kill/no-point rules — first post-anchor divergence
+export * as ai1005 from './ai-1005/index.js'; // ai/ as of 805b500 (2026-10-05), the NT long-suit lead layer & third-seat throw-add re-judge
 
 // Serialization (reusing old model/serialize.ts)
 export * from './model/serialize.js';

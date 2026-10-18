@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-10-18 09:46
+
+### 提取 ai-1005 基线（10-05 无主长花色领出层与第三家甩牌加分改判）
+
+**做法**：`git archive` 提取 2026-10-05 14:41 的 `ai/` 为 `packages/engine/src/ai-1005/`（20 文件，含当时的 `STRATEGY.md`）。引擎注册 `ai1005` 命名空间，竞技场注册 `ai1005Strategy` 与 `strategyByName` 分支；三个竞技场入口（`run.ts`/`solo-run.ts`/`nt-run.ts`）的 `--strategy-b` 默认值同步由 `ai-1002` 改为 `ai-1005`，README 中英历史基线列表、Elo 表与参数表一并更新。合法性用例使用 pair 24/25（现有基线未占用）。
+
+**Elo 归属**：2026-10-09 实测的 1271 分本来测的就是 10-05 这份策略，故把 `elo-matches.json` 中四条 `a: "ai"` 的行改名为 `a: "ai-1005"`；重算得 `ai-1005` = 1270.6，表中取整 1271。当前 `ai` 已含 10-12 的 0a 与 10-18 的 0b 改动，行内标「待重测」/「TBD」。
+
+**新增 1 项测试**（historical-strategies.test.ts：1 项），引擎 1148 项 + arena 199 项 + CLI 87 项 + client 201 项 = 1635 项通过。
+
+- **影响文件**：`packages/engine/src/ai-1005/`（新目录，20 文件）、`packages/engine/src/index.ts`、`packages/arena/src/strategies.ts`、`packages/arena/src/run.ts`、`packages/arena/src/solo-run.ts`、`packages/arena/src/nt-run.ts`、`packages/arena/src/__tests__/historical-strategies.test.ts`、`packages/arena/scripts/elo-matches.json`、`README.md`
+
 ## 2026-10-18 09:10
 
 ### 领出 0b 放宽到一对，并让第三家跟队友 0b 时只回看两个对手
