@@ -1,9 +1,9 @@
 /**
  * NT trump drawing (无主吊主) — the six rules that pick a safe trump lead.
  *
- * Shared by the general lead ladder (`lead.ts`, strategy 5) and by the NT
- * long-suit layer (`nt-lead.ts`), which uses it as a pre-step when opponents
- * might trump the proposed lead.
+ * 消费方是通用领出阶梯（`generic-lead.ts`）：单张在通用 6 档返回，
+ * 对子/拖拉机在通用 7 档返回（无主下这两档的规则都保持原样）。
+ * 庄3（`nt-lead.ts`）不再调用本模块。
  */
 import type { Card } from '../types.js';
 import { Rank, SpecialSuit, isPointRank } from '../types.js';

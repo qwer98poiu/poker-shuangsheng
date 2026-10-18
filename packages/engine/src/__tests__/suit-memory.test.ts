@@ -4,7 +4,7 @@ import type { Card, CardSuit, Trick, TrumpDeclaration } from '../types.js';
 import { createCard, isTrump } from '../model.js';
 import { classify } from '../pattern/index.js';
 import {
-  computeLongSuit, computeLongSuitMemory, initialHand, knownOutOfPlay,
+  computeLongSuit, computeActiveLongSuit, computeLongSuitMemory, initialHand, knownOutOfPlay,
   longSuitLeadCount, myPlayedCards,
 } from '../ai/suit-memory.js';
 import { minimalContext } from '../ai/types.js';
@@ -66,6 +66,42 @@ describe('suit memory — long suit designation', () => {
     const short = [c('S', 14, 0), c('S', 14, 1), c('S', 13, 0), c('H', 3, 0)];
     const ctx = ctxOf({ myIndex: 0, isDeclarer: true });
     expect(computeLongSuit(short, ctx)).toBeNull();
+  });
+});
+
+describe('suit memory — active long suit (current hand loss)', () => {
+  /** Keep some spades in hand; the rest were played by me in one completed trick. */
+  function activeCtx(keepSpades: Card[]): { hand: Card[]; ctx: AIContext } {
+    const keepIds = new Set(keepSpades.map(x => x.id));
+    const played = longHand.filter(x => x.suit === Suit.Spades && !keepIds.has(x.id));
+    const t = trick([played, offSuits(1), offSuits(2), offSuits(3)], 0);
+    const hand = [...keepSpades, ...longHand.filter(x => x.suit !== Suit.Spades)];
+    return {
+      hand,
+      ctx: ctxOf({ myIndex: 0, isDeclarer: true, trickHistory: [t] }),
+    };
+  }
+
+  it('只剩一张单牌 → 不再算长花色', () => {
+    const { hand, ctx } = activeCtx([c('S', 14, 0)]);
+    expect(computeLongSuit(hand, ctx)).toBe(Suit.Spades);
+    expect(computeActiveLongSuit(hand, ctx)).toBeNull();
+  });
+
+  it('只剩一对 → 不再算长花色', () => {
+    const { hand, ctx } = activeCtx([c('S', 14, 0), c('S', 14, 1)]);
+    expect(computeLongSuit(hand, ctx)).toBe(Suit.Spades);
+    expect(computeActiveLongSuit(hand, ctx)).toBeNull();
+  });
+
+  it('两张不同 rank（2 张甩牌）仍算长花色', () => {
+    const { hand, ctx } = activeCtx([c('S', 11, 0), c('S', 9, 0)]);
+    expect(computeActiveLongSuit(hand, ctx)).toBe(Suit.Spades);
+  });
+
+  it('三张单牌仍算长花色', () => {
+    const { hand, ctx } = activeCtx([c('S', 11, 0), c('S', 10, 0), c('S', 9, 0)]);
+    expect(computeActiveLongSuit(hand, ctx)).toBe(Suit.Spades);
   });
 });
 

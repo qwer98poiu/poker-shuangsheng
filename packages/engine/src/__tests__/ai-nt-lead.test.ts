@@ -158,87 +158,38 @@ const pairlessCtx = (over: Partial<AIContext> = {}) => declarer({
   trickHistory: partnerVoidTricks, ...over,
 });
 
-describe('NT lead layer — 第 2 条：非长门一次出空（断门）', () => {
-  it('drains a door that is a single pattern, top rank first', () => {
-    // ♥AA is the entire ♥ holding and carries the off-suit top rank → class 2.
+describe('NT lead layer — 只处理长花色 T1，非长门交给其他档', () => {
+  it('长花色 T1 优先于非长门断门', () => {
     const hand = [...longHand, c('H', 14, 0), c('H', 14, 1)];
     const r = tryNTLead(hand, longCtx(), Suit.Spades);
     checkLead(r!.cards, hand);
-    expect(r!.cards.every(x => x.suit === Suit.Hearts)).toBe(true);
-    expect(r!.cards.length).toBe(2);
-    expect(r!.reason).toBe('断门♥(2张)');
-  });
-
-  it('a fully throwable composite door (class 1) beats a top-rank pair door (class 2)', () => {
-    // ♣ AAKKQ is the whole ♣ holding and every card is unblockable → class 1.
-    const hand = [
-      ...longHand,
-      c('H', 14, 0), c('H', 14, 1),
-      c('C', 14, 0), c('C', 14, 1), c('C', 13, 0), c('C', 13, 1), c('C', 12, 0),
-    ];
-    const ctx = longCtx();
-    const r = tryNTLead(hand, ctx, Suit.Spades);
-    checkLead(r!.cards, hand);
-    checkNoPenalty(r!.cards, hand, ctx);
-    expect(r!.cards.every(x => x.suit === Suit.Clubs)).toBe(true);
-    expect(r!.cards.length).toBe(5);
-    expect(r!.reason).toBe('断门♣(5张)');
-  });
-
-  it('ties on class are broken by the larger door', () => {
-    // ♥AA (class 2, 2 cards) vs ♦A (class 2, 1 card) → ♥ wins.
-    const hand = [...longHand, c('H', 14, 0), c('H', 14, 1), c('D', 14, 0)];
-    const r = tryNTLead(hand, longCtx(), Suit.Spades);
-    checkLead(r!.cards, hand);
-    expect(r!.reason).toBe('断门♥(2张)');
-  });
-
-  it('非长门不记牌：已出的挡牌不能把整门升级成可甩（class 1）', () => {
-    // ♣ A K Q 是三张单牌组成的复合甩门。**静态**最坏情况里还剩第二张 ♣A 与 ♣K
-    // （都比我大）→ 甩不成，整门不该进本层。记牌在时这两张被剔出最坏情况，
-    // 同一手就会以 class 1 的「断门♣(3张)」甩出去——本层不记牌（计数只在长花色），
-    // 所以这里必须看到 ♣ 一个都不出，改由长花色层领出。
-    const hand = [...longHand, c('C', 14, 0), c('C', 13, 0), c('C', 12, 0)];
-    const played = trick(
-      [[c('H', 3, 1)], [c('C', 14, 1)], [c('C', 13, 1)], [c('H', 4, 1)]], 1,
-    );
-    const ctx = longCtx({ trickHistory: [played] });
-    const r = tryNTLead(hand, ctx, Suit.Spades);
-    checkLead(r!.cards, hand);
-    checkNoPenalty(r!.cards, hand, ctx);
     expect(r!.cards.every(x => x.suit === Suit.Spades)).toBe(true);
+    expect(r!.reason).toBe('长花色控制张(7张)');
   });
 
-  it('never drains the long suit itself', () => {
-    const hand = [...longHand, c('H', 14, 0), c('H', 14, 1)];
-    const r = tryNTLead(hand, longCtx(), Suit.Spades);
-    expect(r!.cards.every(x => x.suit !== Suit.Spades)).toBe(true);
-  });
-});
-
-describe('NT lead layer — 第 2.1 条：非长、断不了门的门里的拖拉机', () => {
-  // ♦ AAKK55: the door cannot be emptied in one go (55 is blocked in the worst
-  // case), but the AAKK tractor still goes out at this priority (class 3).
-  const doorHand = [
-    ...longHand,
-    c('D', 14, 0), c('D', 14, 1), c('D', 13, 0), c('D', 13, 1), c('D', 5, 0), c('D', 5, 1),
-  ];
-
-  it('plays that tractor', () => {
-    const ctx = longCtx();
-    const r = tryNTLead(doorHand, ctx, Suit.Spades);
-    checkLead(r!.cards, doorHand);
-    checkNoPenalty(r!.cards, doorHand, ctx);
-    expect(r!.cards.every(x => x.suit === Suit.Diamonds)).toBe(true);
-    expect(ranks(r!.cards)).toEqual([13, 13, 14, 14]);
-    expect(r!.reason).toBe('出♦拖拉机(2对)');
-  });
-
-  it('prefers a drainable door over a tractor in a non-drainable one', () => {
-    // ♥AA (class 2) beats the ♦AAKK tractor (class 3).
-    const hand = [...doorHand, c('H', 14, 0), c('H', 14, 1)];
-    const r = tryNTLead(hand, longCtx(), Suit.Spades);
-    expect(r!.reason).toBe('断门♥(2张)');
+  it('非长门拖拉机不再由本层出；T1 单/对等待时返回 null', () => {
+    // 当前长花色只剩 ♠AA（一对），初始手牌里的另外 7 张已由我打出。
+    const playedSpades = [
+      c('S', 14, 1), c('S', 14, 2), c('S', 13, 1), c('S', 13, 2),
+      c('S', 11, 1), c('S', 10, 1), c('S', 9, 1),
+    ];
+    const played = trick([
+      playedSpades,
+      [c('H', 3, 1), c('H', 4, 1), c('H', 5, 1), c('H', 6, 1), c('H', 7, 1), c('H', 8, 1), c('H', 9, 1)],
+      [c('C', 3, 1), c('C', 4, 1), c('C', 5, 1), c('C', 6, 1), c('C', 7, 1), c('C', 8, 1), c('C', 9, 1)],
+      [c('D', 3, 1), c('D', 4, 1), c('D', 5, 1), c('D', 6, 1), c('D', 7, 1), c('D', 8, 1), c('D', 9, 1)],
+    ], 0);
+    const hand = [
+      c('S', 12, 0), c('S', 12, 3),
+      c('D', 14, 0), c('D', 14, 1), c('D', 13, 0), c('D', 13, 1), c('D', 5, 0), c('D', 5, 1),
+      c('C', 7, 3),
+    ];
+    const ctx = declarer({
+      handCounts: [hand.length, 22, 22, 22] as [number, number, number, number],
+      trickHistory: [played],
+    });
+    expect(computeLongSuit(hand, ctx)).toBe(Suit.Spades);
+    expect(tryNTLead(hand, ctx, Suit.Spades)).toBeNull();
   });
 });
 
@@ -466,6 +417,6 @@ describe('NT lead layer — 层无提案时回落到出副牌大牌（第 6 条�
     expect(computeLongSuit(spentHand, ctx)).toBeNull();
     const r = aiLeadPlay(spentHand, ctx);
     expect(r.cards.some(x => x.rank === Rank.Ace)).toBe(true);
-    expect(r.reason).toBe('出副牌♦A');
+    expect(r.reason).toBe('出♦A');
   });
 });

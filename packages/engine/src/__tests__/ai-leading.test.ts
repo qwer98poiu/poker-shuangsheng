@@ -16,6 +16,13 @@ function ctx(config: TrumpDeclaration, overrides?: Partial<AIContext>): AIContex
   return { ...minimalContext(config), ...overrides };
 }
 
+/** 完整队伍标记的 ctx（真实对局里 buildAIContext 总是给出）。 */
+function teamCtx(config: TrumpDeclaration, role: 'declarer' | 'attacker'): AIContext {
+  return ctx(config, role === 'declarer'
+    ? { myIndex: 0, isDeclarer: true, isDeclarerPartner: false, isAttacker: false }
+    : { myIndex: 1, isDeclarer: false, isDeclarerPartner: false, isAttacker: true });
+}
+
 function checkLead(play: Card[], hand: Card[], config: TrumpDeclaration): void {
   const vr = validateLead(play, hand, config);
   expect(vr.valid).toBe(true);
@@ -33,7 +40,7 @@ describe('AI leading play', () => {
         c('S', 11, 0), c('S', 11, 1),
         c('H', 2, 0),
       ];
-      const result = aiLeadPlay(hand, cfg5);
+      const result = aiLeadPlay(hand, teamCtx(cfg5, 'attacker'));
       checkLead(result.cards, hand, cfg5);
       expect(result.cards.length).toBe(4); // 2-pair tractor = 4 cards
       expect(result.reason).toContain('拖拉机');
@@ -45,7 +52,7 @@ describe('AI leading play', () => {
         c('S', 12, 0), c('S', 12, 1), c('S', 11, 0), c('S', 11, 1),
         c('H', 3, 0), c('H', 3, 1), c('H', 4, 0), c('H', 4, 1),
       ];
-      const result = aiLeadPlay(hand, cfg5);
+      const result = aiLeadPlay(hand, teamCtx(cfg5, 'attacker'));
       checkLead(result.cards, hand, cfg5);
       // Should prefer off-suit tractor (trump is Hearts, lead S first)
       expect(result.reason).toContain('♠');
@@ -60,7 +67,7 @@ describe('AI leading play', () => {
         c('S', 10, 0), c('S', 10, 1),
         c('H', 3, 0),
       ];
-      const result = aiLeadPlay(hand, cfgNT);
+      const result = aiLeadPlay(hand, teamCtx(cfgNT, 'attacker'));
       checkLead(result.cards, hand, cfgNT);
       expect(result.cards.length).toBe(4);
       expect(result.reason).toContain('拖拉机');
@@ -74,7 +81,7 @@ describe('AI leading play', () => {
         c('S', 14, 0), c('S', 14, 1),
         c('H', 2, 0),
       ];
-      const result = aiLeadPlay(hand, cfg5);
+      const result = aiLeadPlay(hand, teamCtx(cfg5, 'attacker'));
       checkLead(result.cards, hand, cfg5);
       expect(result.cards.length).toBe(2);
       expect(result.reason).toContain('♠');
@@ -86,10 +93,11 @@ describe('AI leading play', () => {
         c('S', 14, 0),
         c('H', 2, 0), c('H', 3, 0),
       ];
-      const result = aiLeadPlay(hand, cfg5);
+      const result = aiLeadPlay(hand, teamCtx(cfg5, 'attacker'));
       checkLead(result.cards, hand, cfg5);
       expect(result.cards.length).toBe(1);
-      expect(result.reason).toContain('副牌');
+      expect(result.reason).toContain('♠');
+      expect(result.reason).toContain('A');
     });
 
     it('leads K when A is level', () => {
@@ -99,7 +107,7 @@ describe('AI leading play', () => {
         c('S', 13, 0), c('S', 13, 1), // KK
         c('H', 2, 0),
       ];
-      const result = aiLeadPlay(hand, cfgAHeart);
+      const result = aiLeadPlay(hand, teamCtx(cfgAHeart, 'attacker'));
       checkLead(result.cards, hand, cfgAHeart);
       expect(result.reason).toContain('K');
     });
@@ -116,14 +124,15 @@ describe('AI leading play', () => {
       expect(result.cards.length).toBe(2);
     });
 
-    it('says 出主对 for trump pair', () => {
+    it('有主：主对先于小主单张（通用 7 先于 9）', () => {
       const hand = [
         c('H', 10, 0), c('H', 10, 1), // trump pair
         c('S', 2, 0),
       ];
       const result = aiLeadPlay(hand, cfg5);
       checkLead(result.cards, hand, cfg5);
-      expect(result.reason).toContain('对');
+      expect(result.cards.length).toBe(2);
+      expect(result.reason).toBe('出主对');
     });
   });
 
@@ -166,14 +175,14 @@ describe('AI leading play', () => {
   describe('declarer restrictions', () => {
     it('declarer with 20+ cards does not lead trump pairs', () => {
       const hand: Card[] = [
-        c('H', 3, 0), c('H', 3, 1), // trump pair
+        c('H', 5, 0), c('H', 5, 1), // level trump pair（A 以上，受庄家限制）
+        c('H', 3, 0),               // 小主单张，作为受限后的兜底
         c('S', 2, 0), c('S', 3, 0), c('S', 4, 0),
-        c('S', 5, 0), c('S', 6, 0),
-        c('C', 2, 0), c('C', 3, 0),
+        c('S', 6, 0), c('S', 7, 0), c('S', 8, 0),
+        c('S', 9, 0), c('S', 10, 0),
+        c('C', 2, 0), c('C', 3, 0), c('C', 4, 0),
+        c('C', 6, 0), c('C', 7, 0), c('C', 8, 0),
         c('D', 2, 0), c('D', 3, 0), c('D', 4, 0),
-        c('D', 5, 0), c('D', 6, 0), c('D', 7, 0),
-        c('S', 8, 0), c('S', 9, 0), c('S', 10, 0),
-        c('C', 4, 0), c('C', 5, 0), c('C', 6, 0),
       ];
       const ctxD = ctx(cfg5, {
         myIndex: 0, isDeclarer: true, isDeclarerPartner: false,
@@ -181,9 +190,9 @@ describe('AI leading play', () => {
       });
       const result = aiLeadPlay(hand, ctxD);
       checkLead(result.cards, hand, cfg5);
-      // STRATEGY.md 优先级 3/4 的庄家限制：手牌 ≥20 张时不出主牌对子。
-      // 本副唯一的对子就是主牌 H-33（也是仅有的两张主牌）——受限后改出拆开的一张，
-      // 而非成对领出，故断言「恰好一张、且是主牌」。
+      // STRATEGY.md 优先级 3/4 的庄家限制：手牌 ≥20 张时不出 A 以上主牌对子。
+      // H5 是级牌（A 以上）——通用 7 放弃这对，通用 9 改出小主 H3，
+      // 故断言「恰好一张、且是主牌」。
       expect(result.cards.length).toBe(1);
       expect(isTrump(result.cards[0], cfg5)).toBe(true);
       expect(result.cards[0].rank).toBe(Rank.Three);

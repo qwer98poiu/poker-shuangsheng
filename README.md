@@ -79,7 +79,7 @@ In NT (no-trump) mode, 12 constant trump cards (Big Joker × 2, Small Joker × 2
 - **Upgrade log** — `--detail-pair N` prints the per-hand upgrade records of both mirrored matches side by side (same deck), showing banker side, both levels at hand start, attacker points, and the upgrade result.
 - **Historical baselines** — `ai-0816` (2026-08-16, before the bottom-card strategy rewrite), `ai-0907` (2026-09-07, before the trump-kill single-card tier selection), `ai-0927` (2026-09-27, before the NT-reveal 4-over-3 fix and the drained-pair throw), `ai-0929` (2026-09-29, the NT pair-deduction fix — the Elo scale anchor) and `ai-1002` (2026-10-02, the NT drained-suit/throw-kill/no-point rules — the first divergence after the anchor) and `ai-1005` (2026-10-05, the NT long-suit lead layer and the third-seat throw-add re-judge) were extracted from git history to PK against the current `ai`. (Archived: `ai-0707`, `ai-0712`, `ai-0726` — removed 2026-08-07; `ai-0801` and `ai-0719` — removed 2026-09-16; `ai-0808` — removed 2026-09-27; `ai-0809` — removed 2026-10-01; `ai-0802` — removed 2026-10-06. Elo scores below kept for reference.)
 - **Strategy Elo ratings** — two scales, one per bottom-card convention (computed by `packages/arena/scripts/elo-calc.ts`; the anchor's score is set by `ANCHOR_ELO` in that script):
-  - **Current scale** — measured after the 2026-09-16 fix; the declarer now decides the bottom from all 33 cards. Anchor: `ai-0929` = 1263.8 (shown rounded to integers). `ai-1005` is the 2026-10-05 state measured on 2026-10-09 (1271); `ai` diverged from it on 2026-10-12 (lead priority 0a) and again on 2026-10-18 (lead priority 0b), so its score is **TBD** until re-measured.
+  - **Current scale** — measured after the 2026-09-16 fix; the declarer now decides the bottom from all 33 cards. Anchor: `ai-0929` = 1263.8 (shown rounded to integers). `ai-1005` is the 2026-10-05 state measured on 2026-10-09 (1271); `ai` diverged from it on 2026-10-12 (lead priority 0a) and on 2026-10-18 (priority 0b, the declarer/attacker lead tiers and the generic 5–12 ladder), so its score is **TBD** until re-measured.
 
     | Strategy | Elo |
     |---|---|
@@ -305,7 +305,7 @@ MIT — see [LICENSE](LICENSE).
 - **升级记录**：`--detail-pair N` 并排输出该对决镜像两场的逐手升级记录（同一副牌），含庄家方、双方等级、闲家得分与升级结果。
 - **历史基线策略**：`ai-0816`（2026-08-16，扣底策略重构前）、`ai-0907`（2026-09-07，毙牌单张按档位选牌之前）、`ai-0927`（2026-09-27，亮主 4>3 修复与出副对清对之前）、`ai-0929`（2026-09-29，NT 记牌器对子扣减修复——Elo 刻度锚点）、`ai-1002`（2026-10-02，NT 缺门/毙甩/无分墩规则——锚点之后的第一次策略分歧）、`ai-1005`（2026-10-05，无主长花色领出层与第三家甩牌加分改判）从 git 历史提取，用于与当前策略 `ai` 对比。（已归档移除：`ai-0707`、`ai-0712`、`ai-0726`，2026-08-07 删除；`ai-0801`、`ai-0719`，2026-09-16 删除；`ai-0808`，2026-09-27 删除；`ai-0809`，2026-10-01 删除；`ai-0802`，2026-10-06 删除。下方 Elo 分数仅保留展示。）
 - **策略 Elo 评分**——两套刻度，对应扣底决策的两种口径（由 `packages/arena/scripts/elo-calc.ts` 计算；锚点分数由该脚本的 `ANCHOR_ELO` 给定）：
-  - **现行刻度**——2026-09-16 修复后实测；庄家改为拿进底牌后按 33 张决策。锚点：`ai-0929` = 1263.8（表中取整）。`ai-1005` 是 2026-10-05 的状态、2026-10-09 实测 1271；`ai` 自 2026-10-12（领出 0a）与 2026-10-18（领出 0b）起与它不再是同一份代码，分数**待重测**。
+  - **现行刻度**——2026-09-16 修复后实测；庄家改为拿进底牌后按 33 张决策。锚点：`ai-0929` = 1263.8（表中取整）。`ai-1005` 是 2026-10-05 的状态、2026-10-09 实测 1271；`ai` 自 2026-10-12（领出 0a）与 2026-10-18（领出 0b、庄/闲分档与通用 5–12 阶梯）起与它不再是同一份代码，分数**待重测**。
 
     | 策略 | Elo |
     |---|---|

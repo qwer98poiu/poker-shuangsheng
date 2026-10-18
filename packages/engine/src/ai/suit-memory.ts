@@ -82,6 +82,21 @@ export function computeLongSuit(hand: Card[], ctx: AIContext): Suit | null {
 }
 
 /**
+ * 运行时生效的长花色：初始手牌认定的长门，在当前手牌里只剩一张单牌或一对时
+ * **不再算长花色**（全口径停用：动态顶张、排除集、0b skip、庄3）。
+ * 两张不同 rank（2 张甩牌）、3 张以上牌型与拖拉机仍算长花色。
+ */
+export function computeActiveLongSuit(hand: Card[], ctx: AIContext): Suit | null {
+  const suit = computeLongSuit(hand, ctx);
+  if (suit === null) return null;
+  const cards = suitCardsOf(hand, suit, ctx);
+  if (cards.length === 0) return null;
+  if (cards.length === 1) return null;
+  if (cards.length === 2 && cards[0].rank === cards[1].rank) return null;
+  return suit;
+}
+
+/**
  * Every seat reads the whole history. The declarer/非庄家 difference is the
  * bottom in `initialHand` and the 24-count inference (item 10), not the window.
  */
@@ -106,8 +121,12 @@ export function knownOutOfPlay(ctx: AIContext, suit: Suit): Card[] {
   return [...played, ...bottom];
 }
 
-/** Count how many completed tricks I led this suit in (0 = never/首次). */
-export function longSuitLeadCount(ctx: AIContext, suit: Suit): number {
+/**
+ * Count how many completed tricks I led this suit group in (0 = never/首次).
+ * `suit === null` counts trump leads: the engine stores `leadSuit = null`
+ * whenever every led card is trump. Used by the generic 6/9 tiers.
+ */
+export function leadCount(ctx: AIContext, suit: Suit | null): number {
   if (ctx.myIndex < 0) return 0;
   let n = 0;
   for (const t of ctx.trickHistory) {
@@ -115,6 +134,11 @@ export function longSuitLeadCount(ctx: AIContext, suit: Suit): number {
     if (t.plays[0].leadSuit === suit) n++;
   }
   return n;
+}
+
+/** Count how many completed tricks I led this off-suit in (0 = never/首次). */
+export function longSuitLeadCount(ctx: AIContext, suit: Suit): number {
+  return leadCount(ctx, suit);
 }
 
 /**

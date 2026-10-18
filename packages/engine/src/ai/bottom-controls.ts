@@ -48,6 +48,7 @@ export function computeOffSuitControls(
   hand: Card[],
   config: TrumpDeclaration,
   exclude: readonly Card[] = [],
+  topRankOf?: (suit: Suit) => Rank,
 ): OffSuitControlInfo[] {
   const result: OffSuitControlInfo[] = [];
   for (const suit of SUIT_ORDER) {
@@ -55,7 +56,8 @@ export function computeOffSuitControls(
     if (cards.length === 0) continue;
 
     // ---- tier1 ----
-    const top = getTopOffSuitRank(suit, config);
+    // 非长门用静态顶张；NT 长门由调用方传入 `knownOutOfPlay` 推出的动态顶张。
+    const top = topRankOf ? topRankOf(suit) : getTopOffSuitRank(suit, config);
     const tier1Set = new Set<string>();
     // a) top card (single or pair — every copy of the top rank)
     for (const c of cards) {

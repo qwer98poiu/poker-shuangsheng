@@ -1,5 +1,36 @@
 # Changelog
 
+## 2026-10-18 14:12
+
+### 领出阶梯按队伍分叉，重写通用 5–12
+
+**问题**：领出阶梯仍是一套两队共用的“甩牌 / 大牌 / 拖拉机 / 对子 / 吊主 / 小牌”层：庄家方没有控制张兑现与后续档位，闲家没有拖拉机 / 顶张 / 断门入口；通用 5–12 未拆档，首次与非首次吊主不区分，最后手牌也没有台阶防护。0b 与 AIContext 的罚分计数已在前序提交落地，本提交接上完整的队伍分档。
+
+**修复**：
+
+- **庄家 1 / 1.5 / 2 / 3 / 4**：
+  - 庄1（`drain.ts`）：全控花色或同时含顶张与结构性拖拉机的 A 类；门内按 24 张反推整门全出 → 整门安全甩牌 → 含顶张的最大可甩集合（AAK9988 → AAK）→ 顶张拖拉机 → 顶张对 → 顶张单张兑现；NT 长门用动态顶张。
+  - 庄1.5（`drain.ts`）：仅 NT，孤单非顶对（rank ≥ J）且满足毙牌条件时出。
+  - 庄2（`lead.ts`）：非全控、无顶张、纯拖拉机；NT 下跳过长花色；键为无其他独立对 > 对数多 > 最小对大的 > SHCD。
+  - 庄3（`nt-lead.ts`）：仅庄家方；T1 是拖拉机/甩牌才整段出，T1 为单张/对子时等待。
+  - 庄4（`lead.ts`）：非全控、有顶张、无拖拉机；按最大集合出不含拖拉机的安全顶张甩牌，否则顶张对/单张。
+  - 长花色失效（`suit-memory.ts`）：长花色只剩一张单牌或一对时停用动态顶张、排除集、0b skip 与庄3。
+- **闲家 1 / 2 / 3**（`attacker-lead.ts`）：
+  - 闲1：纯拖拉机（含主拖拉机）与含拖拉机甩牌；键为对数多 > 直接断门 > 张数多；同对数优先能断门的副拖拉机，再按最小对大的。
+  - 闲2：静态顶张单/对/不含拖拉机的安全甩牌；键为直接断门 > 张数多；顶张在拖拉机里时不拆，交给闲1。
+  - 闲3：断门兜底（张数多 / 对数多 / safe > 形状 > 对数 > 张数）+ 长花色非断门可甩牌；孤立直接断门小单张不入候选，交给通用阶梯。
+- **通用 5–12**（`generic-lead.ts`）：副对拆为“直接断门 / J 以上 / 10 以下”；通用 6 = 无主吊主（单张/对子/拖拉机），通用 9 = 有主单张吊主（排在通用 8 之后，不再分首次/非首次）；通用 7 吊主对两队共用、主拖拉机仅庄家本人，两队都不再保留主对、也不要求副牌分对；J 以上单张取最大；10 以下单张从最长花色挑最小；最后手牌整手安全甩牌，仅本档受台阶防护（0 分单独一档，其余每 40 分一档；该方满 3 次罚分后防护失效）。
+- **通用 7 的两条门禁**：庄家侧两条同时生效会把有主局当庄胜率压掉约 3.5 个点（seed 46：有主当庄 47.38%，改版前 50.86%；2100 场放开后回到 50.75%）。闲家侧同 seed 10000 场直接 A/B（去掉 vs 保留）去掉更好：p̂=0.5160，99% CI 下界 0.5031。故两队统一去掉，规则见上。最终 seed 46、2000 场对 ai-1002：整场 51.20%（99% CI 下界 0.4832，未达显著）。
+- **文档**：`STRATEGY.md` 领出章节按队伍分档重写；README 中当前 `ai` 与 `ai-1005` 的分歧说明同步。
+
+竞技场种子局指纹 208 → 188；client 种子局闲家分 140 → 115、墩数 17 → 16；扣底调用次数 8 → 11 → 10 → 8（净不变，测试注释同步）。
+
+**测量**：seed 47 镜像对决，对 ai-1018——闲3 + 通用6 两处 n=29000，A 50.76% vs 49.24%（99% CI 下界 50.01%）；三处合并 n=11000，A 51.25% vs 48.75%（下界 50.02%），均显著。残余为有主局 −0.77pp。
+
+**新增 91 项测试、删除 5 项测试**（engine：新增 91、删除 5），引擎 1236 项 + arena 199 项 + CLI 87 项 + client 201 项 = 1723 项通过。
+
+- **影响文件**：`README.md`、`packages/arena/src/__tests__/arena-e2e.test.ts`、`packages/arena/src/__tests__/bottom-exchange-input.test.ts`、`packages/client/src/__tests__/gameStore.test.ts`、`packages/engine/src/__tests__/ai-leading.test.ts`、`packages/engine/src/__tests__/ai-nt-lead.test.ts`、`packages/engine/src/__tests__/attacker-lead.test.ts`、`packages/engine/src/__tests__/drain.test.ts`、`packages/engine/src/__tests__/generic-lead.test.ts`、`packages/engine/src/__tests__/suit-memory.test.ts`、`packages/engine/src/ai/STRATEGY.md`、`packages/engine/src/ai/attacker-lead.ts`、`packages/engine/src/ai/bottom-controls.ts`、`packages/engine/src/ai/drain.ts`、`packages/engine/src/ai/generic-lead.ts`、`packages/engine/src/ai/lead.ts`、`packages/engine/src/ai/nt-lead.ts`、`packages/engine/src/ai/nt-trump.ts`、`packages/engine/src/ai/suit-memory.ts`、`packages/engine/src/ai/throw-detector.ts`
+
 ## 2026-10-18 09:52
 
 ### AIContext 新增 throwPenalties（台阶防护的数据入口）
