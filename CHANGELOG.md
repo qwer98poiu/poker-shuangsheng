@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-10-19 19:48
+
+### 新增 Elo 批量测量脚本：seed 与对决列表抽到不入库的 `elo-matchups.json`
+
+**问题**：Elo 重测要按一组对决逐个跑竞技场（同 seed、显著即停），再把报告里的领先方 p̂ 换算成 a 的胜率手工填回 `elo-matches.json`。seed 与对决列表原先写死在脚本里，换一组测量就得改代码。
+
+**修复**：新增 `packages/arena/scripts/run-elo-matchups.ts`——从同目录 `elo-matchups.json` 读入 `{ seed, matchups }`（缺文件、形状不合均报错退出），逐组执行 `npm run arena -- --strategy-a <a> --strategy-b <b> --seed <seed>`，解析报告开头的 A/B、对局数、结论与 leader/p̂ 行；leader=B 时按 1 − p̂ 换算，覆盖或追加写回 `elo-matches.json`（每组立即落盘，中断保留已完成结果）。运行中只回显带显著性结果的检查行（leader/p̂/CI）与中止提示，普通进度行不再刷屏。输入文件是本地实验配置，已加入根 `.gitignore`，不随代码提交。
+
+**无新增测试**，引擎 1236 项 + arena 198 项 + CLI 87 项 + client 201 项 = 1722 项通过。
+
+- **影响文件**：`packages/arena/scripts/run-elo-matchups.ts`（新）、`.gitignore`
+
 ## 2026-10-18 14:55
 
 ### 提取 ai-1018 基线（10-18 09:12 的领出 0a/0b 状态）

@@ -9,3 +9,6 @@ results/
 
 # Changelog↔提交对照表：由 gen-changelog-map 生成的派生物，默认不提交
 CHANGELOG_COMMITS.md
+
+# Elo 批量测量的输入（seed + 待测对决）：本地实验配置，随测量变化，不入库
+packages/arena/scripts/elo-matchups.json
