@@ -154,7 +154,7 @@ function printUpgradeTable(
   for (let i = 0; i < maxHands; i++) {
     console.log(`${String(i).padStart(2)} | ${fmt(l1[i])} | ${fmt(l2[i])}`);
   }
-  console.log(`中止小局: 对局1=${m1.abortedHands}  对局2=${m2.abortedHands}`);
+  console.log(`中止小局: 对局1=${m1.abortedHands}（已结算 ${m1.settledHands}）  对局2=${m2.abortedHands}（已结算 ${m2.settledHands}）`);
 }
 
 /**
@@ -216,7 +216,7 @@ function printReport(
   console.log('\n全局指标（双方共享）:');
   console.log(`  平均小局数/场: ${ratioText({ n: globalHands, d: matches })}`);
   console.log(`  每局平均墩数: ${ratioText({ n: globalTricks, d: globalHands })}`);
-  console.log(`  平局(封顶)场次: ${accA.matches.drawn}   中止小局: ${accA.abortedHands}`);
+  console.log(`  平局(封顶)场次: ${accA.matches.drawn}   中止小局: ${accA.abortedHands}（已结算 ${accA.settledHands}，A 致因 ${accA.abortCaused} / B 致因 ${accB.abortCaused}）`);
 
   console.log('\n对比表（绿 = 该侧更优；相等都标绿；中性指标不染色）:');
   for (const line of renderTable(
@@ -330,6 +330,9 @@ async function main(): Promise<void> {
         draws: accA.matches.drawn,
         cappedMatches: accA.matches.drawn,
         abortedHands: accA.abortedHands,
+        settledHands: accA.settledHands,
+        abortCausedA: accA.abortCaused,
+        abortCausedB: accB.abortCaused,
       },
       strategies: {
         A: { name: args.strategyA, ...toJSON(accA) },

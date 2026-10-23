@@ -22,13 +22,13 @@ export interface UpgradeLine {
 }
 
 /**
- * 提取一场对局的升级记录（中止局跳过）。
+ * 提取一场对局的升级记录（未结算中止局跳过；已结算中止局按结算分照常记录）。
  * @param aParity 策略 A 所在队伍的奇偶（0 = 坐 0/2 号位；1 = 坐 1/3 号位）
  */
 export function upgradeLinesForMatch(events: HandEvent[], aParity: 0 | 1): UpgradeLine[] {
   const lines: UpgradeLine[] = [];
   for (const ev of events) {
-    if (ev.aborted) continue;
+    if (ev.aborted && !ev.settled) continue;
     const bankerIsA = ev.teamBanker === aParity;
     const banker: 'A' | 'B' = bankerIsA ? 'A' : 'B';
     const levelA = bankerIsA ? ev.level : ev.attackerLevel;

@@ -1,5 +1,31 @@
 # Changelog
 
+## 2026-10-24 01:27
+
+### 合并 solo / 无主竞技场为 deal 竞技场；中止小局改为按肇事方结算
+
+**问题**：`arena:solo` 与 `arena:nt` 各测一半：前者固定庄家 P0，后者四庄位轮转但强制无主、缺 `[B,B]` 基准，无法在同一批发牌里把差异拆成庄家/闲家，也无法分别观察有主/无主。中止小局原先由竞技场整组作废，而中止由被测策略触发，删掉哪一局取决于策略自身，会产生选择偏差。
+
+**修复**：新增 `npm run arena:deal`（`packages/arena/src/deal-*.ts`），统计单位是**发牌**。每（副, 等级, 配置庄位）打三腿 `[A,B]` / `[B,A]` / `[B,B]`；`--declarer-seats` 默认固定 P0，`all` = 四庄位轮转，也支持 `0,2`。策略按角色与座位奇偶落位。
+
+两项指标，正数都表示 A 更好：净升级（`tier` 口径）与得分差（`finalPts` 口径），角色分总体/庄家/闲家。每项再按场景拆分：
+
+- 等级=总体时，主牌（总体/有主/无主）× 角色（总体/庄家/闲家）共 9 个场景；多等级时每个等级追加 3 个主牌行（角色=总体）；单等级不展开等级行。
+- 有主/无主按**被比较的两条腿**判定（总体 AB/BA、庄家 AB/BB、闲家 BA/BB）；混合组合只进“主牌=总体”；没有合格三元组的发牌不计入该场景分母。
+- 净升级按发牌多数决（平局折 0.5）做 99% 显著性；得分差先按副求合格三元组均值，再跨副做配对区间。
+- 无主由自然亮主（对王）产生，不提供强制无主模式或对王发牌过滤器。
+- `--deal-filter long-suit`：四家任一有**副牌**长套（≥9 张且控制张 ≥6；主牌门不算）即保留；候选庄家按 33 张池（25 + 底牌 8）在扣底前判断，扣底后长套消失仍保留。
+- 默认等级 `2,5,10,Q,K,A`（`--level all` = 2..A）；默认最小样本 2500 副、显著性检查间隔 250 副、上限 10000 副；进度行间隔 25 副。
+- 默认固定 P0：实测四庄位镜像差基本不相关，发牌级多数决在等手数下约只需 1/5 的手数达到同样精度；`all` 保留作位置差诊断。
+
+报告分三组表：**净升级**（A胜/B胜/平局比例，括号内整数分子/分母 + 99% 显著性）、**得分差**（值 + 分子一位小数/分母 + 99% 显著性）、**小局分析**（原 80 分 A/B 表更名，去掉平局率列，仅胜率类行带 99% 显著性）。小局分析的逐副胜率配对桶只用于报告与子进程合并，最终导出的 JSON 不含该字段。进度行与报告头不再显示三元组；有中止时显示「（已中止 x 小局）」，报告头显示「（庄 x / 闲 y）」；等级显示 J/Q/K/A。
+
+中止小局改为按肇事方结算：闲家中止按已完成墩的当前分；庄家中止假设闲家赢下当前墩和所有剩余墩——当前墩已出牌分 + 四家剩余手牌分 + 底牌分 × 最佳抠底倍率。**最后一墩不会中止**，所以当前墩一定不是最后一墩；抠底倍率只从两名闲家**各自**的未出手牌里取（不合并；中止发生在墩进行中，两人手牌数可能不等）。每手牌取最高倍率：n 对拖拉机 2^(n+1)、对子 ×4、单张 ×2、空手 0；倍率相同即加分相同。`finalPts`/`bankerWon` 使用结算值，`aborted` 保留为原始诊断、`settled` 标记已结算；`addHandStats` 计入已结算局，`upgrade-log` 不再跳过已结算局。已注册历史基线经合法性测试均无中止，现有 Elo 读数不变。
+
+**新增 65 项测试、删除 84 项测试**（deal-arena.test.ts：24 项，deal-filter.test.ts：9 项，deal-ladder.test.ts：9 项，deal-report.test.ts：10 项，abort-settlement.test.ts：8 项；stats.test.ts、upgrade-log.test.ts、report.test.ts、significance.test.ts、natural-declaration.test.ts 各 +1 项；删除 solo-* 与 nt-* 7 个文件共 84 项），引擎 1236 项 + arena 179 项 + CLI 87 项 + client 201 项 = 1703 项通过。
+
+- **影响文件**：`packages/arena/src/abort-settlement.ts`（新）、`packages/arena/src/match.ts`、`packages/arena/src/types.ts`、`packages/arena/src/stats.ts`、`packages/arena/src/upgrade-log.ts`、`packages/arena/src/run.ts`、`packages/arena/src/deal-arena.ts`（新）、`packages/arena/src/deal-filter.ts`（新）、`packages/arena/src/deal-filters.ts`（新）、`packages/arena/src/deal-ladder.ts`（新）、`packages/arena/src/deal-report.ts`（新）、`packages/arena/src/deal-run.ts`（新）、`packages/arena/src/deal-child-run.ts`（新）、`packages/arena/src/intervals.ts`（新）、`packages/arena/src/report.ts`、`packages/arena/src/significance.ts`、`packages/arena/src/tier.ts`、`packages/arena/src/child-pool.ts`、`packages/arena/src/__tests__/abort-settlement.test.ts`（新）、`packages/arena/src/__tests__/deal-arena.test.ts`（新）、`packages/arena/src/__tests__/deal-filter.test.ts`（新）、`packages/arena/src/__tests__/deal-ladder.test.ts`（新）、`packages/arena/src/__tests__/deal-report.test.ts`（新）、`packages/arena/src/__tests__/stats.test.ts`、`packages/arena/src/__tests__/upgrade-log.test.ts`、`packages/arena/src/__tests__/report.test.ts`、`packages/arena/src/__tests__/significance.test.ts`、`packages/arena/src/__tests__/natural-declaration.test.ts`、`packages/arena/src/solo-arena.ts`（删除）、`packages/arena/src/solo-run.ts`（删除）、`packages/arena/src/solo-ladder.ts`（删除）、`packages/arena/src/solo-report.ts`（删除）、`packages/arena/src/solo-child-run.ts`（删除）、`packages/arena/src/solo-filter.ts`（删除）、`packages/arena/src/solo-deal-filters.ts`（删除）、`packages/arena/src/nt-arena.ts`（删除）、`packages/arena/src/nt-run.ts`（删除）、`packages/arena/src/nt-ladder.ts`（删除）、`packages/arena/src/nt-report.ts`（删除）、`packages/arena/src/nt-child-run.ts`（删除）、`packages/arena/src/__tests__/solo-arena.test.ts`（删除）、`packages/arena/src/__tests__/solo-filter.test.ts`（删除）、`packages/arena/src/__tests__/solo-ladder.test.ts`（删除）、`packages/arena/src/__tests__/solo-report.test.ts`（删除）、`packages/arena/src/__tests__/nt-arena.test.ts`（删除）、`packages/arena/src/__tests__/nt-ladder.test.ts`（删除）、`packages/arena/src/__tests__/nt-report.test.ts`（删除）、`package.json`、`packages/arena/package.json`、`README.md`
+
 ## 2026-10-19 19:48
 
 ### 新增 Elo 批量测量脚本：seed 与对决列表抽到不入库的 `elo-matchups.json`

@@ -197,4 +197,9 @@ describe('perLevelSpecs — 平局列', () => {
     const specs = perLevelSpecs('台上', new Map([[2, { n: 1, d: 2 }]]), new Map());
     expect(specs[0][4]).toBeUndefined();
   });
+
+  it('显式等级列表：只展开请求的等级', () => {
+    const specs = perLevelSpecs('台上', new Map(), new Map(), undefined, [2, 5]);
+    expect(specs.map(s => s[0])).toEqual(['台上 2 胜率', '台上 5 胜率']);
+  });
 });

@@ -1,13 +1,13 @@
 /**
- * 单副牌 A/B 竞技场的两个「入口侧」纯工具：
+ * Deal 竞技场的两个「入口侧」纯工具：
  *
  * 1. 等级列表解析 —— `--level 2,5,10,Q,K,A` / `--level all`。
  * 2. 发牌过滤器注册表 —— `--deal-filter` 的「名字 → 谓词」解析、校验与求值。
- *    具体谓词放在 `solo-deal-filters.ts`，在这里显式登记（注册即确定，不靠 import
+ *    具体谓词放在 `deal-filters.ts`，在这里显式登记（注册即确定，不靠 import
  *    副作用；谓词文件只 type-only 反引本文件的类型，运行时无环）。
  */
 import type { Card, TrumpDeclaration } from '@poker/engine';
-import { longSuitDealFilter } from './solo-deal-filters.js';
+import { longSuitDealFilter } from './deal-filters.js';
 
 /** 2..A 的全部 13 个等级。 */
 export const ALL_LEVELS: readonly number[] = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
@@ -46,18 +46,17 @@ export function parseLevels(spec: string): number[] {
   return [...out].sort((a, b) => a - b);
 }
 
-/** 过滤器求值所需的上下文：这一副牌的发出手牌、整副牌、正在跑的等级、以及自然亮主。 */
+/** 过滤器求值所需的上下文：这一副牌的发出手牌、整副牌、正在跑的等级、以及主牌声明。 */
 export interface DealFilterContext {
   /** `dealtHands(deck)`：第 i 张归座位 i % 4。 */
   hands: readonly Card[][];
-  /** 整副牌；庄家 P0 的 33 张池 = hands[0] + deck.slice(100, 108)。 */
+  /** 整副牌；候选庄家的 33 张池 = hands[seat] + deck.slice(100, 108)。 */
   deck: readonly Card[];
   /** 当前等级（牌点是主牌的那个等级）——过滤器可以依赖它。 */
   level: number;
   /**
-   * 该副（该等级）的自然亮主 —— 判「哪几门是副牌」要用它。由竞技场按基准腿
-   * [B, B] 的亮主重放得到（见 `naturalDeclaration`）；`--nt-only` 下恒为
-   * `trumpSuit: null`（对王亮无主压过一切有主亮主）。
+   * 该副（该等级、该候选庄位）的主牌声明。由竞技场按基准腿 `[B,B]` 的亮主重放得到
+   * （见 `naturalDeclaration`）；无主由自然亮主（对王）产生。
    */
   decl: TrumpDeclaration;
 }
@@ -68,10 +67,10 @@ export type DealFilter = (ctx: DealFilterContext) => boolean;
 /**
  * 过滤器注册表 —— `--deal-filter NAME` 的取名字处，也是唯一的扩展点。
  *
- * 加一个过滤器：在 `solo-deal-filters.ts` 写谓词，在此加一行登记。谓词必须是仓库
+ * 加一个过滤器：在 `deal-filters.ts` 写谓词，在此加一行登记。谓词必须是仓库
  * 内代码，`--deal-filter` 不支持外部文件。当前已登记：
- * - `long-suit`：任一座位在该副自然主牌下有长花色（庄家 P0 按 33 张池＝发到 25＋底牌 8，
- *   其余三家各 25 张；与 `--nt-only` 共用即「NT 长花色」）。
+ * - `long-suit`：任一座位在该副自然主牌下有**副牌**长花色（主牌门不算；候选庄家
+ *   按 33 张池＝发到 25＋底牌 8，其余三家各 25 张）。
  */
 export const DEAL_FILTERS: Map<string, DealFilter> = new Map([
   ['long-suit', longSuitDealFilter],

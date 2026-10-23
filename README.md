@@ -61,7 +61,7 @@ Cards are played in patterns that must be **matched** by subsequent players:
 - **Engine** ([`packages/engine`](packages/engine/)) — Core game logic: card types, pattern classification, trick comparison, validation, AI strategies, and NT trump tracking (count-based deduction).
 - **CLI** ([`packages/cli`](packages/cli/)) — Terminal-based interactive play with full-color card display.
 - **Client** ([`packages/client`](packages/client/)) — React + Vite web frontend with Zustand state management (playable: south-seat human vs 3 AIs, or 4-AI spectator).
-- **Arena** ([`packages/arena`](packages/arena/)) — Headless strategy tournament: mirrored full matches (2→A, with 必打 K/A) between two AI strategies, 99%-CI win-rate significance testing, and 17+ technical metrics.
+- **Arena** ([`packages/arena`](packages/arena/)) — Headless strategy tournament: mirrored full matches (2→A, with 必打 K/A) and a per-deal arena (configurable declarer seats × three legs; fixed P0 by default), 99%-CI significance testing, and 17+ technical metrics.
 
 ### NT Trump Tracker
 
@@ -167,26 +167,51 @@ npm run arena -w packages/arena -- --pairs 5000 --seed 42 --strategy-b ai-1018
 | `--out PATH` | `results/arena-<ts>.json` | JSON report path |
 | `--no-json` | — | Skip JSON export |
 
-#### NT-only arena
+#### Deal arena
 
 ```bash
-npm run arena:nt -w packages/arena -- --min-deals 2000 --seed 42
-# or from the repo root: npm run arena:nt -- --min-deals 2000 ...
+npm run arena:deal -w packages/arena -- --min-deals 2500 --seed 42
+# or from the repo root: npm run arena:deal -- --min-deals 2500 ...
 ```
 
-The general arena plays whole matches, where NT rounds are a minority; the NT arena isolates them. Deals where no seat holds a joker pair are **filtered out** (they would never be played as NT), and every kept deal is swept over 4 declarers × 13 levels = 52 小局 and then played **again with the strategies swapped** — A on seats 0&2 for one sweep, on 1&3 for the other, same deck. The pair of sweeps (104 小局) is the mirror: seats 0&2 play 1st/3rd each trick and 1&3 play 2nd/4th, so the positional difference cancels instead of favouring one side. There is no match concept: every statistic is 小局-based.
+The unit is one **deal**. For every `(deal, level)`, each configured defender seat plays the same deck and level three times. The default is a **fixed P0 defender**; `--declarer-seats all` restores the four-seat rotation:
 
-Wins are judged by **paired tier**: the same (level, declarer seat) in the two sweeps forms one mirror pair (A is 台上 in exactly one leg of it), and the two legs' 闲家分 are compared by tier — `tierOf(pts) = pts === 0 ? -1 : ⌊pts / 40⌋`, i.e. "how many levels this deal is worth". A pair goes to A when A's 闲家 leg scores at a higher tier than B's does (equivalently: A held the bank to fewer points), and A takes a deal when it wins more pairs by tier; equal counts are a draw. Significance is judged **per deal** because the 104 小局 inside one deal share the same cards and are not independent samples. Note this is a different quantity from the 80-point line (the report's 台上/台下 rows still use that) — scores from the two judges are not comparable. The comparison table prints three shares for the tier families (发牌口径, 小局升级口径, 等级 X 胜率): A / B / draw, over one denominator, summing to 1. Rows whose judge has no draw state (the 80-point 台上/台下 rows, 每墩胜率, and every frequency/average) show `—` in the draw column. The header's p̂ and the significance test still fold a draw in as half a win for each side, so the header's p̂ runs slightly above the table's 胜率（发牌口径）A cell.
+| Leg | Defender | Attacker | `finalPts` belongs to |
+|---|---|---|---|
+| `[A,B]` | A | B | B |
+| `[B,A]` | B | A | A |
+| `[B,B]` | B | B | B |
+
+**Metrics**: two directions, both positive = A better. Upgrade uses `tier(x) = x === 0 ? -1 : ⌊x/40⌋`; points use the raw `finalPts`:
+
+| Role | Upgrade | Points |
+|---|---|---|
+| Overall (AB vs BA) | `tier(pBA) − tier(pAB)` | `pBA − pAB` |
+| Defender (AB vs BB) | `tier(pBB) − tier(pAB)` | `pBB − pAB` |
+| Attacker (BA vs BB) | `tier(pBA) − tier(pBB)` | `pBA − pBB` |
+
+Each metric is broken down by **scenario**: level (overall or one specific level) × trump (overall / suited / no-trump) × role (overall / defender / attacker). With level=overall, trump × role gives 9 rows. Multi-level runs add 3 trump rows per level (role=overall); a single-level run adds none (still 9 rows). Suited/no-trump eligibility checks the **two compared legs**: AB & BA for overall, AB & BB for defender, BA & BB for attacker. Mixed triples (e.g. AB suited, BB no-trump) only enter the "overall trump" row. A deal with no eligible triple is excluded from that scenario's denominator.
+
+Each deal counts the signs of its eligible triples: more A → A wins the deal, more B → B, equal → draw. Upgrade significance is judged **per deal** (draws folded as 0.5). Point differences are averaged within each deal first, then paired across deals. Each configured defender seat contributes 1 mirror pair per level (3 小局): the default fixed P0 gives 6 pairs (18 小局) per deal with the default six levels, while `--declarer-seats all` gives 24 pairs (72 小局). With all four seats, a 13–11 split is an A win, not a draw, and 12–12 is a draw (the 6-pair default counterparts are 4–2 and 3–3). Fixed P0 is the default because the four seats' pair differences are essentially uncorrelated, while the deal-level majority test reaches a given precision with roughly one fifth of the hands; keep `all` as a position-effect diagnostic.
+
+`--deal-filter long-suit` keeps a `(deal, level)` if any of the four players has an **off-suit** long suit (≥9 cards and ≥6 controls; a trump suit does not count). The candidate defender is evaluated with its 33-card pool (25 cards + 8 bottom) **before** the bottom exchange, so a long suit that disappears after the discard still keeps the deal. For each configured defender seat the filter uses that seat's `[B,B]` natural declaration; if any configured seat passes, the level is kept and those seats are played. This is a selection rule over the baseline declaration, not a guarantee that the A/B legs reveal the same trump. The predicate checks all four hands: the defender's hand is evaluated with the 33-card pool (25 + bottom), the other three at 25 cards. With the default fixed P0 only P0's pool includes the bottom, so the pass rate is lower than with `--declarer-seats all`.
+
+The report has three tables. **净升级** lists A/B/draw proportions with integer numerators/denominators and a 99% deal-level significance column (`A` green, `B` red, otherwise `不显著`); its first row is `总体（核心）`. **得分差** lists the paired mean with `(numerator/denominator)` (numerator one decimal, denominator = deals contributing to that scenario) and a 99% significance column. **小局分析** is the old 80-point A/B table renamed, without the draw-rate column: only win-rate rows (overall, defender, attacker, and per-level win rates) get 99% significance; other rows show `—`. The progress line shows accepted deals and, only when non-zero, aborted hands; no triple count. The exported JSON stores the scenario aggregates; the internal per-deal win-rate buckets used for 小局分析 significance are not exported (they exist only in worker replies).
+
+Aborted hands are **settled, not voided** (this applies to the general arena too): if the aborting player is on the attacker side, the hand settles at the points already won on completed tricks (no bottom); if on the defender side, the attackers are assumed to win the current and all remaining tricks — current-trick points + all four hands' points + bottom points × the best kou multiplier. The last trick cannot abort, so the current trick is never the last; the kou multiplier is taken from each attacker's remaining hand **separately** (the two hands are not merged, and their sizes may differ because the abort can happen mid-trick), with the higher multiplier winning. Equal multipliers add the same score, so no tie-break is needed. The report exposes `settledHands` by cause and per-strategy `abortCaused`.
 
 | Flag | Default | Description |
 |---|---|---|
-| `--min-deals N` | 2000 | Deals required before the first significance check |
-| `--until-significant` | — | Drop the minimum sample: stop at the first check that comes back significant (mutually exclusive with `--min-deals`) |
-| `--step-deals N` | 200 | Significance-check interval, and the granularity the projected target is rounded up to |
-| `--max-deals N` | 10000 | Deal cap |
+| `--level LIST` | `2,5,10,Q,K,A` | Levels to play; `all` = 2..A |
+| `--declarer-seats S` | `0` | Defender seats: `0` (fixed P0), `0,2`, or `all` (four-seat rotation) |
+| `--deal-filter NAMES` | — | Built-in deal filters (`long-suit`) |
+| `--min-deals N` | 2500 | Accepted deals required before the first significance check |
+| `--until-significant` | — | Drop the minimum sample: stop at the first significant check (mutually exclusive with `--min-deals`) |
+| `--step-deals N` | 250 | Significance-check interval and target rounding granularity |
+| `--max-deals N` | 10000 | Accepted-deal cap |
 | `--seed N` / `--workers W` / `--strategy-a NAME` / `--strategy-b NAME` / `--out PATH` / `--no-json` | as above | `--strategy-b` defaults to `ai-1018` |
 
-As in the general arena, missing significance raises the target to the number the current p̂ projects (same `requiredMatchesForSignificance` function, rounded up to `--step-deals`), and Ctrl+C writes the partial report plus a `"partial": true` JSON before exiting.
+As in the general arena, missing significance raises the target using the same `requiredMatchesForSignificance` projection, and Ctrl+C writes the partial report plus a `"partial": true` JSON before exiting. The old `arena:solo` / `arena:nt` commands have been removed.
 
 Run tests:
 
@@ -288,7 +313,7 @@ MIT — see [LICENSE](LICENSE).
 - **[`packages/engine`](packages/engine/)** — 核心引擎：牌型分类、比较、验牌、AI 出牌策略、NT 记牌器（基于计数的常主追踪）。
 - **[`packages/cli`](packages/cli/)** — 终端交互版，支持全色彩牌面显示。
 - **[`packages/client`](packages/client/)** — React 网页前端（可玩：南座人类 vs 3 AI，或 4 AI 观战）。
-- **[`packages/arena`](packages/arena/)** — 策略竞技场：两套 AI 策略在完整对局（2→A，含必打 K/A）中镜像对决，99% 置信度显著性判定，输出 17+ 项技术指标。
+- **[`packages/arena`](packages/arena/)** — 策略竞技场：完整对局（2→A，含必打 K/A）镜像对决，以及按发牌统计、庄位可配置（默认固定 P0）的三腿竞技场；99% 置信度显著性判定，输出 17+ 项技术指标。
 
 ### NT 记牌器
 
@@ -394,26 +419,51 @@ npm run arena -w packages/arena -- --pairs 5000 --seed 42 --strategy-b ai-1018
 | `--out PATH` | `results/arena-<时间>.json` | JSON 报告导出路径 |
 | `--no-json` | — | 不导出 JSON |
 
-#### 无主（NT）竞技场
+#### Deal（发牌）竞技场
 
 ```bash
-npm run arena:nt -w packages/arena -- --min-deals 2000 --seed 42
-# 仓库根目录也可直接：npm run arena:nt -- --min-deals 2000 ...
+npm run arena:deal -w packages/arena -- --min-deals 2500 --seed 42
+# 仓库根目录也可直接：npm run arena:deal -- --min-deals 2500 ...
 ```
 
-整体竞技场打的是完整对局，无主只占其中少数；无主竞技场把它单独拎出来。四家都没有对王的发牌被**过滤掉**（那种牌本来也不会打成无主），保留下来的每副牌按 4 庄家 × 13 等级打 52 小局，再**对调策略重打一遍**（A 一轮坐 0/2 号位、一轮坐 1/3 号位，同一副牌）。两轮合起来 104 小局即镜像：0/2 号位每墩第 1、3 个出牌，1/3 号位是第 2、4 个，位置差在两轮里对消，不会偏袒任何一方。没有整场概念，全部指标都是小局口径。
+统计单位是**一副牌**。每个 `(副, 等级)` 按 `--declarer-seats` 指定的庄位坐庄；每个庄位用同一副牌、同一等级打三腿。默认是**固定 P0 坐庄**，`--declarer-seats all` 恢复四庄位轮转：
 
-胜负按**配对升级**判：同一 (等级, 庄家座位) 在两轮里各一场，配成一对（一对里恰有一条腿 A 当庄、一条腿 A 当闲），比两场闲家分的升级量——`tierOf(分) = 分 === 0 ? −1 : ⌊分 / 40⌋`，即「这局值几级」。**A 队当闲那场升级量更高 = A 更好**（等价于「A 当庄让闲家拿更少的分」），一副牌里这样的配对多则这副算 A 胜，相等算平。用升级量而不用过 80 分，是因为过 80 只在「一边过、一边没过」的少数配对上分得开 A/B，升级量档把所有「差一级」的配对都变成可判。⚠️ 这是换被测物而非测得更准：过 80 是游戏的胜负位（上台与否），升级量是「这局值几级」，两者读数不可混着比（报告里的台上/台下各行仍是 80 分口径）。显著性以**发牌**为单位，因为同一副牌的 104 小局共用一副牌、彼此相关，不是独立样本。对比表给出 A 胜率 / B 胜率 / 平局率三格（升级口径的三族：发牌口径、小局升级口径、等级 X 胜率；三格同分母、相加为 1），判据本身没有「平」这一态的行（80 口径的台上/台下、每墩胜率，以及各种频率/均值）平局格留「—」。⚠️ 表头与显著性仍按「平局算 0.5 胜」，所以表头的 `p̂` 比表内「胜率（发牌口径）」行的 A 格略高——平局在那套口径里折半记给了双方。
+| 腿 | 庄家 | 闲家 | `finalPts` 归属 |
+|---|---|---|---|
+| `[A,B]` | A | B | B（闲家） |
+| `[B,A]` | B | A | A（闲家） |
+| `[B,B]` | B | B | B（闲家） |
+
+**两项指标**，正数都表示 A 更好。升级用 `tier(x) = x === 0 ? −1 : ⌊x/40⌋`，分差直接用 `finalPts`：
+
+| 角色 | 净升级 | 得分差 |
+|---|---|---|
+| 总体（AB 对 BA） | `tier(pBA) − tier(pAB)` | `pBA − pAB` |
+| 庄家（AB 对 BB） | `tier(pBB) − tier(pAB)` | `pBB − pAB` |
+| 闲家（BA 对 BB） | `tier(pBA) − tier(pBB)` | `pBA − pBB` |
+
+每项指标按**场景**拆分：等级（总体或单等级）× 主牌（总体 / 有主 / 无主）× 角色（总体 / 庄家 / 闲家）。等级=总体时主牌×角色共 9 行；多等级时每个等级追加 3 个主牌行（角色=总体）；只传一个等级时不展开等级行（仍是 9 行）。有主/无主按**被比较的两条腿**判定：总体看 AB 与 BA，庄家看 AB 与 BB，闲家看 BA 与 BB；混合组合（如 AB 有主、BB 无主）只进「主牌=总体」行。没有合格三元组的发牌不计入该场景的分母。
+
+每副牌把该场景内合格三元组的符号计数：A 多则这副算 A 胜，B 多算 B 胜，相等算平；净升级的显著性以**发牌**为单位（平局折 0.5）。分差先按副求合格三元组均值，再跨副做配对。每个配置庄位每等级贡献 1 对镜像（3 小局）：默认固定 P0、6 档时一副牌 6 对（18 小局）；`--declarer-seats all` 时一副牌 24 对（72 小局）。四庄位轮转下 **13–11 是 A 胜，不是平；12–12 才是平**（默认 6 对的对应值是 4–2 胜、3–3 平）。默认固定 P0 是因为四个庄位的镜像差基本不相关，而发牌级多数决在等手数下约只需 1/5 的手数就能达到同样精度；`all` 保留作位置差诊断。
+
+`--deal-filter long-suit`：四家任一有**副牌**长套（≥9 张且控制张 ≥6；主牌门不算）即保留该 `(副, 等级)`；候选庄家按 **33 张池（25 手牌 + 8 底牌）**在扣底前判断，所以扣底后长套消失仍保留。对 `--declarer-seats` 中的每个配置庄位各用该庄位 `[B,B]` 的自然亮主判一次，任一通过就保留并只打这些配置庄位；这是对基准腿亮主的选择规则，不保证 A/B 腿亮出同一主牌。谓词检查四家手牌：庄家按 33 张池（25 + 底牌）判断，其余三家各 25 张。默认固定 P0 时只有 P0 的池含底牌，所以长套通过率比 `--declarer-seats all` 低。
+
+报告分三张表：**净升级**列 A胜/B胜/平局比例（括号内整数分子/分母）与 99% 发牌级显著性（A 绿、B 红、否则「不显著」），首行是「总体（核心）」；**得分差**列配对均值与 `（分子/分母）`（分子 1 位小数，分母 = 参与该场景的发牌数）及 99% 显著性；**小局分析**由原 80 分 A/B 表更名而来，去掉平局率列，只有胜率类行（胜率、台上/台下/等级胜率）带 99% 显著性，其余行显示「—」。进度行只显示有效发牌数；有中止时追加「（已中止 x 小局）」，不再显示三元组。导出的 JSON 含场景聚合；小局分析显著性用的逐副胜率桶不写入最终文件（只存在于子进程回传中）。
+
+中止小局**结算而非作废**（整体竞技场同样适用）：中止玩家在闲家方 → 按已完成墩的当前分结算（不加底牌）；在庄家方 → 假设闲家赢下当前墩和所有剩余墩，结算分 = 当前墩已出牌分 + 四家剩余手牌分 + 底牌分 × 最佳抠底倍率。**最后一墩不会中止**，所以当前墩一定不是最后一墩；抠底倍率只从两名闲家**各自**的未出手牌里取（不合并，且中止发生在墩进行中、两人手牌数可能不等），取较高倍率；倍率相同则加分相同，无需再按牌型/花色打破平局。报告披露 `settledHands`（庄因/闲因）与每方 `abortCaused`。
 
 | 参数 | 默认 | 说明 |
 |---|---|---|
-| `--min-deals N` | 2000 | 首次显著性检查所需的发牌数 |
+| `--level LIST` | `2,5,10,Q,K,A` | 等级列表；`all` = 2..A |
+| `--declarer-seats S` | `0` | 庄家座位：`0`（固定 P0）、`0,2`，或 `all`（四庄位轮转） |
+| `--deal-filter NAMES` | — | 内置发牌过滤器（`long-suit`） |
+| `--min-deals N` | 2500 | 首次显著性检查所需的有效发牌数 |
 | `--until-significant` | — | 不设最小样本：任一次检查显著即停（与 `--min-deals` 互斥） |
-| `--step-deals N` | 200 | 显著性检查的间隔，也是推算目标向上取整的粒度 |
-| `--max-deals N` | 10000 | 发牌数上限 |
+| `--step-deals N` | 250 | 显著性检查的间隔，也是推算目标向上取整的粒度 |
+| `--max-deals N` | 10000 | 有效发牌数上限 |
 | `--seed N` / `--workers W` / `--strategy-a NAME` / `--strategy-b NAME` / `--out PATH` / `--no-json` | 同上 | `--strategy-b` 默认 `ai-1018` |
 
-与整体竞技场同口径：未显著时按当前 p̂ 推算显著所需发牌数并上调目标（同一个 `requiredMatchesForSignificance`，向上取整到 `--step-deals`）；Ctrl+C 写出部分报告与 `"partial": true` 的 JSON 后退出。
+与整体竞技场同口径：未显著时按当前 p̂ 推算显著所需发牌数并上调目标（同一个 `requiredMatchesForSignificance`）；Ctrl+C 写出部分报告与 `"partial": true` 的 JSON 后退出。旧的 `arena:solo` / `arena:nt` 已移除。
 
 测试：
 

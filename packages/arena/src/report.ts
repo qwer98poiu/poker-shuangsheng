@@ -68,18 +68,23 @@ export type MetricSpec = [
   label: string, a: CountPair, b: CountPair, dir: Direction, draw?: CountPair,
 ];
 
+/** 2..A 的全部 13 个等级（`perLevelSpecs` 的默认展开范围）。 */
+export const LEVELS_2_TO_ACE: readonly number[] = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
+
 /**
- * 各等级（2..10、J、Q、K、A）的胜负率展开成 13 条指标。
+ * 各等级的胜负率展开成指标（默认 2..A）。
  * `draw` 给了就一并产出第 4 格（平局率）；缺样本的等级三格都是 —。
+ * deal 竞技场默认只打 6 档，故 `levels` 可显式收窄。
  */
 export function perLevelSpecs(
   prefix: string,
   a: Map<number, CountPair>,
   b: Map<number, CountPair>,
   draw?: Map<number, CountPair>,
+  levels: readonly number[] = LEVELS_2_TO_ACE,
 ): MetricSpec[] {
   const out: MetricSpec[] = [];
-  for (let lv = 2; lv <= 14; lv++) {
+  for (const lv of levels) {
     out.push([
       `${prefix} ${levelLabel(lv)} 胜率`,
       a.get(lv) ?? { n: 0, d: 0 },
@@ -162,5 +167,34 @@ export function renderTable(
     const greenB = r.verdict === 'b' || r.verdict === 'tie';
     lines.push(line(cellsOf(r), [false, greenA, greenB, false]));
   }
+  return lines;
+}
+
+// ---- n 列宽表（deal 竞技场的北极星/分解指标） ----
+
+/** 单元格染色：'A' = A 侧（绿）、'B' = B 侧（红）、null = 不染色。 */
+export type CellTint = 'A' | 'B' | null;
+const RED = '\x1b[31m';
+const TINT_CODES: Record<'A' | 'B', string> = { A: GREEN, B: RED };
+
+/**
+ * 宽表渲染（`renderTable` 固定三/四列，这里列数由表头决定）。
+ * 对齐按终端显示宽度（CJK 占 2 列），染色码零宽——先按原文宽度填充再套色。
+ */
+export function renderColumns(
+  header: readonly string[],
+  rows: readonly string[][],
+  tints: readonly (readonly CellTint[])[],
+  color: boolean,
+): string[] {
+  const widths = header.map((h, i) => Math.max(displayWidth(h), ...rows.map(r => displayWidth(r[i] ?? ''))));
+  const cellOf = (text: string, w: number, tint: CellTint): string => {
+    const body = tint !== null && color ? `${TINT_CODES[tint]}${text}${RESET}` : text;
+    return body + ' '.repeat(Math.max(0, w - displayWidth(text)));
+  };
+  const lines = [header.map((h, i) => cellOf(h, widths[i], null)).join('  ').trimEnd()];
+  rows.forEach((r, ri) => {
+    lines.push(r.map((c, i) => cellOf(c, widths[i], tints[ri]?.[i] ?? null)).join('  ').trimEnd());
+  });
   return lines;
 }

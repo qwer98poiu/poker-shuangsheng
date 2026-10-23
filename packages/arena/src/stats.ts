@@ -1,6 +1,7 @@
 /**
  * Per-strategy stat accumulators. Every ratio carries explicit {n, d}
- * (numerator / denominator). Aborted hands never enter any denominator.
+ * (numerator / denominator). Settled aborts enter every denominator with their
+ * settlement score; only unsettled aborts are excluded.
  */
 import type { HandEvent } from './types.js';
 
@@ -44,7 +45,12 @@ export interface StrategyStats {
     leadCards: CountPair;                  // 每局平均每墩领出张数(仅我方领出) = n/d
     cardsWon: CountPair;                   // 平均每局赢得张数 = Σ(我方赢下的墩的张数)/handsPlayed
   };
+  /** 原始中止局数（含已结算）；诊断用。 */
   abortedHands: number;
+  /** 中止局中已按肇事方结算、并进入各项分母的局数。 */
+  settledHands: number;
+  /** 本策略所在队造成的中止局数（按 abortCause 与 ourParity 匹配）。 */
+  abortCaused: number;
 }
 
 export function createStats(): StrategyStats {
@@ -79,6 +85,8 @@ export function createStats(): StrategyStats {
       cardsWon: { n: 0, d: 0 },
     },
     abortedHands: 0,
+    settledHands: 0,
+    abortCaused: 0,
   };
 }
 
@@ -86,7 +94,8 @@ export function createStats(): StrategyStats {
  * 小局口径胜率 = 我方所在队赢下的小局 / 总小局。
  *
  * 台上 + 台下的合并汇总：每一小局按"我方是庄家方还是闲家"只进这两个桶之一
- * （中止局不进任何桶），所以分母恒等于 `handsPlayed`，分子 = 我方赢下的局数。
+ * （未结算中止局不进任何桶；已结算中止局按结算分进入），所以分母恒等于
+ * `handsPlayed`，分子 = 我方赢下的局数。
  * 镜像对打下 A 与 B 逐局直接对垒，故 0.5 即无差异基准。
  */
 export function handWinRate(s: StrategyStats): CountPair {
@@ -102,13 +111,15 @@ function bump(map: Map<number, CountPair>, level: number, n: number, d: number):
 
 /** Accumulate one hand into the strategy's stats (ourParity = our team). */
 export function addHandStats(s: StrategyStats, ev: HandEvent, ourParity: 0 | 1): void {
+  const isBanker = ev.teamBanker === ourParity;
   if (ev.aborted) {
     s.abortedHands += 1;
-    return;
+    if (!ev.settled) return; // 未结算中止仍不进任何分母
+    s.settledHands += 1;
+    // abortCause 指中止玩家所在队；与本策略所在队一致即为本策略致因。
+    if (ev.abortCause !== null && (ev.abortCause === 'banker') === isBanker) s.abortCaused += 1;
   }
   s.handsPlayed += 1;
-
-  const isBanker = ev.teamBanker === ourParity;
   if (isBanker) {
     const b = s.banker;
     b.hands += 1;
@@ -230,6 +241,8 @@ export function mergeStats(a: StrategyStats, b: StrategyStats): StrategyStats {
       cardsWon: sumPair(a.tricks.cardsWon, b.tricks.cardsWon),
     },
     abortedHands: a.abortedHands + b.abortedHands,
+    settledHands: a.settledHands + b.settledHands,
+    abortCaused: a.abortCaused + b.abortCaused,
   };
 }
 
@@ -265,6 +278,8 @@ export function fromJSON(j: Record<string, any>): StrategyStats {
   s.tricks.leadCards = { ...j.tricks.leadCards };
   s.tricks.cardsWon = { ...j.tricks.cardsWon };
   s.abortedHands = j.abortedHands;
+  s.settledHands = j.settledHands;
+  s.abortCaused = j.abortCaused;
   return s;
 }
 
@@ -306,5 +321,7 @@ export function toJSON(s: StrategyStats): Record<string, unknown> {
       cardsWon: { ...s.tricks.cardsWon },
     },
     abortedHands: s.abortedHands,
+    settledHands: s.settledHands,
+    abortCaused: s.abortCaused,
   };
 }

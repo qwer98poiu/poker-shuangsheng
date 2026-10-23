@@ -1,9 +1,7 @@
 /**
- * 升级量档位（tier）——单副牌竞技场与无主竞技场共用。
+ * 升级量档位（tier）——deal 竞技场的三分类与分解指标共用。
  *
- * 独立成模块是为了打破循环：`nt-arena` 被 `solo-arena` import（`hasJokerPairDeal`），
- * 若 `nt-arena` 反过来从 `solo-arena` 取 `tierOf` 就成环。`solo-arena` 仍原样再导出
- * `tierOf` / `tierOutcome` / `TierBucket`，既有的 import 路径与测试都不用改。
+ * 报告文字统一用「升级」；`tier` 只是代码标识。
  */
 
 /**
@@ -18,19 +16,7 @@ export function tierOf(pts: number): number {
   return pts === 0 ? -1 : Math.floor(pts / 40);
 }
 
-/**
- * 档位口径胜负。`aWantsLower` 为真表示 A 希望分低（A 当庄），为假表示 A 希望分高
- * （A 当闲）。**第一个实参必须是 A 所在那条腿的分数**，否则方向会反过来。
- */
-export function tierOutcome(ptsA: number, ptsBase: number, aWantsLower: boolean): 'a' | 'b' | 'draw' {
-  const tA = tierOf(ptsA);
-  const tB = tierOf(ptsBase);
-  if (tA === tB) return 'draw';
-  const aBetter = aWantsLower ? tA < tB : tA > tB;
-  return aBetter ? 'a' : 'b';
-}
-
-/** 档位口径的三分类计数。 */
+/** 升级三分类（A 胜 / B 胜 / 平）计数。 */
 export interface TierBucket {
   n: number;
   a: number;

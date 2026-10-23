@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { deckForHand } from '../rng.js';
 import { playHand, naturalDeclaration } from '../match.js';
-import { hasJokerPairDeal } from '../nt-arena.js';
+import { hasJokerPairDeal } from '../deal-arena.js';
 import { engineStrategy, ai0929Strategy } from '../strategies.js';
 
 /**
@@ -25,6 +25,15 @@ describe('naturalDeclaration 与 playHand 的亮主一致', () => {
         expect(decl.declarerIndex).toBe(ev.declarerIdx);
         expect(decl.level).toBe(level);
       }
+    }
+  });
+
+  it('四个候选庄位都保留传入的 declarerIdx', () => {
+    const deck = deckForHand(11, 0, 0);
+    for (const seat of [0, 1, 2, 3]) {
+      const decl = naturalDeclaration(deck, seat, 2, false, strategies);
+      expect(decl.declarerIndex).toBe(seat);
+      expect(decl.level).toBe(2);
     }
   });
 

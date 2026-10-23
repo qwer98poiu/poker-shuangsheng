@@ -7,6 +7,10 @@
  * because it stays well-behaved at p̂ = 0 or 1 (the normal formula degenerates
  * to zero width there); at mid-range p̂ the two agree to ~1e-4.
  */
+import { wilsonInterval } from './intervals.js';
+
+export { wilsonInterval };
+
 export const Z = 2.576;
 
 export interface SignificanceResult {
@@ -30,14 +34,11 @@ export function checkSignificance(
   if (leader === null || n === 0) {
     return { significant: false, leader, pHat: 0.5, ciLower: 0.5, n };
   }
-  const p = (leader === 'A' ? scoreA : scoreB) / n;
+  const leaderScore = leader === 'A' ? scoreA : scoreB;
+  const p = leaderScore / n;
 
   // Wilson score interval lower bound
-  const z2 = z * z;
-  const denom = 1 + z2 / n;
-  const center = (p + z2 / (2 * n)) / denom;
-  const half = (z * Math.sqrt((p * (1 - p)) / n + z2 / (4 * n * n))) / denom;
-  const ciLower = center - half;
+  const { lower: ciLower } = wilsonInterval(leaderScore, n, z);
 
   return { significant: ciLower > 0.5, leader, pHat: p, ciLower, n };
 }

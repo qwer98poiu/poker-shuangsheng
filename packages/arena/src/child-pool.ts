@@ -73,7 +73,8 @@ export class ChildPool {
 
   /**
    * 起 `count` 个常驻子进程，每个跑 `src/<script>` 并原样带上 `args`
-   * （child-run.ts / nt-child-run.ts 都取 `<seed> <strategyA> <strategyB>`）。
+   * （child-run.ts 取 `<seed> <strategyA> <strategyB>`；deal-child-run.ts 另带
+   *   等级列表、nt 标志与过滤器列表）。
    */
   static async create(
     count: number, script: string, args: string[], opts: PoolOptions = {},

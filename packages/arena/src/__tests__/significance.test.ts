@@ -1,7 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { checkSignificance, requiredMatchesForSignificance, Z } from '../significance.js';
+import {
+  checkSignificance, requiredMatchesForSignificance, wilsonInterval, Z,
+} from '../significance.js';
 
 describe('checkSignificance (99% Wilson 下界)', () => {
+  it('wilsonInterval 的下界与 checkSignificance 一致', () => {
+    expect(wilsonInterval(5200, 10000, Z).lower).toBeCloseTo(0.5071213064332735, 10);
+  });
+
   it('p̂=0.52, n=10000 → 显著，leader=A', () => {
     const r = checkSignificance(5200, 4800, 0, 10000);
     expect(r.significant).toBe(true);

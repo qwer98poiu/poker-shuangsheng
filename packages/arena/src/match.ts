@@ -22,6 +22,7 @@ import type { Card, CardSuit, GameState, PlayerState, TrumpDeclaration } from '@
 import { Suit as SuitEnum, isPointRank } from '@poker/engine';
 import { deckForHand } from './rng.js';
 import { advanceLevel } from './advance-level.js';
+import { settleAbort } from './abort-settlement.js';
 import type { HandEvent, MatchResult, Strategy } from './types.js';
 
 export const DEFAULT_MAX_HANDS = 200;
@@ -193,11 +194,12 @@ export function playHand(opts: PlayHandOptions): HandEvent {
 
   // --- play phase ---
   let aborted = false;
+  let abortPlayerIdx: number | null = null;
   while (state.tricksPlayed < 25) {
     if (state.players.every(p => p.hand.length === 0)) break; // 全部出完提前结束
     const cp = state.currentPlayerIndex;
     const player = state.players[cp];
-    if (player.hand.length === 0) { aborted = true; break; }
+    if (player.hand.length === 0) { aborted = true; abortPlayerIdx = cp; break; }
 
     const isLeading = state.trickPlays.length === 0;
     const leadLen = isLeading ? 0 : state.trickPlays[0].cards.length;
@@ -225,7 +227,7 @@ export function playHand(opts: PlayHandOptions): HandEvent {
       const used = new Set(cards.filter(Boolean).map(c => c.id));
       const extra = player.hand.filter(c => !used.has(c.id));
       cards = [...cards.filter(Boolean), ...extra].slice(0, leadLen);
-      if (cards.length < leadLen) { aborted = true; break; }
+      if (cards.length < leadLen) { aborted = true; abortPlayerIdx = cp; break; }
     }
 
     const res = playCards(state, cp, cards);
@@ -238,7 +240,7 @@ export function playHand(opts: PlayHandOptions): HandEvent {
       if (fb.error) {
         errors += 1;
         const fb2 = playCards(state, cp, [player.hand[0]]);
-        if (fb2.error) { aborted = true; break; }
+        if (fb2.error) { aborted = true; abortPlayerIdx = cp; break; }
         state = fb2.state;
       } else {
         state = fb.state;
@@ -253,13 +255,26 @@ export function playHand(opts: PlayHandOptions): HandEvent {
   const lastTrick = state.trickHistory[state.trickHistory.length - 1];
   const mult = lastTrick ? bottomMultiplier(classify(lastTrick.plays[0].cards, t)) : 2;
   const bp = countBottomPoints(state.bottomCards);
-  const attackerWonLastTrick = lastTrick
+  let attackerWonLastTrick = lastTrick
     ? lastTrick.winnerIndex % 2 !== teamBanker
     : false;
-  const finalPts = Math.max(0, lastTrick
+  let finalPts = Math.max(0, lastTrick
     ? finalizeAttackerPoints(state.attackerPoints, bp, mult, lastTrick.winnerIndex, declarer)
     : state.attackerPoints);
-  const kouDiAdd = attackerWonLastTrick ? bp * mult : 0;
+  let kouDiAdd = attackerWonLastTrick ? bp * mult : 0;
+
+  // 中止小局按肇事方结算（详见 abort-settlement.ts）：
+  // 闲家中止 → 当前分；庄家中止 → 闲家赢下当前墩和所有剩余墩。
+  let settled = false;
+  let abortCause: HandEvent['abortCause'] = null;
+  if (aborted && abortPlayerIdx !== null) {
+    const settlement = settleAbort(state, declarer, abortPlayerIdx, t);
+    settled = true;
+    abortCause = settlement.cause;
+    finalPts = settlement.finalPts;
+    attackerWonLastTrick = settlement.attackerWonLastTrick;
+    kouDiAdd = settlement.kouDiAdd;
+  }
 
   let tricksWonByTeam0 = 0;
   let cardsWonByTeam0 = 0;
@@ -299,6 +314,9 @@ export function playHand(opts: PlayHandOptions): HandEvent {
     leadCardsTotal,
     errors,
     aborted,
+    settled,
+    abortCause,
+    abortPlayerIdx,
   };
 }
 
@@ -310,6 +328,8 @@ export function playMatch(cfg: MatchConfig): MatchResult {
   let declarerIdx = 0;
   let handIndex = 0;
   let abortedHands = 0;
+  let settledHands = 0;
+  let unsettledAborts = 0;
 
   while (handIndex < maxHands) {
     const team = (declarerIdx % 2) as 0 | 1;
@@ -327,7 +347,11 @@ export function playMatch(cfg: MatchConfig): MatchResult {
     handIndex += 1;
     if (ev.aborted) {
       abortedHands += 1;
-      continue; // 中止局也消耗 handIndex，保证镜像两场 seed 对齐
+      if (!ev.settled) {
+        unsettledAborts += 1;
+        continue; // 中止局也消耗 handIndex，保证镜像两场 seed 对齐
+      }
+      settledHands += 1; // 已结算中止局照常推进升级与统计
     }
     events.push(ev);
 
@@ -339,7 +363,8 @@ export function playMatch(cfg: MatchConfig): MatchResult {
     if (adv.matchOver) {
       // matchOver 只可能发生在庄家在 A(14) 打赢 → 胜方即庄家队
       return {
-        winnerTeam: team, handsPlayed: handIndex - abortedHands, abortedHands, capped: false,
+        winnerTeam: team, handsPlayed: handIndex - unsettledAborts, abortedHands,
+        settledHands, capped: false,
         finalLevels: [...sideLevels] as [number, number], events,
       };
     }
@@ -348,7 +373,8 @@ export function playMatch(cfg: MatchConfig): MatchResult {
   }
 
   return {
-    winnerTeam: null, handsPlayed: handIndex - abortedHands, abortedHands, capped: true,
+    winnerTeam: null, handsPlayed: handIndex - unsettledAborts, abortedHands,
+    settledHands, capped: true,
     finalLevels: [...sideLevels] as [number, number], events,
   };
 }

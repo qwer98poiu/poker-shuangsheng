@@ -58,13 +58,21 @@ export interface HandEvent {
   leadCardsByTeam0: number; // sum of lead plays' card counts when a team-0 seat led
   leadCardsTotal: number;   // sum of all lead plays' card counts (both teams)
   errors: number;           // 引擎验牌失败回退次数（策略合法性检测用）
-  aborted: boolean;         // engine error/abort — excluded from all denominators
+  /** 原始中止（引擎无法继续）；不再意味着排除——见 settled。 */
+  aborted: boolean;
+  /** 中止局已按肇事方结算；finalPts/bankerWon 是结算值。 */
+  settled: boolean;
+  /** 中止玩家所在队（null = 未中止）。 */
+  abortCause: 'banker' | 'attacker' | null;
+  /** 触发中止的玩家座位（null = 未中止）。 */
+  abortPlayerIdx: number | null;
 }
 
 export interface MatchResult {
   winnerTeam: 0 | 1 | null; // null = draw (hand cap reached)
-  handsPlayed: number;      // completed (non-aborted) hands
-  abortedHands: number;
+  handsPlayed: number;      // completed hands, including settled aborts
+  abortedHands: number;     // raw aborts (settled or not)
+  settledHands: number;     // aborts that were settled
   capped: boolean;          // ended by the maxHands cap
   finalLevels: [number, number]; // 终局双方等级 [team0, team1]（封顶平局也记录，A=14）
   events: HandEvent[];      // only populated when captureEvents=true

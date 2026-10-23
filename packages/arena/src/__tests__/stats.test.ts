@@ -9,7 +9,8 @@ const evBankerWin: HandEvent = {
   trumpSuit: Suit.Hearts, bottomPoints: 15, killSuitCount: 1,
   attackerWonLastTrick: false, kouDiAdd: 0, finalPts: 40, bankerWon: true,
   tricksPlayed: 13, tricksWonByTeam0: 9, cardsWonByTeam0: 11, leadsByTeam0: 7,
-  leadCardsByTeam0: 9, leadCardsTotal: 17, errors: 0, aborted: false,
+  leadCardsByTeam0: 9, leadCardsTotal: 17, errors: 0,
+  aborted: false, settled: false, abortCause: null, abortPlayerIdx: null,
 };
 
 /** 闲家(team1)在闲家等级 A(14) 上台赢：NT、抠底 +40。 */
@@ -18,11 +19,17 @@ const evAttackerWin: HandEvent = {
   trumpSuit: null, bottomPoints: 20, killSuitCount: 0,
   attackerWonLastTrick: true, kouDiAdd: 40, finalPts: 120, bankerWon: false,
   tricksPlayed: 11, tricksWonByTeam0: 3, cardsWonByTeam0: 4, leadsByTeam0: 5,
-  leadCardsByTeam0: 6, leadCardsTotal: 14, errors: 0, aborted: false,
+  leadCardsByTeam0: 6, leadCardsTotal: 14, errors: 0,
+  aborted: false, settled: false, abortCause: null, abortPlayerIdx: null,
 };
 
 const evAborted: HandEvent = {
-  ...evBankerWin, handIndex: 2, aborted: true,
+  ...evBankerWin, handIndex: 2, aborted: true, abortCause: 'banker', abortPlayerIdx: 0,
+};
+
+/** 已结算中止局：庄家致因，结算分为 120。 */
+const evSettled: HandEvent = {
+  ...evAborted, settled: true, finalPts: 120, bankerWon: false,
 };
 
 describe('addHandStats — 我方=team0', () => {
@@ -92,14 +99,35 @@ describe('addHandStats — 我方=team1（镜像补集）', () => {
 });
 
 describe('中止局与 match outcome', () => {
-  it('中止局只计入 abortedHands，不进任何分母', () => {
+  it('未结算中止局只计入 abortedHands，不进任何分母', () => {
     const s = createStats();
     addHandStats(s, evAborted, 0);
     expect(s.abortedHands).toBe(1);
+    expect(s.settledHands).toBe(0);
+    expect(s.abortCaused).toBe(0);
     expect(s.handsPlayed).toBe(0);
     expect(s.banker.hands).toBe(0);
     expect(s.attacker.hands).toBe(0);
     expect(s.tricks.won).toEqual({ n: 0, d: 0 });
+  });
+
+  it('已结算中止局按结算分进入分母，并计入 settledHands/abortCaused', () => {
+    const s = createStats();
+    addHandStats(s, evSettled, 0); // team0 是庄家，也是致因方
+    expect(s.abortedHands).toBe(1);
+    expect(s.settledHands).toBe(1);
+    expect(s.abortCaused).toBe(1);
+    expect(s.handsPlayed).toBe(1);
+    expect(s.banker.hands).toBe(1);
+    expect(s.banker.wins).toBe(0);
+    expect(s.banker.avgLoss).toEqual({ n: 120, d: 1 });
+
+    const t = createStats();
+    addHandStats(t, evSettled, 1); // team1 是闲家，不是致因方
+    expect(t.settledHands).toBe(1);
+    expect(t.abortCaused).toBe(0);
+    expect(t.attacker.hands).toBe(1);
+    expect(t.attacker.wins).toBe(1);
   });
 
   it('addMatchOutcome：胜/平/负精确计数，胜时累计对方终局等级', () => {
@@ -149,7 +177,8 @@ describe('抠底频率与抠底成功频率', () => {
       trumpSuit: Suit.Hearts, bottomPoints: 0, killSuitCount: 0,
       attackerWonLastTrick: true, kouDiAdd: 0, finalPts: 85, bankerWon: false,
       tricksPlayed: 10, tricksWonByTeam0: 4, cardsWonByTeam0: 5, leadsByTeam0: 5,
-      leadCardsByTeam0: 6, leadCardsTotal: 13, errors: 0, aborted: false,
+      leadCardsByTeam0: 6, leadCardsTotal: 13, errors: 0,
+      aborted: false, settled: false, abortCause: null, abortPlayerIdx: null,
     };
     const s = createStats();
     addHandStats(s, evNoPoints, 0); // team0 是闲家：赢了最后一墩但底牌无分

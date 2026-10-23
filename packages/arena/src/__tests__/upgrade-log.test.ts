@@ -9,7 +9,8 @@ function ev(partial: Partial<HandEvent>): HandEvent {
     trumpSuit: Suit.Hearts, bottomPoints: 0, killSuitCount: 0,
     attackerWonLastTrick: false, kouDiAdd: 0, finalPts: 40, bankerWon: true,
     tricksPlayed: 13, tricksWonByTeam0: 9, cardsWonByTeam0: 11, leadsByTeam0: 7,
-    leadCardsByTeam0: 9, leadCardsTotal: 17, errors: 0, aborted: false,
+    leadCardsByTeam0: 9, leadCardsTotal: 17, errors: 0,
+    aborted: false, settled: false, abortCause: null, abortPlayerIdx: null,
     ...partial,
   };
 }
@@ -54,10 +55,19 @@ describe('upgradeLinesForMatch', () => {
     expect(formatUpgrade(lines[0])).toBe('A J->Q');
   });
 
-  it('中止局跳过', () => {
+  it('未结算中止局跳过', () => {
     const lines = upgradeLinesForMatch([ev({ aborted: true }), ev({ handIndex: 1 })], 0);
     expect(lines).toHaveLength(1);
     expect(lines[0].handIndex).toBe(1);
+  });
+
+  it('已结算中止局按结算分照常记录', () => {
+    const lines = upgradeLinesForMatch([
+      ev({ aborted: true, settled: true, abortCause: 'banker', abortPlayerIdx: 0, finalPts: 120, bankerWon: false }),
+    ], 0);
+    expect(lines).toHaveLength(1);
+    expect(lines[0].finalPts).toBe(120);
+    expect(lines[0].upgradeSide).toBe('B'); // 闲家上台
   });
 
   it('对局2（aParity=1）：parity 0 的庄家标记为 B', () => {
