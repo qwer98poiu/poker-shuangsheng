@@ -3,7 +3,7 @@
  *
  * 5  直接断门副对 / J 以上副对（顶张除外）
  * 6  无主吊主（单张/对子/拖拉机）
- * 7  有主主对 / 主拖拉机（两队；主拖拉机仅庄家，庄家对家不出）
+ * 7  有主主对（两队；主拖拉机归庄4.5，庄家对家不出主对）
  * 8  10 以下副对（非分优先）
  * 9  有主单张吊主（不再分首次/非首次）
  * 10 直接断门单张 / J 以上单张（取最大）
@@ -212,24 +212,6 @@ describe('通用 7 — 吊主对 / 主拖拉机（两队）', () => {
     const hand = [c(H, 5), c(H, 5), c(H, 13), c(H, 13), c(C, 10), c(C, 10), c(C, 3)];
     const r = tryTier7TrumpPair(hand, nonFirst(), 20)!;
     expect(show(r.cards)).toBe('H13,H13');
-  });
-
-  it('同最小对时主拖拉机按其最小对比较', () => {
-    const hand = [
-      c(H, 4), c(H, 4), c(H, 3), c(H, 3),
-      c(H, 8), c(H, 8),
-      c(C, 10), c(C, 10), c(C, 3),
-    ];
-    const r = tryTier7TrumpPair(hand, nonFirst(), 9)!;
-    expect(show(r.cards)).toBe('H4,H4,H3,H3');
-    expect(r.reason).toBe('出主拖拉机(2对)');
-  });
-
-  it('庄家不拆光最后一对拖拉机', () => {
-    const hand = [c(H, 4), c(H, 4), c(H, 3), c(H, 3), c(C, 10), c(C, 10), c(C, 3)];
-    const r = tryTier7TrumpPair(hand, nonFirst(), 7)!;
-    expect(show(r.cards)).toBe('H4,H4,H3,H3');
-    expect(r.reason).toBe('出主拖拉机(2对)');
   });
 
   it('闲家只有主拖拉机时本档不出：不拆拖拉机取对子', () => {

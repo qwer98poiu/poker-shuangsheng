@@ -3,7 +3,7 @@
  *
  *   5  直接断门副对 / J 以上副对（排除顶张；不避分）
  *   6  无主吊主（单张/对子/拖拉机；仅 NT，规则见 nt-trump.ts）
- *   7  有主吊主对（两队）/ 主拖拉机（仅庄家本人）
+ *   7  有主吊主对（两队）；主拖拉机归庄4.5
  *      两队都不受“副牌分对”与“保留主对”两条限制
  *   8  副牌 10 以下对牌（非直接断门；非分优先）
  *   9  有主单张吊主（最小的 A 以下主单；不再分首次/非首次）
@@ -133,7 +133,7 @@ export function tryTier9SuitedTrump(hand: Card[], ctx: AIContext): Proposal | nu
   return card === null ? null : { cards: [card], reason: '吊主' };
 }
 
-// ---- 通用 7：有主吊主对（两队）/ 主拖拉机（仅庄家本人；无主归 6） ----
+// ---- 通用 7：有主吊主对（两队；无主归 6） ----
 
 function maximalTractors(tractors: Card[][]): Card[][] {
   const unique: Card[][] = [];
@@ -157,8 +157,8 @@ export function tryTier7TrumpPair(
   // 无主吊主（单张/对子/拖拉机）已全部归通用 6。
   if (ctx.trumpSuit === null) return null;
 
-  // 有主：庄家对家永不出主对 / 主拖拉机；庄家可出两者；闲家只出主对
-  // （闲家的主拖拉机在闲1 已经处理）。
+  // 有主：庄家对家永不出主对；庄家与闲家都只出独立主对。主拖拉机归
+  // 庄4.5（庄家本人）与闲1（闲家）。
   // 两队都不受“有副牌分对才吊”“至少保留一个主对”两条限制：10-18 实测
   // 庄家受两条限制时有主局当庄胜率约 -3.5；闲家去掉两条门禁后 10000 场
   // 直接 A/B 显著更好（p̂=0.5160，99% CI 下界 0.5031），故两队统一去掉。
@@ -191,12 +191,7 @@ export function tryTier7TrumpPair(
     });
   };
 
-  // 主拖拉机仅庄家本人；闲家的主拖拉机归闲1，且不拆拖拉机取其中的对子。
-  if (ctx.isDeclarer) {
-    for (const t of allTrumpTractors) {
-      add(t, `出主拖拉机(${t.length / 2}对)`);
-    }
-  }
+  // 主拖拉机由庄4.5 先取走；本档不拆拖拉机取其中的对子。
   for (const p of standalonePairs) {
     add(p, '出主对');
   }

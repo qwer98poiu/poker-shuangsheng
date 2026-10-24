@@ -3,11 +3,11 @@
  * it's our turn to start a trick.
  */
 import type { Card, Suit } from '../types.js';
-import { SUIT_ORDER } from '../types.js';
-import { isTrump } from '../model.js';
+import { Rank, SUIT_ORDER } from '../types.js';
+import { createCard, getEffectiveRank, isTrump } from '../model.js';
 import { findAllPairs, detectTractors, classify as classifyCombo } from '../pattern/index.js';
 import type { AIContext } from './types.js';
-import { suitLabelCn, getTopOffSuitRank } from './utils.js';
+import { suitLabelCn, getTopOffSuitRank, maxCardT } from './utils.js';
 import { findThrowableSuitCards, worstCaseSuitHand } from './throw-detector.js';
 import { validateThrow } from '../leading/index.js';
 import { tryLeadFlushThrow, tryLeadDrainedSuitThrow } from './flush-detector.js';
@@ -148,6 +148,41 @@ function tryDeclarerTop(
   return { cards: best.cards, reason };
 }
 
+// ---- 庄4.5：主拖拉机 ----
+
+/**
+ * 庄4.5：主拖拉机。排在庄4 之后、通用 5 之前，仅庄家本人。
+ *
+ * 闲家的主拖拉机归闲1，庄家对家永不出主拖拉机，故两者都返回 null。
+ * 庄家手牌 ≥20 时不出含 A 以上（级牌/王）的主拖拉机。选牌：对数多优先；
+ * 同对数取最大牌小的；仍并列按 `detectTractors` 的原序。
+ */
+function tryDeclarerTrumpTractor45(
+  hand: Card[],
+  ctx: AIContext,
+  myHandCount: number,
+): { cards: Card[]; reason: string } | null {
+  if (ctx.trumpSuit === null) return null;
+  if (!ctx.isDeclarer) return null;
+
+  let eligible = detectTractors(hand, ctx).filter(t => t.every(c => isTrump(c, ctx)));
+  if (eligible.length === 0) return null;
+
+  if (myHandCount >= 20) {
+    const rankLimit = getEffectiveRank(createCard(ctx.trumpSuit, Rank.Ace, 0), ctx);
+    eligible = eligible.filter(t => t.every(c => getEffectiveRank(c, ctx) <= rankLimit));
+  }
+  if (eligible.length === 0) return null;
+
+  eligible.sort((a, b) => {
+    if (a.length !== b.length) return b.length - a.length;
+    return getEffectiveRank(maxCardT(a, ctx), ctx) - getEffectiveRank(maxCardT(b, ctx), ctx);
+  });
+
+  const chosen = eligible[0];
+  return { cards: chosen, reason: `出主拖拉机(${chosen.length / 2}对)` };
+}
+
 // ---- "Worth leading" probe (第四家不抢无分墩) ----
 
 /**
@@ -240,6 +275,11 @@ export function _aiLeadPlay(
     const topResult = tryDeclarerTop(hand, ctx, longSuit);
     if (topResult) return topResult;
   }
+
+  // 庄4.5（仅庄家本人，有主）：主拖拉机。闲家的主拖拉机归闲1，
+  // 庄家对家永不出主拖拉机。
+  const declarerTrumpTractor = tryDeclarerTrumpTractor45(hand, ctx, myHandCount);
+  if (declarerTrumpTractor) return declarerTrumpTractor;
 
   // 通用 5–12：副对 → 无主吊主 / 有主主对/主拖拉机 → 低副对 → 有主单张吊主
   // → 大单张 → 小单张 → 最后手牌（唯一受台阶防护的一档）。

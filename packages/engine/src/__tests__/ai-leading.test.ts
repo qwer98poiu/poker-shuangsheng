@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Rank, Suit } from '../types.js';
+import { Rank, SpecialSuit, Suit } from '../types.js';
 import { createCard, isTrump } from '../model.js';
 import { validateLead } from '../leading/index.js';
 import { aiLeadPlay } from '../ai/index.js';
@@ -216,6 +216,94 @@ describe('AI leading play', () => {
       expect(isTrump(result.cards[0], cfg5)).toBe(true);
       expect(result.cards[0].rank).toBe(Rank.Three);
       expect(result.reason).toBe('吊主');
+    });
+  });
+
+  describe('庄4.5: lead trump tractor', () => {
+    const declarerCtx = (n: number): AIContext => ctx(cfg5, {
+      myIndex: 0, isDeclarer: true, isDeclarerPartner: false,
+      handCounts: [n, 25, 25, 25] as const,
+    });
+    const names = (cards: Card[]): string[] => cards.map(x => `${x.suit}${x.rank}`);
+
+    it('leads a trump tractor before generic 5 off-suit pairs', () => {
+      // 主拖拉机 ♥4433；♠10 对是 J 以上、通用 5 的候选，但庄4.5 更靠前。
+      const hand = [
+        c('H', 4, 0), c('H', 4, 1), c('H', 3, 0), c('H', 3, 1),
+        c('S', 10, 0), c('S', 10, 1), c('S', 3, 0), c('C', 6, 0),
+      ];
+      const result = aiLeadPlay(hand, declarerCtx(hand.length));
+      checkLead(result.cards, hand, cfg5);
+      expect(names(result.cards).sort()).toEqual(['H3', 'H3', 'H4', 'H4']);
+      expect(result.reason).toBe('出主拖拉机(2对)');
+    });
+
+    it('stays behind 庄4: an off-suit top is led first', () => {
+      const hand = [
+        c('S', 14, 0), c('S', 3, 0),
+        c('H', 4, 0), c('H', 4, 1), c('H', 3, 0), c('H', 3, 1),
+        c('C', 6, 0),
+      ];
+      const result = aiLeadPlay(hand, declarerCtx(hand.length));
+      checkLead(result.cards, hand, cfg5);
+      expect(names(result.cards)).toEqual(['S14']);
+    });
+
+    it('declarer with 20+ cards skips a trump tractor containing a joker', () => {
+      const hand: Card[] = [
+        c(SpecialSuit.Joker, 15, 0), c(SpecialSuit.Joker, 15, 1),
+        c(SpecialSuit.Joker, 16, 0), c(SpecialSuit.Joker, 16, 1),
+        c('S', 2, 0), c('S', 3, 0), c('S', 4, 0), c('S', 6, 0),
+        c('S', 7, 0), c('S', 8, 0), c('S', 9, 0), c('S', 10, 0),
+        c('S', 11, 0), c('S', 12, 0), c('S', 13, 0),
+        c('C', 2, 0), c('C', 3, 0), c('C', 4, 0), c('C', 6, 0), c('C', 7, 0),
+      ];
+      const result = aiLeadPlay(hand, declarerCtx(hand.length));
+      checkLead(result.cards, hand, cfg5);
+      // 小型王牌对 + 大王牌对构成主拖拉机，但含 A 以上（王）→ 庄4.5 放弃；
+      // 后续档位出 ♠K 单张。
+      expect(names(result.cards)).toEqual(['S13']);
+      expect(result.reason).toBe('出♠K');
+    });
+
+    it('declarer partner never leads a trump tractor', () => {
+      const hand = [
+        c('H', 4, 0), c('H', 4, 1), c('H', 3, 0), c('H', 3, 1),
+        c('S', 3, 0), c('C', 6, 0),
+      ];
+      const ctxDP = ctx(cfg5, {
+        myIndex: 2, isDeclarer: false, isDeclarerPartner: true,
+        handCounts: [25, 25, hand.length, 25] as const,
+      });
+      const result = aiLeadPlay(hand, ctxDP);
+      checkLead(result.cards, hand, cfg5);
+      expect(names(result.cards)).toEqual(['H3']);
+      expect(result.reason).toBe('吊主');
+    });
+
+    it('two same-length trump tractors: the one with the smaller top goes first', () => {
+      const hand = [
+        c('H', 10, 0), c('H', 10, 1), c('H', 9, 0), c('H', 9, 1),
+        c('H', 4, 0), c('H', 4, 1), c('H', 3, 0), c('H', 3, 1),
+        c('S', 3, 0),
+      ];
+      const result = aiLeadPlay(hand, declarerCtx(hand.length));
+      checkLead(result.cards, hand, cfg5);
+      expect(names(result.cards).sort()).toEqual(['H3', 'H3', 'H4', 'H4']);
+      expect(result.reason).toBe('出主拖拉机(2对)');
+    });
+
+    it('the longer trump tractor goes first', () => {
+      const hand = [
+        c('H', 4, 0), c('H', 4, 1), c('H', 3, 0), c('H', 3, 1),
+        c('H', 2, 0), c('H', 2, 1),
+        c('H', 10, 0), c('H', 10, 1), c('H', 9, 0), c('H', 9, 1),
+        c('S', 3, 0),
+      ];
+      const result = aiLeadPlay(hand, declarerCtx(hand.length));
+      checkLead(result.cards, hand, cfg5);
+      expect(names(result.cards).sort()).toEqual(['H2', 'H2', 'H3', 'H3', 'H4', 'H4']);
+      expect(result.reason).toBe('出主拖拉机(3对)');
     });
   });
 
