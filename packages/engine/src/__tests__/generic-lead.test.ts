@@ -2,21 +2,22 @@
  * 通用领出阶梯 5–12（`ai/generic-lead.ts`）。
  *
  * 5  直接断门副对 / J 以上副对（顶张除外）
- * 6  无主吊主（单张/对子/拖拉机）
+ * 6  无主吊主（仅 NT 且等级为分牌 5/10/K）
  * 7  有主主对（两队；主拖拉机归庄4.5，庄家对家不出主对）
  * 8  10 以下副对（非分优先）
- * 9  有主单张吊主（不再分首次/非首次）
+ * 9  有主单张吊主 + 无主非分等级吊主（排在通用 8 之后）
  * 10 直接断门单张 / J 以上单张（取最大）
  * 11 10 以下副单（从最长花色里挑）
  * 12 最后手牌 + 台阶防护
  */
 import { describe, it, expect } from 'vitest';
 import { createCard } from '../model.js';
-import { Rank, Suit } from '../types.js';
+import { Rank, SpecialSuit, Suit } from '../types.js';
 import type { Card, CardSuit, Trick, TrumpDeclaration } from '../types.js';
 import type { AIContext } from '../ai/types.js';
 import { minimalContext } from '../ai/types.js';
 import { aiLeadPlay } from '../ai/index.js';
+import { computeNTTrumpState } from '../ai/nt-tracking.js';
 import { classify } from '../pattern/index.js';
 import {
   stepBucket,
@@ -147,6 +148,36 @@ describe('通用 6 = 无主吊主 / 通用 9 = 有主单张吊主', () => {
     const ctx = ctxOf(HEARTS);
     expect(tryTier6NTTrump(hand, ctx)).toBeNull();
     expect(tryTier9SuitedTrump(hand, ctx)).toBeNull();
+  });
+});
+
+/** 带真实 ntState 的无主庄家 ctx（通用 6/9 的触发依赖记牌器）。 */
+function ntCtx(level: number, hand: Card[]): AIContext {
+  const cfg: TrumpDeclaration = { trumpSuit: null, level, declarerIndex: 0 };
+  return {
+    ...minimalContext(cfg),
+    myIndex: 0,
+    isDeclarer: true,
+    handCounts: [hand.length, 25, 25, 25] as const,
+    ntState: computeNTTrumpState(hand, 0, [], [], cfg, false, []),
+  };
+}
+
+describe('无主吊主的等级条件（2026-10-24）', () => {
+  const bj = (): Card => c(SpecialSuit.Joker, Rank.BigJoker);
+
+  it('分牌等级 5：通用 6 提前吊主，压过通用 8 的低副对', () => {
+    const hand = [c(S, 9), c(S, 9), c(S, 6), bj(), c(H, 5)];
+    const r = aiLeadPlay(hand, ntCtx(5, hand));
+    expect(show(r.cards)).toBe('J16');
+    expect(r.reason).toBe('吊主(大王)');
+  });
+
+  it('非分等级 2：吊主延后到通用 9，先出通用 8 的低副对', () => {
+    const hand = [c(S, 9), c(S, 9), c(S, 6), bj(), c(H, 2)];
+    const r = aiLeadPlay(hand, ntCtx(2, hand));
+    expect(show(r.cards)).toBe('S9,S9');
+    expect(r.reason).toBe('出♠9对');
   });
 });
 

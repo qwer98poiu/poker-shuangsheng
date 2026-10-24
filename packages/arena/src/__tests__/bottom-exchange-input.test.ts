@@ -27,12 +27,12 @@ describe('bottom exchange input (33 cards)', () => {
     };
 
     // 多跑几对，保证 A 队确实当过庄：3 对 × 每对最多 4 局，
-    // 其中 A 当庄 6 次（庄家赢则连庄，故不等于半数；次数随策略变化）。
+    // 其中 A 当庄 7 次（庄家赢则连庄，故不等于半数；次数随策略变化）。
     for (const pair of [0, 1, 2]) {
       playMatch({ seed: 42, pairIndex: pair, maxHands: 4, strategies: [spy, engineStrategy] });
     }
 
-    expect(sizes.length).toBe(6);
+    expect(sizes.length).toBe(7);
     expect([...new Set(sizes)]).toEqual([33]);
   });
 

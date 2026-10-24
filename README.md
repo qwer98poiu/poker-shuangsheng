@@ -79,11 +79,11 @@ In NT (no-trump) mode, 12 constant trump cards (Big Joker × 2, Small Joker × 2
 - **Upgrade log** — `--detail-pair N` prints the per-hand upgrade records of both mirrored matches side by side (same deck), showing banker side, both levels at hand start, attacker points, and the upgrade result.
 - **Historical baselines** — `ai-0816` (2026-08-16, before the bottom-card strategy rewrite), `ai-0907` (2026-09-07, before the trump-kill single-card tier selection), `ai-0929` (2026-09-29, the NT pair-deduction fix — the Elo scale anchor), `ai-1005` (2026-10-05, the NT long-suit lead layer and the third-seat throw-add re-judge) and `ai-1018` (2026-10-18, before the team-split lead ladder rewrite; includes the 0a/0b loosening) were extracted from git history to PK against the current `ai`. (Archived: `ai-0707`, `ai-0712`, `ai-0726` — removed 2026-08-07; `ai-0801` and `ai-0719` — removed 2026-09-16; `ai-0808` — removed 2026-09-27; `ai-0809` — removed 2026-10-01; `ai-0802` — removed 2026-10-06; `ai-0927` and `ai-1002` — removed 2026-10-18. Elo scores below kept for reference.)
 - **Strategy Elo ratings** — two scales, one per bottom-card convention (computed by `packages/arena/scripts/elo-calc.ts`; the anchor's score is set by `ANCHOR_ELO` in that script):
-  - **Current scale** — measured after the 2026-09-16 fix; the declarer now decides the bottom from all 33 cards. Anchor: `ai-0929` = 1263.8 (shown rounded to integers). `ai-1005` is the 2026-10-05 state measured on 2026-10-09 (1271). `ai` diverged from it on 2026-10-12 (lead priority 0a) and 2026-10-18 09:12 (priority 0b) — preserved as `ai-1018` — and again on 2026-10-18 14:12 (the team-split lead ladder rewrite) and 2026-10-24 (declarer tier 4.5: lead trump tractors before generic 5). The 2026-10-24 state was measured the same day (seed 48).
+  - **Current scale** — measured after the 2026-09-16 fix; the declarer now decides the bottom from all 33 cards. Anchor: `ai-0929` = 1263.8 (shown rounded to integers). `ai-1005` is the 2026-10-05 state measured on 2026-10-09 (1271). `ai` diverged from it on 2026-10-12 (lead priority 0a) and 2026-10-18 09:12 (priority 0b) — preserved as `ai-1018` — and again on 2026-10-18 14:12 (the team-split lead ladder rewrite), on 2026-10-24 (declarer tier 4.5: lead trump tractors before generic 5; measured 1292 on seed 48), and again on 2026-10-24 20:33 (NT trump draw deferred to generic 9 when the level is not 5/10/K), so the current row is pending re-measurement.
 
     | Strategy | Elo |
     |---|---|
-    | `ai` (current) | 1292 |
+    | `ai` (current) | TBD |
     | `ai-1018` | 1279 |
     | `ai-1005` | 1271 |
     | `ai-1002` | 1267 |
@@ -331,11 +331,11 @@ MIT — see [LICENSE](LICENSE).
 - **升级记录**：`--detail-pair N` 并排输出该对决镜像两场的逐手升级记录（同一副牌），含庄家方、双方等级、闲家得分与升级结果。
 - **历史基线策略**：`ai-0816`（2026-08-16，扣底策略重构前）、`ai-0907`（2026-09-07，毙牌单张按档位选牌之前）、`ai-0929`（2026-09-29，NT 记牌器对子扣减修复——Elo 刻度锚点）、`ai-1005`（2026-10-05，无主长花色领出层与第三家甩牌加分改判）、`ai-1018`（2026-10-18，领出阶梯按庄/闲分档重写之前，含 0a/0b 放宽）从 git 历史提取，用于与当前策略 `ai` 对比。（已归档移除：`ai-0707`、`ai-0712`、`ai-0726`，2026-08-07 删除；`ai-0801`、`ai-0719`，2026-09-16 删除；`ai-0808`，2026-09-27 删除；`ai-0809`，2026-10-01 删除；`ai-0802`，2026-10-06 删除；`ai-0927`、`ai-1002`，2026-10-18 删除。下方 Elo 分数仅保留展示。）
 - **策略 Elo 评分**——两套刻度，对应扣底决策的两种口径（由 `packages/arena/scripts/elo-calc.ts` 计算；锚点分数由该脚本的 `ANCHOR_ELO` 给定）：
-  - **现行刻度**——2026-09-16 修复后实测；庄家改为拿进底牌后按 33 张决策。锚点：`ai-0929` = 1263.8（表中取整）。`ai-1005` 是 2026-10-05 的状态、2026-10-09 实测 1271。`ai` 于 2026-10-12（领出 0a）与 2026-10-18 09:12（领出 0b）起与它分道——该状态已冻结为 `ai-1018`——又于 2026-10-18 14:12 按庄/闲重写领出阶梯，并于 2026-10-24 新增庄4.5（主拖拉机先于通用 5 领出）。2026-10-24 的状态于同日实测（seed 48）。
+  - **现行刻度**——2026-09-16 修复后实测；庄家改为拿进底牌后按 33 张决策。锚点：`ai-0929` = 1263.8（表中取整）。`ai-1005` 是 2026-10-05 的状态、2026-10-09 实测 1271。`ai` 于 2026-10-12（领出 0a）与 2026-10-18 09:12（领出 0b）起与它分道——该状态已冻结为 `ai-1018`——又于 2026-10-18 14:12 按庄/闲重写领出阶梯，于 2026-10-24 新增庄4.5（主拖拉机先于通用 5 领出，同日 seed 48 实测 1292），再于 2026-10-24 20:33 改为无主非分等级吊主延后到通用 9。当前行待重测。
 
     | 策略 | Elo |
     |---|---|
-    | `ai`（当前） | 1292 |
+    | `ai`（当前） | 待重测 |
     | `ai-1018` | 1279 |
     | `ai-1005` | 1271 |
     | `ai-1002` | 1267 |

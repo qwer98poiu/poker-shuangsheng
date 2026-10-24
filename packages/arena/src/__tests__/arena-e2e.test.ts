@@ -89,9 +89,10 @@ describe('arena e2e', () => {
     //  0b 放宽到一对、第三家跟队友 0b 时只看第二/四家且不盖队友后为 208；
     //  领出阶梯按队分叉（庄 1/1.5/2/3/4、闲 1/2/3、通用 5–12 重写；
     //  闲3 不出孤立断门小单张、通用 6/9 按无主/有主分流、庄1 取含顶张的最大可甩集合）后为 188；
-    //  庄4.5 主拖拉机先于通用 5 领出后为 187）
-    expect(statsA.matches.oppLevel).toEqual({ n: 187, d: 20 });
-    expect(statsB.matches.oppLevel).toEqual({ n: 187, d: 20 });
+    //  庄4.5 主拖拉机先于通用 5 领出后为 187；
+    //  无主非分等级（非 5/10/K）吊主延后到通用 9 后为 205）
+    expect(statsA.matches.oppLevel).toEqual({ n: 205, d: 20 });
+    expect(statsB.matches.oppLevel).toEqual({ n: 205, d: 20 });
     expect(statsA.handsPlayed).toBe(statsB.handsPlayed);
     expect(statsA.abortedHands).toBe(0);
     const sig = checkSignificance(statsA.matches.won, statsB.matches.won, statsA.matches.drawn, statsA.matches.played);

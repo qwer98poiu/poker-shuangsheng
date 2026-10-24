@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-10-24 20:33
+
+### 无主吊主按等级分牌属性分流：非分等级延后到通用 9
+
+**问题**：通用 6 把无主吊主（单张/对子/拖拉机）放在通用 5/7/8 之前。把吊主整体移到通用 9 的单行消融（13 级 × 10000 副）显示，分界线完全按等级牌是否分牌：十个非分等级（2/3/4/6/7/8/9/J/Q/A）延后后每副 +1.05～+1.97 分（均判 A），三个分牌等级 5/10/K 则为 −3.26/−5.20/−7.01（均判 B）。不区分的整体改法因此净负（−0.039 分/副）。
+
+**修复**：`tryGenericLadder` 增加等级条件——无主且等级不是 5/10/K 时，通用 6 整档跳过，吊主并入通用 9（排在通用 8 之后）；等级为 5/10/K 时保持原顺序。有主路径逐字节不变。条件化 A/B（seed 47/46，默认 6 级 × 10000 副）：无主得分差 **+0.804 / +0.727** 分/副（两个 seed 均判 A），总体 **+0.243 / +0.225**（均判 A）；有主三行与 5/10/K 三个等级逐字节为 0。无主净升级 884 vs 662 / 873 vs 671（判 A），总体净升级方向一致但尚未到 99% 显著。
+
+**新增 2 项测试、修改 3 项测试**（generic-lead.test.ts：新增 2 项；arena-e2e.test.ts：`oppLevel` 187 → 205，A/B 两处；bottom-exchange-input.test.ts：A 当庄 6 → 7；gameStore.test.ts：`attackerPoints` 115 → 105、`tricksPlayed` 16 → 15），引擎 1242 项 + arena 179 项 + CLI 87 项 + client 201 项 = 1709 项通过。
+
+- **影响文件**：`packages/engine/src/ai/generic-lead.ts`、`packages/engine/src/ai/nt-trump.ts`、`packages/engine/src/ai/STRATEGY.md`、`packages/engine/src/__tests__/generic-lead.test.ts`、`packages/arena/src/__tests__/arena-e2e.test.ts`、`packages/arena/src/__tests__/bottom-exchange-input.test.ts`、`packages/client/src/__tests__/gameStore.test.ts`、`README.md`
+
 ## 2026-10-24 11:40
 
 ### 新增庄4.5：庄家主拖拉机先于通用 5 领出

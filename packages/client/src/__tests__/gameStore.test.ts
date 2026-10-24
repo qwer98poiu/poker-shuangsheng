@@ -45,8 +45,9 @@ describe('gameStore — seeded 4-AI match', () => {
     expect(useGameStore.getState().roundNumber).toBe(0);
     // seed=42 已知结果（与 ui-smoke 一致）；扣底策略重构后 145 → 135；
     // AI 庄家扣底改为 33 张口径（拿进底牌后再扣）后 135 → 140；
-    // 闲1/闲2/闲3 接入后 140 → 110；通用 5–12 接入后 110 → 115
-    expect(gs.attackerPoints).toBe(115);
+    // 闲1/闲2/闲3 接入后 140 → 110；通用 5–12 接入后 110 → 115；
+    // 无主非分等级吊主延后到通用 9 后 115 → 105
+    expect(gs.attackerPoints).toBe(105);
     expect(gs.players.every(p => p.hand.length === 0)).toBe(true);
 
     const declarer = gs.trumpDeclaration!.declarerIndex;
@@ -56,7 +57,8 @@ describe('gameStore — seeded 4-AI match', () => {
       .reduce((s, t) => s + t.points, 0);
     expect(gs.attackerPoints).toBe(expected);
     expect(gs.trickHistory).toHaveLength(gs.tricksPlayed);
-    expect(gs.tricksPlayed).toBe(16); // 甩牌局提前耗尽（引擎 round-end-early 修复）
+    // 甩牌局提前耗尽（引擎 round-end-early 修复）；无主吊主延后后 16 → 15
+    expect(gs.tricksPlayed).toBe(15);
   });
 });
 
