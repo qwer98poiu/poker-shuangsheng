@@ -10,32 +10,11 @@ import type { Strategy } from '../types.js';
  * 这里锁的是「调用点喂了几张」这一层接线——引擎测试只验证函数在 33 张上的行为，
  * 而 4 个调用点曾长期只喂发到的 25 张（等价于先扣后拿），且没有任何测试断言过
  * 这条接线，所以 bug 藏了很久。
+ *
+ * 调用次数是策略指纹（随策略变化），断言在 strategy-fingerprint.test.ts；
+ * 本文件只锁与策略无关的输入口径。
  */
 describe('bottom exchange input (33 cards)', () => {
-  it('AI 庄家扣底时拿到的是并入底牌后的 33 张', () => {
-    const sizes: number[] = [];
-    const spy: Strategy = {
-      ...engineStrategy,
-      chooseBottom: (hand, config) => {
-        sizes.push(hand.length);
-        // 张数不对时不去调引擎（入口会抛错），返回空扣底让 arena 走回退，
-        // 断言失败信息停在这里的张数上。
-        return hand.length === 33
-          ? engineStrategy.chooseBottom(hand, config)
-          : { keep: hand, discard: [], reason: 'spy' };
-      },
-    };
-
-    // 多跑几对，保证 A 队确实当过庄：3 对 × 每对最多 4 局，
-    // 其中 A 当庄 7 次（庄家赢则连庄，故不等于半数；次数随策略变化）。
-    for (const pair of [0, 1, 2]) {
-      playMatch({ seed: 42, pairIndex: pair, maxHands: 4, strategies: [spy, engineStrategy] });
-    }
-
-    expect(sizes.length).toBe(7);
-    expect([...new Set(sizes)]).toEqual([33]);
-  });
-
   it('决策输入 = 自己发到的 25 张 + 8 张底牌（内容逐张相符）', () => {
     const seen: Array<{ seat: number; ids: string[] }> = [];
     const spy: Strategy = {

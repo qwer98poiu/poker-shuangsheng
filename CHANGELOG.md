@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-10-24 22:52
+
+### 策略指纹集中到 arena
+
+**问题**：三条种子断言——镜像对决 `oppLevel`、AI 庄家扣底调用次数、client 种子局原始分/墩数——都由当前 `ai/` 的行为决定，策略每迭代一次就跟着变，却散落在 `arena-e2e`、`bottom-exchange-input`、client `gameStore` 三个文件里：改策略要在三个地方同步改，client 测试还重复锁定了 arena 已经覆盖的行为。10-18 的领出阶梯重写正是这样漏声明的（提交信息只写了 engine 的新增/删除）。
+
+**修复**：
+
+- 新增 `packages/arena/src/__tests__/strategy-fingerprint.test.ts`，集中三项指纹：镜像对决（seed 42，20 对）、AI 庄家扣底调用（seed 42，pair 0–2，7 次且恒为 33 张）、client 种子局（首局 105 分 / 15 墩）。client 首局用 `seededShuffle(createFullDeck(), 42)` 发牌，这里用同一副牌经 arena 的 `playHand` 重放，实测与 client store 完全一致（原始分 = `finalPts − kouDiAdd`），因此不需要 client 依赖。
+- 三项指纹各带一条注释链：**一个提交一行**，格式为「日期 修改简述后为 值」；日期取该提交 Changelog 条目的日期，值取该提交树里的断言终态，内部迭代值不写。同时改变两项数值的提交（10-18、10-24 两条）合并为一行。
+- `arena-e2e.test.ts` 与 `bottom-exchange-input.test.ts` 只保留与策略无关的契约；client `gameStore.test.ts` 只保留 store 不变量（得分与历史自洽、手牌耗尽）。
+- `CLAUDE.md` 记录该落点：改策略时更新指纹文件，测试数行写「修改 3 项测试（arena 3）」。
+- 顺带修正 10-18 条目的扣底调用次数：`8 → 11 → 10 → 8` 应为 `8 → 11 → 10 → 6`（该提交实际断言 `sizes.length === 6`）。
+
+**新增 1 项测试（arena 1）、修改 1 项测试（client 1）**，引擎 1242 项 + arena 180 项 + CLI 87 项 + client 201 项 = 1710 项通过。
+
+- **影响文件**：`CLAUDE.md`、`packages/arena/src/__tests__/arena-e2e.test.ts`、`packages/arena/src/__tests__/bottom-exchange-input.test.ts`、`packages/arena/src/__tests__/strategy-fingerprint.test.ts`、`packages/client/src/__tests__/gameStore.test.ts`
+
 ## 2026-10-24 20:33
 
 ### 无主吊主按等级分牌属性分流：非分等级延后到通用 9
@@ -105,7 +123,7 @@
 - **通用 7 的两条门禁**：庄家侧两条同时生效会把有主局当庄胜率压掉约 3.5 个点（seed 46：有主当庄 47.38%，改版前 50.86%；2100 场放开后回到 50.75%）。闲家侧同 seed 10000 场直接 A/B（去掉 vs 保留）去掉更好：p̂=0.5160，99% CI 下界 0.5031。故两队统一去掉，规则见上。最终 seed 46、2000 场对 ai-1002：整场 51.20%（99% CI 下界 0.4832，未达显著）。
 - **文档**：`STRATEGY.md` 领出章节按队伍分档重写；README 中当前 `ai` 与 `ai-1005` 的分歧说明同步。
 
-竞技场种子局指纹 208 → 188；client 种子局闲家分 140 → 115、墩数 17 → 16；扣底调用次数 8 → 11 → 10 → 8（净不变，测试注释同步）。
+竞技场种子局指纹 208 → 188；client 种子局闲家分 140 → 115、墩数 17 → 16；扣底调用次数 8 → 11 → 10 → 6。
 
 **测量**：seed 47 镜像对决，对 ai-1018——闲3 + 通用6 两处 n=29000，A 50.76% vs 49.24%（99% CI 下界 50.01%）；三处合并 n=11000，A 51.25% vs 48.75%（下界 50.02%），均显著。残余为有主局 −0.77pp。
 

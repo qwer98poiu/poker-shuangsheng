@@ -3,7 +3,6 @@ import { engineStrategy } from '../strategies.js';
 import { runPair, runPairs } from '../run-pairs.js';
 import { playMatch } from '../match.js';
 import { createStats, addHandStats, addMatchOutcome, mergeStats, toJSON, fromJSON } from '../stats.js';
-import { checkSignificance } from '../significance.js';
 import { upgradeLinesForMatch } from '../upgrade-log.js';
 
 describe('arena e2e', () => {
@@ -51,53 +50,6 @@ describe('arena e2e', () => {
     const s = createStats();
     addMatchOutcome(s, m.winnerTeam, 0, m.finalLevels);
     expect(s.matches).toEqual({ played: 1, won: 0, drawn: 1, oppLevel: { n: 0, d: 0 } });
-  });
-
-  it('A==A 冒烟（seed 42, 20 对决）：精确 20/20、不显著、pHat=0.5', () => {
-    const { statsA, statsB } = runPairs(42, 0, 20, engineStrategy, engineStrategy);
-    expect(statsA.matches.played).toBe(40);
-    expect(statsA.matches.won).toBe(20);
-    expect(statsA.matches.drawn).toBe(0);
-    expect(statsB.matches.played).toBe(40);
-    expect(statsB.matches.won).toBe(20);
-    expect(statsB.matches.drawn).toBe(0);
-    // 镜像对称：双方各胜 20 场，胜时对方平均等级 207/20 = 10.35（A=14）
-    //（2026-08-23 finalizeReveal 同步实际庄家后：第 1 局亮主者≠随机默认庄家时
-    //  AI 庄家身份真正生效，庄家限制策略改变对局走向；
-    //  此前第四家吊主选牌修复后为 210，自保规则后为 229，禁止自反为 213；
-    //  第三家垫牌避分修复（非分单<分单<非分对<分对<A/级牌/王）后为 223；
-    //  扣底策略重构（tier 控制张 + 留控扣绝 + 填充梯）后为 205；
-    //  跳桶进分单的奇数槽受加分限额约束（超限拆 0 分对）后为 209；
-    //  桶2 对排序（非tier2 先于 tier2、总对数少优先）后为 214；
-    //  填充梯新增非分对拆对桶（有主桶6/NT 桶4，保留对子优先于拆对）后为 236；
-    //  桶1 留保护牌（脆弱花色留一张非分单，不再抽成只剩分牌）后为 234；
-    //  AI 庄家扣底改为 33 张口径（拿进底牌后再扣）后为 203；
-    //  毙单张改按档位选牌（共用 pickTrumpByTier，保对/保拖拉机）后为 207；
-    //  第四家不抢无分墩（对手大 + 本墩无分 + 抢来无牌可领时改垫牌）后为 214；
-    //  同规则推广到 NT（NT 下常主一律不得垫 → 只垫副牌）后为 211；
-    //  出副对清对（优先级 0：上一墩验对手该花色对子已绝则甩出该门剩下的对，
-    //  第三家跟清对按加分垫牌且不得盖过队友）后为 226；
-    //  NT 记牌器对子扣减改按"领出是否含对"判定（单张主领出不再把三家主张数
-    //  压平、不再抹掉对手的主对）后为 217；
-    //  无主两项新规（上一墩整门已绝则甩光该门副牌、第三家跟队友甩牌时第四家
-    //  可能毙且本墩无分则不毙改垫牌）后为 220；
-    //  "整门已绝"判据放宽——跟不满领出张数也算已缺门（原先只认"一张没出"）后为 219；
-    //  无主长花色层（断门先出、长花色 T1 整段甩出并过拖拉机闸门、对子已绝的通用甩对
-    //  规则不适用于该门）与第三家对队友无顶张副牌甩牌的加分改按形状 × 已出主牌判
-    //  （记牌器判「能毙」时也一般加分，只有 0对2/3张 且台面上主牌 ≤4 张 例外）；
-    //  领出优先级 0a 放宽（张数门槛 3→2、不再查对手能否用主牌毙）后为 221；
-    //  0b 放宽到一对、第三家跟队友 0b 时只看第二/四家且不盖队友后为 208；
-    //  领出阶梯按队分叉（庄 1/1.5/2/3/4、闲 1/2/3、通用 5–12 重写；
-    //  闲3 不出孤立断门小单张、通用 6/9 按无主/有主分流、庄1 取含顶张的最大可甩集合）后为 188；
-    //  庄4.5 主拖拉机先于通用 5 领出后为 187；
-    //  无主非分等级（非 5/10/K）吊主延后到通用 9 后为 205）
-    expect(statsA.matches.oppLevel).toEqual({ n: 205, d: 20 });
-    expect(statsB.matches.oppLevel).toEqual({ n: 205, d: 20 });
-    expect(statsA.handsPlayed).toBe(statsB.handsPlayed);
-    expect(statsA.abortedHands).toBe(0);
-    const sig = checkSignificance(statsA.matches.won, statsB.matches.won, statsA.matches.drawn, statsA.matches.played);
-    expect(sig.significant).toBe(false);
-    expect(sig.pHat).toBe(0.5);
   });
 
   it('toJSON → fromJSON 往返保持统计不变', () => {

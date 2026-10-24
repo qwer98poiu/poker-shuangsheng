@@ -89,6 +89,7 @@ Changelog 的测试数行与提交信息不同：列出子包分项与总数（`
 - **修改 Changelog 必须在代码提交之前**。每次提交前先写 Changelog，再 `git add` 一起提交。Changelog 时间与提交时间允许相差几分钟，无需强制对齐。
 - **Changelog 只在更新代码时写**（fix/feat/strategy/refactor/test 等）；纯文档提交（`docs:` 和 `skill:`）一律不写 Changelog。
 - **测试断言优先用精确值**（`toBe(n)`），避免使用 `toBeGreaterThan`、`toBeGreaterThanOrEqual` 等模糊匹配，除非值本身因外部因素不确定。
+- **策略指纹集中在一个文件**：`packages/arena/src/__tests__/strategy-fingerprint.test.ts` 里的三项数值（镜像对决 `oppLevel`、AI 庄家扣底调用次数、client 种子局原始分/墩数）随 `ai/` 每次改动而变。改策略时同步更新它，测试数行写「修改 3 项测试（arena 3）」；不要把这类数字散落在 client/arena 的其他测试里（那些测试只保留与策略无关的契约与不变量）。
 - **基础模块的测试必须逐项穷举**。对于记牌器这类高阶策略依赖的基础模块，测试覆盖所有视角 × 所有目标玩家 × 所有可能的牌（suit-rank）× 精确张数断言，不允许只验证部分卡牌（记牌器那一套即按此穷举，见 `packages/engine/src/__tests__/ai-nt-tracking.test.ts`）。另外，**测试场景里的庄家（`declarerIndex`）与亮主者（reveal 的 `playerIndex`）必须与真实游戏一致**——庄家身份决定底牌是否进入可能列表，设错会测到另一条分支而测试照样绿，这类错误不会自己暴露。
 - **每次提交前必须跑类型检查并清理全部错误**：根目录 `npm run typecheck`，须零错误后才提交（范围与 `scripts/` 的坑见「类型检查」节）。vitest 经 esbuild 转译不做类型检查，类型错误不会导致测试失败，因此必须显式检查。
 - **删除符号链接路径下的内容前先确认目标**：`git worktree` 无 node_modules，复用主仓库依赖时通常把 worktree 的 `node_modules` 符号链接到主仓库——此时 `rm worktree/node_modules/@poker/engine` 会顺着链接删掉**主仓库**里的真身（2026-08-15 实测：误删 `@poker/engine` 导致 vite 无法解析）。删除/重建前用 `ls -la`/`readlink` 确认是否为链接及指向；worktree 清理（`git worktree remove`）前先把指向 worktree 内部路径的链接改回相对链接（`../../packages/engine`），否则悬空。
