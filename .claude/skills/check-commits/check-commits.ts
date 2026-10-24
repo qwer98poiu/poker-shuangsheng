@@ -1181,6 +1181,11 @@ interface TestDelta {
   netDelta: number;
   /** 期望的逐包增量；null = 无法唯一反推，只能校验总数 */
   perPkg: Partial<Record<Pkg, number>> | null;
+  /**
+   * 「修改/重写」子句括号里出现的子包（T8 用来核对被修改的测试是否已声明）；
+   * 空集 = 没有任何修改/重写声明；null = 有这类子句但括号无法归属到子包。
+   */
+  modifiedPkgs: Set<Pkg> | null;
 }
 
 const VERBS = ['新增', '修改', '删除', '重写', '移除'];
@@ -1226,16 +1231,22 @@ function parseTestDelta(text: string): TestDelta | null {
     count: number;
     pos: number;
     per: Partial<Record<Pkg, number>> | null;
+    /** 该子句括号里出现过的子包（只用于 T8 的覆盖核对，不参与项数归属） */
+    pkgs: Set<Pkg> | null;
     claimed: boolean;
   }
   const clauses: Clause[] = [];
   const clauseRe = new RegExp(`(${VERBS.join('|')})\\s*(\\d+)\\s*项`, 'g');
   for (const m of masked.matchAll(clauseRe)) {
-    clauses.push({ verb: m[1], count: Number(m[2]), pos: m.index ?? 0, per: null, claimed: false });
+    clauses.push({
+      verb: m[1], count: Number(m[2]), pos: m.index ?? 0, per: null, pkgs: null, claimed: false,
+    });
   }
 
   if (clauses.length === 0) {
-    return /无新增测试/.test(text) ? { verbs: {}, netDelta: 0, perPkg: {} } : null;
+    return /无新增测试/.test(text)
+      ? { verbs: {}, netDelta: 0, perPkg: {}, modifiedPkgs: new Set() }
+      : null;
   }
 
   // 每个分解括号归给紧邻在它前面的、尚未被认领的子句；该项数对不上括号合计时，
@@ -1255,10 +1266,14 @@ function parseTestDelta(text: string): TestDelta | null {
     target.claimed = true;
     if (g.bare) {
       target.per = { [g.bare]: target.count };
-    } else if (g.sum === target.count) {
-      target.per = g.per;
+      target.pkgs = new Set([g.bare]);
     } else {
-      ambiguous.add(target);
+      target.pkgs = new Set(Object.keys(g.per) as Pkg[]);
+      if (g.sum === target.count) {
+        target.per = g.per;
+      } else {
+        ambiguous.add(target);
+      }
     }
   }
 
@@ -1282,7 +1297,148 @@ function parseTestDelta(text: string): TestDelta | null {
     }
   }
 
-  return { verbs, netDelta, perPkg };
+  // T8 的覆盖核对：修改/重写子句里出现过哪些子包（不要求括号能对上项数——
+  // 「新增 34 项、重写 9 项、修改 2 项测试（engine 43 + …）」这种横跨写法也认得）
+  let modifiedPkgs: Set<Pkg> | null = new Set<Pkg>();
+  for (const cl of clauses) {
+    if (cl.verb !== '修改' && cl.verb !== '重写') continue;
+    if (cl.pkgs === null) {
+      modifiedPkgs = null;
+      break;
+    }
+    for (const p of cl.pkgs) modifiedPkgs.add(p);
+  }
+
+  return { verbs, netDelta, perPkg, modifiedPkgs };
+}
+
+// ────────────────────────────────────────────────────────────
+// T8：被修改的测试必须被声明
+// ────────────────────────────────────────────────────────────
+
+const TEST_FILE_RE = /^packages\/(engine|arena|cli|client)\/(?:.+\/)?[^/]+\.(?:test|spec)\.tsx?$/;
+const TEST_DECL_RE = /^\s*(?:it|test)(?:\.(?:each|skip|only|todo|concurrent|fails))?\s*\(/;
+const EXPECT_CALL_RE = /(^|[^.\w])expect\s*\(/;
+
+interface TestEdits {
+  addedTests: number;
+  removedTests: number;
+  addedExpects: number;
+  removedExpects: number;
+}
+
+/** 单个测试文件在本提交里的增删行统计（只用来区分「改既有断言」与「增删用例」）。 */
+function testEditsOf(sha: string, file: string): TestEdits {
+  const diff = git(['show', '--format=', '--unified=0', sha, '--', file]);
+  const out: TestEdits = { addedTests: 0, removedTests: 0, addedExpects: 0, removedExpects: 0 };
+  for (const line of diff.split('\n')) {
+    if (line.startsWith('---') || line.startsWith('+++')) continue;
+    if (line.startsWith('-')) {
+      const body = line.slice(1);
+      if (TEST_DECL_RE.test(body)) out.removedTests += 1;
+      else if (EXPECT_CALL_RE.test(body)) out.removedExpects += 1;
+    } else if (line.startsWith('+')) {
+      const body = line.slice(1);
+      if (TEST_DECL_RE.test(body)) out.addedTests += 1;
+      else if (EXPECT_CALL_RE.test(body)) out.addedExpects += 1;
+    }
+  }
+  return out;
+}
+
+/**
+ * 本提交「修改既有用例」的子包 → 文件列表。
+ *
+ * 判据：文件里没有增删 `it(`/`test(` 声明，却增删了 `expect(` 行——即既有用例的断言
+ * 被改（典型：策略指纹跟着策略走）。整块搬移/新增用例会同时有声明增删，归 T3 的计数
+ * 口径；只加断言（`+` 行、无用例声明变化）也算修改。
+ */
+function modifiedTestPkgs(c: CommitInfo): Map<Pkg, string[]> {
+  const out = new Map<Pkg, string[]>();
+  for (const ch of c.changes) {
+    if (ch.status !== 'M') continue;
+    const m = ch.file.match(TEST_FILE_RE);
+    if (!m) continue;
+    const e = testEditsOf(c.sha, ch.file);
+    const modified = e.removedTests === 0
+      && (e.removedExpects > 0 || (e.addedTests === 0 && e.addedExpects > 0));
+    if (!modified) continue;
+    const pkg = m[1] as Pkg;
+    out.set(pkg, [...(out.get(pkg) ?? []), ch.file]);
+  }
+  return out;
+}
+
+/**
+ * T8 的生效基线：该提交自己的树里已经含有 T8 规则。
+ *
+ * 规则只对「T8 已存在之后」的提交生效，不追溯旧账——与 S11 只扫新增行、T7 只判增量
+ * 同一个取向。判据是**自描述**的（检查该提交树里检查器是否有 `checkT8ModifiedTests`），
+ * 不写固定哈希：哈希会随历史改写失效，而且 T8 引入提交本身就是纯文档提交，不需要
+ * 被它自己检查。
+ */
+function hasT8Rule(sha: string): boolean {
+  const src = readFileAt(sha, '.claude/skills/check-commits/check-commits.ts');
+  return src !== null && src.includes('function checkT8ModifiedTests');
+}
+
+/**
+ * T8：被修改的测试必须被声明。
+ *
+ * 提交规范要求测试数行写「新增/修改/删除」——但 T3 只核对新增/删除的净增量（修改是
+ * 计数中性的），于是「只改了既有断言的测试」可以完全不提。实测：10-18 的领出阶梯
+ * 重写同时改了 arena/client 的三个种子断言，提交信息只写「新增 91 项（engine）、
+ * 删除 5 项（engine）」，check-commits 全绿。
+ *
+ * 项数无法从 diff 反推（一处断言改动算一项还是多「项」，规范没有定义），所以本项只
+ * 核对**子包覆盖**：提交信息与 Changelog 的测试数行里必须有一条「修改/重写」子句，
+ * 其括号覆盖到所有被修改的测试所属的子包。N 由作者按实际条目数填写。
+ *
+ * 生效范围见 hasT8Rule：T8 之前的提交不检查。
+ */
+function checkT8ModifiedTests(c: CommitInfo): void {
+  if (c.isDoc || !hasT8Rule(c.sha)) return;
+  const modified = modifiedTestPkgs(c);
+  if (modified.size === 0) return;
+  const pkgs = [...modified.keys()];
+  const detail = pkgs.map((p) => `${p}: ${modified.get(p)!.join('、')}`).join('\n');
+
+  const reportMissing = (source: string, delta: TestDelta | null): void => {
+    if (delta === null) {
+      report('T8', MODE.ERROR, c.short, `修改了测试但${source}没有可解析的测试数行`, detail);
+      return;
+    }
+    if (delta.modifiedPkgs === null) {
+      report(
+        'T8',
+        MODE.INFO,
+        c.short,
+        `${source}的「修改/重写」声明没有逐包归属，无法核对被修改的测试是否已声明`,
+        detail,
+      );
+      return;
+    }
+    const missing = pkgs.filter((p) => !delta.modifiedPkgs!.has(p));
+    if (missing.length > 0) {
+      report(
+        'T8',
+        MODE.ERROR,
+        c.short,
+        `${source}缺少覆盖被修改测试的「修改/重写 N 项测试」声明`,
+        `未声明：${missing.join('、')}\n${detail}`,
+      );
+    }
+  };
+
+  reportMissing('提交信息', parseTestDelta(c.body));
+
+  if (c.addedSections.length === 0) return;
+  const clAt = readFileAt(c.sha, 'CHANGELOG.md');
+  if (clAt === null) return;
+  const own = parseChangelogSections(clAt)
+    .filter((s) => c.addedSections.some((a) => a.time === s.time));
+  if (own.length === 0) return;
+  reportMissing('Changelog', parseTestDelta(own.map((s) => s.text).join('\n')));
 }
 
 /** Changelog 里的测试数行：`引擎 X 项 + arena X 项 + CLI X 项 + client X 项 = X 项通过` */
@@ -1557,6 +1713,7 @@ async function main(): Promise<number> {
     checkS14(c);
     checkS15(c);
     checkS6(c, readFileAt(c.sha, 'CHANGELOG.md'));
+    checkT8ModifiedTests(c);
   }
   checkS9(commits);
   const tip = commits[commits.length - 1];
