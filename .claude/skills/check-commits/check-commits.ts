@@ -50,11 +50,14 @@ function codeFilesOf(files: string[]): string[] {
     && (f.startsWith('packages/') || f === 'package.json' || /^tsconfig.*\.json$/.test(f)));
 }
 
-/** 冻结快照目录（extract-ai-baseline 产物），创建后只读 */
-const SNAPSHOT_DIR_RE = /^packages\/engine\/src\/(ai-\d+)\//;
-const SNAPSHOT_SCAN_PATH = 'packages/engine/src/';
+/**
+ * 冻结快照目录（extract-ai-baseline 产物），创建后只读。
+ * 过渡期存量在 engine，新基线在 ai-baselines；两条路径都要保护。
+ */
+const SNAPSHOT_ROOTS = ['packages/engine/src/', 'packages/ai-baselines/src/'] as const;
+const SNAPSHOT_DIR_RE = /^(packages\/(?:engine|ai-baselines)\/src\/(ai-\d+))\//;
 
-/** 快照允许的两类例外（extract-ai-baseline/SKILL.md:58-59） */
+/** 快照允许的两类例外（见 extract-ai-baseline/SKILL.md 的「注意事项」） */
 const SNAPSHOT_EXCEPTION_NOTE =
   '快照只允许「死代码清理（行为不变）」与「注释」两类改动，其余任何修改都会污染基线对比';
 
@@ -85,7 +88,7 @@ const PROVENANCE_FIELD_RE = /"[A-Za-z_]*(?:commit|revision)[A-Za-z_]*"\s*:\s*"[0
 /**
  * 快照出处注释——S11 的**例外之一**。
  *
- * 冻结基线（`packages/engine/src/ai-XXXX/`）的出处注释必须同时给出「出处提交的哈希」与
+ * 冻结基线（`packages/{engine,ai-baselines}/src/ai-XXXX/`）的出处注释必须同时给出「出处提交的哈希」与
  * 「日期」：目录名只到日，且快照日与提取提交往往不同日（`ai-0808` ← 133900d 是 08-08，
  * 提取提交在 08-09；`ai-0809` ← b77a7b1 是 08-14，提取在 08-15），只留日期无法唯一定位
  * 提取源。同理适用于 `ai/ as of <hash>` 形式的导出注释与 `it('ai-XXXX（<hash>, …）')`
@@ -748,8 +751,19 @@ function checkS12(c: CommitInfo): void {
 // S14：冻结快照只读
 // ────────────────────────────────────────────────────────────
 
+/** 目录内每个文件的 blob 哈希（相对路径 → object id），用于验证搬迁逐字节一致。 */
+function snapshotBlobsAt(rev: string, dir: string): Map<string, string> {
+  const raw = git(['ls-tree', '-r', rev, '--', `${dir}/`], { allowFail: true });
+  const out = new Map<string, string>();
+  for (const line of raw.split('\n')) {
+    const m = line.match(/^\d+ \w+ ([0-9a-f]+)\t(.+)$/);
+    if (m) out.set(m[2].slice(dir.length + 1), m[1]);
+  }
+  return out;
+}
+
 function snapshotDirsAt(rev: string): Set<string> {
-  const raw = git(['ls-tree', '-r', '--name-only', rev, '--', SNAPSHOT_SCAN_PATH], { allowFail: true });
+  const raw = git(['ls-tree', '-r', '--name-only', rev, '--', ...SNAPSHOT_ROOTS], { allowFail: true });
   const out = new Set<string>();
   for (const f of raw.split('\n')) {
     const m = f.match(SNAPSHOT_DIR_RE);
@@ -762,13 +776,32 @@ function checkS14(c: CommitInfo): void {
   if (c.parent === null) return; // 根提交没有父可比
   const before = snapshotDirsAt(c.parent);
   const after = snapshotDirsAt(c.sha);
+  const basenameOf = (dir: string) => dir.slice(dir.lastIndexOf('/') + 1);
 
   for (const dir of before) {
-    const prefix = `packages/engine/src/${dir}/`;
+    const prefix = `${dir}/`;
     const touched = c.changes.filter((ch) => ch.file.startsWith(prefix));
     if (touched.length === 0) continue;
 
     if (!after.has(dir)) {
+      const movedTo = [...after].find((d) => d !== dir && basenameOf(d) === basenameOf(dir));
+      if (movedTo) {
+        // 跨根搬迁：要求内容逐字节一致，否则等同改写冻结快照
+        const oldBlobs = snapshotBlobsAt(c.parent, dir);
+        const newBlobs = snapshotBlobsAt(c.sha, movedTo);
+        const changed = [...oldBlobs].filter(([rel, blob]) => newBlobs.get(rel) !== blob);
+        const added = [...newBlobs.keys()].filter((rel) => !oldBlobs.has(rel));
+        if (changed.length === 0 && added.length === 0) {
+          report('S14', MODE.INFO, c.short, `快照 \`${dir}\` 迁到 \`${movedTo}\`（${touched.length} 个文件，内容逐字节一致）`);
+        } else {
+          const detail = [
+            ...changed.map(([rel]) => `内容改变 ${rel}`),
+            ...added.map((rel) => `新增 ${rel}`),
+          ].join('、');
+          report('S14', MODE.ERROR, c.short, `快照 \`${dir}\` 搬迁时内容被改动`, detail);
+        }
+        continue;
+      }
       // 整体删除：归档是合规操作
       report('S14', MODE.INFO, c.short, `归档移除快照 \`${dir}\`（${touched.length} 个文件，合规）`);
       continue;
@@ -786,10 +819,11 @@ function checkS14(c: CommitInfo): void {
   }
 
   for (const dir of after) {
-    if (!before.has(dir)) {
-      const n = c.changes.filter((ch) => ch.file.startsWith(`packages/engine/src/${dir}/`)).length;
-      report('S14', MODE.INFO, c.short, `新增快照 \`${dir}\`（${n} 个文件，提取基线）`);
-    }
+    if (before.has(dir)) continue;
+    const movedFrom = [...before].find((d) => d !== dir && basenameOf(d) === basenameOf(dir));
+    if (movedFrom) continue; // 搬迁已在上面报告
+    const n = c.changes.filter((ch) => ch.file.startsWith(`${dir}/`)).length;
+    report('S14', MODE.INFO, c.short, `新增快照 \`${dir}\`（${n} 个文件，提取基线）`);
   }
 }
 
@@ -1047,7 +1081,7 @@ function tail(s: string, n = 2500): string {
  * 跑一遍 `tsc --noEmit --noUnusedLocals`（各包 src + scripts + skills），收齐未使用声明，
  * 返回 `file:symbol` 的排序去重列表。T7 拿它与上一个非纯文档提交比对。
  *
- * **冻结快照 `packages/engine/src/ai-XXXX/` 排除在外**：它们是 `git archive` 产物，自带
+ * **冻结快照 `packages/{engine,ai-baselines}/src/ai-XXXX/` 排除在外**：它们是 `git archive` 产物，自带
  * 历史、本就含大量未使用声明，且 S14 规定只读——不排除的话每个提交都会刷屏。
  */
 async function measureUnused(wt: string): Promise<string[]> {
