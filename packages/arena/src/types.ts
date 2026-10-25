@@ -57,7 +57,7 @@ export interface HandEvent {
   leadsByTeam0: number;
   leadCardsByTeam0: number; // sum of lead plays' card counts when a team-0 seat led
   leadCardsTotal: number;   // sum of all lead plays' card counts (both teams)
-  errors: number;           // 引擎验牌失败回退次数（策略合法性检测用）
+  errors: number;           // 引擎验牌失败或静默兜底次数（策略合法性检测用）
   /** 原始中止（引擎无法继续）；不再意味着排除——见 settled。 */
   aborted: boolean;
   /** 中止局已按肇事方结算；finalPts/bankerWon 是结算值。 */

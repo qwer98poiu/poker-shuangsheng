@@ -18,7 +18,7 @@ import {
   classify, bottomMultiplier, countBottomPoints, finalizeAttackerPoints,
   buildAIContext,
 } from '@poker/engine';
-import type { Card, CardSuit, GameState, PlayerState, TrumpDeclaration } from '@poker/engine';
+import type { Card, CardSuit, GameState, PlayerState, Suit, TrumpDeclaration } from '@poker/engine';
 import { Suit as SuitEnum, isPointRank } from '@poker/engine';
 import { deckForHand } from './rng.js';
 import { advanceLevel } from './advance-level.js';
@@ -52,6 +52,29 @@ export interface PlayHandOptions {
    * naturally), it just does not get to pick the declarer or the level.
    */
   forceDeclaration?: { declarerIdx: number; level: number };
+  /**
+   * Called once with the final state before playHand returns (including the
+   * state of an aborted hand). Purely a capture hook — it cannot alter the
+   * result. Used by the recording CLI to persist the full hand.
+   */
+  onComplete?: (state: GameState) => void;
+  /**
+   * Called only when a reveal attempt actually changes `currentReveal`.
+   * Failed overrides/passes/invalid options do not trigger it.
+   */
+  onReveal?: (e: {
+    dealIndex: number;
+    player: number;
+    suit: Suit | null;
+    strength: number;
+  }) => void;
+  /** Called when an invalid throw was force-downgraded to a legal play. */
+  onThrowFailure?: (e: {
+    trickIndex: number;
+    player: number;
+    attemptedCards: Card[];
+    penaltyDelta: number;
+  }) => void;
 }
 
 /**
@@ -101,6 +124,7 @@ function makePlayers(): [PlayerState, PlayerState, PlayerState, PlayerState] {
 function dealAndReveal(
   state: GameState, deck: Card[], level: number, isFirstHand: boolean,
   strategies: [Strategy, Strategy],
+  onReveal?: PlayHandOptions['onReveal'],
 ): GameState {
   const dealt: Card[][] = [[], [], [], []];
   for (let i = 0; i < 100; i++) {
@@ -115,7 +139,21 @@ function dealAndReveal(
       const rev = strategies[pj % 2].tryReveal(
         state.players[pj].hand, dealt[pj], pj, level, state.currentReveal,
       );
-      if (rev) state = tryReveal(state, pj, rev.suit);
+      if (rev) {
+        const beforeReveal = state.currentReveal;
+        const beforeCount = state.reveals.length;
+        const next = tryReveal(state, pj, rev.suit);
+        if (next.reveals.length > beforeCount && next.currentReveal !== beforeReveal) {
+          const applied = next.reveals[next.reveals.length - 1];
+          onReveal?.({
+            dealIndex: i,
+            player: applied.playerIndex,
+            suit: applied.suit,
+            strength: applied.strength,
+          });
+        }
+        state = next;
+      }
     }
   }
   state = {
@@ -153,7 +191,7 @@ export function playHand(opts: PlayHandOptions): HandEvent {
   let state = createInitialState(makePlayers(), declarerIdx, level, false);
 
   // --- deal (round-robin, reveal interleaved per card) ---
-  state = dealAndReveal(state, deck, level, isFirstHand, strategies);
+  state = dealAndReveal(state, deck, level, isFirstHand, strategies, opts.onReveal);
   if (opts.forceDeclaration) {
     const fd = opts.forceDeclaration;
     state = {
@@ -171,7 +209,13 @@ export function playHand(opts: PlayHandOptions): HandEvent {
   let errors = 0;
   const merged = [...state.players[declarer].hand, ...state.bottomCards];
   let { discard } = strategies[declarer % 2].chooseBottom(merged, t);
-  if (discard.length !== 8) {
+  const discardIds = Array.isArray(discard) ? discard.map(c => c.id) : [];
+  const discardSet = new Set(discardIds);
+  const invalidBottom = !Array.isArray(discard)
+    || discard.length !== 8
+    || discardSet.size !== 8
+    || discard.some(c => !c || !merged.some(m => m.id === c.id));
+  if (invalidBottom) {
     // 防御：策略返回了非法扣底（历史 bug：负数切片产生 >8 张），回退为
     // 均匀扣底（低分低张优先）并计入 errors，供合法性检测暴露
     errors += 1;
@@ -220,18 +264,30 @@ export function playHand(opts: PlayHandOptions): HandEvent {
     }
 
     // sanity fallbacks (mirrors cli/index.ts:603-611)
+    let fallback = false;
     if (!cards || cards.length === 0 || cards.some(c => !c)) {
+      fallback = true;
       cards = player.hand.slice(0, Math.max(1, leadLen));
     }
     if (!isLeading && cards.length !== leadLen) {
+      fallback = true;
       const used = new Set(cards.filter(Boolean).map(c => c.id));
       const extra = player.hand.filter(c => !used.has(c.id));
       cards = [...cards.filter(Boolean), ...extra].slice(0, leadLen);
-      if (cards.length < leadLen) { aborted = true; abortPlayerIdx = cp; break; }
+      if (cards.length < leadLen) { errors += fallback ? 1 : 0; aborted = true; abortPlayerIdx = cp; break; }
     }
+    if (fallback) errors += 1;
 
+    const beforePts = state.attackerPoints;
+    const trickIndex = state.trickHistory.length;
     const res = playCards(state, cp, cards);
     if (res.forcedPlay) {
+      opts.onThrowFailure?.({
+        trickIndex,
+        player: cp,
+        attemptedCards: cards.slice(),
+        penaltyDelta: res.state.attackerPoints - beforePts,
+      });
       state = res.state; // throw auto-forced with penalty
     } else if (res.error) {
       errors += 1; // 策略出了非法牌，引擎验牌回退
@@ -292,6 +348,8 @@ export function playHand(opts: PlayHandOptions): HandEvent {
     }
     leadCardsTotal += trick.plays[0].cards.length;
   }
+
+  opts.onComplete?.(state);
 
   return {
     handIndex,

@@ -214,6 +214,17 @@ Aborted hands are **settled, not voided** (this applies to the general arena too
 
 As in the general arena, missing significance raises the target using the same `requiredMatchesForSignificance` projection, and Ctrl+C writes the partial report plus a `"partial": true` JSON before exiting. The old `arena:solo` / `arena:nt` commands have been removed.
 
+#### Hand recording dataset
+
+`npm run record` writes a self-contained dataset of individual hands (发牌 → 亮主 → 扣底 → 25 tricks → settlement) for later analysis: sharded little-endian binary `.bin` + `.idx` files and an atomically written `manifest.json`. A/B are the two teams (A = P0/P2, B = P1/P3); both default to `ai`. `random` (default) covers 13 levels × 4 declarers in shuffled 52-hand blocks; `rules` plays an endless 2..A cycle with no must-play hands. Output defaults to `packages/arena/results/recordings/<runId>` (gitignored) and never overwrites an existing directory. Ctrl+C finishes the current hand, flushes, writes the shard footer, then exits.
+
+```bash
+npm run record -- --hands 1000000 --workers 8
+npx tsx packages/arena/scripts/record-inspect.ts <runDir> --hand 0
+```
+
+Format, guarantees and reader API: [`packages/arena/src/record-format.md`](packages/arena/src/record-format.md).
+
 Run tests:
 
 ```bash
@@ -466,6 +477,17 @@ npm run arena:deal -w packages/arena -- --min-deals 2500 --seed 42
 | `--seed N` / `--workers W` / `--strategy-a NAME` / `--strategy-b NAME` / `--out PATH` / `--no-json` | 同上 | `--strategy-b` 默认 `ai-1018` |
 
 与整体竞技场同口径：未显著时按当前 p̂ 推算显著所需发牌数并上调目标（同一个 `requiredMatchesForSignificance`）；Ctrl+C 写出部分报告与 `"partial": true` 的 JSON 后退出。旧的 `arena:solo` / `arena:nt` 已移除。
+
+#### 牌局录制数据集（record）
+
+`npm run record` 生成自包含的小局数据集（发牌 → 亮主 → 扣底 → 25 墩 → 结算）供后续分析：小端二进制 `.bin` + `.idx` 分片与原子写的 `manifest.json`。A/B 是两队（A = P0/P2，B = P1/P3），默认都用 `ai`。`random`（默认）以打乱的 52 手块覆盖 13 个等级 × 4 个庄位；`rules` 是无必打、2..A 循环的模式。输出默认在 `packages/arena/results/recordings/<runId>`（gitignored），已存在的目录不覆盖。Ctrl+C 会打完当前手、flush、写分片 footer 后退出。
+
+```bash
+npm run record -- --hands 1000000 --workers 8
+npx tsx packages/arena/scripts/record-inspect.ts <runDir> --hand 0
+```
+
+格式、保证与 reader API 见 [`packages/arena/src/record-format.md`](packages/arena/src/record-format.md)。
 
 测试：
 

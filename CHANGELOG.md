@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-10-25 14:49
+
+### 新增牌局录制数据集（record）：分片二进制 + 随机访问 reader
+
+**问题**：竞技场与发牌竞技场只输出聚合统计，没有逐手牌局数据。后续分析（按等级/庄位/主牌分层、逐墩复盘）需要可复现、可随机访问的原始小局数据集；现有 seed 派生（`hashMix`/`seededShuffle`）是镜像对局口径，不能当作顺序发牌流复用。
+
+**修复**：
+
+- 新增 `npm run record`：每条链一路顺序 sfc32 流（deck 与 context 分离），`random` 模式按 52 手分层块覆盖 13 等级 × 4 庄位，`rules` 模式为无必打的 2..A 循环。默认 100 万手、`min(8, cpus, hands)` 条 fork 子进程链；**不做链内去重**，每手直接消费一次 deck 流，`chainHandIndex` 与流位置一一对应。
+- 记录自包含：原始 108 张 deck、扣底后底牌、**生效**亮主序列（含 `dealIndex`）、非法甩牌原始意图与罚分（`failedThrows`）、逐墩出牌/赢家/分、结算字段与 context/推进信息；四家手牌由 deck + declarer + bottom 反推。
+- 亮主只记录改变 `currentReveal` 的生效项；合法但未生效的反主、主动 pass、非法选项都不记录。解析器在有合法选项而无生效条目时按 pass 处理；失败反主并入 pass，不区分。
+- 自定义小端格式 v1：`.bin`（长度前缀 + footer）与 `.idx`（32 字节 entry，含 block/cell/level/declarer/trump）分片，`manifest.json` 临时文件 + rename 原子写；`RecordDataset` 支持按全局/链内 handIndex 随机访问，`.idx` 缺失或截断时扫描 `.bin` 长度前缀重建。旧 v1 布局已作废，不保留旧录像。
+- 每 `flushHands` 手 flush、每 `shardHands` 手换分片；SIGINT/SIGTERM 只置停止标志，打完当前手、写 footer、关闭后再退出。`aborted`/`errors > 0`/策略异常立即停止全部链；空牌、跟牌长度兜底、非法扣底计入 `errors`；出错手不写数据集，另存 `errors/chain-XX-hand-YYYYYY.json`。
+- `playHand` 增加 `onComplete` / `onReveal` / `onThrowFailure` 三个纯捕获回调，不改出牌逻辑、不改竞技场结果；不改策略、竞技场 `rng.ts` 与 Elo（Elo 表不动，策略指纹不变）。新增 `scripts/record-inspect.ts`、`src/record-format.md` 与中英 README 入口。
+
+**新增 53 项测试**（record-hooks.test.ts：6 项；record-rng.test.ts：10 项；record-codec.test.ts：13 项；record-run.test.ts：14 项；record-writer.test.ts：6 项；record-e2e.test.ts：4 项），引擎 1242 项 + arena 234 项 + CLI 87 项 + client 201 项 = 1764 项通过。
+
+- **影响文件**：`package.json`、`packages/arena/package.json`、`packages/arena/src/match.ts`、`packages/arena/src/types.ts`、`packages/arena/src/record.ts`、`packages/arena/src/record-worker.ts`、`packages/arena/src/record-run.ts`、`packages/arena/src/record-rng.ts`、`packages/arena/src/record-types.ts`、`packages/arena/src/record-codec.ts`、`packages/arena/src/record-writer.ts`、`packages/arena/src/record-format.md`、`packages/arena/src/__tests__/record-fixtures.ts`、`packages/arena/src/__tests__/record-hooks.test.ts`、`packages/arena/src/__tests__/record-rng.test.ts`、`packages/arena/src/__tests__/record-codec.test.ts`、`packages/arena/src/__tests__/record-run.test.ts`、`packages/arena/src/__tests__/record-writer.test.ts`、`packages/arena/src/__tests__/record-e2e.test.ts`、`packages/arena/scripts/record-inspect.ts`、`README.md`
+
 ## 2026-10-25 10:43
 
 ### 新增 @poker/ai-baselines 过渡包，统一基线导入入口

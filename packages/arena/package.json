@@ -6,6 +6,7 @@
   "scripts": {
     "arena": "tsx src/run.ts",
     "arena:deal": "tsx src/deal-run.ts",
+    "arena:record": "tsx src/record.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.scripts.json"
   },

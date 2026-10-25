@@ -17,6 +17,7 @@
     "typecheck:skills": "tsc --noEmit -p tsconfig.skills.json",
     "arena": "npm run arena -w packages/arena --",
     "arena:deal": "npm run arena:deal -w packages/arena --",
+    "record": "npm run arena:record -w packages/arena --",
     "prepare": "[ -d .git ] && git config core.hooksPath .githooks || true"
   },
   "devDependencies": {
