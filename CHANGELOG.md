@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-10-25 10:43
+
+### 新增 @poker/ai-baselines 过渡包，统一基线导入入口
+
+**问题**：五条历史基线直接放在 `packages/engine/src/ai-XXXX/`，由 engine 根 index 以命名空间导出，arena 也从 `@poker/engine` 导入它们。提取/归档基线要同时改 engine 导出与 arena 导入，新基线只能继续堆进 engine；client/CLI 的 tsc 还会通过 engine 根 barrel 把 81 个快照文件全部拉进程序，engine 的 build 也始终包含它们。
+
+**修复**：
+
+- 新增 `packages/ai-baselines`：过渡期用显式 re-export 把 engine 仍持有的五条存量基线统一到 `@poker/ai-baselines`，engine 根导出保留作兼容；arena 改为只从此包导入基线，提取/归档不再改 arena 的导入源。
+- 包根放 6 个 shim（`types`/`model`/`pattern`/`comparing`/`following`/`leading`），把历史快照的 `../xxx.js` 映射到 `@poker/engine` 的公开导出；新基线可直接从 `git archive` 逐字放进 `src/ai-XXXX/`，不改冻结文件。
+- 新增 `baseline-facade` 一致性测试：engine 导出的每个 `aiXXXX` 命名空间必须由新包以同一对象身份导出，防止 facade 漏接或归档漏删。
+- 根 workspace / typecheck 接入新包（engine → ai-baselines → arena → cli → client → skills）；`test:all` 仍为四包（新包无独立测试套件，由 arena 测试间接覆盖）。本提交无策略行为变更，Elo 数值不变。
+
+**新增 1 项测试（arena 1）**，引擎 1242 项 + arena 181 项 + CLI 87 项 + client 201 项 = 1711 项通过。
+
+- **影响文件**：`package.json`、`package-lock.json`、`.githooks/pre-push`、`packages/ai-baselines/package.json`、`packages/ai-baselines/tsconfig.json`、`packages/ai-baselines/README.md`、`packages/ai-baselines/src/index.ts`、`packages/ai-baselines/src/types.ts`、`packages/ai-baselines/src/model.ts`、`packages/ai-baselines/src/pattern/index.ts`、`packages/ai-baselines/src/comparing/index.ts`、`packages/ai-baselines/src/following/index.ts`、`packages/ai-baselines/src/leading/index.ts`、`packages/arena/package.json`、`packages/arena/src/strategies.ts`、`packages/arena/src/__tests__/baseline-facade.test.ts`、`CLAUDE.md`、`README.md`
+
 ## 2026-10-24 22:52
 
 ### 策略指纹集中到 arena

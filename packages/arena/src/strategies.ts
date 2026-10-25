@@ -3,7 +3,8 @@
  * One-line delegations; identical input → identical output (guarded by the
  * engine-side differential tests).
  */
-import { aiTryReveal, aiChooseBottomCards, aiLeadPlay, aiFollowPlay, ai0816, ai0907, ai0929, ai1005, ai1018 } from '@poker/engine';
+import { aiTryReveal, aiChooseBottomCards, aiLeadPlay, aiFollowPlay } from '@poker/engine';
+import { ai0816, ai0907, ai0929, ai1005, ai1018 } from '@poker/ai-baselines';
 import type { Strategy } from './types.js';
 
 export const engineStrategy: Strategy = {

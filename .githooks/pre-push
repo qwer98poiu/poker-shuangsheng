@@ -20,7 +20,7 @@ fail() {
 }
 
 # ── 1. 工作区类型检查 ───────────────────────────────────────────
-echo '▶ typecheck（工作区，五段：engine → arena → cli → client → skills）'
+echo '▶ typecheck（工作区，六段：engine → ai-baselines → arena → cli → client → skills）'
 if ! npm run typecheck; then
   fail '类型检查未通过（见上方 error TS）'
   exit 1

@@ -3,6 +3,7 @@
   "private": true,
   "workspaces": [
     "packages/engine",
+    "packages/ai-baselines",
     "packages/client",
     "packages/cli",
     "packages/arena"
@@ -12,7 +13,7 @@
     "build": "npm run build -w packages/engine && npm run build -w packages/client",
     "test": "npm run test -w packages/engine",
     "test:all": "npm run test -w packages/engine && npm run test -w packages/arena && npm run test -w packages/cli && npm run test -w packages/client",
-    "typecheck": "npm run typecheck -w packages/engine && npm run typecheck -w packages/arena && npm run typecheck -w packages/cli && npm run typecheck -w packages/client && npm run typecheck:skills",
+    "typecheck": "npm run typecheck -w packages/engine && npm run typecheck -w packages/ai-baselines && npm run typecheck -w packages/arena && npm run typecheck -w packages/cli && npm run typecheck -w packages/client && npm run typecheck:skills",
     "typecheck:skills": "tsc --noEmit -p tsconfig.skills.json",
     "arena": "npm run arena -w packages/arena --",
     "arena:deal": "npm run arena:deal -w packages/arena --",

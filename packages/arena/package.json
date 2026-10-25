@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.scripts.json"
   },
   "dependencies": {
-    "@poker/engine": "*"
+    "@poker/engine": "*",
+    "@poker/ai-baselines": "*"
   },
   "devDependencies": {
     "@types/node": "^26.1.2",
