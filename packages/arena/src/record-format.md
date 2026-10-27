@@ -372,6 +372,30 @@ dataset.close();
 blockIndex / cellIndex，分析器可在内存里建 bitset（1M 手约 2.75 MB）做组合过滤。
 `scripts/record-inspect.ts` 是最小验收工具。
 
+### 6.1 解析器（`src/record-parse.ts`）
+
+解析器把一条 `HandRecord` 转成分析用 `ParsedHand`，只做机械转换与结构校验：
+`deck`、最终 `bottom`、生效 `reveals`（含 `dealIndex`）、`failedThrows`、逐墩
+`plays`（出牌顺序，`seat = (lead + i) % 4`）与结算字段；不重建
+`GameState`/`AIContext`，不重跑 AI，不做概率或场景判定。
+
+- `parseHand(record, meta, { validate, includeRaw })`：单条转换；默认严格校验。
+- `dealtHands` / `initialBottom` / `declarerHandBeforeBury` / `openingHands` /
+  `handAtDealIndex`：从 `deck` + `bottom` 机械推出各阶段手牌。
+- `attackerPointsRaw` / `attackerPointsBeforeTrick` / `attackerPointsAfterLead`：
+  用 trick 分数 + `failedThrows.penaltyDelta` 推 running 分；领出决策前不含该墩
+  罚分，`AfterLead` 含。
+- `iterateParsedHands(runDir, opts)` / `iterateShard(..., opts)`：
+  chain → shard → chainHandIndex 顺序，流式 yield；`filter` 用 `.idx` 字段做
+  预筛，`predicate` 在解码后执行；`skipBad` 默认 false。
+- `getParsedHand(dataset, globalHandIndex, opts)`：随机访问。
+- `validate` 默认 true；`running` manifest 默认拒绝（`allowRunning` 可放行）；
+  截断尾部视为正常结束；结构/语义不一致抛 `RecordParseError`（带
+  chain/shard/offset/index 上下文），不静默修正。
+- 亮主不补 pass 条目：下游在 `(dealIndex, player)` 用 `getRevealOptions` /
+  `canOverride` 判断“有合法选项但无生效条目 = pass”；失败反主并入 pass。
+- 解析器只给事实；反事实整手模拟/重跑 AI 是另一个分析层，不在本文件。
+
 ## 7. 保证与限制
 
 - **不做生成期去重**：物理 deck 可能重复（1M 规模下概率极低）；`.idx` 的

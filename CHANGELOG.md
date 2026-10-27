@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-10-27 22:32
+
+### 新增牌局解析器（record-parse）：ParsedHand、手牌重建与结构校验
+
+**问题**：录制数据集只有二进制 reader；下游分析要自己解码、展开出牌顺序、重建扣底后手牌和逐墩手牌，容易重复实现且缺少统一校验。亮主只记录生效项后，还需要一个明确的地方把 `dealIndex`/手牌前缀与最终主牌对齐。
+
+**修复**：
+
+- 新增 `packages/arena/src/record-parse.ts`：`parseHand` 输出 `ParsedHand`（meta、context、trump、deck、最终 bottom、生效 reveals、failedThrows、按出牌顺序展开的 tricks、settlement），并做严格结构校验。
+- 新增 `dealtHands` / `initialBottom` / `declarerHandBeforeBury` / `openingHands` / `handAtDealIndex` / `attackerPointsRaw` / `attackerPointsBeforeTrick` / `attackerPointsAfterLead` 等机械 helper；四家手牌由 deck + bottom 反推，不重建 `GameState`/`AIContext`。
+- 新增 `iterateParsedHands` / `iterateShard` / `getParsedHand`：按 chain→shard→chainHandIndex 流式读取；有 filter 时用 `.idx` 字段预筛，predicate 在解码后执行；默认拒绝 `manifest.status === running`，截断尾部视为正常结束；坏记录抛 `RecordParseError`（带 chain/shard/offset/index），可选 `skipBad`。
+- 校验覆盖 deck/bottom/发牌与扣底手牌、trick 张数/座位/lead 链、出牌与底牌覆盖 108 张、reveal 的 `dealIndex`/前缀/`canOverride`/最终主牌、failedThrows 的时机/归属/罚分与 running 分，以及 random/rules context flags。解析器只给事实，不做概率/场景判定或反事实模拟。
+
+**新增 5 项测试**（record-parse.test.ts：5 项），引擎 1242 项 + arena 239 项 + CLI 87 项 + client 201 项 = 1769 项通过。
+
+- **影响文件**：`packages/arena/src/record-parse.ts`、`packages/arena/src/__tests__/record-parse.test.ts`、`packages/arena/src/record-format.md`
+
 ## 2026-10-25 14:49
 
 ### 新增牌局录制数据集（record）：分片二进制 + 随机访问 reader
