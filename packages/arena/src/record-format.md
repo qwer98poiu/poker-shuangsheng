@@ -55,7 +55,9 @@ npx tsx packages/arena/scripts/record-inspect.ts <runDir> --level 7 --declarer 2
 - 所有小局 `isFirstHand: false`：亮主只决定主牌，不改变预设庄家（无抢庄）。
   无人亮主时沿用引擎自动叫主（庄家手牌中该等级牌最多的花色）。
 - 发牌走每条链的顺序 deck 流；context 抽样走独立流。**不用** `base + i`、
-  不用每手 32 位哈希、不改竞技场 `rng.ts` / `seededShuffle`。
+  不用每手 32 位哈希。竞技场现已采用同一套派生（2026-10-28 起）：
+  `deckForHand(baseSeed, pairIndex, handIndex)` 等于本格式链 `pairIndex` 的第
+  `handIndex` 次发牌。
 - 只接受完整手牌：`ev.aborted === true` 或 `ev.errors > 0`（引擎验牌失败或
   静默兜底）视为策略 bug，立即停止全部链；出错手不写入数据集，另存错误 JSON
   （见 §5）。失败亮主/反主不是 `errors`；它不生效、不记录。

@@ -16,6 +16,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
 import { strategyByName } from './strategies.js';
+import { normalizeSeed, randomSeed } from './rng.js';
 import { ChildPool, ARENA_ROOT } from './child-pool.js';
 import { createDealStats, runDealDeals, dealStatsToJSON, dealStatsFromJSON, parseDeclarerSeats, DEFAULT_DECLARER_SEATS } from './deal-arena.js';
 import type { DeclarerIdx } from './deal-arena.js';
@@ -41,7 +42,8 @@ const lines = new ProgressLines(STDOUT_TTY, {
 });
 
 interface Args {
-  seed: number;
+  /** 64 位 base seed 的规范形式（0x + 16 位十六进制）。 */
+  seed: string;
   workers: number;
   strategyA: string;
   strategyB: string;
@@ -64,7 +66,7 @@ Deal 竞技场 —— 以发牌为单位，按 --declarer-seats 坐庄；每（�
 用法: npm run arena:deal -- [选项]
 
 选项:
-  --seed N             随机种子（确定性），默认随机
+  --seed SEED          64 位随机种子（十进制或 0x 十六进制），默认随机
   --level LIST         等级（逗号分隔），默认 ${DEFAULT_LEVELS.map(levelLabel).join(',')}；all = 2..A（13 档）
   --declarer-seats S   庄家座位：0 / 0,2 / all（四庄位轮转），默认 0（固定 P0）
   --deal-filter NAMES  发牌过滤器（逗号分隔，仓库内置），默认无
@@ -98,7 +100,7 @@ function val(argv: string[], i: number, name: string): string {
 
 function parseArgs(argv: string[]): Args {
   const args: Args = {
-    seed: (Math.random() * 2 ** 31) >>> 0,
+    seed: randomSeed(),
     workers: Math.max(1, Math.min(8, os.cpus().length)),
     strategyA: 'ai',
     strategyB: 'ai-1018',
@@ -115,7 +117,7 @@ function parseArgs(argv: string[]): Args {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     switch (a) {
-      case '--seed': args.seed = parseInt(val(argv, i, a), 10) >>> 0; i++; break;
+      case '--seed': args.seed = normalizeSeed(val(argv, i, a)); i++; break;
       case '--workers': args.workers = parseInt(val(argv, i, a), 10); i++; break;
       case '--strategy-a': args.strategyA = val(argv, i, a); i++; break;
       case '--strategy-b': args.strategyB = val(argv, i, a); i++; break;

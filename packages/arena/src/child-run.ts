@@ -12,6 +12,7 @@
  */
 import readline from 'node:readline';
 import { runPairs } from './run-pairs.js';
+import { normalizeSeed } from './rng.js';
 import { strategyByName } from './strategies.js';
 import { toJSON } from './stats.js';
 
@@ -21,7 +22,7 @@ interface Task {
   pairCount: number;
 }
 
-const seed = Number(process.argv[2]);
+const seed = normalizeSeed(process.argv[2] ?? '');
 const strategyA = strategyByName(process.argv[3]);
 const strategyB = strategyByName(process.argv[4]);
 

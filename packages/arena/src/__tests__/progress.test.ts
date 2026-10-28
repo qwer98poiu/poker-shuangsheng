@@ -50,7 +50,7 @@ describe('estimateRemaining', () => {
 describe('buildCheckpointDoc', () => {
   it('检查点文档：元数据 + 已评估场数 + 双方统计', () => {
     const meta = {
-      seed: 42,
+      seed: '0x000000000000002a',
       strategyA: 'ai',
       strategyB: 'ai-0801',
       minMatches: 10_000,

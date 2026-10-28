@@ -4,7 +4,7 @@ import { runPair } from '../run-pairs.js';
 import { playMatch } from '../match.js';
 
 /**
- * 镜像契约：对决内两场用同一副牌（deckForHand 同参），
+ * 镜像契约：对决内两场用同一副牌（各自从同一条链的 deck 流重建），
  * 两场策略等价（A==B）时整场对局必须逐手一致。
  */
 describe('mirror invariant', () => {

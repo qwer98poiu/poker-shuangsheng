@@ -222,7 +222,7 @@ export function analysisTable(
 export interface DealReportInput {
   nameA: string;
   nameB: string;
-  seed: number;
+  seed: string;
   elapsedMs: number;
   levels: readonly number[];
   declarerSeats: readonly DeclarerIdx[];

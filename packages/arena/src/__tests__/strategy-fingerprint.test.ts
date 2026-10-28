@@ -48,8 +48,9 @@ describe('AI 策略指纹', () => {
     // 2026-10-18 领出阶梯按队分叉（庄 1/1.5/2/3/4、闲 1/2/3、通用 5–12 重写）后为 188
     // 2026-10-24 庄4.5 主拖拉机先于通用 5 领出后为 187
     // 2026-10-24 无主非分等级吊主延后到通用 9 后为 205
-    expect(statsA.matches.oppLevel).toEqual({ n: 205, d: 20 });
-    expect(statsB.matches.oppLevel).toEqual({ n: 205, d: 20 });
+    // 2026-10-28 竞技场发牌改为 64 位 seed + sfc32 顺序流后为 176
+    expect(statsA.matches.oppLevel).toEqual({ n: 176, d: 20 });
+    expect(statsB.matches.oppLevel).toEqual({ n: 176, d: 20 });
     expect(statsA.handsPlayed).toBe(statsB.handsPlayed);
     expect(statsA.abortedHands).toBe(0);
     const sig = checkSignificance(statsA.matches.won, statsB.matches.won, statsA.matches.drawn, statsA.matches.played);
@@ -77,6 +78,7 @@ describe('AI 策略指纹', () => {
     // 2026-09-16 新增扣底输入指纹后为 8
     // 2026-10-18 领出阶梯按队分叉后为 6
     // 2026-10-24 无主非分等级吊主延后到通用 9 后为 7
+    // 2026-10-28 竞技场发牌改为 64 位 seed + sfc32 顺序流后仍为 7
     for (const pair of [0, 1, 2]) {
       playMatch({ seed: 42, pairIndex: pair, maxHands: 4, strategies: [spy, engineStrategy] });
     }

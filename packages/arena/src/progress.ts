@@ -68,7 +68,8 @@ export function estimateRemaining(elapsedMs: number, done: number, total: number
 }
 
 export interface CheckpointMeta {
-  seed: number;
+  /** 64 位 base seed 的规范形式（0x + 16 位十六进制）。 */
+  seed: string;
   strategyA: string;
   strategyB: string;
   minMatches: number;

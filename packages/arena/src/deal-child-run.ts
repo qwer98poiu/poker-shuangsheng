@@ -9,6 +9,7 @@
 import readline from 'node:readline';
 import { runDealDeals, dealStatsToJSON, parseDeclarerSeats } from './deal-arena.js';
 import { parseLevels } from './deal-filter.js';
+import { normalizeSeed } from './rng.js';
 import { strategyByName } from './strategies.js';
 
 interface Task {
@@ -17,7 +18,7 @@ interface Task {
   dealCount: number;
 }
 
-const seed = Number(process.argv[2]);
+const seed = normalizeSeed(process.argv[2] ?? '');
 const strategyA = strategyByName(process.argv[3]);
 const strategyB = strategyByName(process.argv[4]);
 const levels = parseLevels(process.argv[5] ?? '');

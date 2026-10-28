@@ -20,7 +20,8 @@ import {
 } from '@poker/engine';
 import type { Card, CardSuit, GameState, PlayerState, Suit, TrumpDeclaration } from '@poker/engine';
 import { Suit as SuitEnum, isPointRank } from '@poker/engine';
-import { deckForHand } from './rng.js';
+import { deckStream } from './rng.js';
+import type { ArenaSeed } from './rng.js';
 import { advanceLevel } from './advance-level.js';
 import { settleAbort } from './abort-settlement.js';
 import type { HandEvent, MatchResult, Strategy } from './types.js';
@@ -28,7 +29,8 @@ import type { HandEvent, MatchResult, Strategy } from './types.js';
 export const DEFAULT_MAX_HANDS = 200;
 
 export interface MatchConfig {
-  seed: number;
+  /** 64 位 base seed；pair k 对应链 k，第 i 手 = 该链 deck 流第 i 次抽取。 */
+  seed: ArenaSeed;
   pairIndex: number;
   /** strategies[0] sits on seats 0&2, strategies[1] on seats 1&3. */
   strategies: [Strategy, Strategy];
@@ -388,12 +390,14 @@ export function playMatch(cfg: MatchConfig): MatchResult {
   let abortedHands = 0;
   let settledHands = 0;
   let unsettledAborts = 0;
+  // 与记录器同一顺序流：两场镜像各自从链起点重建，逐手取下一副牌。
+  const nextDeck = deckStream(cfg.seed, cfg.pairIndex);
 
   while (handIndex < maxHands) {
     const team = (declarerIdx % 2) as 0 | 1;
     const level = sideLevels[team];
     const attackerLevel = sideLevels[team === 0 ? 1 : 0];
-    const deck = deckForHand(cfg.seed, cfg.pairIndex, handIndex);
+    const deck = nextDeck();
 
     const ev = playHand({
       deck, handIndex, declarerIdx, level, attackerLevel,
@@ -413,15 +417,19 @@ export function playMatch(cfg: MatchConfig): MatchResult {
     }
     events.push(ev);
 
-    // 升级应用于实际获胜方：庄家赢 → 庄家队（等级=level）；闲家上台 → 闲家队（等级=attackerLevel）
-    // （修复：此前固定用庄家等级并写回庄家桶，闲家上台时升级记错队伍）
-    const advancingTeam = ev.bankerWon ? team : (team === 0 ? 1 : 0);
-    const adv = advanceLevel(ev.bankerWon ? level : attackerLevel, ev.finalPts);
+    // 升级应用于实际获胜方：庄家赢 → 庄家队；闲家上台 → 闲家队。
+    // 首局亮主可能让另一队的人当上庄家（ev.teamBanker ≠ 预定庄家的 team），
+    // 因此队伍与等级都按实际庄家取，和 CLI settleRound(declarerIdx) 一致。
+    const bankerTeam = ev.teamBanker;
+    const bankerLevel = bankerTeam === team ? level : attackerLevel;
+    const otherLevel = bankerTeam === team ? attackerLevel : level;
+    const advancingTeam = ev.bankerWon ? bankerTeam : (bankerTeam === 0 ? 1 : 0);
+    const adv = advanceLevel(ev.bankerWon ? bankerLevel : otherLevel, ev.finalPts);
     sideLevels[advancingTeam] = adv.newLevel;
     if (adv.matchOver) {
-      // matchOver 只可能发生在庄家在 A(14) 打赢 → 胜方即庄家队
+      // matchOver 只可能发生在庄家在 A(14) 打赢 → 胜方即实际庄家队
       return {
-        winnerTeam: team, handsPlayed: handIndex - unsettledAborts, abortedHands,
+        winnerTeam: bankerTeam, handsPlayed: handIndex - unsettledAborts, abortedHands,
         settledHands, capped: false,
         finalLevels: [...sideLevels] as [number, number], events,
       };

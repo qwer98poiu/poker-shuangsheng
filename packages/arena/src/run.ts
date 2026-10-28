@@ -27,6 +27,7 @@ import { levelLabel } from './level-label.js';
 import { renderTable, perLevelSpecs, rowsFrom, ratioText } from './report.js';
 import type { MetricSpec, TableRow } from './report.js';
 import { playMatch } from './match.js';
+import { normalizeSeed, randomSeed } from './rng.js';
 import type { MatchResult } from './types.js';
 
 const ARENA_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -44,7 +45,8 @@ interface Args {
   pairs: number;        // 初始对决数（最小样本）
   maxMatches: number;   // 对局上限
   stepMatches: number;  // 每次追加的对局数
-  seed: number;
+  /** 64 位 base seed 的规范形式（0x + 16 位十六进制）。 */
+  seed: string;
   workers: number;
   benchmark: number;    // 0 = 关闭
   detailPair: number | null; // 非空时只输出该对决的升级记录后退出
@@ -60,7 +62,7 @@ function printUsage(): void {
   --until-significant 不设最小样本：任一次检查显著即停（与 --pairs 互斥）
   --max-matches N    对局上限，默认 100000（须 ≥ 2×pairs）
   --step-matches N   显著性检查与检查点的间隔场数，默认 1000
-  --seed N           随机种子（确定性），默认随机
+  --seed SEED        64 位随机种子（十进制或 0x 十六进制），默认随机
   --workers W        worker 线程数，默认 4（1 = 进程内）
   --benchmark N      跑 N 场对局测速后退出
   --detail-pair N    输出第 N 个对决的镜像两场升级记录后退出
@@ -82,7 +84,7 @@ function parseArgs(argv: string[]): Args {
     pairs: 5000,
     maxMatches: 100000,
     stepMatches: 1000,
-    seed: (Math.random() * 2 ** 31) >>> 0,
+    seed: randomSeed(),
     workers: Math.min(8, os.cpus().length),
     benchmark: 0,
     detailPair: null,
@@ -105,7 +107,7 @@ function parseArgs(argv: string[]): Args {
       case '--until-significant': args.untilSignificant = true; break;
       case '--max-matches': args.maxMatches = parseInt(val(), 10); break;
       case '--step-matches': args.stepMatches = parseInt(val(), 10); break;
-      case '--seed': args.seed = parseInt(val(), 10) >>> 0; break;
+      case '--seed': args.seed = normalizeSeed(val()); break;
       case '--workers': args.workers = parseInt(val(), 10); break;
       case '--benchmark': args.benchmark = parseInt(val(), 10); break;
       case '--detail-pair': args.detailPair = parseInt(val(), 10); break;
@@ -141,7 +143,7 @@ function parseArgs(argv: string[]): Args {
 
 function printUpgradeTable(
   m1: MatchResult, m2: MatchResult,
-  nameA: string, nameB: string, seed: number, pairIndex: number,
+  nameA: string, nameB: string, seed: string, pairIndex: number,
 ): void {
   const l1 = upgradeLinesForMatch(m1.events, 0); // 对局1: A 坐 0/2 号位
   const l2 = upgradeLinesForMatch(m2.events, 1); // 对局2: A 坐 1/3 号位
@@ -197,7 +199,7 @@ function comparisonRows(accA: StrategyStats, accB: StrategyStats): TableRow[] {
 }
 
 function printReport(
-  nameA: string, nameB: string, seed: number, matches: number, pairs: number,
+  nameA: string, nameB: string, seed: string, matches: number, pairs: number,
   elapsedMs: number, outcome: SignificanceResult | null, verdict: string,
   accA: StrategyStats, accB: StrategyStats,
 ): void {

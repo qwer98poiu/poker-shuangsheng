@@ -159,7 +159,7 @@ npm run arena -w packages/arena -- --pairs 5000 --seed 42 --strategy-b ai-1018
 | `--until-significant` | — | Drop the minimum sample: stop at the first check that comes back significant (mutually exclusive with `--pairs`) |
 | `--max-matches N` | 100000 | Match cap (must be ≥ 2×pairs) |
 | `--step-matches N` | 1000 | Interval (in matches) for significance checks and checkpoints |
-| `--seed N` | random | Random seed — same seed + flags reproduce identical results |
+| `--seed SEED` | random | 64-bit seed (decimal or `0x` hex) — same seed + flags reproduce identical decks and results |
 | `--workers W` | logical cores | Parallel child processes (1 = in-process) |
 | `--strategy-a NAME` | `ai` | Strategy A (`ai` / `ai-1018` / `ai-1005` / `ai-0929` / `ai-0907` / `ai-0816`) |
 | `--strategy-b NAME` | `ai-1018` | Strategy B |
@@ -210,7 +210,7 @@ Aborted hands are **settled, not voided** (this applies to the general arena too
 | `--until-significant` | — | Drop the minimum sample: stop at the first significant check (mutually exclusive with `--min-deals`) |
 | `--step-deals N` | 250 | Significance-check interval and target rounding granularity |
 | `--max-deals N` | 10000 | Accepted-deal cap |
-| `--seed N` / `--workers W` / `--strategy-a NAME` / `--strategy-b NAME` / `--out PATH` / `--no-json` | as above | `--strategy-b` defaults to `ai-1018` |
+| `--seed SEED` / `--workers W` / `--strategy-a NAME` / `--strategy-b NAME` / `--out PATH` / `--no-json` | as above | `--strategy-b` defaults to `ai-1018` |
 
 As in the general arena, missing significance raises the target using the same `requiredMatchesForSignificance` projection, and Ctrl+C writes the partial report plus a `"partial": true` JSON before exiting. The old `arena:solo` / `arena:nt` commands have been removed.
 
@@ -423,7 +423,7 @@ npm run arena -w packages/arena -- --pairs 5000 --seed 42 --strategy-b ai-1018
 | `--until-significant` | — | 不设最小样本：任一次检查显著即停（与 `--pairs` 互斥） |
 | `--max-matches N` | 100000 | 对局上限（须 ≥ 2×pairs） |
 | `--step-matches N` | 1000 | 显著性检查与检查点的间隔场数 |
-| `--seed N` | 随机 | 随机种子——同 seed 同参数结果可完全复现 |
+| `--seed SEED` | 随机 | 64 位随机种子（十进制或 `0x` 十六进制）——同 seed 同参数的每手 deck 与结果完全复现 |
 | `--workers W` | 逻辑核数 | 并行子进程数（1 = 进程内） |
 | `--strategy-a NAME` | `ai` | 策略 A（`ai` / `ai-1018` / `ai-1005` / `ai-0929` / `ai-0907` / `ai-0816`） |
 | `--strategy-b NAME` | `ai-1018` | 策略 B |
@@ -474,7 +474,7 @@ npm run arena:deal -w packages/arena -- --min-deals 2500 --seed 42
 | `--until-significant` | — | 不设最小样本：任一次检查显著即停（与 `--min-deals` 互斥） |
 | `--step-deals N` | 250 | 显著性检查的间隔，也是推算目标向上取整的粒度 |
 | `--max-deals N` | 10000 | 有效发牌数上限 |
-| `--seed N` / `--workers W` / `--strategy-a NAME` / `--strategy-b NAME` / `--out PATH` / `--no-json` | 同上 | `--strategy-b` 默认 `ai-1018` |
+| `--seed SEED` / `--workers W` / `--strategy-a NAME` / `--strategy-b NAME` / `--out PATH` / `--no-json` | 同上 | `--strategy-b` 默认 `ai-1018` |
 
 与整体竞技场同口径：未显著时按当前 p̂ 推算显著所需发牌数并上调目标（同一个 `requiredMatchesForSignificance`）；Ctrl+C 写出部分报告与 `"partial": true` 的 JSON 后退出。旧的 `arena:solo` / `arena:nt` 已移除。
 

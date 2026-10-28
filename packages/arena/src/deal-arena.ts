@@ -26,7 +26,8 @@
  */
 import { Rank } from '@poker/engine';
 import type { Card } from '@poker/engine';
-import { deckForHand } from './rng.js';
+import { deckForHand, deckStream } from './rng.js';
+import type { ArenaSeed } from './rng.js';
 import { playHand, dealtHands, naturalDeclaration } from './match.js';
 import type { HandEvent, Strategy } from './types.js';
 import {
@@ -171,7 +172,8 @@ function ptsOfRole(t: Triple, role: ScenarioRole): number {
 }
 
 export interface DealRunConfig {
-  seed: number;
+  /** 64 位 base seed；发牌 k = 链 0 的 deck 流第 k 次抽取。 */
+  seed: ArenaSeed;
   levels: readonly number[];
   strategyA: Strategy;
   strategyB: Strategy;
@@ -182,6 +184,11 @@ export interface DealRunConfig {
 
 export interface DealSweepOptions extends DealRunConfig {
   dealIndex: number;
+  /**
+   * 已从链 0 的 deck 流抽到的这一副牌。连续发牌时由 `runDealDeals` 传入，
+   * 避免按 dealIndex 重放整条流；缺省时由 seed + dealIndex 现场重放。
+   */
+  deck?: Card[];
 }
 
 export interface DealSweepResult {
@@ -276,7 +283,7 @@ function emptySweep(dealIndex: number): DealSweepResult {
 
 /** 跑一副牌的全部等级、配置庄位、三腿。同一副牌只发一次。 */
 export function runDealSweep(o: DealSweepOptions): DealSweepResult {
-  const deck = deckForHand(o.seed, 0, o.dealIndex);
+  const deck = o.deck ?? deckForHand(o.seed, 0, o.dealIndex);
   const declarerSeats = o.declarerSeats ?? DEFAULT_DECLARER_SEATS;
   if (declarerSeats.length === 0) throw new Error('declarerSeats 不能为空');
   const out = emptySweep(o.dealIndex);
@@ -667,7 +674,7 @@ export function addDealSweep(acc: DealStats, res: DealSweepResult): void {
 
 /** 跑一段连续区间的发牌，合并进一个累加器。 */
 export function runDealDeals(
-  seed: number,
+  seed: ArenaSeed,
   dealStart: number,
   dealCount: number,
   levels: readonly number[],
@@ -677,9 +684,12 @@ export function runDealDeals(
   declarerSeats: readonly DeclarerIdx[] = DEFAULT_DECLARER_SEATS,
 ): DealStats {
   const acc = createDealStats(levels, declarerSeats);
+  // 顺序流：先快进到 dealStart，再连续取牌；与逐 dealIndex 重放等价。
+  const nextDeck = deckStream(seed, 0);
+  for (let k = 0; k < dealStart; k++) nextDeck();
   for (let k = dealStart; k < dealStart + dealCount; k++) {
     addDealSweep(acc, runDealSweep({
-      seed, dealIndex: k, levels, strategyA, strategyB, dealFilters, declarerSeats,
+      seed, dealIndex: k, deck: nextDeck(), levels, strategyA, strategyB, dealFilters, declarerSeats,
     }));
   }
   return acc;

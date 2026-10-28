@@ -1,5 +1,32 @@
 # Changelog
 
+## 2026-10-28 22:22
+
+### 竞技场发牌改为与记录器相同的 64 位 seed + sfc32 顺序流
+
+**问题**：竞技场仍用 32 位 seed + `hashMix` / `seededShuffle` 逐手独立派生，与记录器（64 位 base seed + 每条链一个 sfc32 顺序流）不一致：同一 seed 下竞技场第 i 手的牌与数据集链第 i 手对不上，seed 空间也只有 2^32。
+
+**修复**：
+
+- `rng.ts` 改为直接复用 `record-rng.ts` 的派生：对决 k 即链 k（`deriveChainSeed(baseSeed, k)`），第 i 手 = 该链 deck 流第 i 次 `drawDeck()`；`deckForHand(seed, k, i)` 与记录器链 k 的第 i 手逐张相同。删除 `hashMix`。
+- `playMatch` 与 `runDealDeals` 持有顺序流（发牌竞技场先快进到 `dealStart`，再连续取牌）；`runDealSweep` 新增可选 `deck`，避免按 `dealIndex` 重放整条流。散布在各处的随机访问仍走 `deckForHand` 的逐步重放。
+- seed 规范为 `0x` + 16 位十六进制：CLI `--seed` 接受十进制或 `0x` 十六进制、按无符号 64 位校验（越界报错、不静默截断），默认改为时间戳 + pid + 8 字节随机派生；子进程、检查点、报告与 JSON 统一记录规范形式。
+- 镜像契约不变：两场各自从同一 chain seed 重建流，第 i 手仍是同一副牌。Elo 是统计估计，换抽样流不改标。
+
+**新增 6 项测试、删除 3 项测试、修改 2 项测试**（arena：rng.test.ts 重写为 10 项；strategy-fingerprint.test.ts 1 项；progress.test.ts 1 项）
+
+- **影响文件**：`packages/arena/src/rng.ts`、`packages/arena/src/record-rng.ts`、`packages/arena/src/match.ts`、`packages/arena/src/run-pairs.ts`、`packages/arena/src/run.ts`、`packages/arena/src/deal-arena.ts`、`packages/arena/src/deal-run.ts`、`packages/arena/src/child-run.ts`、`packages/arena/src/deal-child-run.ts`、`packages/arena/src/deal-report.ts`、`packages/arena/src/progress.ts`、`packages/arena/src/upgrade-log.ts`、`packages/arena/src/record-format.md`、`packages/arena/src/__tests__/rng.test.ts`、`packages/arena/src/__tests__/strategy-fingerprint.test.ts`、`packages/arena/src/__tests__/progress.test.ts`、`packages/arena/src/__tests__/mirror-invariant.test.ts`、`README.md`
+
+### 修复首局亮主换庄时升级记到预定庄家队
+
+**问题**：首局亮主可能让另一队的人成为庄家，此时 `ev.teamBanker` 与循环起点的预定庄家不同；`playMatch` 却按预定庄家的 `team` 选择升级队伍与升级起点，等级被写到错误的一队。旧发牌序列未命中该分支，新发牌（pair 0 首局）立即暴露：B 队的 2→4 记到 A 队，`arena-e2e` 的等级账本一致性失败。
+
+**修复**：升级队伍与升级起点都按实际庄家（`ev.teamBanker`）取，与 CLI `settleRound(declarerIdx)` 一致；轮转本来就已用 `ev.declarerIdx`。既有 `arena-e2e` 等级账本测试覆盖该分支。
+
+**无新增测试**；引擎 1242 项 + arena 242 项 + CLI 87 项 + client 201 项 = 1772 项通过。
+
+- **影响文件**：`packages/arena/src/match.ts`
+
 ## 2026-10-27 22:32
 
 ### 新增牌局解析器（record-parse）：ParsedHand、手牌重建与结构校验

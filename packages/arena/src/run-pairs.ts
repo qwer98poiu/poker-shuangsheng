@@ -1,10 +1,11 @@
 /**
  * 对决 runner: one 对决 = two mirrored matches sharing the same decks
- * (hand index i uses deckForHand(seed, pair, i) in BOTH matches).
+ * (both matches draw hand i from the same chain-k deck stream).
  */
 import { playMatch } from './match.js';
 import { createStats, addHandStats, addMatchOutcome, mergeStats } from './stats.js';
 import type { StrategyStats } from './stats.js';
+import type { ArenaSeed } from './rng.js';
 import type { Strategy } from './types.js';
 
 export interface PairStats {
@@ -18,7 +19,7 @@ export interface PairStats {
  * - match 2: swapped
  */
 export function runPair(
-  seed: number,
+  seed: ArenaSeed,
   pairIndex: number,
   strategyA: Strategy,
   strategyB: Strategy,
@@ -41,7 +42,7 @@ export function runPair(
 
 /** Run a contiguous range of pairs, merging stats. */
 export function runPairs(
-  seed: number,
+  seed: ArenaSeed,
   pairStart: number,
   pairCount: number,
   strategyA: Strategy,
