@@ -6,6 +6,7 @@ import {
   tryReveal, finalizeReveal, playCards,
   computeRoundOutcome, advanceLevel,
   aiTryReveal, aiChooseBottomCards, aiLeadPlay, aiFollowPlay,
+  canRevealOrOverride,
   buildAIContext, suitLabel, rankLabel,
   seededShuffle,
 } from '@poker/engine';
@@ -194,6 +195,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
     let afterReveal = newState;
     for (const pi of [0, 1, 2, 3]) {
       if (!get().aiPlayers[pi]) continue;
+      // aiTryReveal 只在能生效时返回；规则上不可能生效就不调用。
+      if (!canRevealOrOverride(
+        newPlayers[pi].hand, pi, newState.currentLevel, newState.currentReveal,
+      )) continue;
       const rev = aiTryReveal(
         newPlayers[pi].hand,
         newDealt[pi],

@@ -16,6 +16,7 @@ import {
   groupBySuit, suitLabelCn,
 } from './utils.js';
 import { isOnlyLegalPlay } from '../following/index.js';
+import { canRevealOrOverride } from '../revealing/index.js';
 import {
   aiChooseBottomCards as aiChooseBottomImpl,
   BOTTOM_DECISION_HAND_SIZE,
@@ -61,17 +62,31 @@ export function aiTryReveal(
   level: number,
   currentReveal: { suit: Suit | null; strength: number; playerIndex?: number } | null,
 ): { suit: Suit | null; reason: string } | null {
-  const allCards = hand;
+  // 快速路径：按当前亮主力量判断这手牌是否可能产生一次**会生效**的亮主。
+  // 不可能时直接返回 null（例如无人亮主且没有常主、他人已亮对级牌且没有对王、
+  // 他人已亮对大王等）。发牌期每家每落一张都会调用一次，这一步省掉后面的所有分支。
+  if (!canRevealOrOverride(hand, playerIndex, level, currentReveal)) return null;
 
-  const bigJokers = allCards.filter(c => c.rank === Rank.BigJoker);
-  const smallJokers = allCards.filter(c => c.rank === Rank.SmallJoker);
-  const levelCardsOf = (suit: Suit) => allCards.filter(c => c.suit === suit && c.rank === level);
+  // 一次遍历统计全部常主：大小王 + 各花色级牌。单张与常主对牌都由同一份计数
+  // 覆盖（对子 = 计数 >= 2），不再每次调用做 10 次 filter。
+  let bigJokers = 0;
+  let smallJokers = 0;
+  const levelCounts = [0, 0, 0, 0]; // SUIT_ORDER 下标
+  for (const c of hand) {
+    if (c.rank === Rank.BigJoker) { bigJokers += 1; continue; }
+    if (c.rank === Rank.SmallJoker) { smallJokers += 1; continue; }
+    if (c.rank === level) {
+      const idx = SUIT_ORDER.indexOf(c.suit as Suit);
+      if (idx >= 0) levelCounts[idx] += 1;
+    }
+  }
+  const levelCountOf = (suit: Suit): number => levelCounts[SUIT_ORDER.indexOf(suit)] ?? 0;
 
   // 自己亮的主：自保仅限有主同花色巩固（单张→同花色对子）；无主不可自保，禁止自反
   if (currentReveal?.playerIndex === playerIndex) {
     if (currentReveal.suit !== null
       && currentReveal.strength === 1
-      && levelCardsOf(currentReveal.suit).length >= 2) {
+      && levelCountOf(currentReveal.suit) >= 2) {
       return { suit: currentReveal.suit, reason: `同花色对${suitLabelCn(currentReveal.suit)}级牌自保` };
     }
     return null;
@@ -82,7 +97,7 @@ export function aiTryReveal(
   // getRevealOptions：对大王 4、对小王 3）。曾经写成 `currentReveal.strength < 3`，
   // 那等于把对小王(3)与对大王(4)当成同一档：手握对大王也不去反别人的对小王无主，
   // 与引擎 canOverride 的 4 > 3 不一致（对小王遇对小王仍不反，正确）。
-  const myJokerStrength = bigJokers.length >= 2 ? 4 : smallJokers.length >= 2 ? 3 : 0;
+  const myJokerStrength = bigJokers >= 2 ? 4 : smallJokers >= 2 ? 3 : 0;
   if (myJokerStrength > (currentReveal?.strength ?? 0)) {
     return { suit: null, reason: currentReveal ? '有对王，反无主' : '有对王，亮无主' };
   }
@@ -90,8 +105,7 @@ export function aiTryReveal(
   // 亮主过程：无人亮主时只能单张亮（不直接亮一对，见 revealStrength）——
   // 对级牌只用于反主（他人已亮单张）；单张亮主由下方单张分支处理
   for (const suit of SUIT_ORDER) {
-    const levelCards = levelCardsOf(suit);
-    if (levelCards.length >= 2) {
+    if (levelCountOf(suit) >= 2) {
       if (currentReveal && currentReveal.strength < 2) {
         return { suit, reason: `有${suitLabelCn(suit)}级牌对，反主` };
       }
@@ -99,7 +113,7 @@ export function aiTryReveal(
   }
 
   for (const suit of SUIT_ORDER) {
-    if (levelCardsOf(suit).length >= 1) {
+    if (levelCountOf(suit) >= 1) {
       if (!currentReveal) {
         return { suit, reason: `有${suitLabelCn(suit)}级牌单张，亮主` };
       }

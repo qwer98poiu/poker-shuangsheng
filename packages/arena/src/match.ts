@@ -16,7 +16,7 @@
 import {
   createInitialState, GamePhase, tryReveal, finalizeReveal, playCards,
   classify, bottomMultiplier, countBottomPoints, finalizeAttackerPoints,
-  buildAIContext,
+  buildAIContext, canRevealOrOverride,
 } from '@poker/engine';
 import type { Card, CardSuit, GameState, PlayerState, Suit, TrumpDeclaration } from '@poker/engine';
 import { Suit as SuitEnum, isPointRank } from '@poker/engine';
@@ -138,7 +138,15 @@ function dealAndReveal(
       players: state.players.map((p, j) => ({ ...p, hand: [...dealt[j]] })) as unknown as typeof state.players,
     };
     for (let pj = 0; pj < 4; pj++) {
-      const rev = strategies[pj % 2].tryReveal(
+      const s = strategies[pj % 2];
+      // 内置策略保证只在能生效时返回；此时规则上不可能生效就直接跳过，
+      // 不进入 aiTryReveal。未声明该保证的自定义策略仍照常调用，以保留
+      // 失败尝试写入 state.reveals 的行为。
+      if (s.revealsOnlyWhenEffective
+        && !canRevealOrOverride(state.players[pj].hand, pj, level, state.currentReveal)) {
+        continue;
+      }
+      const rev = s.tryReveal(
         state.players[pj].hand, dealt[pj], pj, level, state.currentReveal,
       );
       if (rev) {

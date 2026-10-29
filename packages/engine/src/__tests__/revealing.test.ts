@@ -3,7 +3,7 @@ import { Suit, Rank, GamePhase } from '../types.js';
 import type { CardSuit } from '../types.js';
 import { createCard } from '../model.js';
 import {
-  getRevealOptions, canOverride, revealStrength, canSelfReinforce,
+  getRevealOptions, canOverride, revealStrength, canSelfReinforce, canRevealOrOverride,
 } from '../revealing/index.js';
 import { aiTryReveal, buildAIContext } from '../ai/index.js';
 import { tryReveal, finalizeReveal } from '../game/index.js';
@@ -396,5 +396,82 @@ describe('finalizeReveal — 顶层 declarerIndex 与亮主者同步', () => {
     expect(out.trumpDeclaration!.declarerIndex).toBe(3);
     expect(out.declarerIndex).toBe(3);
     expect(buildAIContext(out as any, 3)!.isDeclarer).toBe(true);
+  });
+});
+
+describe('Revealing — aiTryReveal 常主快速路径', () => {
+  it('无任何级牌/王：无论是否已有人亮主都直接返回 null', () => {
+    const hand = [
+      createCard(Suit.Hearts, 3, 0),
+      createCard(Suit.Clubs, 7, 1),
+      createCard(Suit.Diamonds, 13, 2),
+    ];
+    expect(aiTryReveal(hand, [], 1, 5, null)).toBeNull();
+    expect(aiTryReveal(hand, [], 1, 5, { suit: Suit.Hearts, strength: 1 })).toBeNull();
+  });
+
+  it('常主对牌计入：对级牌 + 单张王仍按对级牌反单张', () => {
+    const hand = [
+      createCard(Suit.Hearts, 5, 0),
+      createCard(Suit.Hearts, 5, 1),
+      createCard('J', Rank.BigJoker, 2),
+      createCard(Suit.Clubs, 9, 3),
+    ];
+    const r = aiTryReveal(hand, [], 1, 5, { suit: Suit.Diamonds, strength: 1 });
+    expect(r?.suit).toBe(Suit.Hearts);
+    expect(r!.reason).toContain('级牌对');
+  });
+});
+
+describe('Revealing — canRevealOrOverride 分档剪枝', () => {
+  const c = (s: CardSuit, r: number, idx: number) => createCard(s, r, idx);
+  const level = 5;
+  const hPair = [c(Suit.Hearts, level, 0), c(Suit.Hearts, level, 1)];
+  const cPair = [c(Suit.Clubs, level, 2), c(Suit.Clubs, level, 3)];
+  const bjPair = [createCard('J', Rank.BigJoker, 4), createCard('J', Rank.BigJoker, 5)];
+  const sjPair = [createCard('J', Rank.SmallJoker, 6), createCard('J', Rank.SmallJoker, 7)];
+  const oneBj = [createCard('J', Rank.BigJoker, 8)];
+
+  it('无人亮主：级牌单张即可亮；单张王不行；对王可以', () => {
+    expect(canRevealOrOverride([c(Suit.Hearts, level, 0)], 0, level, null)).toBe(true);
+    expect(canRevealOrOverride(hPair, 0, level, null)).toBe(true);
+    expect(canRevealOrOverride(oneBj, 0, level, null)).toBe(false);
+    expect(canRevealOrOverride(bjPair, 0, level, null)).toBe(true);
+    expect(canRevealOrOverride(sjPair, 0, level, null)).toBe(true);
+    expect(canRevealOrOverride([c(Suit.Hearts, 3, 9)], 0, level, null)).toBe(false);
+  });
+
+  it('他人亮单张(1)：只有对级牌或对王能反；自保只认同花色对级牌', () => {
+    const otherSingle = { suit: Suit.Diamonds, strength: 1, playerIndex: 0 };
+    expect(canRevealOrOverride(hPair, 1, level, otherSingle)).toBe(true);
+    expect(canRevealOrOverride([c(Suit.Hearts, level, 0)], 1, level, otherSingle)).toBe(false);
+    expect(canRevealOrOverride(oneBj, 1, level, otherSingle)).toBe(false);
+    expect(canRevealOrOverride(sjPair, 1, level, otherSingle)).toBe(true);
+
+    const selfSingle = { suit: Suit.Hearts, strength: 1, playerIndex: 1 };
+    expect(canRevealOrOverride(hPair, 1, level, selfSingle)).toBe(true);
+    expect(canRevealOrOverride(cPair, 1, level, selfSingle)).toBe(false);
+    expect(canRevealOrOverride(bjPair, 1, level, selfSingle)).toBe(false);
+    expect(canRevealOrOverride([c(Suit.Hearts, level, 0)], 1, level, selfSingle)).toBe(false);
+  });
+
+  it('他人亮对级牌(2)：只有对王；他人亮对小王(3)：只有对大王；自己的高力量不能再反', () => {
+    const otherPair = { suit: Suit.Diamonds, strength: 2, playerIndex: 0 };
+    expect(canRevealOrOverride(cPair, 1, level, otherPair)).toBe(false);
+    expect(canRevealOrOverride(sjPair, 1, level, otherPair)).toBe(true);
+    expect(canRevealOrOverride(bjPair, 1, level, otherPair)).toBe(true);
+
+    const otherSmallNt = { suit: null, strength: 3, playerIndex: 0 };
+    expect(canRevealOrOverride(sjPair, 1, level, otherSmallNt)).toBe(false);
+    expect(canRevealOrOverride(bjPair, 1, level, otherSmallNt)).toBe(true);
+
+    const selfPair = { suit: Suit.Hearts, strength: 2, playerIndex: 1 };
+    expect(canRevealOrOverride(bjPair, 1, level, selfPair)).toBe(false);
+  });
+
+  it('他人亮对大王(4)：任何手牌都不可能再反', () => {
+    const otherBigNt = { suit: null, strength: 4, playerIndex: 0 };
+    expect(canRevealOrOverride(bjPair, 1, level, otherBigNt)).toBe(false);
+    expect(canRevealOrOverride([...hPair, ...cPair, ...bjPair], 1, level, otherBigNt)).toBe(false);
   });
 });

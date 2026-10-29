@@ -50,12 +50,14 @@ function preserving(strategy: Strategy, specials: Card[]): Strategy {
 const noReveal: Strategy = {
   ...engineStrategy,
   name: 'no-reveal',
+  revealsOnlyWhenEffective: false,
   tryReveal: () => null,
 };
 
 const revealFirst: Strategy = {
   ...engineStrategy,
   name: 'reveal-first',
+  revealsOnlyWhenEffective: false,
   tryReveal: (hand, _dealt, player, level) => {
     if (player !== 0) return null;
     const opt = getRevealOptions(hand, level).find(o => o.suit === Suit.Spades);
@@ -150,6 +152,7 @@ describe('playHand capture hooks', () => {
     const badReveal: Strategy = {
       ...engineStrategy,
       name: 'bad-reveal',
+  revealsOnlyWhenEffective: false,
       tryReveal: () => ({ suit: Suit.Spades, reason: 'not an option' }),
     };
     const ev = play({

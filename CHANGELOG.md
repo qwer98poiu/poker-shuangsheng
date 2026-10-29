@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-10-29 21:34
+
+### 亮主按当前力量剪枝：不可能生效时不调用 AI
+
+**问题**：发牌期每家每落一张牌都会调用一次 `aiTryReveal`（每小局 400 次）。原实现不论当前亮主是什么力量，都对大小王与四门级牌各做一次 `filter`；而大多数调用在规则上注定返回 `null`（例如他人已亮对级牌、手里没有对王；他人已亮对大王等）。常主对牌（对级牌/对王）也因此每次都要重新扫一遍。
+
+**修复**：
+
+- 新增 `canRevealOrOverride`（`revealing/index.ts`）：一次遍历手牌，按当前亮主力量判断是否**可能**产生会生效的亮主——无人亮主（任意级牌/对王）→ 他人单张（对级牌/对王）→ 对级牌（对王）→ 对小王（对大王）→ 对大王（不可能），自己的单张只认同花色对级牌自保。
+- `aiTryReveal` 顶部先用它早退；后续分支仍保留一次遍历计数（常主对牌 = 计数 `>= 2`）。
+- 竞技场 `Strategy` 增加 `revealsOnlyWhenEffective`（6 个内置策略为 true）：`dealAndReveal` 在规则上不可能生效时跳过调用；未声明的自定义策略照常调用，以保留失败尝试写入 `state.reveals` 的行为（`record-hooks` 测试锁住）。CLI 与 client 的 AI 发牌循环使用同一判据。
+- 实测每小局调用从 **400 次降到约 1.8 次（跳过 99.6%）**，`ai` vs `ai` 与 `ai` vs `ai-1018` 相同。等价性用 4 万手牌 × 7 种 `currentReveal` = 112 万次调用对照旧实现，**0 差异**；800 手录制分片逐字节一致。
+
+**新增 6 项测试**（revealing.test.ts：6 项）；引擎 1254 项 + arena 247 项 + CLI 87 项 + client 201 项 = 1789 项通过。
+
+- **影响文件**：`packages/engine/src/revealing/index.ts`、`packages/engine/src/ai/index.ts`、`packages/engine/src/__tests__/revealing.test.ts`、`packages/arena/src/types.ts`、`packages/arena/src/strategies.ts`、`packages/arena/src/match.ts`、`packages/arena/src/__tests__/record-hooks.test.ts`、`packages/arena/src/__tests__/record-parse.test.ts`、`packages/cli/src/index.ts`、`packages/client/src/store/gameStore.ts`
+
 ## 2026-10-29 20:25
 
 ### 竞技场 benchmark 接入 worker 池，默认 worker 数改为物理核

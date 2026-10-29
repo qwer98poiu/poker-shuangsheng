@@ -13,6 +13,7 @@ import {
   sortHand, cardPointsFromRank as cardPoints, isPointRank as isPointCard,
   rankLabel, suitLabel, suitName, isRed, isTrump, getEffectiveRank,
   aiTryReveal, aiChooseBottomCards, aiLeadPlay, aiFollowPlay,
+  canRevealOrOverride,
   serialize, deserialize, resumeFromTrick,
   Suit, Rank, validateFollow,
   buildAIContext,
@@ -407,7 +408,10 @@ async function doDeal(skipAiReveal = false) {
     // AI reveal check — when human is declarer, AI defers until reveal phase
     if (!skipAiReveal) {
       for (const pj of [0, 1, 2, 3]) {
-        if (aiPlayers[pj]) {
+        if (aiPlayers[pj]
+          && canRevealOrOverride(
+            gameState.players[pj].hand, pj, gameState.currentLevel, gameState.currentReveal,
+          )) {
           const rev = aiTryReveal(
             gameState.players[pj].hand,
             dealt[pj],

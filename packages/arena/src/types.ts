@@ -15,6 +15,15 @@ export interface RevealDecision {
  */
 export interface Strategy {
   readonly name: string;
+  /**
+   * 该策略保证 `tryReveal` 只在亮主会生效时返回非 null——不会返回被
+   * `tryReveal` 忽略、或记为「失败尝试」的选项。为 true 时，竞技场可以在
+   * 规则上不可能生效时跳过调用（`canRevealOrOverride`）。
+   *
+   * 默认 false：自定义策略仍会被调用，从而保留它记录失败尝试到
+   * `state.reveals` 的行为（见 `record-hooks` 测试）。内置 AI 均为 true。
+   */
+  readonly revealsOnlyWhenEffective?: boolean;
   tryReveal(
     hand: Card[],
     dealtCards: Card[],

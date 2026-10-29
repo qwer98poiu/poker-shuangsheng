@@ -25,6 +25,7 @@ const SEED = deriveChainSeed('000000000000002a', 0);
 const revealFirst: Strategy = {
   ...engineStrategy,
   name: 'reveal-first-parser',
+  revealsOnlyWhenEffective: false,
   tryReveal: (hand, _dealt, _player, level) => {
     const opts = getRevealOptions(hand, level);
     return opts.length > 0 ? { suit: opts[0].suit, reason: 'parser test' } : null;
