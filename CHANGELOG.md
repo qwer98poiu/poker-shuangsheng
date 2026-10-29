@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-10-29 20:25
+
+### 竞技场 benchmark 接入 worker 池，默认 worker 数改为物理核
+
+**问题**：`--benchmark` 直接调用 `runPairs`，`--workers` 被忽略，测出的始终是单进程数字；`run`/`deal-run`/`record` 默认 `min(8, 逻辑核数)`，在本机 4 逻辑核 / 2 物理核上过度订阅——record 4,000 手用 4 worker 反而比 2 worker 慢（35s vs 30s）。
+
+**修复**：
+
+- `runBenchmark` 在 `--workers > 1` 时创建 `ChildPool`，用 `splitPairs` 把对决切成约 `workers × 4` 个连续块并行执行；输出标注 `workers=N`。实测 `--benchmark 200`：1 worker 5.23 ms/小局，2 workers 4.38 ms/小局（含启动）。
+- 新增 `workers.ts`：macOS 读 `sysctl -n hw.physicalcpu`、Linux 解析 `/proc/cpuinfo` 的 `(physical id, core id)` 去重，探测失败退回逻辑核；`run`、`deal-run`、`record` 默认改为 `min(8, 物理核数)`（`--workers` 仍可显式覆盖），帮助文本同步。
+
+**新增 5 项测试**（workers.test.ts：5 项）；引擎 1248 项 + arena 247 项 + CLI 87 项 + client 201 项 = 1783 项通过。
+
+- **影响文件**：`packages/arena/src/run.ts`、`packages/arena/src/deal-run.ts`、`packages/arena/src/record.ts`、`packages/arena/src/workers.ts`、`packages/arena/src/__tests__/workers.test.ts`
+
 ## 2026-10-29 20:24
 
 ### 引擎 AI 领出路径缓存重复的牌型分解与控制张分析

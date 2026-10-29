@@ -9,10 +9,10 @@
  * 场检查一次 99% 显著性；显著即停，否则继续直到 --max-matches 上限（无法判定）。
  */
 import { fileURLToPath } from 'node:url';
-import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
 import { runPairs } from './run-pairs.js';
+import { defaultWorkerCount, splitPairs } from './workers.js';
 import { strategyByName } from './strategies.js';
 import { ChildPool } from './child-pool.js';
 import type { WorkerResult } from './child-pool.js';
@@ -63,7 +63,7 @@ function printUsage(): void {
   --max-matches N    对局上限，默认 100000（须 ≥ 2×pairs）
   --step-matches N   显著性检查与检查点的间隔场数，默认 1000
   --seed SEED        64 位随机种子（十进制或 0x 十六进制），默认随机
-  --workers W        worker 线程数，默认 4（1 = 进程内）
+  --workers W        worker 进程数，默认 min(8, 物理核数)（1 = 进程内）
   --benchmark N      跑 N 场对局测速后退出
   --detail-pair N    输出第 N 个对决的镜像两场升级记录后退出
   --strategy-a NAME  策略 A，默认 ai
@@ -85,7 +85,7 @@ function parseArgs(argv: string[]): Args {
     maxMatches: 100000,
     stepMatches: 1000,
     seed: randomSeed(),
-    workers: Math.min(8, os.cpus().length),
+    workers: defaultWorkerCount(),
     benchmark: 0,
     detailPair: null,
     strategyA: 'ai',
@@ -235,14 +235,33 @@ function printReport(
 
 async function runBenchmark(args: Args, stratA: ReturnType<typeof strategyByName>, stratB: ReturnType<typeof strategyByName>): Promise<void> {
   const pairs = Math.max(1, Math.ceil(args.benchmark / 2));
-  const t0 = Date.now();
-  const { statsA } = runPairs(args.seed, 0, pairs, stratA, stratB);
-  const ms = Date.now() - t0;
   const matches = pairs * 2;
+  const t0 = Date.now();
+  let accA = createStats();
+  let pool: ChildPool | null = null;
+  try {
+    if (args.workers > 1) {
+      pool = await ChildPool.create(
+        args.workers, 'child-run.ts',
+        [String(args.seed), args.strategyA, args.strategyB],
+        { describeTask: t => `对决 ${t.pairStart}..${t.pairStart + t.pairCount - 1}` },
+      );
+      const results = await Promise.all(
+        splitPairs(pairs, args.workers).map(c => pool!.submit({ pairStart: c.pairStart, pairCount: c.pairCount })),
+      );
+      for (const r of results) accA = mergeStats(accA, fromJSON(r.statsA));
+    } else {
+      accA = runPairs(args.seed, 0, pairs, stratA, stratB).statsA;
+    }
+  } finally {
+    pool?.close();
+  }
+  const ms = Date.now() - t0;
+  const hands = accA.handsPlayed;
   console.log(
-    `基准: ${matches} 场对局 / ${statsA.handsPlayed} 小局, ${ms}ms → ` +
-    `${(ms / matches).toFixed(1)} ms/场, ${(statsA.handsPlayed / matches).toFixed(1)} 小局/场, ` +
-    `${(ms / Math.max(1, statsA.handsPlayed)).toFixed(2)} ms/小局`,
+    `基准: ${matches} 场对局 / ${hands} 小局, ${ms}ms → ` +
+    `${(ms / matches).toFixed(1)} ms/场, ${(hands / matches).toFixed(1)} 小局/场, ` +
+    `${(ms / Math.max(1, hands)).toFixed(2)} ms/小局 | workers=${args.workers}`,
   );
 }
 

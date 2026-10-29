@@ -14,8 +14,8 @@
  */
 import path from 'node:path';
 import fs from 'node:fs';
-import os from 'node:os';
 import { strategyByName } from './strategies.js';
+import { defaultWorkerCount } from './workers.js';
 import { normalizeSeed, randomSeed } from './rng.js';
 import { ChildPool, ARENA_ROOT } from './child-pool.js';
 import { createDealStats, runDealDeals, dealStatsToJSON, dealStatsFromJSON, parseDeclarerSeats, DEFAULT_DECLARER_SEATS } from './deal-arena.js';
@@ -79,7 +79,7 @@ Deal 竞技场 —— 以发牌为单位，按 --declarer-seats 坐庄；每（�
   --until-significant  不设最小样本：任一次检查显著即停（与 --min-deals 互斥）
   --step-deals N       显著性检查间隔与目标取整粒度（单位：副），默认 250
   --max-deals N        有效发牌数上限（单位：副），默认 10000
-  --workers N          子进程数，默认 min(8, CPU 核数)；1 = 进程内
+  --workers N          子进程数，默认 min(8, 物理核数)；1 = 进程内
   --out PATH           结果 JSON 输出路径，默认 results/deal-arena-<时间>.json
   --no-json            不导出 JSON
   -h, --help           显示帮助
@@ -101,7 +101,7 @@ function val(argv: string[], i: number, name: string): string {
 function parseArgs(argv: string[]): Args {
   const args: Args = {
     seed: randomSeed(),
-    workers: Math.max(1, Math.min(8, os.cpus().length)),
+    workers: defaultWorkerCount(),
     strategyA: 'ai',
     strategyB: 'ai-1018',
     levels: [...DEFAULT_LEVELS],

@@ -10,12 +10,12 @@
  * 打完当前手、flush、写 footer 后再退出。格式与保证见 src/record-format.md。
  */
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { fork, spawnSync } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { strategyByName } from './strategies.js';
+import { defaultWorkerCount } from './workers.js';
 import type { Strategy } from './types.js';
 import { ChainWriter } from './record-writer.js';
 import { runChain, writeErrorReport } from './record-run.js';
@@ -59,7 +59,7 @@ function printUsage(): void {
 
   --context MODE     发牌/局面来源：random（默认，52 手分层块）| rules（2..A 循环）
   --hands N          手数总数，默认 1000000
-  --workers W        独立链数，默认 min(8, cpus, hands)；1 = 进程内
+  --workers W        独立链数，默认 min(8, 物理核数, hands)；1 = 进程内
   --seed SEED        base seed（十进制或 0x 十六进制），默认时间戳+随机派生
   --strategy-a NAME  座位 0/2 的策略，默认 ai（可选: ai, ai-0816, ai-0907, ai-0929, ai-1005, ai-1018）
   --strategy-b NAME  座位 1/3 的策略，默认 ai
@@ -230,7 +230,7 @@ export async function main(argv: string[]): Promise<number> {
     return 1;
   }
   const workers = Math.min(
-    args.workers ?? Math.min(8, os.cpus().length, args.hands),
+    args.workers ?? Math.min(defaultWorkerCount(), args.hands),
     args.hands,
   );
   if (workers > 0xffff) {
