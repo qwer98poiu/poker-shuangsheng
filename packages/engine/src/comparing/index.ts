@@ -36,14 +36,46 @@ interface Components {
   singles: Card[];
 }
 
+/**
+ * 牌型分解是纯函数，但同一手牌在一次决策里会被反复分解（领出阶梯各档、
+ * 最坏情形模型、验甩牌都会各自调用）。缓存按「牌 id 序列 + 级牌 + 主牌」
+ * 精确命中：键保序，因为 `singles` 保留输入顺序；`Card.id` 已编码花色与点数，
+ * 键相同即输入等价。
+ *
+ * 返回的数组是共享的，调用方只读——引擎内所有消费者都只读取或用 id 做集合，
+ * 不做原地修改。容量有界（FIFO 淘汰），单进程内存不随牌局数增长。
+ */
+const COMPONENTS_CACHE_LIMIT = 8192;
+const componentsCache = new Map<string, Components>();
+
+function componentsCacheKey(cards: Card[], config: TrumpDeclaration): string {
+  let key = `${config.level}|${String(config.trumpSuit)}|`;
+  for (let i = 0; i < cards.length; i++) {
+    if (i > 0) key += ',';
+    key += cards[i].id;
+  }
+  return key;
+}
+
 export function extractComponents(cards: Card[], config: TrumpDeclaration): Components {
+  const key = componentsCacheKey(cards, config);
+  const hit = componentsCache.get(key);
+  if (hit !== undefined) return hit;
+
   const tractors = dedupTractors(detectTractors(cards, config));
   const tractorIds = new Set(tractors.flat().map(c => c.id));
   const pairs = findAllPairs(cards).filter(p => !tractorIds.has(p[0].id));
   const used = new Set([...tractorIds, ...pairs.flat().map(c => c.id)]);
   const singles = cards.filter(c => !used.has(c.id));
   tractors.sort((a, b) => (b.length / 2) - (a.length / 2));
-  return { tractors, pairs, singles };
+  const result = { tractors, pairs, singles };
+
+  if (componentsCache.size >= COMPONENTS_CACHE_LIMIT) {
+    const oldest = componentsCache.keys().next().value;
+    if (oldest !== undefined) componentsCache.delete(oldest);
+  }
+  componentsCache.set(key, result);
+  return result;
 }
 
 function dedupTractors(tractors: Card[][]): Card[][] {

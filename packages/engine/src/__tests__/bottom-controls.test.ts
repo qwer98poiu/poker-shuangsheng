@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Suit } from '../types.js';
+import { Rank, Suit } from '../types.js';
 import { createCard } from '../model.js';
 import type { Card, CardSuit, TrumpDeclaration } from '../types.js';
 import { computeOffSuitControls } from '../ai/bottom-controls.js';
@@ -165,5 +165,43 @@ describe('computeOffSuitControls', () => {
     const info = ctrlOf(hand, Suit.Clubs, cfg);
     expect(keys(info.cards)).toEqual(['C13', 'C14']);
     expect(info.tier1.length).toBe(1); // only the A
+  });
+});
+
+describe('computeOffSuitControls — 精确输入缓存', () => {
+  it('相同输入命中缓存并返回共享结果', () => {
+    const hand = [c('C', 14, 0), c('C', 13, 1), c('C', 12, 2)];
+    const a = computeOffSuitControls(hand, cfg);
+    const b = computeOffSuitControls(hand, cfg);
+    expect(b).toBe(a);
+  });
+
+  it('同一手牌、不同级牌不命中：级牌是否属于该门会改变 cards', () => {
+    const hand = [c('C', 14, 0), c('C', 13, 1), c('C', 5, 2), c('C', 5, 3)];
+    const cfg5: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 5 };
+    const a = computeOffSuitControls(hand, cfg);
+    const b = computeOffSuitControls(hand, cfg5);
+    expect(b).not.toBe(a);
+    expect(a.find(i => i.suit === Suit.Clubs)!.cards.length).toBe(4);
+    expect(b.find(i => i.suit === Suit.Clubs)!.cards.length).toBe(2);
+  });
+
+  it('exclude 与动态顶张不同不命中：顶张从 A 降到 K', () => {
+    // 手里没有 A（两张 A 已出局），静态顶张仍是 A；动态顶张降到 K。
+    const hand: Card[] = [];
+    let idx = 10;
+    for (const r of [13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3]) hand.push(c('C', r, idx++));
+    const exclude = [c('C', 14, 90), c('C', 14, 91)];
+    const topK = (): Rank => Rank.King;
+
+    const staticInfo = computeOffSuitControls(hand, cfg).find(i => i.suit === Suit.Clubs)!;
+    const dynInfo = computeOffSuitControls(hand, cfg, exclude, topK).find(i => i.suit === Suit.Clubs)!;
+    expect(keys(staticInfo.tier1)).not.toContain('C13');
+    expect(keys(dynInfo.tier1)).toContain('C13');
+
+    // 同样的动态输入再次调用 → 命中同一份结果。
+    const again = computeOffSuitControls(hand, cfg, exclude, topK);
+    expect(again).toBe(computeOffSuitControls(hand, cfg, exclude, topK));
+    expect(again.find(i => i.suit === Suit.Clubs)).toBe(dynInfo);
   });
 });

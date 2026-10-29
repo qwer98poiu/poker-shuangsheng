@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-10-29 20:24
+
+### 引擎 AI 领出路径缓存重复的牌型分解与控制张分析
+
+**问题**：领出阶梯的相邻档位各自重新分析同一手牌。实测每小局 `computeOffSuitControls` 调用 68.9 次、唯一输入仅 8.35 个（8.3× 冗余），`extractComponents` 764.9 次 / 30.2 个唯一输入（25.4× 冗余）；CPU 采样中 `pattern/` + `comparing/` 合计 52%，是竞技场与记录器的主要成本。
+
+**修复**：给共享的 `extractComponents`（`comparing/index.ts`）与当前 `ai` 的 `computeOffSuitControls`（`ai/bottom-controls.ts`）加**精确输入缓存**：键包含牌 id 序列（保序）、级牌、主牌花色、`exclude` 与动态顶张；容量 8192、FIFO 淘汰，单进程内存有界。返回的数组按只读共享——现有消费者均只读取或用 id 做集合。行为不变：同一 seed 的 800 手录制分片逐字节一致。单进程 arena：`ai` vs `ai` 10.01 → 4.34 ms/小局（2.31×），`ai` vs `ai-1018` 7.69 → 5.23 ms/小局（1.47×）。
+
+**新增 6 项测试**（comparing.test.ts：3 项、bottom-controls.test.ts：3 项）；引擎 1248 项 + arena 242 项 + CLI 87 项 + client 201 项 = 1778 项通过。
+
+- **影响文件**：`packages/engine/src/comparing/index.ts`、`packages/engine/src/ai/bottom-controls.ts`、`packages/engine/src/__tests__/comparing.test.ts`、`packages/engine/src/__tests__/bottom-controls.test.ts`
+
 ## 2026-10-28 22:22
 
 ### 竞技场发牌改为与记录器相同的 64 位 seed + sfc32 顺序流

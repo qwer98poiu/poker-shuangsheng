@@ -38,6 +38,35 @@ export interface OffSuitControlInfo {
 }
 
 /**
+ * 控制张分析是纯函数，但一次领出决策里会被各档位反复调用（实测同一手牌平均
+ * 重复 8 次）。按完整输入做精确缓存：手牌 id 序列、级牌、主牌花色、exclude、
+ * 以及动态顶张（`topRankOf` 对各门算出的顶张）。`topRankOf` 必须是纯函数，
+ * 且其返回值被完整编进键，所以不同动态顶张不会被误命中。
+ *
+ * 返回数组共享，调用方只读（现有调用方均只读取/过滤）。容量有界（FIFO 淘汰）。
+ */
+const OFF_SUIT_CACHE_LIMIT = 8192;
+const offSuitCache = new Map<string, OffSuitControlInfo[]>();
+
+function offSuitCacheKey(
+  hand: Card[], config: TrumpDeclaration, exclude: readonly Card[],
+  topRankOf?: (suit: Suit) => Rank,
+): string {
+  const dyn = topRankOf ? SUIT_ORDER.map(s => String(topRankOf(s))).join(',') : 's';
+  let key = `${config.level}|${String(config.trumpSuit)}|${dyn}|`;
+  for (let i = 0; i < exclude.length; i++) {
+    if (i > 0) key += ',';
+    key += exclude[i].id;
+  }
+  key += '|';
+  for (let i = 0; i < hand.length; i++) {
+    if (i > 0) key += ',';
+    key += hand[i].id;
+  }
+  return key;
+}
+
+/**
  * `exclude` lists cards known to be out of play (already played, or in the
  * bottom). At bury time nothing has been played yet, so the default keeps the
  * bottom strategy's behaviour byte-for-byte; the lead strategy passes the
@@ -50,6 +79,10 @@ export function computeOffSuitControls(
   exclude: readonly Card[] = [],
   topRankOf?: (suit: Suit) => Rank,
 ): OffSuitControlInfo[] {
+  const key = offSuitCacheKey(hand, config, exclude, topRankOf);
+  const hit = offSuitCache.get(key);
+  if (hit !== undefined) return hit;
+
   const result: OffSuitControlInfo[] = [];
   for (const suit of SUIT_ORDER) {
     const cards = hand.filter(c => c.suit === suit && !isTrump(c, config));
@@ -104,6 +137,12 @@ export function computeOffSuitControls(
       voidablePairCount: pairUnitCount(voidable),
     });
   }
+
+  if (offSuitCache.size >= OFF_SUIT_CACHE_LIMIT) {
+    const oldest = offSuitCache.keys().next().value;
+    if (oldest !== undefined) offSuitCache.delete(oldest);
+  }
+  offSuitCache.set(key, result);
   return result;
 }
 

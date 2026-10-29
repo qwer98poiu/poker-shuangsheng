@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { Suit } from '../types.js';
 import { createCard, sortHand } from '../model.js';
-import { cardGreater, compareTwo, determineWinner } from '../comparing/index.js';
+import { cardGreater, compareTwo, determineWinner, extractComponents } from '../comparing/index.js';
 import type { Card, CardSuit, TrumpDeclaration } from '../types.js';
 
 const trump2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
@@ -143,5 +143,37 @@ describe('sortHand — same-rank tiebreaker by suit S-H-C-D', () => {
     const sorted = sortHand(hand, cfgD2);
     const desc = sorted.map(c => `${c.suit}${c.rank}`);
     expect(desc).toEqual(['J16', 'J15', 'D2', 'S2', 'H2', 'C2']);
+  });
+});
+
+describe('extractComponents — 精确输入缓存', () => {
+  it('相同输入命中缓存并返回共享结果', () => {
+    const hand = [ct('H', 5, 0), ct('H', 5, 1), ct('H', 6, 2), ct('H', 6, 3)];
+    const a = extractComponents(hand, trump2);
+    const b = extractComponents(hand, trump2);
+    expect(b).toBe(a);
+    expect(a.tractors.length).toBe(1);
+    expect(a.pairs.length).toBe(0);
+  });
+
+  it('输入顺序不同不命中：singles 保留各自的输入顺序', () => {
+    const a = extractComponents([ct('H', 5, 0), ct('H', 7, 1)], trump2);
+    const b = extractComponents([ct('H', 7, 1), ct('H', 5, 0)], trump2);
+    expect(b).not.toBe(a);
+    expect(a.singles.map(c => c.id)).toEqual(['H-5-0', 'H-7-1']);
+    expect(b.singles.map(c => c.id)).toEqual(['H-7-1', 'H-5-0']);
+  });
+
+  it('同一组牌、不同级牌不命中：S5/S6 在 level=2 成拖拉机，在 level=5 分成两个对子', () => {
+    const hand = [ct('S', 5, 0), ct('S', 5, 1), ct('S', 6, 2), ct('S', 6, 3)];
+    const level2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
+    const level5: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 5 };
+    const a = extractComponents(hand, level2);
+    const b = extractComponents(hand, level5);
+    expect(a).not.toBe(b);
+    expect(a.tractors.length).toBe(1);
+    expect(a.pairs.length).toBe(0);
+    expect(b.tractors.length).toBe(0);
+    expect(b.pairs.length).toBe(2);
   });
 });
