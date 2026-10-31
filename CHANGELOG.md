@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-10-31 17:25
+
+### 跟牌侧拆拖拉机按结构与分对优先级选牌
+
+**问题**：同花色对牌跟出时，如果手里没有独立对、必须拆拖拉机，旧实现按该门 rank 最小的一对选牌，既不看分对，也不优先保留拖拉机；更严重的是，存在独立对时也可能因为 rank 排序而拆掉拖拉机。典型：领出 ♥A 对，第三家只有 ♥K-Q 拖拉机时出 Q 而不是 K；独立 ♥J-J + ♥5-4 拖拉机时拆 5-4 出 4。
+
+**修复**：
+
+- 对子领出和甩牌对子槽改走统一的 `selectFollowPairs`：有独立对时先用独立对，不拆拖拉机；必须拆拖拉机时按结构/分对规则选边缘对。现有“能盖就盖”的判定保持不变——决定盖牌时只在能盖的候选对里按新规则选。
+- **canAddPoints = true**：长拖优先于 2 对；长拖边缘有分对时按跟牌侧 10>K>5 全局选，无分边缘时取最短长拖的最小边缘；只有 2 对拖拉机时，有分对按 10>K>5，否则取全局最小非分对。
+- **canAddPoints = false**：先排除 5/10/K 对；长拖有非分边缘取最短长拖的最小非分边缘；长拖没有非分边缘但 2 对拖拉机有非分对时转拆 2 对；只有一把长拖且两边全为分对时拆其中最小的非分对（如 KKJJ1010、等级 Q 拆 J）。
+- **第二家**：手牌 >15 按 canAddPoints=false；≤15 分与非分一视同仁，先按结构长度筛选，再取最小边缘对。**第三/四家全力加分**：忽略结构按 10>K>5 选，无分对时回退普通加分结构。
+- 有主局主牌对子（吊主对、甩主牌对子槽）也走同一套拆对规则：无独立主对时由 `pickTractorSplitPair` 按结构与分对优先级选边缘对，跨组拖拉机（王、级牌、主 A）按有效大小判定；独立对保持原选择。无主局主牌仍走 NT 独立分支。STRATEGY.md 2.4 与 2.2 第 5 条已同步。
+- 主牌扩展是**规则统一**而非收益改动：10,001 副同状态对照中吊主对出牌变化 86 次；10,000 副 deal 竞技场 A/B（仅单对领出子集）p̂=0.5007，99% CI 下界 0.4878，不显著。
+
+**新增 30 项测试、修改 4 项测试**（ai-tractor-split.test.ts：新增 30 项；ai-follow.test.ts：修改 1 项；strategy-fingerprint.test.ts：修改 3 项），引擎 1284 项 + arena 247 项 + CLI 87 项 + client 201 项 = 1819 项通过。
+
+- **影响文件**：`packages/engine/src/ai/follow-offsuit.ts`、`packages/engine/src/ai/follow-trump.ts`、`packages/engine/src/ai/helpers.ts`、`packages/engine/src/ai/STRATEGY.md`、`packages/engine/src/__tests__/ai-tractor-split.test.ts`、`packages/engine/src/__tests__/ai-follow.test.ts`、`packages/arena/src/__tests__/strategy-fingerprint.test.ts`、`README.md`
+
 ## 2026-10-29 21:34
 
 ### 亮主按当前力量剪枝：不可能生效时不调用 AI
@@ -120,7 +139,7 @@
 - 新增 `baseline-facade` 一致性测试：engine 导出的每个 `aiXXXX` 命名空间必须由新包以同一对象身份导出，防止 facade 漏接或归档漏删。
 - 根 workspace / typecheck 接入新包（engine → ai-baselines → arena → cli → client → skills）；`test:all` 仍为四包（新包无独立测试套件，由 arena 测试间接覆盖）。本提交无策略行为变更，Elo 数值不变。
 
-**新增 1 项测试（arena 1）**，引擎 1242 项 + arena 181 项 + CLI 87 项 + client 201 项 = 1711 项通过。
+**新增 1 项测试**（baseline-facade.test.ts：1 项），引擎 1242 项 + arena 181 项 + CLI 87 项 + client 201 项 = 1711 项通过。
 
 - **影响文件**：`package.json`、`package-lock.json`、`.githooks/pre-push`、`packages/ai-baselines/package.json`、`packages/ai-baselines/tsconfig.json`、`packages/ai-baselines/README.md`、`packages/ai-baselines/src/index.ts`、`packages/ai-baselines/src/types.ts`、`packages/ai-baselines/src/model.ts`、`packages/ai-baselines/src/pattern/index.ts`、`packages/ai-baselines/src/comparing/index.ts`、`packages/ai-baselines/src/following/index.ts`、`packages/ai-baselines/src/leading/index.ts`、`packages/arena/package.json`、`packages/arena/src/strategies.ts`、`packages/arena/src/__tests__/baseline-facade.test.ts`、`CLAUDE.md`、`README.md`
 
@@ -138,7 +157,7 @@
 - `CLAUDE.md` 记录该落点：改策略时更新指纹文件，测试数行写「修改 3 项测试（arena 3）」。
 - 顺带修正 10-18 条目的扣底调用次数：`8 → 11 → 10 → 8` 应为 `8 → 11 → 10 → 6`（该提交实际断言 `sizes.length === 6`）。
 
-**新增 1 项测试（arena 1）、修改 1 项测试（client 1）**，引擎 1242 项 + arena 180 项 + CLI 87 项 + client 201 项 = 1710 项通过。
+**新增 3 项测试、删除 2 项测试、修改 1 项测试**（strategy-fingerprint.test.ts：新增 3 项；arena-e2e.test.ts：删除 1 项；bottom-exchange-input.test.ts：删除 1 项；gameStore.test.ts：修改 1 项），引擎 1242 项 + arena 180 项 + CLI 87 项 + client 201 项 = 1710 项通过。
 
 - **影响文件**：`CLAUDE.md`、`packages/arena/src/__tests__/arena-e2e.test.ts`、`packages/arena/src/__tests__/bottom-exchange-input.test.ts`、`packages/arena/src/__tests__/strategy-fingerprint.test.ts`、`packages/client/src/__tests__/gameStore.test.ts`
 
@@ -251,7 +270,7 @@
 
 **测量**：seed 47 镜像对决，对 ai-1018——闲3 + 通用6 两处 n=29000，A 50.76% vs 49.24%（99% CI 下界 50.01%）；三处合并 n=11000，A 51.25% vs 48.75%（下界 50.02%），均显著。残余为有主局 −0.77pp。
 
-**新增 91 项测试、删除 5 项测试**（engine：新增 91、删除 5），引擎 1236 项 + arena 199 项 + CLI 87 项 + client 201 项 = 1723 项通过。
+**新增 91 项测试、删除 5 项测试、修改 4 项测试**（attacker-lead.test.ts：新增 10 项；drain.test.ts：新增 29 项；generic-lead.test.ts：新增 48 项；suit-memory.test.ts：新增 4 项；ai-nt-lead.test.ts：删除 5 项（重写后净减）；ai-leading.test.ts：修改 1 项；arena-e2e.test.ts：修改 1 项；bottom-exchange-input.test.ts：修改 1 项；gameStore.test.ts：修改 1 项），引擎 1236 项 + arena 199 项 + CLI 87 项 + client 201 项 = 1723 项通过。
 
 - **影响文件**：`README.md`、`packages/arena/src/__tests__/arena-e2e.test.ts`、`packages/arena/src/__tests__/bottom-exchange-input.test.ts`、`packages/client/src/__tests__/gameStore.test.ts`、`packages/engine/src/__tests__/ai-leading.test.ts`、`packages/engine/src/__tests__/ai-nt-lead.test.ts`、`packages/engine/src/__tests__/attacker-lead.test.ts`、`packages/engine/src/__tests__/drain.test.ts`、`packages/engine/src/__tests__/generic-lead.test.ts`、`packages/engine/src/__tests__/suit-memory.test.ts`、`packages/engine/src/ai/STRATEGY.md`、`packages/engine/src/ai/attacker-lead.ts`、`packages/engine/src/ai/bottom-controls.ts`、`packages/engine/src/ai/drain.ts`、`packages/engine/src/ai/generic-lead.ts`、`packages/engine/src/ai/lead.ts`、`packages/engine/src/ai/nt-lead.ts`、`packages/engine/src/ai/nt-trump.ts`、`packages/engine/src/ai/suit-memory.ts`、`packages/engine/src/ai/throw-detector.ts`
 

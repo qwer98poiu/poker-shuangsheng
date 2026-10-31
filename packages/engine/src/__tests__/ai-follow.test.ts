@@ -866,19 +866,20 @@ describe('trump kill validity (hearts trump, level=5)', () => {
     });
 
     it('scans for beating pair, prefers point when fourth and beating is possible', () => {
-      // Smallest pair 3-3 cannot beat 8-8. Both 9-9 and 10-10 can beat.
-      // Fourth should pick 10-10 (point) over 9-9 (non-point).
+      // Smallest pair 3-3 cannot beat 8-8. Both 9-9 and K-K can beat.
+      // The two beating pairs are not adjacent, so this is standalone-pair
+      // selection: fourth should pick K-K (point) over 9-9 (non-point).
       const hand = [
         c2('C', 3, 0), c2('C', 3, 1),   // 3-3 pair (cannot beat)
         c2('C', 9, 0), c2('C', 9, 1),   // 9-9 pair (non-point)
-        c2('C', 10, 0), c2('C', 10, 1), // 10-10 pair (point)
+        c2('C', 13, 0), c2('C', 13, 1), // K-K pair (point)
         c2('H', 8, 0), c2('D', 7, 0),
       ];
       const r = aiFollowPlay(hand, lead88, Suit.Clubs, cfg4, best88, 3);
       checkFollow(r.cards, hand, lead88, 'C', cfg4);
       expect(r.cards.length).toBe(2);
-      // Should pick 10-10 (point, beating) over 9-9 (non-point, beating)
-      expect(r.cards.every(c => c.rank === 10)).toBe(true);
+      // Should pick K-K (point, beating) over 9-9 (non-point, beating)
+      expect(r.cards.every(c => c.rank === 13)).toBe(true);
     });
 
   });

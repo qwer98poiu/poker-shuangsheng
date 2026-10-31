@@ -35,6 +35,200 @@ export function pairKillSort(pairs: Card[][], cards: Card[], ctx: AIContext): vo
   });
 }
 
+// ---- Tractor-splitting (follow side) ----
+
+export interface TractorChain {
+  /** Pairs sorted by effective rank ascending. */
+  pairs: Card[][];
+}
+
+export interface PairStructure {
+  /** Pairs that are not part of any tractor. */
+  standalone: Card[][];
+  /** Maximal disjoint tractor chains (2+ pairs). */
+  chains: TractorChain[];
+  /** First card id of a pair → its chain and index in that chain. */
+  chainIndex: Map<string, { chain: TractorChain; index: number }>;
+}
+
+/**
+ * Split a same-suit card pool into standalone pairs and maximal tractor
+ * chains. Used only on the follow side for off-suit cards (no cross-group
+ * tractors): the input is a single side suit, so level cards are already
+ * excluded by the caller.
+ */
+export function analyzePairStructure(cards: Card[], ctx: AIContext): PairStructure {
+  const allPairs = findAllPairs(cards);
+  const pairsByRank = new Map<string, Card[][]>();
+  for (const pair of allPairs) {
+    const key = `${String(pair[0].suit)}-${pair[0].rank}`;
+    const group = pairsByRank.get(key);
+    if (group) group.push(pair);
+    else pairsByRank.set(key, [pair]);
+  }
+
+  const candidates = detectTractors(cards, ctx)
+    .filter(t => t.length >= 4)
+    .slice()
+    .sort((a, b) => (b.length - a.length)
+      || (Math.min(...a.map(c => getEffectiveRank(c, ctx)))
+        - Math.min(...b.map(c => getEffectiveRank(c, ctx)))));
+
+  const used = new Set<string>();
+  const chains: TractorChain[] = [];
+  const chainIndex = new Map<string, { chain: TractorChain; index: number }>();
+  for (const tractor of candidates) {
+    const keys = [...new Set(tractor.map(c => `${String(c.suit)}-${c.rank}`))];
+    const picked: Card[][] = [];
+    let ok = true;
+    for (const key of keys) {
+      const pair = (pairsByRank.get(key) ?? [])
+        .find(p => !used.has(p[0].id) && !picked.includes(p));
+      if (!pair) { ok = false; break; }
+      picked.push(pair);
+    }
+    if (!ok || picked.length < 2) continue;
+    picked.sort((a, b) => getEffectiveRank(a[0], ctx) - getEffectiveRank(b[0], ctx));
+    const chain = { pairs: picked };
+    chains.push(chain);
+    picked.forEach((pair, index) => {
+      used.add(pair[0].id);
+      used.add(pair[1].id);
+      chainIndex.set(pair[0].id, { chain, index });
+    });
+  }
+
+  const standalone = allPairs.filter(p => !used.has(p[0].id));
+  return { standalone, chains, chainIndex };
+}
+
+export type PairSplitMode = 'add' | 'avoid' | 'open' | 'full';
+
+function splitPointOrder(rank: number): number {
+  if (rank === Rank.Ten) return 0;
+  if (rank === Rank.King) return 1;
+  if (rank === Rank.Five) return 2;
+  return 3;
+}
+
+function minPairByRank(pairs: Card[][], ctx: AIContext): Card[] {
+  return pairs.reduce((best, pair) =>
+    getEffectiveRank(pair[0], ctx) < getEffectiveRank(best[0], ctx) ? pair : best);
+}
+
+function pickPointPair(pairs: Card[][], ctx: AIContext): Card[] {
+  return pairs.slice().sort((a, b) => {
+    const ap = splitPointOrder(a[0].rank);
+    const bp = splitPointOrder(b[0].rank);
+    if (ap !== bp) return ap - bp;
+    return getEffectiveRank(a[0], ctx) - getEffectiveRank(b[0], ctx);
+  })[0];
+}
+
+/**
+ * Pick one pair from a pool that must be taken out of a tractor.
+ *
+ * `candidates` may be restricted by the caller (e.g. only pairs that can
+ * beat the current best); `cards` is the remaining lead-suit pool used to
+ * recover chain structure. Returns null when no candidate belongs to a
+ * tractor (the caller falls back to its normal pair order).
+ *
+ * Follow-side point order is 10 > K > 5 (opposite of the lead side).
+ * Structure priority: longer tractors first; when no point edge is present,
+ * prefer the shortest long tractor, then its smallest edge. Two-pair
+ * tractors are split only when no longer tractor can supply the pair.
+ */
+export function pickTractorSplitPair(
+  candidates: Card[][],
+  cards: Card[],
+  ctx: AIContext,
+  mode: PairSplitMode,
+): Card[] | null {
+  if (candidates.length === 0) return null;
+  const structure = analyzePairStructure(cards, ctx);
+  const candidateIds = new Set(candidates.map(p => p[0].id));
+  const tractorPairs = candidates.filter(p => structure.chainIndex.has(p[0].id));
+  if (tractorPairs.length === 0) return null;
+
+  const chainInfo = structure.chains.map(chain => {
+    const edges = chain.pairs.length >= 2
+      ? [chain.pairs[0], chain.pairs[chain.pairs.length - 1]]
+        .filter(p => candidateIds.has(p[0].id))
+      : [];
+    const available = chain.pairs.filter(p => candidateIds.has(p[0].id));
+    return { length: chain.pairs.length, edges, available };
+  });
+  const long = chainInfo.filter(c => c.length > 2);
+  const short = chainInfo.filter(c => c.length === 2);
+  const allEdges = [...long, ...short].flatMap(c => c.edges);
+
+  if (mode === 'full') {
+    // Full add-points: ignore structure, take the point pair by 10 > K > 5.
+    const points = tractorPairs.filter(p => isPointRank(p[0].rank));
+    if (points.length > 0) return pickPointPair(points, ctx);
+    return pickTractorSplitPair(candidates, cards, ctx, 'add');
+  }
+
+  if (mode === 'add') {
+    const longEdges = long.flatMap(c => c.edges);
+    const pointLongEdges = longEdges.filter(p => isPointRank(p[0].rank));
+    if (pointLongEdges.length > 0) return pickPointPair(pointLongEdges, ctx);
+    const longWithEdges = long.filter(c => c.edges.length > 0);
+    if (longWithEdges.length > 0) {
+      const minLen = Math.min(...longWithEdges.map(c => c.length));
+      const pool = longWithEdges.filter(c => c.length === minLen).flatMap(c => c.edges);
+      return minPairByRank(pool, ctx);
+    }
+    const shortEdges = short.flatMap(c => c.edges);
+    if (shortEdges.length > 0) {
+      const points = shortEdges.filter(p => isPointRank(p[0].rank));
+      if (points.length > 0) return pickPointPair(points, ctx);
+      const nonPoints = shortEdges.filter(p => !isPointRank(p[0].rank));
+      return minPairByRank(nonPoints.length > 0 ? nonPoints : shortEdges, ctx);
+    }
+    return minPairByRank(tractorPairs, ctx);
+  }
+
+  if (mode === 'avoid') {
+    const longEdges = long.flatMap(c => c.edges);
+    const longNonPointEdges = longEdges.filter(p => !isPointRank(p[0].rank));
+    if (longNonPointEdges.length > 0) {
+      const minLen = Math.min(...long
+        .filter(c => c.edges.some(p => !isPointRank(p[0].rank)))
+        .map(c => c.length));
+      const pool = long
+        .filter(c => c.length === minLen)
+        .flatMap(c => c.edges)
+        .filter(p => !isPointRank(p[0].rank));
+      return minPairByRank(pool, ctx);
+    }
+    const shortNonPoints = short
+      .flatMap(c => c.edges)
+      .filter(p => !isPointRank(p[0].rank));
+    if (shortNonPoints.length > 0) return minPairByRank(shortNonPoints, ctx);
+    // Only a single long tractor with point edges left: break its middle and
+    // take the smallest non-point pair (e.g. KKJJ1010 with level Q → JJ).
+    const longNonPoints = long
+      .flatMap(c => c.available)
+      .filter(p => !isPointRank(p[0].rank));
+    if (longNonPoints.length > 0) return minPairByRank(longNonPoints, ctx);
+    const nonPoints = tractorPairs.filter(p => !isPointRank(p[0].rank));
+    return minPairByRank(nonPoints.length > 0 ? nonPoints : tractorPairs, ctx);
+  }
+
+  // open: second position with <=15 cards — points and non-points are equal.
+  const longEdges = long.flatMap(c => c.edges);
+  if (longEdges.length > 0) {
+    const minLen = Math.min(...long.filter(c => c.edges.length > 0).map(c => c.length));
+    const pool = long
+      .filter(c => c.length === minLen)
+      .flatMap(c => c.edges);
+    return minPairByRank(pool, ctx);
+  }
+  if (allEdges.length > 0) return minPairByRank(allEdges, ctx);
+  return minPairByRank(tractorPairs, ctx);
+}
+
 // ---- Discard / Pad helpers ----
 
 export function discardNonTrump(

@@ -15,7 +15,8 @@ import { annotateReason } from './reason.js';
 import {
   pairKillSort, discardNonTrump, padWithDiscards,
   canAddPoints, isMaxPattern, tryMatchTractorSlots,
-  attackerNearThreshold,
+  attackerNearThreshold, analyzePairStructure, pickTractorSplitPair,
+  type PairSplitMode,
 } from './helpers.js';
 import {
   hasStrongFollowUp, visibleTrickPoints, leadHasPoints, defense80,
@@ -295,6 +296,79 @@ function pickBeatingPairsForFourth(
   return pool.slice(0, pairCount);
 }
 
+/**
+ * 拆拖拉机（2.4）在主牌对子槽上的实现。
+ *
+ * 只有当手里没有足够的独立主对、原选择里出现拖拉机对时才生效；独立对保持原选择，
+ * 只替换被迫拆开的拖拉机对。外层“能盖就盖/是否加分”的决策不变：原出牌能盖过时，
+ * 只在能盖的候选里选；最终仍需仍能盖过才采用。返回 null 表示保持原选择。
+ *
+ * 主牌拖拉机可跨组（王、级牌、主 A），结构与边缘对按 `detectTractors` 的有效大小判定。
+ */
+function pickTrumpSplitPairs(
+  myPairs: Card[][],
+  myTrump: Card[],
+  leadCombo: ComboClass,
+  ctx: AIContext,
+  position: string,
+  tmWin: boolean,
+  hand: Card[],
+  thirdNoSeize: boolean,
+  original: Card[],
+): Card[][] | null {
+  const count = leadCombo.pairCount;
+  if (count <= 0 || original.length !== count * 2) return null;
+  const structure = analyzePairStructure(myTrump, ctx);
+  if (structure.standalone.length >= count) return null;
+
+  const best = ctx.bestSoFar;
+  const anyBeat = (pair: Card[]): boolean => canBeat(pair, best, ctx);
+  const mustBeat = canBeat(original, best, ctx);
+  const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
+  const fullAdd = addPoints
+    && (position === 'third' || position === 'fourth')
+    && ctx.isAttacker
+    && attackerNearThreshold(ctx, visibleTrickPoints(ctx, leadCombo.cards));
+  const mode: PairSplitMode = thirdNoSeize ? 'open'
+    : fullAdd ? 'full'
+      : (position === 'second' && !secondShouldAvoid(hand)) ? 'open'
+        : addPoints ? 'add' : 'avoid';
+
+  const remaining = myPairs.slice();
+  const used = new Set<string>();
+  const chosen: Card[][] = [];
+  let needBeat = mustBeat;
+  let replaced = false;
+
+  for (let slot = 0; slot < count; slot++) {
+    const pair = [original[slot * 2], original[slot * 2 + 1]];
+    const inTractor = structure.chainIndex.has(pair[0].id);
+    if (!inTractor) {
+      chosen.push(pair);
+      pair.forEach(c => used.add(c.id));
+      const idx = remaining.findIndex(p => p[0].id === pair[0].id);
+      if (idx >= 0) remaining.splice(idx, 1);
+      continue;
+    }
+
+    const cardsLeft = myTrump.filter(c => !used.has(c.id));
+    const pool = needBeat ? remaining.filter(anyBeat) : remaining;
+    if (pool.length === 0) return null;
+    const picked = pickTractorSplitPair(pool, cardsLeft, ctx, mode);
+    if (!picked) return null;
+    replaced = true;
+    chosen.push(picked);
+    picked.forEach(c => used.add(c.id));
+    const idx = remaining.findIndex(p => p[0].id === picked[0].id);
+    if (idx >= 0) remaining.splice(idx, 1);
+    if (anyBeat(picked)) needBeat = false;
+  }
+
+  if (!replaced) return null;
+  if (mustBeat && !canBeat(chosen.flat(), best, ctx)) return null;
+  return chosen;
+}
+
 export function matchTrumpPattern(
   hand: Card[],
   myTrump: Card[],
@@ -424,6 +498,11 @@ export function matchTrumpPattern(
         chosen = pointBeating.slice(0, leadCombo.pairCount).flat();
       }
     }
+    // 2.4 拆拖拉机：主牌对子槽与副牌同一套选对规则。
+    const splitPairs = pickTrumpSplitPairs(myPairs, myTrump, leadCombo, ctx,
+      position, tmWin, hand, thirdNoSeize, chosen);
+    if (splitPairs) chosen = splitPairs.flat();
+
     const addPt = tmWin && canAddPoints(tmWin, position, leadCombo, ctx);
     if (chosen.length < leadLen) {
       const used = new Set(chosen.map(c => c.id));
