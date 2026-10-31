@@ -19,9 +19,9 @@
  *   - 知识只取**上一墩**（策略基于不记牌，不做跨墩累积，也不用记牌器）。
  */
 import type { Card, CardSuit } from '../types.js';
-import { isTrump } from '../model.js';
-import { cardPointsFromRank } from '../types.js';
-import { classify, findAllPairs } from '../pattern/index.js';
+import { Rank, cardPointsFromRank, isPointRank } from '../types.js';
+import { getEffectiveRank, isTrump } from '../model.js';
+import { classify, findAllPairs, detectTractors } from '../pattern/index.js';
 import { compareTwo } from '../comparing/index.js';
 import { suitGroup } from '../leading/index.js';
 import type { ComboClass } from '../types.js';
@@ -37,29 +37,76 @@ export interface FlushEvidence {
   readonly leadLen: number;
   /** 上一墩领出要求的对子数。 */
   readonly reqPairs: number;
+  /** 队友该门对子状态。仅在 `checkPartnerPairs` 开启时给出。 */
+  readonly partnerPairStatus?: 'none' | 'unknown';
 }
 
 /** 跨过 80 台阶需一次加到的分数（闲家冲 80）。 */
 const ATTACKER_TARGET = 80;
+
+/** 领出侧分对优先级：K > 10 > 5。 */
+function leadPointOrder(rank: number): number {
+  if (rank === Rank.King) return 0;
+  if (rank === Rank.Ten) return 1;
+  if (rank === Rank.Five) return 2;
+  return 3;
+}
+
+function pickLeadPointPair(pairs: Card[][], ctx: AIContext): Card[] {
+  return pairs.reduce((best, pair) => {
+    const order = leadPointOrder(pair[0].rank);
+    const bestOrder = leadPointOrder(best[0].rank);
+    if (order !== bestOrder) return order < bestOrder ? pair : best;
+    return getEffectiveRank(pair[0], ctx) > getEffectiveRank(best[0], ctx) ? pair : best;
+  });
+}
+
+function pickLargestPair(pairs: Card[][], ctx: AIContext): Card[] {
+  return pairs.reduce((best, pair) =>
+    getEffectiveRank(pair[0], ctx) > getEffectiveRank(best[0], ctx) ? pair : best);
+}
+
+/**
+ * 0b 队友对子状态未知时先出的一对。
+ * 独立对优先，不拆拖拉机；独立分对按领出侧 K > 10 > 5，无独立分对取最大独立非分对。
+ * 没有独立对时仍按同一优先级从拖拉机对里拆一对（不套用跟牌侧的边缘/结构规则）。
+ */
+function pickFlushLeadPair(pairs: Card[][], suitCards: Card[], ctx: AIContext): Card[] {
+  const tractorIds = new Set(detectTractors(suitCards, ctx).flat().map(c => c.id));
+  const standalone = pairs.filter(pair => !tractorIds.has(pair[0].id));
+  const pool = standalone.length > 0 ? standalone : pairs;
+  const points = pool.filter(pair => isPointRank(pair[0].rank));
+  return points.length > 0
+    ? pickLeadPointPair(points, ctx)
+    : pickLargestPair(pool, ctx);
+}
 
 /**
  * 从上一墩推断 `heroIndex` 是否已可安全清空某门的对子。
  *
  * 成立条件：上一墩由 hero 领出、hero 赢下；领出是含对的副牌牌型。
  *
- * - **G1**：≥2 对时三家都没出满要求的对数；1 对时只要求两个对手
- *   （第三家是队友，其是否还有对不影响）。
+ * - **G1**：跟出对数 < 要求的对数、证明该家该门对子已出光。推断本身对三家
+ *   一视同仁（任何 reqPairs 都成立）；**默认只查两个对手**，队友是否检查由
+ *   `checkPartnerPairs` 显式指定——领出侧有候选用作甩牌时才需要队友的对子状态
+ *   （1 对是普通对子领出，队友有无对不影响），跟牌侧则不查。
  * - **G2**：有主局两个对手都跟满了领出张数；无主局跳过。
  *   对手缺门就可能用主牌对毙，与 G1 的对子推断无关（缺门者本来就一对没有）。
  *
- * `skipOpponentFullFollow`（无主领出/跟牌侧用）跳过 G2；`skipPartnerPairCheck`
- * （第三家跟牌侧用）连 G1 的第三家也不看——回看证据时"不考虑第三家自己是否有对"。
- * 返回 null 表示无证据 / 信息不足。
+ * `skipOpponentFullFollow`（无主领出/跟牌侧用）跳过 G2；`checkPartnerPairs`
+ * 在 G1 里把队友也查上，并在返回值里给出 `partnerPairStatus`：`'none'` 表示
+ * 队友该门对子已出光，`'unknown'` 表示队友跟满要求对数、仍可能留对。
+ * `skipPartnerPairCheck`（第三家跟牌侧用）即使传了 `checkPartnerPairs` 也不看
+ * 队友——回看证据时"不考虑第三家自己是否有对"。返回 null 表示无证据 / 信息不足。
  */
 export function detectFlushEvidence(
   ctx: AIContext,
   heroIndex: number,
-  opts?: { skipOpponentFullFollow?: boolean; skipPartnerPairCheck?: boolean },
+  opts?: {
+    skipOpponentFullFollow?: boolean;
+    checkPartnerPairs?: boolean;
+    skipPartnerPairCheck?: boolean;
+  },
 ): FlushEvidence | null {
   if (heroIndex < 0 || ctx.myIndex < 0) return null;
 
@@ -82,27 +129,44 @@ export function detectFlushEvidence(
   if (reqPairs < 1) return null; // 全单领出：没有对子可推
 
   const partnerIndex = (heroIndex + 2) % 4;
+  let partnerPairStatus: 'none' | 'unknown' | undefined;
   for (let i = 1; i <= 3; i++) {
     const p = (last.leadPlayerIndex + i) % 4;
     const inSuit = last.plays[i].cards.filter(c => suitGroup(c, ctx) === group);
     const isPartner = p === partnerIndex;
+    const playedPairs = findAllPairs(inSuit).length;
 
     // G1：跟的对数不足 ⇒ 该家把该花色对子出光了。出满 → 信息不足。
-    // 1 对只查两个对手；第三家跟牌侧（skipPartnerPairCheck）永远不查。
-    const checkPairs = !isPartner || (reqPairs >= 2 && !opts?.skipPartnerPairCheck);
-    if (checkPairs && findAllPairs(inSuit).length >= reqPairs) return null;
+    // 推断对三家同口径；默认只查对手，队友由 checkPartnerPairs 显式开启。
+    if (isPartner) {
+      if (opts?.checkPartnerPairs === true && !opts?.skipPartnerPairCheck) {
+        partnerPairStatus = playedPairs >= reqPairs ? 'unknown' : 'none';
+      }
+    } else if (playedPairs >= reqPairs) {
+      return null;
+    }
 
     // G2：跟该花色张数不足 ⇒ 该家现已缺门，可能用主牌对毙。队友豁免。
     if (!opts?.skipOpponentFullFollow
         && !isPartner && inSuit.length !== leadCards.length) return null;
   }
 
-  return { suit: leadCards[0].suit, leadLen: leadCards.length, reqPairs };
+  const evidence: FlushEvidence = {
+    suit: leadCards[0].suit, leadLen: leadCards.length, reqPairs,
+  };
+  return partnerPairStatus === undefined
+    ? evidence
+    : { ...evidence, partnerPairStatus };
 }
 
 /**
  * 领出优先级 0：把证据花色剩下的对甩出。
- * - ≥2 对：把该门剩下的**全部对**（含拖拉机）一次性甩出；
+ * - ≥2 对且队友已被证明该门无对：把该门剩下的**全部对**（含拖拉机）一次性甩出；
+ * - ≥2 对但队友对子状态未知（上一墩跟满要求对数）：不甩，先出一对——
+ *   `validateThrow` 会检查队友，整手甩牌可能被队友留着的对阻断；先出一对是普通
+ *   对子领出，队友若有对必须跟出，对手已被证明无对，这一对必归我方。
+ *   选对优先独立对、不拆拖拉机：独立分对按领出侧 K > 10 > 5，无独立分对取最大
+ *   独立非分对；没有独立对时按同一优先级从拖拉机对里拆。
  * - 1 对：直接出这一对（证据已验两个对手该门对子已绝）。
  *
  * `skipSuit` 是「无主长花色层的长花色」：该门的甩牌由 `nt-lead.ts` 应甩尽甩
@@ -114,9 +178,13 @@ export function tryLeadFlushThrow(
   hand: Card[], ctx: AIContext, skipSuit?: CardSuit,
 ): { cards: Card[]; reason: string } | null {
   if (ctx.playCount !== 0) return null; // 只在领出时
-  // 无主：甩对接受被毙风险，跳过 G2（对手缺门不构成对子推断的缺口）；有主维持原样
-  const evidence = detectFlushEvidence(ctx, ctx.myIndex,
-    { skipOpponentFullFollow: ctx.ntState !== null });
+  // 无主：甩对接受被毙风险，跳过 G2（对手缺门不构成对子推断的缺口）；有主维持原样。
+  // 同时取队友的对子状态：≥2 对时决定是整手甩出还是先出一对。
+  const opts = {
+    skipOpponentFullFollow: ctx.ntState !== null,
+    checkPartnerPairs: true,
+  };
+  const evidence = detectFlushEvidence(ctx, ctx.myIndex, opts);
   if (!evidence) return null;
   if (skipSuit !== undefined && evidence.suit === skipSuit) return null;
 
@@ -129,6 +197,14 @@ export function tryLeadFlushThrow(
     return {
       cards: pairs[0],
       reason: `出${suitLabelCn(evidence.suit)}对子（对子已绝）`,
+    };
+  }
+
+  // 队友无法证明该门无对：不甩（甩牌会被判非法），改为普通对子领出，先清一对。
+  if (evidence.partnerPairStatus !== 'none') {
+    return {
+      cards: pickFlushLeadPair(pairs, suitCards, ctx),
+      reason: `出${suitLabelCn(evidence.suit)}对子（队友对子未证绝）`,
     };
   }
 

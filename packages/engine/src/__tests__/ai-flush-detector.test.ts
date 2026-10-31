@@ -17,6 +17,7 @@ import { Suit, Rank, cardPointsFromRank } from '../types.js';
 import type { Card, CardSuit, PlayedCards, Trick, TrumpDeclaration } from '../types.js';
 import { classify } from '../pattern/index.js';
 import { validateThrow } from '../leading/index.js';
+import { validateFollow } from '../following/index.js';
 import { compareTwo } from '../comparing/index.js';
 import type { AIContext } from '../ai/types.js';
 import { minimalContext } from '../ai/types.js';
@@ -165,30 +166,36 @@ describe('detectFlushEvidence — 正向穷举（4 视角 × 3 副花色）', ()
 
 // ---- 2. G1 穷举：视角 × 目标座位 × 跟出的对数 ----
 
-describe('detectFlushEvidence — G1（每个配牌者各跟 0/1/2 对，阈值 = reqPairs）', () => {
+describe('detectFlushEvidence — G1 显式 checkPartnerPairs（每个配牌者各跟 0/1/2 对，阈值 = reqPairs）', () => {
   for (const hero of [0, 1, 2, 3]) {
     for (let slot = 1; slot <= 3; slot++) {
       const target = (hero + slot) % 4;
-      const cases: [number, Card[], boolean][] = [
-        [0, noPair(Suit.Spades), true],   // 0 < 2 → 对子已绝
-        [1, onePair(Suit.Spades), true],  // 1 < 2 → 对子已绝
-        [2, twoPair(Suit.Spades), false], // 2 == 2 → 信息不足
+      const isPartner = slot === 2;
+      const cases: [number, Card[]][] = [
+        [0, noPair(Suit.Spades)],   // 0 < 2 → 对子已绝
+        [1, onePair(Suit.Spades)],  // 1 < 2 → 对子已绝
+        [2, twoPair(Suit.Spades)],  // 2 == 2 → 信息不足
       ];
-      for (const [pairs, play, expected] of cases) {
-        it(`P${hero} 视角、P${target} 跟 ${pairs} 对 → ${expected ? '有证据' : '无证据'}`, () => {
+      for (const [pairs, play] of cases) {
+        const expected = isPartner
+          ? { suit: Suit.Spades, leadLen: 4, reqPairs: 2,
+            partnerPairStatus: pairs === 2 ? 'unknown' as const : 'none' as const }
+          : pairs === 2 ? null : { suit: Suit.Spades, leadLen: 4, reqPairs: 2,
+            partnerPairStatus: 'none' as const };
+        it(`P${hero} 视角、P${target}（${isPartner ? '队友' : '对手'}）跟 ${pairs} 对 → `
+          + (expected === null ? '无证据' : `队友${expected.partnerPairStatus}`), () => {
           const plays = [leadOf(Suit.Spades), noPair(Suit.Spades), noPair(Suit.Spades), noPair(Suit.Spades)];
           plays[slot] = play;
           const ctx = ctxOf({ myIndex: hero, history: [trickOf(hero, hero, plays)] });
-          const ev = detectFlushEvidence(ctx, hero);
-          if (expected) expect(ev).toEqual({ suit: Suit.Spades, leadLen: 4, reqPairs: 2 });
-          else expect(ev).toBeNull();
+          const ev = detectFlushEvidence(ctx, hero, { checkPartnerPairs: true });
+          expect(ev).toEqual(expected);
         });
       }
     }
   }
 });
 
-// ---- 2b. 1 对证据：只查两个对手，第三家豁免 ----
+// ---- 2b. 1 对证据：默认只查两个对手，第三家由 checkPartnerPairs 显式开启 ----
 
 describe('detectFlushEvidence — 1 对正向穷举（4 视角 × 3 副花色）', () => {
   for (const hero of [0, 1, 2, 3]) {
@@ -202,27 +209,44 @@ describe('detectFlushEvidence — 1 对正向穷举（4 视角 × 3 副花色）
   }
 });
 
-describe('detectFlushEvidence — 1 对 G1（每个配牌者各跟 0/1 对）', () => {
+describe('detectFlushEvidence — 1 对 G1（checkPartnerPairs 开启时三家同口径）', () => {
   for (const hero of [0, 1, 2, 3]) {
     for (let slot = 1; slot <= 3; slot++) {
       const target = (hero + slot) % 4;
       const isPartner = slot === 2;
-      const cases: [number, Card[], boolean][] = [
-        [0, noPairTwo(Suit.Spades), true],   // 0 < 1 → 对子已绝
-        [1, onePairTwo(Suit.Spades), isPartner], // 对手出满 → 信息不足；第三家不查
+      const cases: [number, Card[]][] = [
+        [0, noPairTwo(Suit.Spades)],   // 0 < 1 → 对子已绝
+        [1, onePairTwo(Suit.Spades)],  // 1 == 1 → 信息不足
       ];
-      for (const [pairs, play, expected] of cases) {
-        it(`P${hero} 视角、P${target} 跟 ${pairs} 对 → ${expected ? '有证据' : '无证据'}`, () => {
+      for (const [pairs, play] of cases) {
+        const expected = isPartner
+          ? { suit: Suit.Spades, leadLen: 2, reqPairs: 1,
+            partnerPairStatus: pairs === 1 ? 'unknown' as const : 'none' as const }
+          : pairs === 1 ? null : { suit: Suit.Spades, leadLen: 2, reqPairs: 1,
+            partnerPairStatus: 'none' as const };
+        it(`P${hero} 视角、P${target}（${isPartner ? '队友' : '对手'}）跟 ${pairs} 对 → `
+          + (expected === null ? '无证据' : `队友${expected.partnerPairStatus}`), () => {
           const plays = [leadPairOf(Suit.Spades), noPairTwo(Suit.Spades),
             noPairTwo(Suit.Spades), noPairTwo(Suit.Spades)];
           plays[slot] = play;
           const ctx = ctxOf({ myIndex: hero, history: [trickOf(hero, hero, plays)] });
-          const ev = detectFlushEvidence(ctx, hero);
-          if (expected) expect(ev).toEqual({ suit: Suit.Spades, leadLen: 2, reqPairs: 1 });
-          else expect(ev).toBeNull();
+          const ev = detectFlushEvidence(ctx, hero, { checkPartnerPairs: true });
+          expect(ev).toEqual(expected);
         });
       }
     }
+  }
+});
+
+describe('detectFlushEvidence — 1 对默认口径：第三家跟过一对不影响证据', () => {
+  for (const hero of [0, 1, 2, 3]) {
+    it(`P${hero} 视角、队友跟 1 对 → 有证据（未开启 checkPartnerPairs）`, () => {
+      const plays = [leadPairOf(Suit.Spades), noPairTwo(Suit.Spades),
+        onePairTwo(Suit.Spades), noPairTwo(Suit.Spades)];
+      // 队友 = hero + 2；若 hero 是 1/3，slot 2 对应 (hero+2)%4 仍是队友
+      const ctx = ctxOf({ myIndex: hero, history: [trickOf(hero, hero, plays)] });
+      expect(detectFlushEvidence(ctx, hero)).toEqual({ suit: Suit.Spades, leadLen: 2, reqPairs: 1 });
+    });
   }
 });
 
@@ -250,19 +274,26 @@ describe('detectFlushEvidence — 1 对 G2（短牌/缺门只对对手生效，�
   }
 });
 
-describe('detectFlushEvidence — 第三家自己对数：跟牌侧跳过', () => {
-  // 两对领出，第三家跟满两对（G1 不满足）；领出侧无证据，跟牌侧显式跳过第三家。
+describe('detectFlushEvidence — 第三家自己对数：由 checkPartnerPairs / skipPartnerPairCheck 控制', () => {
+  // 两对领出，第三家跟满两对（队友的 G1 不满足）。
   const trick = () => trickOf(0, 0, [
     leadOf(Suit.Spades), noPair(Suit.Spades), twoPair(Suit.Spades), noPair(Suit.Spades),
   ]);
 
-  it('领出侧：第三家有 2 对 → 无证据', () => {
-    expect(detectFlushEvidence(ctxOf({ myIndex: 0, history: [trick()] }), 0)).toBeNull();
+  it('默认（只查对手）：第三家有 2 对不影响证据', () => {
+    expect(detectFlushEvidence(ctxOf({ myIndex: 0, history: [trick()] }), 0))
+      .toEqual({ suit: Suit.Spades, leadLen: 4, reqPairs: 2 });
   });
 
-  it('跟牌侧 skipPartnerPairCheck：第三家有对不影响证据', () => {
+  it('领出 ≥2 对甩牌时 checkPartnerPairs：第三家有 2 对 → 队友状态 unknown', () => {
     expect(detectFlushEvidence(ctxOf({ myIndex: 0, history: [trick()] }), 0,
-      { skipPartnerPairCheck: true }))
+      { checkPartnerPairs: true }))
+      .toEqual({ suit: Suit.Spades, leadLen: 4, reqPairs: 2, partnerPairStatus: 'unknown' });
+  });
+
+  it('跟牌侧 skipPartnerPairCheck：即使 checkPartnerPairs 也不看第三家', () => {
+    expect(detectFlushEvidence(ctxOf({ myIndex: 0, history: [trick()] }), 0,
+      { checkPartnerPairs: true, skipPartnerPairCheck: true }))
       .toEqual({ suit: Suit.Spades, leadLen: 4, reqPairs: 2 });
   });
 });
@@ -428,6 +459,127 @@ describe('tryLeadFlushThrow — 把该门剩下的对一次性甩出', () => {
     expect(r.cards.map(x => `${x.suit}${x.rank}`)).toEqual(['S3', 'S3']);
     expect(r.reason).toBe('出♠对子（对子已绝）');
   });
+
+  it('1 对证据 + 剩 2 对 + 队友跟过一对 → 不甩，先出分对 5', () => {
+    const plays = [leadPairOf(Suit.Spades), noPairTwo(Suit.Spades),
+      onePairTwo(Suit.Spades), noPairTwo(Suit.Spades)];
+    const ctx = ctxOf({ myIndex: 0, history: [trickOf(0, 0, plays)] });
+    const hand = [
+      c(Suit.Spades, 8), c(Suit.Spades, 8), c(Suit.Spades, 5), c(Suit.Spades, 5),
+      c(Suit.Hearts, 7),
+    ];
+    const r = tryLeadFlushThrow(hand, ctx)!;
+    expect(r.cards.map(x => `${x.suit}${x.rank}`)).toEqual(['S5', 'S5']);
+    expect(r.reason).toBe('出♠对子（队友对子未证绝）');
+  });
+
+  it('无主：1 对证据 + 剩 2 对 + 队友跟过一对 → 同样先出一对', () => {
+    const plays = [leadPairOf(Suit.Spades), noPairTwo(Suit.Spades),
+      onePairTwo(Suit.Spades), noPairTwo(Suit.Spades)];
+    const ctx = ctxOf({
+      myIndex: 0, history: [trickOf(0, 0, plays)], ntState: ntStateOf({}),
+    });
+    const hand = [
+      c(Suit.Spades, 8), c(Suit.Spades, 8), c(Suit.Spades, 5), c(Suit.Spades, 5),
+      c(Suit.Hearts, 7),
+    ];
+    const r = tryLeadFlushThrow(hand, ctx)!;
+    expect(r.cards.map(x => `${x.suit}${x.rank}`)).toEqual(['S5', 'S5']);
+    expect(r.reason).toBe('出♠对子（队友对子未证绝）');
+  });
+
+  it('1 对证据 + 剩 2 对 + 队友跟 0 对 → 甩出两对', () => {
+    const plays = [leadPairOf(Suit.Spades), noPairTwo(Suit.Spades),
+      noPairTwo(Suit.Spades), noPairTwo(Suit.Spades)];
+    const ctx = ctxOf({ myIndex: 0, history: [trickOf(0, 0, plays)] });
+    const hand = [
+      c(Suit.Spades, 8), c(Suit.Spades, 8), c(Suit.Spades, 5), c(Suit.Spades, 5),
+      c(Suit.Hearts, 7),
+    ];
+    const r = tryLeadFlushThrow(hand, ctx)!;
+    expect(r.cards.map(x => `${x.suit}${x.rank}`)).toEqual(['S8', 'S8', 'S5', 'S5']);
+    expect(r.reason).toBe('甩♠副牌(对子已绝，2对)');
+  });
+
+  it('2 对证据 + 剩 1 对 + 队友跟过两对 → 仍出一对（一对是普通领出，不查队友）', () => {
+    const plays = [leadOf(Suit.Spades), noPair(Suit.Spades),
+      twoPair(Suit.Spades), noPair(Suit.Spades)];
+    const ctx = ctxOf({ myIndex: 0, history: [trickOf(0, 0, plays)] });
+    const hand = [c(Suit.Spades, 3), c(Suit.Spades, 3), c(Suit.Hearts, 7)];
+    const r = tryLeadFlushThrow(hand, ctx)!;
+    expect(r.cards.map(x => `${x.suit}${x.rank}`)).toEqual(['S3', 'S3']);
+    expect(r.reason).toBe('出♠对子（对子已绝）');
+  });
+
+  it('2 对证据 + 剩 2 对 + 队友跟过两对 → 不甩，先出分对 5', () => {
+    const plays = [leadOf(Suit.Spades), noPair(Suit.Spades),
+      twoPair(Suit.Spades), noPair(Suit.Spades)];
+    const ctx = ctxOf({ myIndex: 0, history: [trickOf(0, 0, plays)] });
+    const hand = [
+      c(Suit.Spades, 8), c(Suit.Spades, 8), c(Suit.Spades, 5), c(Suit.Spades, 5),
+      c(Suit.Hearts, 7),
+    ];
+    const r = tryLeadFlushThrow(hand, ctx)!;
+    expect(r.cards.map(x => `${x.suit}${x.rank}`)).toEqual(['S5', 'S5']);
+    expect(r.reason).toBe('出♠对子（队友对子未证绝）');
+  });
+
+describe('tryLeadFlushThrow — 队友对子状态未知时先出的一对', () => {
+  /** 上一墩我领一对并赢下；两个对手各跟 0 对、队友跟 1 对 → 队友对子状态 unknown。 */
+  const unknownPartner = () => ctxOf({
+    myIndex: 0,
+    history: [trickOf(0, 0, [
+      leadPairOf(Suit.Spades), noPairTwo(Suit.Spades),
+      onePairTwo(Suit.Spades), noPairTwo(Suit.Spades),
+    ])],
+  });
+
+  const sp = (rank: number) => c(Suit.Spades, rank);
+
+  function leadPair(hand: Card[], ctx: AIContext): { cards: Card[]; reason: string } {
+    const r = tryLeadFlushThrow(hand, ctx)!;
+    const lead = classify(r.cards, CFG);
+    expect(lead.type).toBe('pair');
+    expect(validateFollow(r.cards, hand, r.cards, lead, Suit.Spades, CFG).valid).toBe(true);
+    return r;
+  }
+
+  it('独立分对按领出侧 K > 10 > 5 选 K', () => {
+    const hand = [sp(13), sp(13), sp(10), sp(10), sp(5), sp(5), c(Suit.Hearts, 7)];
+    const r = leadPair(hand, unknownPartner());
+    expect(r.cards.map(x => `${x.suit}${x.rank}`)).toEqual(['S13', 'S13']);
+    expect(r.reason).toBe('出♠对子（队友对子未证绝）');
+  });
+
+  it('无独立分对时取最大独立非分对', () => {
+    const hand = [sp(14), sp(14), sp(11), sp(11), sp(8), sp(8), sp(4), sp(4), c(Suit.Hearts, 7)];
+    const r = leadPair(hand, unknownPartner());
+    expect(r.cards.map(x => `${x.suit}${x.rank}`)).toEqual(['S14', 'S14']);
+  });
+
+  it('有独立对时不拆拖拉机（即使拖拉机里有分对）', () => {
+    const hand = [sp(11), sp(11), sp(6), sp(6), sp(5), sp(5), c(Suit.Hearts, 7)];
+    expect(classify(hand.slice(2, 6), CFG).type).toBe('tractor');
+    const r = leadPair(hand, unknownPartner());
+    expect(r.cards.map(x => `${x.suit}${x.rank}`)).toEqual(['S11', 'S11']);
+  });
+
+  it('没有独立对时从拖拉机对里拆：分对按 K > 10 > 5', () => {
+    const hand = [sp(13), sp(13), sp(12), sp(12), sp(10), sp(10), sp(9), sp(9), c(Suit.Hearts, 7)];
+    expect(classify(hand.slice(0, 4), CFG).type).toBe('tractor');
+    expect(classify(hand.slice(4, 8), CFG).type).toBe('tractor');
+    const r = leadPair(hand, unknownPartner());
+    expect(r.cards.map(x => `${x.suit}${x.rank}`)).toEqual(['S13', 'S13']);
+  });
+
+  it('没有独立对、拖拉机也无分对时取最大非分对', () => {
+    const hand = [sp(8), sp(8), sp(7), sp(7), sp(4), sp(4), sp(3), sp(3), c(Suit.Hearts, 7)];
+    expect(classify(hand.slice(0, 4), CFG).type).toBe('tractor');
+    expect(classify(hand.slice(4, 8), CFG).type).toBe('tractor');
+    const r = leadPair(hand, unknownPartner());
+    expect(r.cards.map(x => `${x.suit}${x.rank}`)).toEqual(['S8', 'S8']);
+  });
+});
 
   it('1 对证据：第二家跟过一对 → 无证据', () => {
     const plays = [leadPairOf(Suit.Spades), onePairTwo(Suit.Spades),

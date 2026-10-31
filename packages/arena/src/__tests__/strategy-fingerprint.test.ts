@@ -50,8 +50,9 @@ describe('AI 策略指纹', () => {
     // 2026-10-24 无主非分等级吊主延后到通用 9 后为 205
     // 2026-10-28 竞技场发牌改为 64 位 seed + sfc32 顺序流后为 176
     // 2026-10-31 跟牌侧拆拖拉机按结构/分对优先级选牌后为 171
-    expect(statsA.matches.oppLevel).toEqual({ n: 171, d: 20 });
-    expect(statsB.matches.oppLevel).toEqual({ n: 171, d: 20 });
+    // 2026-10-31 0b 队友对子状态未知时先出一对后为 173
+    expect(statsA.matches.oppLevel).toEqual({ n: 173, d: 20 });
+    expect(statsB.matches.oppLevel).toEqual({ n: 173, d: 20 });
     expect(statsA.handsPlayed).toBe(statsB.handsPlayed);
     expect(statsA.abortedHands).toBe(0);
     const sig = checkSignificance(statsA.matches.won, statsB.matches.won, statsA.matches.drawn, statsA.matches.played);
@@ -80,7 +81,7 @@ describe('AI 策略指纹', () => {
     // 2026-10-18 领出阶梯按队分叉后为 6
     // 2026-10-24 无主非分等级吊主延后到通用 9 后为 7
     // 2026-10-28 竞技场发牌改为 64 位 seed + sfc32 顺序流后仍为 7
-    // 2026-10-31 跟牌侧拆拖拉机按结构/分对优先级选牌后仍为 7
+    // 2026-10-31 0b 队友对子状态未知时先出一对后仍为 7
     for (const pair of [0, 1, 2]) {
       playMatch({ seed: 42, pairIndex: pair, maxHands: 4, strategies: [spy, engineStrategy] });
     }
@@ -111,6 +112,7 @@ describe('AI 策略指纹', () => {
     // 2026-10-18 领出阶梯按队分叉后为 115 分 / 16 墩
     // 2026-10-24 无主非分等级吊主延后到通用 9 后为 105 分 / 15 墩
     // 2026-10-31 跟牌侧拆拖拉机按结构/分对优先级选牌后为 95 分 / 15 墩
+    // 2026-10-31 0b 队友对子状态未知时先出一对后仍为 95 分 / 15 墩
     expect(ev.finalPts - ev.kouDiAdd).toBe(95);
     expect(ev.tricksPlayed).toBe(15);
   });
