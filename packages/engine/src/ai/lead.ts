@@ -10,7 +10,7 @@ import type { AIContext } from './types.js';
 import { suitLabelCn, getTopOffSuitRank, maxCardT } from './utils.js';
 import { findThrowableSuitCards, worstCaseSuitHand } from './throw-detector.js';
 import { validateThrow } from '../leading/index.js';
-import { tryLeadFlushThrow, tryLeadDrainedSuitThrow } from './flush-detector.js';
+import { tryLeadFlushThrow, evaluateDrainedSuitLead } from './flush-detector.js';
 import { tryDrain, tryLoneNonTopPair, isAllControlSuit, topRankForSuit } from './drain.js';
 import { tryAttackerTractor, tryAttackerTop, tryAttackerDrain } from './attacker-lead.js';
 import { tryNTLead } from './nt-lead.js';
@@ -229,12 +229,13 @@ export function _aiLeadPlay(
     ? computeActiveLongSuit(hand, ctx)
     : null;
 
-  // 优先级 0：同一墩窗口的两条甩牌规则（无主才可能触发"整门已绝"那条）——
-  // 这一墩领了别的牌证据就作废，故必须排在最前。
-  //   (a) 整门已绝 → 该门剩下的全甩（牌更多，先试）
+  // 优先级 0：同一墩窗口的两条甩牌规则——这一墩领了别的牌证据就作废，故必须排在最前。
+  //   (a) 整门已绝 → 该门剩下的全甩（牌更多，先试；有主按对子数/已出张数设门槛）
   //   (b) 对子已绝 → 该门剩下的对全甩
-  const drainedResult = tryLeadDrainedSuitThrow(hand, ctx);
-  if (drainedResult) return drainedResult;
+  const drained = evaluateDrainedSuitLead(hand, ctx);
+  if (drained?.kind === 'throw') {
+    return { cards: drained.cards, reason: drained.reason };
+  }
   const flushResult = tryLeadFlushThrow(hand, ctx, longSuit ?? undefined);
   if (flushResult) return flushResult;
 

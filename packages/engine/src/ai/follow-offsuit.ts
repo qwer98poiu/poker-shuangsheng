@@ -20,7 +20,7 @@ import {
 import { trumpKill, throwKillMode, isBeatingTrumpKill } from './follow-trump.js';
 import { canPlayerTrumpThrow } from './nt-tracking.js';
 import { probeDeclineKill, trickHasNoPoints } from './no-seize.js';
-import { isFlushFollow, avoidBeatingTeammate } from './flush-detector.js';
+import { detectTeammateSafeLead, avoidBeatingTeammate } from './flush-detector.js';
 import {
   hasStrongFollowUp, minEff, maxEff, pickDiscards, selectFillers,
   secondShouldAvoid, shouldBreakPairForPoints, pickBestAddCards,
@@ -448,9 +448,10 @@ function followOffSuitMulti(
 ): { cards: Card[]; reason: string } {
   const myPairs = findAllPairs(leadSuitCards);
   const seize = position === 'second' || position === 'third';
-  // 0b（对子已绝）领出：第三家自己的对子可以直接跟，但不得盖过队友——
+  // 0a/0b 安全领出：第三家自己的对子可以直接跟，但不得盖过队友——
   // 即使手里有强牌也不抢（能出最小对/拖拉机就不出大的）。
-  const flushFollow = position === 'third' && tmWin && isFlushFollow(ctx, leadCombo);
+  const flushFollow = position === 'third' && tmWin
+    && detectTeammateSafeLead(ctx, leadCombo) !== null;
   // 第三家领出更大（队友大）且无强牌 → 不盖（出最小）
   const thirdNoSeize = position === 'third' && tmWin
     && (flushFollow || !hasStrongFollowUp(hand, ctx));
@@ -623,10 +624,10 @@ export function followOffSuitThrow(
   // dump points instead of wasting trump.
   if (trumpCards.length >= leadLen) {
     const throwCombo = classifyCombo(leadCards, ctx);
-    // 清对领出（优先级 0）：上一墩已验对手该花色对子已绝，本墩必须归队友 →
-    // 垫牌且**不得盖过队友**（牌权易主则剩下的对再也兑现不了；第二家已毙时
+    // 0a/0b 领出（优先级 0）：上一墩已验该门已绝/对子已绝，本墩必须归队友 →
+    // 垫牌且**不得盖过队友**（牌权易主则剩下的牌再也兑现不了；第二家已毙时
     // tmWin 为 false，走不到这里）
-    if (tmWin && isFlushFollow(ctx, throwCombo)) {
+    if (tmWin && detectTeammateSafeLead(ctx, throwCombo) !== null) {
       const wantAdd = canAddPoints(tmWin, position, throwCombo, ctx);
       const { cards: picked, added } = pickFlushFollowCards(hand, leadLen, ctx, wantAdd);
       const cards = avoidBeatingTeammate(picked, hand, leadCards, throwCombo, ctx);

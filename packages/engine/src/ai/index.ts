@@ -31,7 +31,7 @@ import {
   trumpKill, followTrumpThrow, rule1KillMode, isBeatingTrumpKill,
 } from './follow-trump.js';
 import { probeDeclineKill } from './no-seize.js';
-import { isFlushFollow, avoidBeatingTeammate } from './flush-detector.js';
+import { detectTeammateSafeLead, avoidBeatingTeammate } from './flush-detector.js';
 import { followOffSuit, followOffSuitThrow } from './follow-offsuit.js';
 import {
   pickDiscards, selectFillers, secondShouldAvoid, shouldBreakPairForPoints,
@@ -284,10 +284,10 @@ function _aiFollowPlay(
 
   // Void in lead suit
   if (trumpCards.length >= leadLen) {
-    // 清对领出（优先级 0）：上一墩已验对手该花色对子已绝，本墩必须归队友。
-    // 按加分优先级垫牌，且**不得盖过队友**（牌权一旦易主，剩下的对就再也兑现不了；
+    // 0a/0b 领出（优先级 0）：上一墩已验该门已绝/对子已绝，本墩必须归队友。
+    // 按加分优先级垫牌，且**不得盖过队友**（牌权一旦易主，剩下的牌就再也兑现不了；
     // 第二家已毙时 tmWin 为 false，走不到这里）。
-    if (tmWin && isFlushFollow(ctx, leadCombo)) {
+    if (tmWin && detectTeammateSafeLead(ctx, leadCombo) !== null) {
       const wantAdd = canAddPoints(tmWin, position, leadCombo, ctx);
       const { cards: picked, added } = pickFlushFollowCards(hand, leadLen, ctx, wantAdd);
       const cards = avoidBeatingTeammate(picked, hand, leadCards, leadCombo, ctx);

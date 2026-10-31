@@ -1,5 +1,28 @@
 # Changelog
 
+## 2026-11-01 00:48
+
+### 0a 扩展到有主局并去除 0b 的 G2
+
+**问题**：
+
+- 0a（上一墩自己领出某副花色、三家都跟不满、自己赢下 → 该门剩余全在手上）此前只在无主局启用；有主局即使三家已断门，也不把该门剩下的牌清掉。
+- 0b（对子已绝）在有主局保留了 G2：两个对手上一墩必须跟满张数。对手缺门时本来就不可能再有该门对子，G2 反而把大量合法的对子领出/甩牌挡掉；20,600 手录像中，去掉 G2 后新增有主事件 2,311 次（1 对 2,122、2 对 170、3 对 19），多对甩牌经 `validateThrow` 全部合法。
+- 第三家只识别 0b（`isFlushFollow`），不识别 0a 的整门甩牌；队友打 0a 时既不按加分优先级垫牌，也不保证不盖过队友。
+
+**修复**：
+
+- 0a 扩展到有主局：按剩余牌型的对数设门槛——0 对不甩；1 对要求领出前每人已出 ≥ 13 张；≥ 2 对总是甩。无主行为不变。`evaluateDrainedSuitLead` 返回 `throw | rejected`，领出阶梯只在实际甩出时返回；门槛拒绝时其他优先级照常，0b 仍可接管。
+- 0b 去除 G2：有主/无主统一不再要求两个对手上一墩跟满张数；一对分支、队友未证绝时的 fallback、≥2 对且队友无对的整手甩牌同口径。队友对子状态检查（G1）不变。
+- 新增 `detectTeammateSafeLead`：统一识别队友的 `flush`（0b 全对领出）与 `drained`（0a 整门甩牌，可含单张）两种安全领出。`canAddPoints`、`avoidBeatingTeammate`、两条缺门跟牌路径都改用它；`isFlushFollow` 保留为 `flush` 的薄包装。
+- 20,600 手录像诊断：0a 有主证据 1,571 次（0 对 1,319 拒绝、1 对 ≤12 张 53 拒绝、1 对 ≥13 张 155、≥2 对 44）；第三家遇到 7,991 次有主副牌甩牌，未观察到“非顶张、非拖拉机、非 0a/0b”的形状，故未放宽无条件的第三家加分。
+- 消融：V1（一对保留 G2）A share 0.4937，低于主体；V2（两家缺门不出单对）0.4998、10,000 副仅 8 副有符号；V3（0a 门槛拒绝后 0b 不接管）0.5002、51 副有符号。三者均不采纳，临时消融脚手架已删除。
+- 主体 A/B（`ai` vs `ai-1031`，默认 6 级 × P0）：seed 0x51 p̂=0.5107、seed 0x52 p̂=0.5099，合并 20,000 副 p̂=0.5103（99% CI [0.5012, 0.5194]）；有主 A share 0.5124、+0.2374 分/发牌，无主 0.4986、−0.0187 分/发牌。
+
+**新增 15 项测试、修改 2 项测试**（ai-flush-detector.test.ts：新增 15 项（0a 有主门槛、0b 去 G2、第三家 0a 安全领出等）；strategy-fingerprint.test.ts：修改 2 项——镜像对决 `oppLevel` 173 → 174、AI 庄家扣底调用 7 → 6、client 种子局仍为 95 分 / 15 墩），引擎 1314 项 + arena 248 项 + CLI 87 项 + client 201 项 = 1850 项通过。
+
+- **影响文件**：`packages/engine/src/ai/flush-detector.ts`、`packages/engine/src/ai/lead.ts`、`packages/engine/src/ai/helpers.ts`、`packages/engine/src/ai/follow-offsuit.ts`、`packages/engine/src/ai/index.ts`、`packages/engine/src/ai/STRATEGY.md`、`packages/engine/src/__tests__/ai-flush-detector.test.ts`、`packages/arena/src/__tests__/strategy-fingerprint.test.ts`
+
 ## 2026-10-31 22:20
 
 ### 提取 ai-1024、ai-1031 基线并归档 ai-1005

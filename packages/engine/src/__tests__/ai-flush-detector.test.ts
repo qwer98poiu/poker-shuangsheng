@@ -24,7 +24,8 @@ import { minimalContext } from '../ai/types.js';
 import { computeLongSuit } from '../ai/suit-memory.js';
 import {
   detectFlushEvidence, tryLeadFlushThrow, isFlushFollow, avoidBeatingTeammate,
-  detectDrainedSuit, tryLeadDrainedSuitThrow,
+  detectDrainedSuit, tryLeadDrainedSuitThrow, evaluateDrainedSuitLead,
+  detectTeammateSafeLead,
 } from '../ai/flush-detector.js';
 import type { NTTrumpState } from '../ai/types.js';
 import { canAddPoints } from '../ai/helpers.js';
@@ -1036,9 +1037,11 @@ describe('tryLeadDrainedSuitThrow — 全甩', () => {
     expect(tryLeadDrainedSuitThrow(tractor, ctx)).toBeNull();
   });
 
-  it('有主局（无记牌器）→ 不走这条通道', () => {
+  it('有主局 + 0 对（纯单张）→ 门槛拒绝，不走这条通道', () => {
     const ctx = ctxOf({ myIndex: 0, playCount: 0, history: [drainedTrick(0)] });
     expect(tryLeadDrainedSuitThrow(threeSingles, ctx)).toBeNull();
+    expect(evaluateDrainedSuitLead(threeSingles, ctx))
+      .toEqual({ kind: 'rejected', suit: DRAIN_SUIT });
   });
 
   it('三家跟不满（各跟 1 张 + 垫 1 张）→ 同样全甩', () => {
@@ -1066,29 +1069,206 @@ describe('tryLeadDrainedSuitThrow — 全甩', () => {
   });
 });
 
-describe('G2 放宽：仅无主、仅领出侧', () => {
+describe('0b 去 G2：有主/无主同口径', () => {
   /** 上一墩 hero 领 ♠ 两对；P2 短门（只跟 2 张 ♠）、P3 缺门。 */
   const g2Trick = (): Trick =>
     trickOf(0, 0, [leadOf(DRAIN_SUIT), noPair(DRAIN_SUIT), shortOf(DRAIN_SUIT), voidOf()]);
   const flushHand = [c(DRAIN_SUIT, 10), c(DRAIN_SUIT, 10), c(DRAIN_SUIT, 8), c(DRAIN_SUIT, 8)];
 
-  it('无主：对手短门不再拦截（跳过 G2）', () => {
+  it('无主：对手短门不拦截', () => {
     const ctx = ctxOf({ myIndex: 0, playCount: 0, history: [g2Trick()], ntState: ntStateOf({}) });
     expect(detectFlushEvidence(ctx, 0, { skipOpponentFullFollow: true }))
       .toEqual({ suit: DRAIN_SUIT, leadLen: 4, reqPairs: 2 });
     expect(tryLeadFlushThrow(flushHand, ctx)?.reason).toBe('甩♠副牌(对子已绝，2对)');
   });
 
-  it('有主：同样局面仍无证据（G2 保留，有主策略不受影响）', () => {
+  it('有主：对手短门同样不拦截（G2 已去除）', () => {
     const ctx = ctxOf({ myIndex: 0, playCount: 0, history: [g2Trick()] });
+    // 底层证据函数仍可按参数要求 G2（供 V1 消融使用）
     expect(detectFlushEvidence(ctx, 0)).toBeNull();
-    expect(tryLeadFlushThrow(flushHand, ctx)).toBeNull();
+    expect(detectFlushEvidence(ctx, 0, { skipOpponentFullFollow: true }))
+      .toEqual({ suit: DRAIN_SUIT, leadLen: 4, reqPairs: 2 });
+    expect(tryLeadFlushThrow(flushHand, ctx)?.reason).toBe('甩♠副牌(对子已绝，2对)');
   });
 
-  it('isFlushFollow 在无主下也不检查 G2（与领出侧同口径）', () => {
-    const ctx = ctxOf({ myIndex: 2, leadPlayerIndex: 0, playCount: 0,
+  it('有主一对：对手短门不再要求跟满，出一对', () => {
+    const t = trickOf(0, 0, [leadPairOf(DRAIN_SUIT), noPairTwo(DRAIN_SUIT),
+      shortOfTwo(DRAIN_SUIT), voidOfTwo()]);
+    const ctx = ctxOf({ myIndex: 0, playCount: 0, history: [t] });
+    const hand = [c(DRAIN_SUIT, 8), c(DRAIN_SUIT, 8), c(Suit.Hearts, 7)];
+    const r = tryLeadFlushThrow(hand, ctx)!;
+    expect(r.cards.map(x => x.id)).toEqual(hand.slice(0, 2).map(x => x.id));
+    expect(r.reason).toBe('出♠对子（对子已绝）');
+  });
+
+  it('isFlushFollow 有主/无主都不检查 G2（与领出侧同口径）', () => {
+    const nt = ctxOf({ myIndex: 2, leadPlayerIndex: 0, playCount: 0,
       history: [g2Trick()], ntState: ntStateOf({}) });
-    expect(isFlushFollow(ctx, classify(leadOf(DRAIN_SUIT), { ...CFG, trumpSuit: null }))).toBe(true);
+    expect(isFlushFollow(nt, classify(leadOf(DRAIN_SUIT), { ...CFG, trumpSuit: null }))).toBe(true);
+    const suited = ctxOf({ myIndex: 2, leadPlayerIndex: 0, playCount: 0, history: [g2Trick()] });
+    expect(isFlushFollow(suited, classify(leadOf(DRAIN_SUIT), CFG))).toBe(true);
+  });
+});
+
+// ---- 5b. 0a 扩展到有主局：按对子数 / 已出张数设门槛 ----
+
+/** 一张不相关的完成墩，用来累计"每人已出张数"；不参与证据判定。 */
+function padTrick(len: number): Trick {
+  const play = (suit: CardSuit, base: number) =>
+    Array.from({ length: len }, (_, i) => c(suit, base - i));
+  return trickOf(0, 0, [
+    play(Suit.Clubs, 13), play(Suit.Diamonds, 13),
+    play(Suit.Clubs, 8), play(Suit.Diamonds, 8),
+  ]);
+}
+
+describe('tryLeadDrainedSuitThrow — 有主门槛', () => {
+  const sp = (rank: number) => c(DRAIN_SUIT, rank);
+  /** 0 对：三张单张的甩牌。 */
+  const singles = [sp(13), sp(12), sp(11)];
+  /** 1 对 + 2 单张 → throw。 */
+  const onePairThrow = [sp(13), sp(13), sp(12), sp(11)];
+  /** 2 对（K/J 不连续）+ 2 单张 → throw。 */
+  const twoPairThrow = [sp(13), sp(13), sp(11), sp(11), sp(10), sp(9)];
+
+  it('已出 12 张：1 对 → 拒绝', () => {
+    const ctx = ctxOf({
+      myIndex: 0, playCount: 0,
+      history: [padTrick(4), padTrick(4), drainedTrick(0)],
+    });
+    expect(tryLeadDrainedSuitThrow(onePairThrow, ctx)).toBeNull();
+    expect(evaluateDrainedSuitLead(onePairThrow, ctx))
+      .toEqual({ kind: 'rejected', suit: DRAIN_SUIT });
+  });
+
+  it('已出 13 张：1 对 → 甩出', () => {
+    const ctx = ctxOf({
+      myIndex: 0, playCount: 0,
+      history: [padTrick(5), padTrick(4), drainedTrick(0)],
+    });
+    const r = tryLeadDrainedSuitThrow(onePairThrow, ctx)!;
+    expect(r.cards.map(x => x.id)).toEqual(onePairThrow.map(x => x.id));
+    expect(r.reason).toBe('甩♠副牌(该门已绝，4张)');
+    expect(validateThrow(r.cards, onePairThrow, [[], [], []], CFG).valid).toBe(true);
+  });
+
+  it('0 对：即使已出 19 张也拒绝', () => {
+    const ctx = ctxOf({
+      myIndex: 0, playCount: 0,
+      history: [padTrick(5), padTrick(5), padTrick(5), drainedTrick(0)],
+    });
+    expect(tryLeadDrainedSuitThrow(singles, ctx)).toBeNull();
+    expect(evaluateDrainedSuitLead(singles, ctx))
+      .toEqual({ kind: 'rejected', suit: DRAIN_SUIT });
+  });
+
+  it('≥2 对：不论已出张数都甩', () => {
+    const ctx = ctxOf({ myIndex: 0, playCount: 0, history: [drainedTrick(0)] });
+    const r = tryLeadDrainedSuitThrow(twoPairThrow, ctx)!;
+    expect(r.cards.map(x => x.id)).toEqual(twoPairThrow.map(x => x.id));
+    expect(r.reason).toBe('甩♠副牌(该门已绝，6张)');
+    expect(validateThrow(r.cards, twoPairThrow, [[], [], []], CFG).valid).toBe(true);
+  });
+
+  it('恰好 12 张（边界内）→ 拒绝；13 张才放行', () => {
+    const at12 = ctxOf({
+      myIndex: 0, playCount: 0, history: [padTrick(5), padTrick(3), drainedTrick(0)],
+    });
+    expect(tryLeadDrainedSuitThrow(onePairThrow, at12)).toBeNull();
+    const at13 = ctxOf({
+      myIndex: 0, playCount: 0, history: [padTrick(5), padTrick(4), drainedTrick(0)],
+    });
+    expect(tryLeadDrainedSuitThrow(onePairThrow, at13)).not.toBeNull();
+  });
+});
+
+// ---- 5c. 第三家：0a/0b 统一“队友安全领出”判定 ----
+
+describe('detectTeammateSafeLead — 0a/0b 统一判定', () => {
+  const thirdCtx = (history: Trick[]) => ctxOf({
+    myIndex: 2, playCount: 2, leadPlayerIndex: 0, history,
+  });
+  const k = (cards: Card[]) => classify(cards, CFG);
+
+  it('0b 全对领出 → flush', () => {
+    const lead = [c(Suit.Spades, 8), c(Suit.Spades, 8), c(Suit.Spades, 6), c(Suit.Spades, 6)];
+    expect(detectTeammateSafeLead(thirdCtx([evidenceTrick(0, Suit.Spades)]), k(lead)))
+      .toEqual({ kind: 'flush', suit: Suit.Spades });
+  });
+
+  it('0a 含单张的甩牌 → drained', () => {
+    const lead = [c(Suit.Spades, 8), c(Suit.Spades, 8), c(Suit.Spades, 6), c(Suit.Spades, 3)];
+    expect(detectTeammateSafeLead(thirdCtx([drainedTrick(0)]), k(lead)))
+      .toEqual({ kind: 'drained', suit: Suit.Spades });
+  });
+
+  it('0a 全对甩牌也归 drained（证据更强）', () => {
+    const lead = [c(Suit.Spades, 8), c(Suit.Spades, 8), c(Suit.Spades, 6), c(Suit.Spades, 6)];
+    expect(detectTeammateSafeLead(thirdCtx([drainedTrick(0)]), k(lead)))
+      .toEqual({ kind: 'drained', suit: Suit.Spades });
+  });
+
+  it('0b 证据 + 含单张领出 → null（可被第四家单张盖过）', () => {
+    const lead = [c(Suit.Spades, 8), c(Suit.Spades, 8), c(Suit.Spades, 6), c(Suit.Spades, 3)];
+    expect(detectTeammateSafeLead(thirdCtx([evidenceTrick(0, Suit.Spades)]), k(lead))).toBeNull();
+  });
+
+  it('领出者不是队友 → null', () => {
+    const lead = [c(Suit.Spades, 8), c(Suit.Spades, 8), c(Suit.Spades, 6), c(Suit.Spades, 6)];
+    const ctx = ctxOf({ myIndex: 2, playCount: 2, leadPlayerIndex: 1,
+      history: [evidenceTrick(1, Suit.Spades)] });
+    expect(detectTeammateSafeLead(ctx, k(lead))).toBeNull();
+  });
+
+});
+
+describe('第三家跟 0a：加分、不得盖过队友', () => {
+  const lead = [c(Suit.Spades, 8), c(Suit.Spades, 8), c(Suit.Spades, 6), c(Suit.Spades, 3)];
+  const combo = classify(lead, CFG);
+  const ctx = () => ctxOf({
+    myIndex: 2, playCount: 2, leadPlayerIndex: 0, history: [drainedTrick(0)],
+    bestSoFar: { cards: lead, playerIndex: 0 },
+  });
+
+  it('canAddPoints 第三家：0a 领出直接加分', () => {
+    expect(canAddPoints(true, 'third', combo, ctx())).toBe(true);
+  });
+
+  it('avoidBeatingTeammate 覆盖 0a：主牌盖过队友时换牌', () => {
+    const hand = [c(Suit.Hearts, 10), c(Suit.Hearts, 10), c(Suit.Hearts, 13),
+      c(Suit.Hearts, 9), c(Suit.Hearts, 8), c(Suit.Hearts, 3)];
+    const sel = hand.slice(0, 4); // 1 对 + 2 单张，可换出一张拆掉对子
+    expect(compareTwo(lead, sel, lead, CFG)).toBe('second');
+    const out = avoidBeatingTeammate(sel, hand, lead, combo, ctx());
+    expect(compareTwo(lead, out, lead, CFG)).toBe('first');
+  });
+
+  it('例外 2：闲家本墩一次加分到 80 → 0a 也允许盖过队友', () => {
+    const h = [c(Suit.Hearts, 10), c(Suit.Hearts, 10), c(Suit.Hearts, 13), c(Suit.Hearts, 13),
+      c(Suit.Hearts, 9), c(Suit.Hearts, 3)];
+    const sel = h.slice(0, 4);
+    const attackerCtx = ctxOf({
+      myIndex: 1, playCount: 2, leadPlayerIndex: 3, history: [drainedTrick(3)],
+      attackerPoints: 60,
+      bestSoFar: { cards: lead, playerIndex: 3 },
+    });
+    expect(detectTeammateSafeLead(attackerCtx, combo)?.kind).toBe('drained');
+    expect(avoidBeatingTeammate(sel, h, lead, combo, attackerCtx)).toEqual(sel);
+  });
+
+  it('跟牌：缺门且主牌不够毙 → 加副牌分，不盖队友', () => {
+    const hand = [
+      c(Suit.Diamonds, 5), c(Suit.Diamonds, 10),
+      c(Suit.Hearts, 13), c(Suit.Hearts, 9), c(Suit.Hearts, 8),
+    ];
+    const followCtx = ctxOf({
+      myIndex: 2, playCount: 2, leadPlayerIndex: 0, history: [drainedTrick(0)],
+      trickPlays: [{ cards: lead }], bestSoFar: { cards: lead, playerIndex: 0 },
+    });
+    const r = aiFollowPlay(hand, lead, Suit.Spades, followCtx);
+    expect(r.cards.some(c => c.suit === Suit.Diamonds && c.rank === 10)).toBe(true);
+    expect(compareTwo(lead, r.cards, lead, CFG)).toBe('first');
+    expect(r.reason).toContain('加分');
   });
 });
 
