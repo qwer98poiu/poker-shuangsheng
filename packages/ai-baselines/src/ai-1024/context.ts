@@ -94,6 +94,7 @@ export function buildAIContext(
     isDeclarerPartner,
     isAttacker,
     attackerPoints: state.attackerPoints,
+    throwPenalties: state.throwPenalties,
     handCounts,
     trickHistory: state.trickHistory,
     reveals: state.reveals,

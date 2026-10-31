@@ -7,4 +7,10 @@
  */
 
 // 存量基线：出处与语义见 `packages/engine/src/index.ts` 的导出注释；归档时同步删除这里的对应行。
-export { ai0816, ai0907, ai0929, ai1005, ai1018 } from '@poker/engine';
+export { ai0816, ai0907, ai0929, ai1018 } from '@poker/engine';
+
+/** 快照基线：ai/ 在 bc38d6（2026-10-24，庄 4.5：主拖拉机先于通用 5 领出）时的版本。 */
+export * as ai1024 from './ai-1024/index.js';
+
+/** 快照基线：ai/ 在 accffd（2026-10-31，0b 队友对子检查与跟牌拆拖拉机改版）时的版本。 */
+export * as ai1031 from './ai-1031/index.js';

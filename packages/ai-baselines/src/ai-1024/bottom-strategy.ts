@@ -718,7 +718,7 @@ function fillSuited(
   const bucket1Ok = (c: Card): boolean => offSuit(c) && !isTier1(c) && pointOf(c) === 0;
   const { singles } = pairUnitsOf(pool);
   const bucket1 = selectBucket1Singles(singles.filter(bucket1Ok), slots, pool, infos, config);
-  for (const c of bucket1) onBucket?.(1);
+  for (const _c of bucket1) onBucket?.(1);
   const junkIds = new Set(bucket1.map(c => c.id));
   const restPool = pool.filter(c => !junkIds.has(c.id));
   const restSlots = slots - bucket1.length;
@@ -835,7 +835,7 @@ function fillNT(
   const bucket1 = selectBucket1Singles(
     singles.filter(nonLongNonCtrlNonPoint), slots, pool, infos, config,
   );
-  for (const c of bucket1) onBucket?.(1);
+  for (const _c of bucket1) onBucket?.(1);
   const junkIds = new Set(bucket1.map(c => c.id));
   const restPool = pool.filter(c => !junkIds.has(c.id));
   const restSlots = slots - bucket1.length;

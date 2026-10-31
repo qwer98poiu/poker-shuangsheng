@@ -131,8 +131,8 @@ export function canAddPoints(tmWin: boolean, position: string, leadCombo: ComboC
   if (addPointsForbidden(ctx, leadCombo)) return false;
   if (position === 'fourth') return true;
   if (position === 'third') {
-    // 清对领出（优先级 0）：上一墩已验两个对手该花色对子已绝，本墩必归队友
-    // → 放心加分（两条例外见 flush-detector.avoidBeatingTeammate）
+    // 0b 领出（对子已绝）：上一墩已验对手该花色对子已绝，花色内无法被盖；
+    // 无主下仍可能被毙，按规格接受该风险 → 加分（不得盖过队友，见 avoidBeatingTeammate）
     if (isFlushFollow(ctx, leadCombo)) return true;
     const isTrumpLead = leadCombo.cards.every(c => isTrump(c, ctx));
     if (isTrumpLead) {

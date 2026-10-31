@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-10-31 22:20
+
+### 提取 ai-1024、ai-1031 基线并归档 ai-1005
+
+**提取 ai-1024**：`git archive` 提取 2026-10-24 11:41 的 `ai/` 为 `packages/ai-baselines/src/ai-1024/`（23 文件，含当时的 `STRATEGY.md`；与 `packages/engine/src/ai/` 逐字节一致）。在 `@poker/ai-baselines` 注册 `ai1024` 命名空间，竞技场注册 `ai1024Strategy` / `strategyByName('ai-1024')`，合法性用例使用 pair 30/31。该状态在 2026-10-24 同日 seed 48 实测 Elo 1292：`ai-1024` 对 `ai-0907` / `ai-0929` / `ai-1018` 的胜率 0.5885 / 0.5413 / 0.5133 写入 `elo-matches.json`（`ai-1005` 已归档，其对决记录不写入）。两个竞技场入口（`run.ts` 与 `deal-run.ts`）的 `--strategy-b` 默认值由 `ai-1018` 改为 `ai-1024`，README 示例与参数表同步。
+
+**提取 ai-1031**：`git archive` 提取 2026-10-31 18:17 的 `ai/` 为 `packages/ai-baselines/src/ai-1031/`（23 文件，含当时的 `STRATEGY.md`；与 `packages/engine/src/ai/` 逐字节一致）。快照 import 了 `../revealing/index.js`，在 `packages/ai-baselines/src/revealing/index.ts` 补第七个 shim。在 `@poker/ai-baselines` 注册 `ai1031` 命名空间，竞技场注册 `ai1031Strategy` / `strategyByName('ai-1031')`，合法性用例使用 pair 28/29。
+
+**归档 ai-1005**：删除 `packages/engine/src/ai-1005/`；引擎命名空间导出移入「archived & removed」注释（2026-10-31）；`@poker/ai-baselines` facade、竞技场 import/策略委托/分支/`record.ts` 帮助、historical 用例一并移除；`baseline-facade` 的 engine 基线期望集合收窄。`elo-matches.json` 删除所有含 `ai-1005` 的 4 条边；`elo-calc.ts` 重算后剩余图仍连通，锚点 `ai-0929` 可解。README 中英历史基线列表、参数表与 Elo 表同步：`ai-1024` 与 `ai-1031` 加入，`ai-1005` 移入已归档移除，历史 Elo 行保留展示。
+
+**新增 2 项测试、删除 1 项测试、修改 1 项测试**（historical-strategies.test.ts：新增 2 项（ai-1024、ai-1031）、删除 1 项（ai-1005）；baseline-facade.test.ts：修改 1 项），引擎 1299 项 + arena 248 项 + CLI 87 项 + client 201 项 = 1835 项通过。
+
+- **影响文件**：`packages/ai-baselines/src/ai-1024/`（新目录，23 文件）、`packages/ai-baselines/src/ai-1031/`（新目录，23 文件）、`packages/ai-baselines/src/revealing/index.ts`（新）、`packages/ai-baselines/src/index.ts`、`packages/engine/src/ai-1005/`（删除）、`packages/engine/src/index.ts`、`packages/arena/src/strategies.ts`、`packages/arena/src/record.ts`、`packages/arena/src/run.ts`、`packages/arena/src/deal-run.ts`、`packages/arena/src/__tests__/historical-strategies.test.ts`、`packages/arena/src/__tests__/baseline-facade.test.ts`、`packages/arena/scripts/elo-matches.json`、`README.md`
+
 ## 2026-10-31 18:17
 
 ### 0b 多对甩牌先验队友，无法证明时先出一对

@@ -2,7 +2,7 @@
  * AI utility functions - shared helpers used across strategy modules.
  */
 import type { Card, CardSuit } from '../types.js';
-import { Rank, Suit, SpecialSuit, isPointRank } from '../types.js';
+import { Rank, Suit, isPointRank } from '../types.js';
 import type { TrumpDeclaration } from '../types.js';
 import { isTrump, getEffectiveRank } from '../model.js';
 import type { AIContext, PlayPosition } from './types.js';

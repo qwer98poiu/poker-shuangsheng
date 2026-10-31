@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { engineStrategy, ai0816Strategy, ai0907Strategy, ai0929Strategy, ai1005Strategy, ai1018Strategy } from '../strategies.js';
+import { engineStrategy, ai0816Strategy, ai0907Strategy, ai0929Strategy, ai1018Strategy, ai1024Strategy, ai1031Strategy } from '../strategies.js';
 import { playMatch } from '../match.js';
 
 /**
@@ -32,17 +32,25 @@ describe('historical strategies legality', () => {
     }
   });
 
-  it('ai-1005（805b500, 10-05 无主长花色领出层）：无中止、无验牌回退', () => {
-    for (const pair of [24, 25]) {
-      const m = playMatch({ seed: 42, pairIndex: pair, strategies: [ai1005Strategy, engineStrategy], captureEvents: true });
+  it('ai-1018（b5de66, 10-18 领出阶梯按庄/闲分档重写之前）：无中止、无验牌回退', () => {
+    for (const pair of [26, 27]) {
+      const m = playMatch({ seed: 42, pairIndex: pair, strategies: [ai1018Strategy, engineStrategy], captureEvents: true });
       expect(m.abortedHands).toBe(0);
       for (const ev of m.events) expect(ev.errors).toBe(0);
     }
   });
 
-  it('ai-1018（b5de66, 10-18 领出阶梯按庄/闲分档重写之前）：无中止、无验牌回退', () => {
-    for (const pair of [26, 27]) {
-      const m = playMatch({ seed: 42, pairIndex: pair, strategies: [ai1018Strategy, engineStrategy], captureEvents: true });
+  it('ai-1024（bc38d6, 10-24 庄 4.5：主拖拉机先于通用 5 领出）：无中止、无验牌回退', () => {
+    for (const pair of [30, 31]) {
+      const m = playMatch({ seed: 42, pairIndex: pair, strategies: [ai1024Strategy, engineStrategy], captureEvents: true });
+      expect(m.abortedHands).toBe(0);
+      for (const ev of m.events) expect(ev.errors).toBe(0);
+    }
+  });
+
+  it('ai-1031（accffd, 10-31 0b 队友对子检查与跟牌拆拖拉机改版）：无中止、无验牌回退', () => {
+    for (const pair of [28, 29]) {
+      const m = playMatch({ seed: 42, pairIndex: pair, strategies: [ai1031Strategy, engineStrategy], captureEvents: true });
       expect(m.abortedHands).toBe(0);
       for (const ev of m.events) expect(ev.errors).toBe(0);
     }

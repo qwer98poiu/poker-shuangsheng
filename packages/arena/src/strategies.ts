@@ -4,7 +4,7 @@
  * engine-side differential tests).
  */
 import { aiTryReveal, aiChooseBottomCards, aiLeadPlay, aiFollowPlay } from '@poker/engine';
-import { ai0816, ai0907, ai0929, ai1005, ai1018 } from '@poker/ai-baselines';
+import { ai0816, ai0907, ai0929, ai1018, ai1024, ai1031 } from '@poker/ai-baselines';
 import type { Strategy } from './types.js';
 
 export const engineStrategy: Strategy = {
@@ -46,16 +46,6 @@ export const ai0929Strategy: Strategy = {
   follow: (hand, lead, suit, config) => ai0929.aiFollowPlay(hand, lead, suit, config),
 };
 
-/** 快照基线：ai/ 在 805b500（2026-10-05，无主长花色领出层与第三家甩牌加分改判）时的版本。 */
-export const ai1005Strategy: Strategy = {
-  name: 'ai-1005',
-  revealsOnlyWhenEffective: true,
-  tryReveal: (hand, dealt, pi, level, cur) => ai1005.aiTryReveal(hand, dealt, pi, level, cur),
-  chooseBottom: (hand, config) => ai1005.aiChooseBottomCards(hand, config),
-  lead: (hand, config) => ai1005.aiLeadPlay(hand, config),
-  follow: (hand, lead, suit, config) => ai1005.aiFollowPlay(hand, lead, suit, config),
-};
-
 /** 快照基线：ai/ 在 b5de66（2026-10-18，领出阶梯按庄/闲分档重写之前，含 0a/0b 放宽）时的版本。 */
 export const ai1018Strategy: Strategy = {
   name: 'ai-1018',
@@ -66,13 +56,34 @@ export const ai1018Strategy: Strategy = {
   follow: (hand, lead, suit, config) => ai1018.aiFollowPlay(hand, lead, suit, config),
 };
 
-/** Resolve a strategy by name ('ai' | 'ai-0816' | 'ai-0907' | 'ai-0929' | 'ai-1005' | 'ai-1018'). */
+/** 快照基线：ai/ 在 bc38d6（2026-10-24，庄 4.5：主拖拉机先于通用 5 领出）时的版本。 */
+export const ai1024Strategy: Strategy = {
+  name: 'ai-1024',
+  revealsOnlyWhenEffective: true,
+  tryReveal: (hand, dealt, pi, level, cur) => ai1024.aiTryReveal(hand, dealt, pi, level, cur),
+  chooseBottom: (hand, config) => ai1024.aiChooseBottomCards(hand, config),
+  lead: (hand, config) => ai1024.aiLeadPlay(hand, config),
+  follow: (hand, lead, suit, config) => ai1024.aiFollowPlay(hand, lead, suit, config),
+};
+
+/** 快照基线：ai/ 在 accffd（2026-10-31，0b 队友对子检查与跟牌拆拖拉机改版）时的版本。 */
+export const ai1031Strategy: Strategy = {
+  name: 'ai-1031',
+  revealsOnlyWhenEffective: true,
+  tryReveal: (hand, dealt, pi, level, cur) => ai1031.aiTryReveal(hand, dealt, pi, level, cur),
+  chooseBottom: (hand, config) => ai1031.aiChooseBottomCards(hand, config),
+  lead: (hand, config) => ai1031.aiLeadPlay(hand, config),
+  follow: (hand, lead, suit, config) => ai1031.aiFollowPlay(hand, lead, suit, config),
+};
+
+/** Resolve a strategy by name ('ai' | 'ai-0816' | 'ai-0907' | 'ai-0929' | 'ai-1018' | 'ai-1024' | 'ai-1031'). */
 export function strategyByName(name: string): Strategy {
   if (name === 'ai') return engineStrategy;
   if (name === 'ai-0816') return ai0816Strategy;
   if (name === 'ai-0907') return ai0907Strategy;
   if (name === 'ai-0929') return ai0929Strategy;
-  if (name === 'ai-1005') return ai1005Strategy;
   if (name === 'ai-1018') return ai1018Strategy;
-  throw new Error(`未知策略: ${name}（可选: ai, ai-0816, ai-0907, ai-0929, ai-1005, ai-1018）`);
+  if (name === 'ai-1024') return ai1024Strategy;
+  if (name === 'ai-1031') return ai1031Strategy;
+  throw new Error(`未知策略: ${name}（可选: ai, ai-0816, ai-0907, ai-0929, ai-1018, ai-1024, ai-1031）`);
 }
