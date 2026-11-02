@@ -954,6 +954,10 @@ const SHIM_SKIP = new Set(['.vite', '.cache']);
  * 主仓库里 `node_modules/@poker/engine -> ../../packages/engine` 是**相对**链接——直接
  * 软链整个 node_modules 会让 worktree 跑到主仓库的包（也就是当前代码而不是历史代码）。
  * 所以除 @poker 外全部用绝对链接指回主仓库，@poker/* 用相对链接解析到 worktree 自己。
+ *
+ * @poker 作用域的名字不能只取主仓库现有的那批：包被改名后（如 `ai-baselines` →
+ * `ai`），历史 worktree 仍依赖旧名字，而主仓库已没有对应条目，照搬会缺链接、把本来
+ * 干净的提交误判为失败。因此再按 worktree 各包 `package.json` 的 `name` 补齐。
  */
 function linkModules(mainDir: string, wtDir: string, wt: string): void {
   if (fs.existsSync(wtDir)) fs.rmSync(wtDir, { recursive: true, force: true });
@@ -970,12 +974,33 @@ function linkModules(mainDir: string, wtDir: string, wt: string): void {
     const scopeDir = target;
     fs.mkdirSync(scopeDir);
     const relPackages = path.relative(scopeDir, path.join(wt, 'packages'));
-    for (const name of fs.readdirSync(path.join(mainDir, entry))) {
+    const names = new Set(fs.readdirSync(path.join(mainDir, entry)));
+    for (const name of worktreeScopedPackageNames(wt)) names.add(name);
+    for (const name of names) {
       // 老提交里可能还没有这个包（如 arena 是后加的），链过去会是悬空链接
       if (!fs.existsSync(path.join(wt, 'packages', name))) continue;
       fs.symlinkSync(path.join(relPackages, name), path.join(scopeDir, name));
     }
   }
+}
+
+/** worktree 各包 package.json 里声明的 `@poker` 包名（去掉作用域前缀）。 */
+function worktreeScopedPackageNames(wt: string): string[] {
+  const pkgsDir = path.join(wt, 'packages');
+  if (!fs.existsSync(pkgsDir)) return [];
+  const names: string[] = [];
+  for (const dir of fs.readdirSync(pkgsDir)) {
+    const pkgJson = path.join(pkgsDir, dir, 'package.json');
+    if (!fs.existsSync(pkgJson)) continue;
+    try {
+      const pkg = JSON.parse(fs.readFileSync(pkgJson, 'utf8')) as { name?: unknown };
+      const name = typeof pkg.name === 'string' ? pkg.name : '';
+      if (name.startsWith('@poker/')) names.push(name.slice('@poker/'.length));
+    } catch {
+      // 损坏的 package.json 与垫片无关，忽略
+    }
+  }
+  return names;
 }
 
 /**

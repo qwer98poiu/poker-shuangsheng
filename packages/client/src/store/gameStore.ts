@@ -5,11 +5,11 @@ import {
   createInitialState, GamePhase,
   tryReveal, finalizeReveal, playCards,
   computeRoundOutcome, advanceLevel,
-  aiTryReveal, aiChooseBottomCards, aiLeadPlay, aiFollowPlay,
   canRevealOrOverride,
-  buildAIContext, suitLabel, rankLabel,
+  suitLabel, rankLabel,
   seededShuffle,
 } from '@poker/engine';
+import { aiTryReveal, aiChooseBottomCards, aiLeadPlay, aiFollowPlay, buildAIContext } from '@poker/ai';
 import type { Suit as SuitType } from '@poker/engine';
 import { devParams, seedFor } from '../dev.js';
 import { buildFailedThrow, type FailedThrow } from './throwFailure.js';

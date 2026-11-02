@@ -1,7 +1,8 @@
 /**
  * Strategy arena — shared types.
  */
-import type { Card, CardSuit, Suit, TrumpDeclaration, AIContext } from '@poker/engine';
+import type { Card, CardSuit, Suit, TrumpDeclaration } from '@poker/engine';
+import type { AIContext } from '@poker/ai';
 
 /** A strategy's reveal decision (suit=null → 无主 NT). */
 export interface RevealDecision {

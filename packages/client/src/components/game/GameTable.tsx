@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useGameStore } from '../../store/gameStore.js';
 import {
   GamePhase, sortHand, suitLabel, rankLabel,
-  computeRoundOutcome, advanceLevel, buildAIContext,
+  computeRoundOutcome, advanceLevel,
 } from '@poker/engine';
+import { buildAIContext } from '@poker/ai';
 import type { GameState, Card, CardSuit } from '@poker/engine';
 import CardFace from '../cards/CardFace.js';
 import PlayerHand from './PlayerHand.js';

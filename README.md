@@ -59,7 +59,7 @@ Cards are played in patterns that must be **matched** by subsequent players:
 ## Repository Overview
 
 - **Engine** ([`packages/engine`](packages/engine/)) — Core game logic: card types, pattern classification, trick comparison, validation, AI strategies, and NT trump tracking (count-based deduction).
-- **AI baselines** ([`packages/ai`](packages/ai/)) — Historical AI strategy snapshots behind one facade; legacy snapshots still live in `engine` during the transition, while newly extracted baselines land here verbatim.
+- **AI baselines** ([`packages/ai`](packages/ai/)) — Historical AI strategy snapshots behind one facade; legacy snapshots still live in `engine` during the transition, while newly extracted baselines land here verbatim. The package also re-exports the current `ai-latest` strategy through a forward-compatibility shim (the strategy code still lives in `engine`).
 - **CLI** ([`packages/cli`](packages/cli/)) — Terminal-based interactive play with full-color card display.
 - **Client** ([`packages/client`](packages/client/)) — React + Vite web frontend with Zustand state management (playable: south-seat human vs 3 AIs, or 4-AI spectator).
 - **Arena** ([`packages/arena`](packages/arena/)) — Headless strategy tournament: mirrored full matches (2→A, with 必打 K/A) and a per-deal arena (configurable declarer seats × three legs; fixed P0 by default), 99%-CI significance testing, and 17+ technical metrics.
@@ -325,7 +325,7 @@ MIT — see [LICENSE](LICENSE).
 ## 仓库结构
 
 - **[`packages/engine`](packages/engine/)** — 核心引擎：牌型分类、比较、验牌、AI 出牌策略、NT 记牌器（基于计数的常主追踪）。
-- **[`packages/ai`](packages/ai/)** — 历史 AI 策略基线：统一 facade；过渡期存量快照仍在 `engine`，新提取的基线原样放入此包。
+- **[`packages/ai`](packages/ai/)** — 历史 AI 策略基线：统一 facade；过渡期存量快照仍在 `engine`，新提取的基线原样放入此包。当前策略 `ai-latest` 也经前向兼容 shim 从这里导出（策略代码仍在 `engine`）。
 - **[`packages/cli`](packages/cli/)** — 终端交互版，支持全色彩牌面显示。
 - **[`packages/client`](packages/client/)** — React 网页前端（可玩：南座人类 vs 3 AI，或 4 AI 观战）。
 - **[`packages/arena`](packages/arena/)** — 策略竞技场：完整对局（2→A，含必打 K/A）镜像对决，以及按发牌统计、庄位可配置（默认固定 P0）的三腿竞技场；99% 置信度显著性判定，输出 17+ 项技术指标。

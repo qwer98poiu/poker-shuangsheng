@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-11-02 19:56
+
+### `@poker/ai` 增加 `ai-latest` 前向导出，消费方切换导入源
+
+**问题**：`@poker/ai` 只导出历史基线；arena/cli/client 仍从 engine 取当前 AI，包边界不清晰，未来物理搬迁需要同时改所有消费方。
+
+**修复**：在 `@poker/ai` 新增 `src/ai-latest/index.ts` 前向兼容 shim，从 engine 转出当前 AI 公开面；arena、cli、client 的 AI 导入改从 `@poker/ai` 取，调用点不变。策略代码与 18 个测试文件仍留在 engine；engine 根导出暂留（shim 依赖），物理搬迁时再删。cli/client 的 `dependencies` 增加 `@poker/ai`。`check-commits` 的 worktree 垫片改为按各 worktree 的包名补齐 `@poker/*` 链接，包改名后历史提交仍能解析。
+
+**无新增测试**；引擎 1314 项 + arena 248 项 + CLI 87 项 + client 201 项 = 1850 项通过。
+
+- **影响文件**：`packages/ai/src/ai-latest/`、`packages/ai/src/index.ts`、`packages/ai/README.md`、`packages/cli/src/index.ts`、`packages/cli/package.json`、`packages/client/src/store/gameStore.ts`、`packages/client/src/components/game/GameTable.tsx`、`packages/client/scripts/ui-player.ts`、`packages/client/package.json`、`packages/arena/src/strategies.ts`、`packages/arena/src/deal-filters.ts`、`packages/arena/src/types.ts`、`packages/engine/src/index.ts`、`package-lock.json`、`README.md`、`CLAUDE.md`、`.claude/skills/extract-ai-baseline/SKILL.md`、`.claude/skills/check-commits/check-commits.ts`
+
 ## 2026-11-02 19:41
 
 ### 基线包更名为 `@poker/ai`

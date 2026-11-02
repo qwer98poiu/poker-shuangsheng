@@ -19,7 +19,8 @@ export * from './scoring/index.js';
 // State machine (glue layer)
 export * from './game/index.js';
 
-// AI (current strategy, reusing ./ai-latest for now — will be ported later)
+// AI (current strategy; transition: consumers import from `@poker/ai`'s ai-latest
+// shim — this export only backs that shim and goes away on the physical move)
 export * from './ai-latest/index.js';
 
 // Strategy arena baselines: ai/ as of historical commits

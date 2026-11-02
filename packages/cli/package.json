@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@poker/engine": "*"
+    "@poker/engine": "*",
+    "@poker/ai": "*"
   },
   "devDependencies": {
     "typescript": "^5.7.0",

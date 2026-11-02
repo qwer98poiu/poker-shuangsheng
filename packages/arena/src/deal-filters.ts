@@ -5,7 +5,7 @@
  * 输入 `DealFilterContext`（含该副该等级的候选庄位主牌声明 `decl`），输出「保留为真」。
  */
 import type { DealFilterContext } from './deal-filter.js';
-import { computeOffSuitControls, longShape } from '@poker/engine';
+import { computeOffSuitControls, longShape } from '@poker/ai';
 
 /**
  * 长花色（**副牌**长套）：任一座位在该副（该等级）的候选主牌下，存在一门副牌满足

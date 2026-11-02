@@ -4,13 +4,13 @@
 
 ```
 packages/engine/       - 核心引擎（牌型、比较、验牌、AI）
-packages/ai/           - 历史 AI 策略基线（过渡期：存量在 engine，新基线在此包）
+packages/ai/           - 历史 AI 策略基线 + 当前策略前向导出（策略代码仍在 engine）
 packages/client/       - React 前端
 packages/cli/          - CLI 终端版本
 packages/arena/        - 策略竞技场（镜像对决、显著性判定）
 ```
 
-**AI 基线过渡期约定（2026-10-25 起）**：arena 只从 `@poker/ai` 导入基线；engine 根导出仅作兼容。存量基线仍在 `packages/engine/src/ai-XXXX/`，新基线直接放 `packages/ai/src/ai-XXXX/`（`git archive` 原样，不改 import——包根的 7 个 shim 负责映射旧的 `../xxx.js`）。每次提取新基线归档一条最旧存量；存量清零后删除 facade 行。**engine 不得反向依赖 `@poker/ai`**。
+**AI 基线过渡期约定（2026-10-25 起）**：arena 只从 `@poker/ai` 导入基线；engine 根导出仅作兼容。存量基线仍在 `packages/engine/src/ai-XXXX/`，新基线直接放 `packages/ai/src/ai-XXXX/`（`git archive` 原样，不改 import——包根的 7 个 shim 负责映射旧的 `../xxx.js`）。每次提取新基线归档一条最旧存量；存量清零后删除 facade 行。当前策略也经本包前向导出：`packages/ai/src/ai-latest/index.ts` 是从 engine 转出 AI 公开面的 shim，arena/cli/client 从 `@poker/ai` 导入当前 AI，**策略代码与测试仍留 engine**；engine 新增 AI 导出时同步补 shim 清单。**engine 不得反向依赖 `@poker/ai`**。
 
 ## 提交规范
 
@@ -101,7 +101,7 @@ Changelog 的测试数行与提交信息不同：列出子包分项与总数（`
 
 - **单包测试**：`npm run test -w packages/engine` / `-w packages/cli` / `-w packages/arena` / `-w packages/client`（等价于进入该包目录后 `vitest run`，读取各自的 vitest.config.ts）
 - **全量测试**：根目录 `npm run test:all`，依次执行四个单包测试命令（engine → arena → cli → client，任一失败即停止）
-- **`packages/ai` 无独立测试套件**：其代码由 arena 的 `historical-strategies` / `baseline-facade` 测试间接覆盖，因此 `test:all` 仍只跑上述四个包；不要在 Changelog 里给它列测试数
+- **`packages/ai` 无独立测试套件**：其代码由 arena 的 `historical-strategies` / `baseline-facade` 测试间接覆盖（`ai-latest` shim 对应的策略测试仍留 engine），因此 `test:all` 仍只跑上述四个包；不要在 Changelog 里给它列测试数
 - **根目录 `npm run test` 只跑引擎**（根 package.json 的 test 脚本指向 engine）
 - **不要从仓库根用 `npx vitest run <包路径>` 统计测试数**——positional filter 在存在多个 vitest.config.ts 时会混入其他包的测试（实测 `npx vitest run packages/cli` 混入 client 测试，127 ≠ 真实 80）
 - **Changelog 的测试总数**：运行 `npm run test:all 2>&1 | grep -E "^> @poker/.* test$|Tests +[0-9]+ passed"`，取输出中对应包的 `Tests N passed` 中的 N（四包顺序 = engine + arena + CLI + client），四者之和为总数

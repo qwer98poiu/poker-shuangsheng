@@ -25,9 +25,10 @@
 import type { Page } from 'playwright-core';
 import type { Card } from '@poker/engine';
 import {
-  GamePhase, getRevealOptions, canOverride, buildAIContext, playCards, sortHand,
-  aiLeadPlay, aiFollowPlay, aiChooseBottomCards, computeRoundOutcome, advanceLevel,
+  GamePhase, getRevealOptions, canOverride, playCards, sortHand,
+  computeRoundOutcome, advanceLevel,
 } from '@poker/engine';
+import { aiLeadPlay, aiFollowPlay, aiChooseBottomCards, buildAIContext } from '@poker/ai';
 import {
   collectSnapshot, ensureServer, killProcessTree, launchBrowser, buildUrl,
   safeClick, listOutOfBounds, type UiSnapshot,

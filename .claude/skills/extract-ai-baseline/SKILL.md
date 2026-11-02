@@ -76,7 +76,8 @@ Changelog 的「影响文件」必须列 `packages/arena/scripts/elo-matches.jso
 
 ## 注意事项
 
-- 提取必须用 `git archive` 精确还原历史文件（含当时的 STRATEGY.md），不要复制当前 ai/ 目录。
+- 提取必须用 `git archive` 精确还原历史文件（含当时的 STRATEGY.md），不要复制当前 ai-latest/ 目录。
+- 当前策略代码仍在 `packages/engine/src/ai-latest/`；`@poker/ai` 里的 `src/ai-latest/` 只是前向兼容 shim（转出 engine 的公开面），提取快照与它无关，不要从那里取源。
 - **快照文件逐字节保持原样**：只允许编译错误清理（死代码，行为不变）与注释；import 改写由 `packages/ai/src/` 的 shim 承担。任何行为修改都会污染基线对比。
 - `engine` 不得反向依赖 `@poker/ai`；否则形成环。
 - 每次提取都要归档一条最旧的基线（engine 存量优先），直到 engine 中的基线清零；届时应删除 facade 行，此后按同样节奏归档包内最旧基线。

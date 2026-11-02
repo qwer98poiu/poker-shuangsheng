@@ -12,13 +12,12 @@ import {
   tryReveal, finalizeReveal, playCards,
   sortHand, cardPointsFromRank as cardPoints, isPointRank as isPointCard,
   rankLabel, suitLabel, suitName, isRed, isTrump, getEffectiveRank,
-  aiTryReveal, aiChooseBottomCards, aiLeadPlay, aiFollowPlay,
   canRevealOrOverride,
   serialize, deserialize, resumeFromTrick,
   Suit, Rank, validateFollow,
-  buildAIContext,
   classify,
 } from '@poker/engine';
+import { aiTryReveal, aiChooseBottomCards, aiLeadPlay, aiFollowPlay, buildAIContext } from '@poker/ai';
 import { computeRoundOutcome } from './round-result.js';
 import type { RoundOutcome } from './round-result.js';
 import { settleRound } from './settle.js';
