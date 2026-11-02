@@ -14,10 +14,10 @@ import { describe, it, expect } from 'vitest';
 import { createCard } from '../model.js';
 import { Rank, SpecialSuit, Suit } from '../types.js';
 import type { Card, CardSuit, Trick, TrumpDeclaration } from '../types.js';
-import type { AIContext } from '../ai/types.js';
-import { minimalContext } from '../ai/types.js';
-import { aiLeadPlay } from '../ai/index.js';
-import { computeNTTrumpState } from '../ai/nt-tracking.js';
+import type { AIContext } from '../ai-latest/types.js';
+import { minimalContext } from '../ai-latest/types.js';
+import { aiLeadPlay } from '../ai-latest/index.js';
+import { computeNTTrumpState } from '../ai-latest/nt-tracking.js';
 import { classify } from '../pattern/index.js';
 import {
   stepBucket,
@@ -30,7 +30,7 @@ import {
   tryTier10BigSingle,
   tryTier11SmallSingle,
   tryTier12LastHand,
-} from '../ai/generic-lead.js';
+} from '../ai-latest/generic-lead.js';
 
 const SPADES: TrumpDeclaration = { trumpSuit: Suit.Spades, level: Rank.Two, declarerIndex: 0 };
 const HEARTS: TrumpDeclaration = { trumpSuit: Suit.Hearts, level: Rank.Five, declarerIndex: 0 };

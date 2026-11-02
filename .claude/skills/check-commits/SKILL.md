@@ -69,7 +69,7 @@ npx tsx .claude/skills/check-commits/check-commits.ts --no-tests --no-typecheck
 | S11 | **不得引用提交哈希**：提交信息、Changelog、代码一律用日期指代历史（快照出处注释、出处字段两处例外报 info，但前提是该哈希在 main 上可达——不可达报 error） | error / info |
 | S12 | 英文正文 ≤12 行；`Co-Authored-By:` 尾行存在 | 纯文档 info；改代码 warn |
 | S13 | 同一 `##` 下只有**最后一个** `###` 带「= X 项通过」总数行 | error |
-| S14 | 冻结快照 `packages/{engine,ai-baselines}/src/ai-XXXX/` 只读；跨根搬迁必须逐字节一致 | error / info |
+| S14 | 冻结快照 `packages/{engine,ai}/src/ai-XXXX/` 只读；跨根搬迁必须逐字节一致 | error / info |
 | S15 | **动机与范围必须以 main 为参照系**：提交信息与 Changelog 不得引用分支名——分支删掉之后引用还在，读者在 main 上找不到它（merge 提交与「反例」行豁免） | error |
 | T8 | **被修改的测试必须被声明**：测试文件改了既有断言（有 `expect(` 增删、无 `it(`/`test(` 增删）时，提交信息与 Changelog 的测试数行须有「修改/重写 N 项测试」子句覆盖对应子包（只核对子包覆盖，不核对 N；不跑测试，`--no-tests` 时照跑）。**只对树里已含 T8 的提交生效**，不追溯 T8 之前的提交 | error / info |
 
@@ -91,13 +91,13 @@ npx tsx .claude/skills/check-commits/check-commits.ts --no-tests --no-typecheck
 
 **T3 的基准**是「最近的非纯文档祖先」，不是父提交——纯文档提交不改代码，测试数必然等于其祖先。范围首提交的父提交会被额外实测一次，所以首提交也会被检查。
 
-**T7 的增量口径**：拿「上一个可能改动过实测集合的提交」（`nearestT7`）的未使用声明集合做差，只判**本提交新引入**的那些（含「删掉最后一处使用后留下的空壳」这种形态：import 还在、局部变量还在，只是再没人读）。老提交里本来就有的不追溯，否则一旦历史上有一处，后面每个提交都会连坐。冻结快照 `packages/{engine,ai-baselines}/src/ai-XXXX/` 排除在外——它们是 `git archive` 产物、S14 规定只读，本就含大量未使用声明（不排除的话每个提交都刷屏）。`ai-baselines` 无测试套件、不在 `PKGS` 中，因此它的 tsconfig 不参与 T7；该包目前只有 re-export shim 与冻结快照（后者按 `ai-XXXX/` 路径排除），若将来加入非快照代码，需显式把其 tsconfig 加进 `TS_CONFIGS`。它跟 T2 一样要跑 tsc，因此 `--no-typecheck` 一并跳过它；**pre-push 门禁用的正是 `--no-tests --no-typecheck`，所以 T7 只在这一技能的事后复查里生效**，不是提交前门禁。
+**T7 的增量口径**：拿「上一个可能改动过实测集合的提交」（`nearestT7`）的未使用声明集合做差，只判**本提交新引入**的那些（含「删掉最后一处使用后留下的空壳」这种形态：import 还在、局部变量还在，只是再没人读）。老提交里本来就有的不追溯，否则一旦历史上有一处，后面每个提交都会连坐。冻结快照 `packages/{engine,ai}/src/ai-XXXX/` 排除在外——它们是 `git archive` 产物、S14 规定只读，本就含大量未使用声明（不排除的话每个提交都刷屏）。`ai` 无测试套件、不在 `PKGS` 中，因此它的 tsconfig 不参与 T7；该包目前只有 re-export shim 与冻结快照（后者按 `ai-XXXX/` 路径排除），若将来加入非快照代码，需显式把其 tsconfig 加进 `TS_CONFIGS`。它跟 T2 一样要跑 tsc，因此 `--no-typecheck` 一并跳过它；**pre-push 门禁用的正是 `--no-tests --no-typecheck`，所以 T7 只在这一技能的事后复查里生效**，不是提交前门禁。
 
 **T7 的基准链不走 `nearestNonDoc`（与 T3 不同）**：T7 的实测含 `tsconfig.skills.json`（`TS_CONFIGS`），而 `nearestNonDoc` 会跳过 `skill:` 提交（`DOC_PREFIXES` 含它）——两者相乘会把技能代码里的未使用声明算到**下一个非文档提交**头上。所以 T7 自己按**事实**判「这次动没动 `.ts`/`.tsx`」（`t7Relevant`）：非纯文档提交一律算；纯文档提交里只有改技能代码的 `skill:` 会命中，它因此既是自己的被检查者、也是后面提交的基准。这一类只跑 typecheck 那一档实测（技能不在四包测试范围内）。
 
 **T7 的级别按「末端还在不在」分**：端点是**被检查范围的最后一个提交**所在那棵树（`commits` 末尾；纯文档提交不改代码，取它自己或其最近 `t7Relevant` 祖先的实测即可）。新引入的声明**还在末端 → error**（可行动：在末端删掉即可）；**已在范围内被后续提交清掉 → info**（记录在案、无需处理——那笔债在范围内已经还了）。归因不变，两种都报在**引入它的那个提交**上。这条是为了让「已经还掉的旧账」不再以 error 挂着：`origin/main..HEAD` 里常有「引入 → 同一段里清掉」的成对提交，按绝对口径它们会因末端之外的旧账连坐，按纯增量口径又会永远挂着无法清零的 error。末端集合取不到实测时退化为空集（全部按 info）——宁可不拦，也不凭一个取不到的集合误报 error。
 
-**S5 的口径**：与 S3 共用 `codeFilesOf`（`packages/**`、根 `package.json`、`tsconfig*.json`；数据 `.json` 与 `.md` 不计——`.md` 放哪儿都是文档，它以路径判断，曾把 `packages/engine/src/ai/STRATEGY.md` 算成代码，于是 `docs:` 改它反被判「应只动 .md」），再加一条只作用于 `docs:` 的：`.claude/skills/**` **整条路径归 `skill:`**（含技能自己的 `SKILL.md`），`docs:` 一个文件都不该动；`skill:` 只受前半条约束（改技树是它的本职，`skill:` 也改得到 `CLAUDE.md` 这类项目文档）。技树那半条**不并进** `codeFilesOf`——后者同时是 S3 的判据（「改了代码就得写 Changelog」），而技树改动按规范不写 Changelog。实测全 history（322 个提交）：前半条命中 3 笔（`08-04`、`08-15`、`08-17`，都是 `docs:` 改了 `.ts` 生成器/接线），技树半条命中 5 笔（`08-08`~`08-14` 用 `docs:` 建/改技能，全在 `skill:` 前缀出现于 `08-15` 之前）——**都在 main 上**，只在全量扫描里出现，属记录在案、不追溯改写的范畴（与下面 S3 段落里那 2 笔 chore 同性质）。
+**S5 的口径**：与 S3 共用 `codeFilesOf`（`packages/**`、根 `package.json`、`tsconfig*.json`；数据 `.json` 与 `.md` 不计——`.md` 放哪儿都是文档，它以路径判断，曾把 `packages/engine/src/ai-latest/STRATEGY.md` 算成代码，于是 `docs:` 改它反被判「应只动 .md」），再加一条只作用于 `docs:` 的：`.claude/skills/**` **整条路径归 `skill:`**（含技能自己的 `SKILL.md`），`docs:` 一个文件都不该动；`skill:` 只受前半条约束（改技树是它的本职，`skill:` 也改得到 `CLAUDE.md` 这类项目文档）。技树那半条**不并进** `codeFilesOf`——后者同时是 S3 的判据（「改了代码就得写 Changelog」），而技树改动按规范不写 Changelog。实测全 history（322 个提交）：前半条命中 3 笔（`08-04`、`08-15`、`08-17`，都是 `docs:` 改了 `.ts` 生成器/接线），技树半条命中 5 笔（`08-08`~`08-14` 用 `docs:` 建/改技能，全在 `skill:` 前缀出现于 `08-15` 之前）——**都在 main 上**，只在全量扫描里出现，属记录在案、不追溯改写的范畴（与下面 S3 段落里那 2 笔 chore 同性质）。
 
 **T3 的增量口径**：`新增 N` 计 `+N`、`删除/移除 N` 计 `−N`、`修改/重写` 与 `无新增测试` 计 `0`。逐包分解只在括号能唯一对应到子句时硬校验；`新增 34 项、重写 9 项、修改 2 项测试（engine 43 + arena 1 + client 1）` 这类括号横跨多个动词的写法推不出逐包分配，降为 info 并打印实测逐包 Δ 供人工核对。
 
@@ -123,7 +123,7 @@ npx tsx .claude/skills/check-commits/check-commits.ts --no-tests --no-typecheck
 
 **S14**：整体删除快照目录 = info（归档合规）；新增快照目录 = info（提取基线）；目录内**文件被修改/新增/删除** = error。跨根搬迁（同名目录从一个根消失、在另一个根出现）要求 blob 逐字节一致：一致 = info，否则 = error。`extract-ai-baseline/SKILL.md` 的「注意事项」允许「死代码清理与注释」两类例外，故 error 文案会打印改动的文件并附该例外说明，需人工判定。
 
-**T6 的宽松比对**：能识别折叠写法——`packages/{engine,cli,client}/src/**/__tests__/`（brace 展开 + glob，`**/` 匹配零层目录）、`packages/ai-baselines/src/ai-0816/`（目录前缀）、`` `x.ts`（新） ``（括号尾注在反引号外，不影响）。比对本就不含 `CHANGELOG.md`（规范示例一律不列它）。硬错误按小节判（谁列错谁负责），漏列按整个提交判（多小节条目会把不同文件写在不同小节，逐小节算会互相误报）。
+**T6 的宽松比对**：能识别折叠写法——`packages/{engine,cli,client}/src/**/__tests__/`（brace 展开 + glob，`**/` 匹配零层目录）、`packages/ai/src/ai-0816/`（目录前缀）、`` `x.ts`（新） ``（括号尾注在反引号外，不影响）。比对本就不含 `CHANGELOG.md`（规范示例一律不列它）。硬错误按小节判（谁列错谁负责），漏列按整个提交判（多小节条目会把不同文件写在不同小节，逐小节算会互相误报）。
 
 ## 报告解读
 

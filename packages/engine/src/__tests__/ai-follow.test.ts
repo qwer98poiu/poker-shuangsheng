@@ -4,11 +4,11 @@ import { createCard, isTrump } from '../model.js';
 import { classify } from '../pattern/index.js';
 import { compareTwo } from '../comparing/index.js';
 import { validateFollow } from '../following/index.js';
-import { aiFollowPlay } from '../ai/index.js';
-import { canAddPoints } from '../ai/helpers.js';
-import { canPlayerTrumpThrow } from '../ai/nt-tracking.js';
+import { aiFollowPlay } from '../ai-latest/index.js';
+import { canAddPoints } from '../ai-latest/helpers.js';
+import { canPlayerTrumpThrow } from '../ai-latest/nt-tracking.js';
 import type { Card, CardSuit, TrumpDeclaration } from '../types.js';
-import type { AIContext, NTTrumpState } from '../ai/types.js';
+import type { AIContext, NTTrumpState } from '../ai-latest/types.js';
 
 const cfg5: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 5 };
 const cfgDiamondA: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Diamonds, level: 14 };

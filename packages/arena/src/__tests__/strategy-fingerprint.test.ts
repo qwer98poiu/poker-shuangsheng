@@ -9,7 +9,7 @@ import type { Strategy } from '../types.js';
 /**
  * AI 策略指纹（end-to-end）。
  *
- * 这三项数值都由当前 `packages/engine/src/ai/` 的行为决定，**正常的策略迭代都会改变
+ * 这三项数值都由当前 `packages/engine/src/ai-latest/` 的行为决定，**正常的策略迭代都会改变
  * 它们**。集中在一个文件里，是为了让「策略每改一次要跟着改的测试」只有一个落点：
  * 改策略时同步更新本文件，并在提交信息与 Changelog 的测试数行写
  * 「修改 3 项测试（arena 3）」——check-commits 的 T8 会校验被修改的测试是否已声明。

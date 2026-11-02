@@ -41,7 +41,7 @@ function isDataFile(f: string): boolean {
 /**
  * 「代码/配置」路径口径：S5 判纯文档提交越界、S3 判是否该写 Changelog，共用一套。
  *
- * 数据文件（`.json`）与 **`.md`** 都不计：`.md` 放哪儿都是文档——`packages/engine/src/ai/
+ * 数据文件（`.json`）与 **`.md`** 都不计：`.md` 放哪儿都是文档——`packages/engine/src/ai-latest/
  * STRATEGY.md` 曾因「路径以 `packages/` 开头」被算成代码，于是 `docs:` 提交改它被判 S5
  * 「提交改动了代码/配置（纯文档提交应只动 .md）」，一句话里自相矛盾。
  */
@@ -52,10 +52,10 @@ function codeFilesOf(files: string[]): string[] {
 
 /**
  * 冻结快照目录（extract-ai-baseline 产物），创建后只读。
- * 过渡期存量在 engine，新基线在 ai-baselines；两条路径都要保护。
+ * 过渡期存量在 engine，新基线在 ai；两条路径都要保护。
  */
-const SNAPSHOT_ROOTS = ['packages/engine/src/', 'packages/ai-baselines/src/'] as const;
-const SNAPSHOT_DIR_RE = /^(packages\/(?:engine|ai-baselines)\/src\/(ai-\d+))\//;
+const SNAPSHOT_ROOTS = ['packages/engine/src/', 'packages/ai/src/'] as const;
+const SNAPSHOT_DIR_RE = /^(packages\/(?:engine|ai)\/src\/(ai-\d+))\//;
 
 /** 快照允许的两类例外（见 extract-ai-baseline/SKILL.md 的「注意事项」） */
 const SNAPSHOT_EXCEPTION_NOTE =
@@ -88,7 +88,7 @@ const PROVENANCE_FIELD_RE = /"[A-Za-z_]*(?:commit|revision)[A-Za-z_]*"\s*:\s*"[0
 /**
  * 快照出处注释——S11 的**例外之一**。
  *
- * 冻结基线（`packages/{engine,ai-baselines}/src/ai-XXXX/`）的出处注释必须同时给出「出处提交的哈希」与
+ * 冻结基线（`packages/{engine,ai}/src/ai-XXXX/`）的出处注释必须同时给出「出处提交的哈希」与
  * 「日期」：目录名只到日，且快照日与提取提交往往不同日（`ai-0808` ← 133900d 是 08-08，
  * 提取提交在 08-09；`ai-0809` ← b77a7b1 是 08-14，提取在 08-15），只留日期无法唯一定位
  * 提取源。同理适用于 `ai/ as of <hash>` 形式的导出注释与 `it('ai-XXXX（<hash>, …）')`
@@ -1081,7 +1081,7 @@ function tail(s: string, n = 2500): string {
  * 跑一遍 `tsc --noEmit --noUnusedLocals`（各包 src + scripts + skills），收齐未使用声明，
  * 返回 `file:symbol` 的排序去重列表。T7 拿它与上一个非纯文档提交比对。
  *
- * **冻结快照 `packages/{engine,ai-baselines}/src/ai-XXXX/` 排除在外**：它们是 `git archive` 产物，自带
+ * **冻结快照 `packages/{engine,ai}/src/ai-XXXX/` 排除在外**：它们是 `git archive` 产物，自带
  * 历史、本就含大量未使用声明，且 S14 规定只读——不排除的话每个提交都会刷屏。
  */
 async function measureUnused(wt: string): Promise<string[]> {

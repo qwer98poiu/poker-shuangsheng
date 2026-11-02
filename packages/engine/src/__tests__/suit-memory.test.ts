@@ -6,9 +6,9 @@ import { classify } from '../pattern/index.js';
 import {
   computeLongSuit, computeActiveLongSuit, computeLongSuitMemory, initialHand, knownOutOfPlay,
   longSuitLeadCount, myPlayedCards,
-} from '../ai/suit-memory.js';
-import { minimalContext } from '../ai/types.js';
-import type { AIContext } from '../ai/types.js';
+} from '../ai-latest/suit-memory.js';
+import { minimalContext } from '../ai-latest/types.js';
+import type { AIContext } from '../ai-latest/types.js';
 
 function c(s: CardSuit, r: number, idx: number): Card {
   return createCard(s, r, idx);

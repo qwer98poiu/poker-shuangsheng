@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { Rank, Suit } from '../types.js';
 import { createCard } from '../model.js';
 import type { Card, CardSuit, TrumpDeclaration } from '../types.js';
-import { computeOffSuitControls } from '../ai/bottom-controls.js';
+import { computeOffSuitControls } from '../ai-latest/bottom-controls.js';
 
 function c(s: CardSuit, r: number, idx: number): Card {
   return createCard(s, r, idx);

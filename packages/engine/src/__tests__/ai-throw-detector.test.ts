@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { Suit } from '../types.js';
 import { createCard } from '../model.js';
-import { findThrowableOffSuitCombos } from '../ai/throw-detector.js';
+import { findThrowableOffSuitCombos } from '../ai-latest/throw-detector.js';
 import type { Card, CardSuit, TrumpDeclaration } from '../types.js';
 
 function c(s: CardSuit, r: number, idx: number): Card {

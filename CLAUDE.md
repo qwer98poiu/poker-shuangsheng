@@ -4,13 +4,13 @@
 
 ```
 packages/engine/       - 核心引擎（牌型、比较、验牌、AI）
-packages/ai-baselines/ - 历史 AI 策略基线（过渡期：存量在 engine，新基线在此包）
+packages/ai/           - 历史 AI 策略基线（过渡期：存量在 engine，新基线在此包）
 packages/client/       - React 前端
 packages/cli/          - CLI 终端版本
 packages/arena/        - 策略竞技场（镜像对决、显著性判定）
 ```
 
-**AI 基线过渡期约定（2026-10-25 起）**：arena 只从 `@poker/ai-baselines` 导入基线；engine 根导出仅作兼容。存量基线仍在 `packages/engine/src/ai-XXXX/`，新基线直接放 `packages/ai-baselines/src/ai-XXXX/`（`git archive` 原样，不改 import——包根的 6 个 shim 负责映射旧的 `../xxx.js`）。每次提取新基线归档一条最旧存量；存量清零后删除 facade 行。**engine 不得反向依赖 `@poker/ai-baselines`**。
+**AI 基线过渡期约定（2026-10-25 起）**：arena 只从 `@poker/ai` 导入基线；engine 根导出仅作兼容。存量基线仍在 `packages/engine/src/ai-XXXX/`，新基线直接放 `packages/ai/src/ai-XXXX/`（`git archive` 原样，不改 import——包根的 7 个 shim 负责映射旧的 `../xxx.js`）。每次提取新基线归档一条最旧存量；存量清零后删除 facade 行。**engine 不得反向依赖 `@poker/ai`**。
 
 ## 提交规范
 
@@ -57,7 +57,7 @@ Co-Authored-By: DeepSeek V4.1 Flash <noreply@deepseek.com>
 
 | 例外 | 形态 | 为什么必须留哈希 |
 |---|---|---|
-| **快照出处注释** | `packages/{engine,ai-baselines}/src/ai-XXXX/` 的出处注释、`// ai/ as of <hash> (日期)` 导出注释、`it('ai-XXXX（<hash>, …）')` 测试名 | 目录名 `ai-XXXX` 只到日，且快照日与提取提交往往不同日（`ai-0808` ← 08-08 的提交、提取在 08-09），只留日期无法唯一定位提取源——必须**同时**给出哈希与日期 |
+| **快照出处注释** | `packages/{engine,ai}/src/ai-XXXX/` 的出处注释、`// ai/ as of <hash> (日期)` 导出注释、`it('ai-XXXX（<hash>, …）')` 测试名 | 目录名 `ai-XXXX` 只到日，且快照日与提取提交往往不同日（`ai-0808` ← 08-08 的提交、提取在 08-09），只留日期无法唯一定位提取源——必须**同时**给出哈希与日期 |
 | **出处字段** | 生成物里记录来源提交的机器可读字段，如布局基线的 `"commit": "<hash>"`（`layout-regression.ts --snapshot` 写入） | 同上；判据看键名（须含 `commit`/`revision`）与值（7–40 位十六进制） |
 
 出处哈希必须**在 main 上可达**（`git merge-base --is-ancestor <hash> main` 成立）：指向被改写掉的旧对象时，眼下还能 `git show <hash>:<path>`，GC 之后彻底失效。
@@ -92,7 +92,7 @@ Changelog 的测试数行与提交信息不同：列出子包分项与总数（`
 - **修改 Changelog 必须在代码提交之前**。每次提交前先写 Changelog，再 `git add` 一起提交。Changelog 时间与提交时间允许相差几分钟，无需强制对齐。
 - **Changelog 只在更新代码时写**（fix/feat/strategy/refactor/test 等）；纯文档提交（`docs:` 和 `skill:`）一律不写 Changelog。
 - **测试断言优先用精确值**（`toBe(n)`），避免使用 `toBeGreaterThan`、`toBeGreaterThanOrEqual` 等模糊匹配，除非值本身因外部因素不确定。
-- **策略指纹集中在一个文件**：`packages/arena/src/__tests__/strategy-fingerprint.test.ts` 里的三项数值（镜像对决 `oppLevel`、AI 庄家扣底调用次数、client 种子局原始分/墩数）随 `ai/` 每次改动而变。改策略时同步更新它，测试数行写「修改 3 项测试（arena 3）」；不要把这类数字散落在 client/arena 的其他测试里（那些测试只保留与策略无关的契约与不变量）。
+- **策略指纹集中在一个文件**：`packages/arena/src/__tests__/strategy-fingerprint.test.ts` 里的三项数值（镜像对决 `oppLevel`、AI 庄家扣底调用次数、client 种子局原始分/墩数）随 `ai-latest/` 每次改动而变。改策略时同步更新它，测试数行写「修改 3 项测试（arena 3）」；不要把这类数字散落在 client/arena 的其他测试里（那些测试只保留与策略无关的契约与不变量）。
 - **基础模块的测试必须逐项穷举**。对于记牌器这类高阶策略依赖的基础模块，测试覆盖所有视角 × 所有目标玩家 × 所有可能的牌（suit-rank）× 精确张数断言，不允许只验证部分卡牌（记牌器那一套即按此穷举，见 `packages/engine/src/__tests__/ai-nt-tracking.test.ts`）。另外，**测试场景里的庄家（`declarerIndex`）与亮主者（reveal 的 `playerIndex`）必须与真实游戏一致**——庄家身份决定底牌是否进入可能列表，设错会测到另一条分支而测试照样绿，这类错误不会自己暴露。
 - **每次提交前必须跑类型检查并清理全部错误**：根目录 `npm run typecheck`，须零错误后才提交（范围与 `scripts/` 的坑见「类型检查」节）。vitest 经 esbuild 转译不做类型检查，类型错误不会导致测试失败，因此必须显式检查。
 - **删除符号链接路径下的内容前先确认目标**：`git worktree` 无 node_modules，复用主仓库依赖时通常把 worktree 的 `node_modules` 符号链接到主仓库——此时 `rm worktree/node_modules/@poker/engine` 会顺着链接删掉**主仓库**里的真身（2026-08-15 实测：误删 `@poker/engine` 导致 vite 无法解析）。删除/重建前用 `ls -la`/`readlink` 确认是否为链接及指向；worktree 清理（`git worktree remove`）前先把指向 worktree 内部路径的链接改回相对链接（`../../packages/engine`），否则悬空。
@@ -101,18 +101,18 @@ Changelog 的测试数行与提交信息不同：列出子包分项与总数（`
 
 - **单包测试**：`npm run test -w packages/engine` / `-w packages/cli` / `-w packages/arena` / `-w packages/client`（等价于进入该包目录后 `vitest run`，读取各自的 vitest.config.ts）
 - **全量测试**：根目录 `npm run test:all`，依次执行四个单包测试命令（engine → arena → cli → client，任一失败即停止）
-- **`packages/ai-baselines` 无独立测试套件**：其代码由 arena 的 `historical-strategies` / `baseline-facade` 测试间接覆盖，因此 `test:all` 仍只跑上述四个包；不要在 Changelog 里给它列测试数
+- **`packages/ai` 无独立测试套件**：其代码由 arena 的 `historical-strategies` / `baseline-facade` 测试间接覆盖，因此 `test:all` 仍只跑上述四个包；不要在 Changelog 里给它列测试数
 - **根目录 `npm run test` 只跑引擎**（根 package.json 的 test 脚本指向 engine）
 - **不要从仓库根用 `npx vitest run <包路径>` 统计测试数**——positional filter 在存在多个 vitest.config.ts 时会混入其他包的测试（实测 `npx vitest run packages/cli` 混入 client 测试，127 ≠ 真实 80）
 - **Changelog 的测试总数**：运行 `npm run test:all 2>&1 | grep -E "^> @poker/.* test$|Tests +[0-9]+ passed"`，取输出中对应包的 `Tests N passed` 中的 N（四包顺序 = engine + arena + CLI + client），四者之和为总数
 
 ## 类型检查
 
-- **命令**：根目录 `npm run typecheck`，按 engine → ai-baselines → arena → cli → client → skills 顺序各跑一次 `tsc --noEmit`（与 `test:all` 同风格，任一失败即停止）。提交前必零错误。
+- **命令**：根目录 `npm run typecheck`，按 engine → ai → arena → cli → client → skills 顺序各跑一次 `tsc --noEmit`（与 `test:all` 同风格，任一失败即停止）。提交前必零错误。
 - **门禁在 pre-push，不在 pre-commit**：`.githooks/pre-push` 依次跑「工作区 `npm run typecheck` → `npm run test:all` → `check-commits <本次推送范围> --no-tests --no-typecheck`」，任一失败即阻断推送；`git push --no-verify` 可跳过。`core.hooksPath` 由根 `package.json` 的 `prepare` 在 `npm install` 后自动设好，**新克隆无需手工配置**（提交保持快，推送才是「离开本机」的时刻）。
 - **本地 `npm run typecheck` ≠ `check-commits` 的 T2**：两者跑的都是 typecheck，但 T2 是在为每个提交新建的**干净 worktree** 里跑，看不见未提交的与被 `.gitignore` 忽略的文件——2026-09-26 实测的最坏组合：本机因 `packages/arena/scripts/` 下三个被忽略的实验脚本而红，而 T2 报告「通过」。**两者不可互相替代**，门禁里跑的是前者；同理，把一个文件写进 `.gitignore` 并不会把它移出 tsconfig 的 `include`（`include` 按目录取），必须同步加 `exclude`。
 - **历史坑一（范围）**：该条原先只写「engine 与 client」，`cli`/`arena` 从未被检查过——2026-09-19 修掉的 13 个 TS2345（`packages/cli/src/__tests__/round-result.test.ts`）在此之前一直存在于 HEAD 上，而 vitest 全绿。
-- **历史坑二（`scripts/`）**：各包的 `tsconfig.json` 都只 `include: ["src"]`，**`packages/*/scripts/` 不在任何 tsconfig 范围内**。有 scripts 的包（engine / arena / client）另配 `tsconfig.scripts.json`，已并入该包的 `typecheck` 脚本；新增含 scripts 的包要同步补一个，否则脚本仍然裸奔（`ai-baselines` 目前无 scripts）。
+- **历史坑二（`scripts/`）**：各包的 `tsconfig.json` 都只 `include: ["src"]`，**`packages/*/scripts/` 不在任何 tsconfig 范围内**。有 scripts 的包（engine / arena / client）另配 `tsconfig.scripts.json`，已并入该包的 `typecheck` 脚本；新增含 scripts 的包要同步补一个，否则脚本仍然裸奔（`ai` 目前无 scripts）。
 - **历史坑三（`.claude/skills/`）**：skills 在各包之外，同样不在任何 tsconfig 范围内，脚本一直裸奔——2026-09-26 接入时当场报出 6 个错误（`inject-gui.ts` 的 `JSON.parse` 未定型 → `Object.values` 推成 `unknown[]`，各处展开报 TS2488、回调参数隐式 any）。现由根 `tsconfig.skills.json`（`include: [".claude/skills"]`）与根 `typecheck:skills` 脚本覆盖；**新增带 `.ts` 的 skill 自动纳入，不必再改配置**。
 - **花色类型**：`Suit`/`SpecialSuit` 是 `as const` 对象 + 同名联合类型（2026-09-19 由**字符串枚举**改来；字符串枚举是名义类型，那时 `'S'` 赋给 `CardSuit` 会报 TS2345，没有任何编译器开关能放宽）。现在 `Suit.Spades` 与 `'S'` 都合法，不需要任何 cast；`Rank` 仍是数值枚举，传裸数字合法（`createCard(Suit.Spades, 14, 200)`）。
 - **不要用 `as any` 消音**：那会把整条链路的类型检查一起关掉——`createCard(s, r as any, i)` 就是反例，它同时掩盖了 rank 传错这类真错误。类型实在对不上时用最小必要的 cast（`as CardSuit` 而非 `as any`）。
@@ -133,13 +133,13 @@ Changelog 的测试数行与提交信息不同：列出子包分项与总数（`
 ## Elo 分与 README 数值
 
 - **用途**：README 中英两张表里的 Elo 分是**实测快照**（`packages/arena/scripts/elo-calc.ts` 拟合，锚点 `ANCHOR_ELO`）。被测代码或测量口径一变旧数字就失效，**必须改标 `待重测`（TBD）**——中英两处都改，不得让旧分数挂着不动。
-- **失效范围按被测物的依赖边界划分**（实测：冻结快照只 import 共享模块 `model`/`pattern`/`comparing`/`following`/`types`，**不 import `ai/`**——所以改 `ai/` 只波及当前行，改共享模块才波及全表）：
+- **失效范围按被测物的依赖边界划分**（实测：冻结快照只 import 共享模块 `model`/`pattern`/`comparing`/`following`/`types`，**不 import `ai-latest/`**——所以改 `ai-latest/` 只波及当前行，改共享模块才波及全表）：
 
   | 改了什么 | 失效范围 | 处理 |
   |---|---|---|
-  | `packages/engine/src/ai/` 策略代码 | 仅 `ai`（当前）一行 | 该格改 `待重测`；基线行与锚点不动 |
+  | `packages/engine/src/ai-latest/` 策略代码 | 仅 `ai-latest`（当前）一行 | 该格改 `待重测`；基线行与锚点不动 |
   | 共享引擎代码——`model.ts`、`pattern/`、`comparing/`、`following/`、扣底/升级、发牌 | **整张表**（含锚点） | 全表重测；口径变了（如扣底口径）另开一表，不与旧表混列 |
-  | `packages/engine/src/ai-XXXX/`（过渡期存量）或 `packages/ai-baselines/src/ai-XXXX/`（新基线）冻结快照 | 该基线 | 不应改动——快照是 `git archive` 产物，改了就不再是那个日期的策略 |
+  | `packages/engine/src/ai-XXXX/`（过渡期存量）或 `packages/ai/src/ai-XXXX/`（新基线）冻结快照 | 该基线 | 不应改动——快照是 `git archive` 产物，改了就不再是那个日期的策略 |
   | 策略接线（`packages/arena/src/strategies.ts` 的策略名 → 引擎入口） | 被改接线的那些行 | 名字必须继续指同一份代码；换实现 = 换策略，旧分不成立 |
   | 竞技场测量口径（`packages/arena/src/run.ts`、镜像对局、平局按 0.5、n 局数） | `MATCHES` 全部 p̂ | 重跑对局、重填 `MATCHES` |
   | `ANCHOR` / `ANCHOR_ELO` | 整张表（构造上） | 只在有意改刻度时动 |
@@ -155,4 +155,4 @@ Changelog 的测试数行与提交信息不同：列出子包分项与总数（`
 
 ## AI 策略文档
 
-参见 [packages/engine/src/ai/STRATEGY.md](packages/engine/src/ai/STRATEGY.md)。
+参见 [packages/engine/src/ai-latest/STRATEGY.md](packages/engine/src/ai-latest/STRATEGY.md)。

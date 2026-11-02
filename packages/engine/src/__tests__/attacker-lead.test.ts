@@ -9,10 +9,10 @@ import { describe, it, expect } from 'vitest';
 import { createCard } from '../model.js';
 import { Suit, Rank } from '../types.js';
 import type { Card, CardSuit, TrumpDeclaration } from '../types.js';
-import type { AIContext } from '../ai/types.js';
-import { minimalContext } from '../ai/types.js';
-import { tryAttackerTractor, tryAttackerTop, tryAttackerDrain } from '../ai/attacker-lead.js';
-import { aiLeadPlay } from '../ai/index.js';
+import type { AIContext } from '../ai-latest/types.js';
+import { minimalContext } from '../ai-latest/types.js';
+import { tryAttackerTractor, tryAttackerTop, tryAttackerDrain } from '../ai-latest/attacker-lead.js';
+import { aiLeadPlay } from '../ai-latest/index.js';
 
 const SPADES: TrumpDeclaration = { trumpSuit: Suit.Spades, level: Rank.Two, declarerIndex: 0 };
 const HEARTS: TrumpDeclaration = { trumpSuit: Suit.Hearts, level: Rank.Two, declarerIndex: 0 };

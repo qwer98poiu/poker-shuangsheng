@@ -29,8 +29,8 @@ import type { Card, CardSuit, TrumpDeclaration } from '../src/types.js';
 import {
   aiChooseBottomCardsDetailed,
   type BottomChoiceDetail,
-} from '../src/ai/bottom-strategy.js';
-import { computeOffSuitControls } from '../src/ai/bottom-controls.js';
+} from '../src/ai-latest/bottom-strategy.js';
+import { computeOffSuitControls } from '../src/ai-latest/bottom-controls.js';
 
 // ---- 主牌配置枚举 ----
 

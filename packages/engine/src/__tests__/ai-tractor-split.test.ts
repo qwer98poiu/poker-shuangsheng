@@ -9,9 +9,9 @@ import { Suit } from '../types.js';
 import { createCard } from '../model.js';
 import { classify } from '../pattern/index.js';
 import { validateFollow } from '../following/index.js';
-import { aiFollowPlay } from '../ai/index.js';
+import { aiFollowPlay } from '../ai-latest/index.js';
 import type { Card, CardSuit, TrumpDeclaration } from '../types.js';
-import type { AIContext } from '../ai/types.js';
+import type { AIContext } from '../ai-latest/types.js';
 
 const cfg2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
 const cfgQ: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 12 };

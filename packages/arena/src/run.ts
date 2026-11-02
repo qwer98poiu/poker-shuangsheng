@@ -66,7 +66,7 @@ function printUsage(): void {
   --workers W        worker 进程数，默认 min(8, 物理核数)（1 = 进程内）
   --benchmark N      跑 N 场对局测速后退出
   --detail-pair N    输出第 N 个对决的镜像两场升级记录后退出
-  --strategy-a NAME  策略 A，默认 ai
+  --strategy-a NAME  策略 A，默认 ai-latest
   --strategy-b NAME  策略 B，默认 ai-1024
   --out PATH         JSON 导出路径，默认 results/arena-<时间>.json
   --no-json          不导出 JSON
@@ -88,7 +88,7 @@ function parseArgs(argv: string[]): Args {
     workers: defaultWorkerCount(),
     benchmark: 0,
     detailPair: null,
-    strategyA: 'ai',
+    strategyA: 'ai-latest',
     strategyB: 'ai-1024',
     out: null,
     untilSignificant: false,

@@ -10,10 +10,10 @@ import { createCard } from '../model.js';
 import { Suit, Rank } from '../types.js';
 import type { Card, CardSuit, PlayedCards, Trick, TrumpDeclaration } from '../types.js';
 import { classify } from '../pattern/index.js';
-import type { AIContext, NTTrumpState } from '../ai/types.js';
-import { minimalContext } from '../ai/types.js';
-import { tryDrain, tryLoneNonTopPair, isAllControlSuit } from '../ai/drain.js';
-import { aiLeadPlay } from '../ai/index.js';
+import type { AIContext, NTTrumpState } from '../ai-latest/types.js';
+import { minimalContext } from '../ai-latest/types.js';
+import { tryDrain, tryLoneNonTopPair, isAllControlSuit } from '../ai-latest/drain.js';
+import { aiLeadPlay } from '../ai-latest/index.js';
 
 const CFG: TrumpDeclaration = { trumpSuit: Suit.Spades, level: Rank.Two, declarerIndex: 0 };
 const NT_CFG: TrumpDeclaration = { trumpSuit: null, level: Rank.Two, declarerIndex: 0 };

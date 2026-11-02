@@ -19,8 +19,8 @@ export * from './scoring/index.js';
 // State machine (glue layer)
 export * from './game/index.js';
 
-// AI (reusing old ai/index.ts for now — will be ported later)
-export * from './ai/index.js';
+// AI (current strategy, reusing ./ai-latest for now — will be ported later)
+export * from './ai-latest/index.js';
 
 // Strategy arena baselines: ai/ as of historical commits
 // (archived & removed: ai-0707/ai-0712/ai-0726 on 2026-08-07, ai-0801 on 2026-09-16,

@@ -59,7 +59,7 @@ Cards are played in patterns that must be **matched** by subsequent players:
 ## Repository Overview
 
 - **Engine** ([`packages/engine`](packages/engine/)) — Core game logic: card types, pattern classification, trick comparison, validation, AI strategies, and NT trump tracking (count-based deduction).
-- **AI baselines** ([`packages/ai-baselines`](packages/ai-baselines/)) — Historical AI strategy snapshots behind one facade; legacy snapshots still live in `engine` during the transition, while newly extracted baselines land here verbatim.
+- **AI baselines** ([`packages/ai`](packages/ai/)) — Historical AI strategy snapshots behind one facade; legacy snapshots still live in `engine` during the transition, while newly extracted baselines land here verbatim.
 - **CLI** ([`packages/cli`](packages/cli/)) — Terminal-based interactive play with full-color card display.
 - **Client** ([`packages/client`](packages/client/)) — React + Vite web frontend with Zustand state management (playable: south-seat human vs 3 AIs, or 4-AI spectator).
 - **Arena** ([`packages/arena`](packages/arena/)) — Headless strategy tournament: mirrored full matches (2→A, with 必打 K/A) and a per-deal arena (configurable declarer seats × three legs; fixed P0 by default), 99%-CI significance testing, and 17+ technical metrics.
@@ -78,13 +78,13 @@ In NT (no-trump) mode, 12 constant trump cards (Big Joker × 2, Small Joker × 2
 - **Dynamic progress target** — Before the minimum sample the progress denominator is fixed at 2×pairs; afterwards, if not yet significant, it projects the total matches needed under the current p̂ (rounded up to a `stepMatches` multiple), with the reason printed when it changes.
 - **Progress & checkpoints** — A progress line every 100 matches (with ETA); every `stepMatches` matches the significance result is printed and `results/checkpoint.json` is written; Ctrl+C saves partial results and exits gracefully. No resume — every run starts from 0.
 - **Upgrade log** — `--detail-pair N` prints the per-hand upgrade records of both mirrored matches side by side (same deck), showing banker side, both levels at hand start, attacker points, and the upgrade result.
-- **Historical baselines** — `ai-0816` (2026-08-16, before the bottom-card strategy rewrite), `ai-0907` (2026-09-07, before the trump-kill single-card tier selection), `ai-0929` (2026-09-29, the NT pair-deduction fix — the Elo scale anchor), `ai-1018` (2026-10-18, before the team-split lead ladder rewrite; includes the 0a/0b loosening), `ai-1024` (2026-10-24, declarer tier 4.5: lead trump tractors before generic 5) and `ai-1031` (2026-10-31, the 0b partner-pair check and follow-side tractor split rewrite) were extracted from git history to PK against the current `ai`. They are imported through the `@poker/ai-baselines` facade; new baselines are added there, and each extraction archives the oldest legacy snapshot. (Archived: `ai-0707`, `ai-0712`, `ai-0726` — removed 2026-08-07; `ai-0801` and `ai-0719` — removed 2026-09-16; `ai-0808` — removed 2026-09-27; `ai-0809` — removed 2026-10-01; `ai-0802` — removed 2026-10-06; `ai-0927` and `ai-1002` — removed 2026-10-18; `ai-1005` — removed 2026-10-31. Elo scores below kept for reference.)
+- **Historical baselines** — `ai-0816` (2026-08-16, before the bottom-card strategy rewrite), `ai-0907` (2026-09-07, before the trump-kill single-card tier selection), `ai-0929` (2026-09-29, the NT pair-deduction fix — the Elo scale anchor), `ai-1018` (2026-10-18, before the team-split lead ladder rewrite; includes the 0a/0b loosening), `ai-1024` (2026-10-24, declarer tier 4.5: lead trump tractors before generic 5) and `ai-1031` (2026-10-31, the 0b partner-pair check and follow-side tractor split rewrite) were extracted from git history to PK against the current `ai-latest`. They are imported through the `@poker/ai` facade; new baselines are added there, and each extraction archives the oldest legacy snapshot. (Archived: `ai-0707`, `ai-0712`, `ai-0726` — removed 2026-08-07; `ai-0801` and `ai-0719` — removed 2026-09-16; `ai-0808` — removed 2026-09-27; `ai-0809` — removed 2026-10-01; `ai-0802` — removed 2026-10-06; `ai-0927` and `ai-1002` — removed 2026-10-18; `ai-1005` — removed 2026-10-31. Elo scores below kept for reference.)
 - **Strategy Elo ratings** — two scales, one per bottom-card convention (computed by `packages/arena/scripts/elo-calc.ts`; the anchor's score is set by `ANCHOR_ELO` in that script):
-  - **Current scale** — measured after the 2026-09-16 fix; the declarer now decides the bottom from all 33 cards. Anchor: `ai-0929` = 1263.8 (shown rounded to integers). `ai-1005` is the 2026-10-05 state measured on 2026-10-09 (1271). `ai` diverged from it on 2026-10-12 (lead priority 0a) and 2026-10-18 09:12 (priority 0b) — preserved as `ai-1018` — and again on 2026-10-18 14:12 (the team-split lead ladder rewrite), on 2026-10-24 (declarer tier 4.5: lead trump tractors before generic 5; measured 1292 on seed 48; preserved as `ai-1024`), and again on 2026-10-24 20:33 (NT trump draw deferred to generic 9 when the level is not 5/10/K), and again on 2026-10-31 (multi-pair priority-0b throws require proof that the partner has no pairs in the suit, otherwise they lead one pair first; follow-side tractor splitting now prefers standalone pairs and picks tractor edges by structure and point priority, with the same rule covering suited trump pair slots while NT trump pairs stay on the NT path). That 2026-10-31 state is preserved as `ai-1031`.
+  - **Current scale** — measured after the 2026-09-16 fix; the declarer now decides the bottom from all 33 cards. Anchor: `ai-0929` = 1263.8 (shown rounded to integers). `ai-1005` is the 2026-10-05 state measured on 2026-10-09 (1271). `ai-latest` diverged from it on 2026-10-12 (lead priority 0a) and 2026-10-18 09:12 (priority 0b) — preserved as `ai-1018` — and again on 2026-10-18 14:12 (the team-split lead ladder rewrite), on 2026-10-24 (declarer tier 4.5: lead trump tractors before generic 5; measured 1292 on seed 48; preserved as `ai-1024`), and again on 2026-10-24 20:33 (NT trump draw deferred to generic 9 when the level is not 5/10/K), and again on 2026-10-31 (multi-pair priority-0b throws require proof that the partner has no pairs in the suit, otherwise they lead one pair first; follow-side tractor splitting now prefers standalone pairs and picks tractor edges by structure and point priority, with the same rule covering suited trump pair slots while NT trump pairs stay on the NT path). That 2026-10-31 state is preserved as `ai-1031`.
 
     | Strategy | Elo |
     |---|---|
-    | `ai` (current) | 1303 |
+    | `ai-latest` (current) | 1303 |
     | `ai-1031` | 1299 |
     | `ai-1024` | 1290 |
     | `ai-1018` | 1281 |
@@ -163,7 +163,7 @@ npm run arena -w packages/arena -- --pairs 5000 --seed 42 --strategy-b ai-1024
 | `--step-matches N` | 1000 | Interval (in matches) for significance checks and checkpoints |
 | `--seed SEED` | random | 64-bit seed (decimal or `0x` hex) — same seed + flags reproduce identical decks and results |
 | `--workers W` | logical cores | Parallel child processes (1 = in-process) |
-| `--strategy-a NAME` | `ai` | Strategy A (`ai` / `ai-1031` / `ai-1024` / `ai-1018` / `ai-0929` / `ai-0907` / `ai-0816`) |
+| `--strategy-a NAME` | `ai-latest` | Strategy A (`ai-latest` / `ai-1031` / `ai-1024` / `ai-1018` / `ai-0929` / `ai-0907` / `ai-0816`) |
 | `--strategy-b NAME` | `ai-1024` | Strategy B |
 | `--benchmark N` | — | Run N matches for speed measurement, then exit |
 | `--detail-pair N` | — | Print the mirrored upgrade log of 对决 N, then exit |
@@ -256,7 +256,7 @@ The AI implements rule-based decision logic across all four play positions (lead
 - **Pair-Breaking Discipline** — Only break pairs when crossing a 40-point threshold (attackers); defenders never break pairs.
 - **Follow-Offsuit Point Management** — Add points only when partner is winning; guard against opponent thresholds.
 
-See [`packages/engine/src/ai/STRATEGY.md`](packages/engine/src/ai/STRATEGY.md) for the full strategy document (Chinese).
+See [`packages/engine/src/ai-latest/STRATEGY.md`](packages/engine/src/ai-latest/STRATEGY.md) for the full strategy document (Chinese).
 
 ## License
 
@@ -325,7 +325,7 @@ MIT — see [LICENSE](LICENSE).
 ## 仓库结构
 
 - **[`packages/engine`](packages/engine/)** — 核心引擎：牌型分类、比较、验牌、AI 出牌策略、NT 记牌器（基于计数的常主追踪）。
-- **[`packages/ai-baselines`](packages/ai-baselines/)** — 历史 AI 策略基线：统一 facade；过渡期存量快照仍在 `engine`，新提取的基线原样放入此包。
+- **[`packages/ai`](packages/ai/)** — 历史 AI 策略基线：统一 facade；过渡期存量快照仍在 `engine`，新提取的基线原样放入此包。
 - **[`packages/cli`](packages/cli/)** — 终端交互版，支持全色彩牌面显示。
 - **[`packages/client`](packages/client/)** — React 网页前端（可玩：南座人类 vs 3 AI，或 4 AI 观战）。
 - **[`packages/arena`](packages/arena/)** — 策略竞技场：完整对局（2→A，含必打 K/A）镜像对决，以及按发牌统计、庄位可配置（默认固定 P0）的三腿竞技场；99% 置信度显著性判定，输出 17+ 项技术指标。
@@ -344,13 +344,13 @@ MIT — see [LICENSE](LICENSE).
 - **动态进度基准**：最小样本前进度分母固定为 2×pairs；之后未显著时按当前胜率推算显著所需总场数（向上取整到 stepMatches 的倍数），基准变化时说明原因。
 - **进度与检查点**：每 100 场一行进度（含 ETA）；每 `stepMatches` 场输出显著性并写 `results/checkpoint.json`；Ctrl+C 保存部分结果后优雅退出。不支持恢复，每次从 0 开始。
 - **升级记录**：`--detail-pair N` 并排输出该对决镜像两场的逐手升级记录（同一副牌），含庄家方、双方等级、闲家得分与升级结果。
-- **历史基线策略**：`ai-0816`（2026-08-16，扣底策略重构前）、`ai-0907`（2026-09-07，毙牌单张按档位选牌之前）、`ai-0929`（2026-09-29，NT 记牌器对子扣减修复——Elo 刻度锚点）、`ai-1018`（2026-10-18，领出阶梯按庄/闲分档重写之前，含 0a/0b 放宽）、`ai-1024`（2026-10-24，庄 4.5：主拖拉机先于通用 5 领出）、`ai-1031`（2026-10-31，0b 队友对子检查与跟牌拆拖拉机改版）从 git 历史提取，用于与当前策略 `ai` 对比；统一从 `@poker/ai-baselines` facade 导入，新基线加入该包，每次提取归档一条最旧的存量基线。（已归档移除：`ai-0707`、`ai-0712`、`ai-0726`，2026-08-07 删除；`ai-0801`、`ai-0719`，2026-09-16 删除；`ai-0808`，2026-09-27 删除；`ai-0809`，2026-10-01 删除；`ai-0802`，2026-10-06 删除；`ai-0927`、`ai-1002`，2026-10-18 删除；`ai-1005`，2026-10-31 删除。下方 Elo 分数仅保留展示。）
+- **历史基线策略**：`ai-0816`（2026-08-16，扣底策略重构前）、`ai-0907`（2026-09-07，毙牌单张按档位选牌之前）、`ai-0929`（2026-09-29，NT 记牌器对子扣减修复——Elo 刻度锚点）、`ai-1018`（2026-10-18，领出阶梯按庄/闲分档重写之前，含 0a/0b 放宽）、`ai-1024`（2026-10-24，庄 4.5：主拖拉机先于通用 5 领出）、`ai-1031`（2026-10-31，0b 队友对子检查与跟牌拆拖拉机改版）从 git 历史提取，用于与当前策略 `ai-latest` 对比；统一从 `@poker/ai` facade 导入，新基线加入该包，每次提取归档一条最旧的存量基线。（已归档移除：`ai-0707`、`ai-0712`、`ai-0726`，2026-08-07 删除；`ai-0801`、`ai-0719`，2026-09-16 删除；`ai-0808`，2026-09-27 删除；`ai-0809`，2026-10-01 删除；`ai-0802`，2026-10-06 删除；`ai-0927`、`ai-1002`，2026-10-18 删除；`ai-1005`，2026-10-31 删除。下方 Elo 分数仅保留展示。）
 - **策略 Elo 评分**——两套刻度，对应扣底决策的两种口径（由 `packages/arena/scripts/elo-calc.ts` 计算；锚点分数由该脚本的 `ANCHOR_ELO` 给定）：
-  - **现行刻度**——2026-09-16 修复后实测；庄家改为拿进底牌后按 33 张决策。锚点：`ai-0929` = 1263.8（表中取整）。`ai-1005` 是 2026-10-05 的状态、2026-10-09 实测 1271。`ai` 于 2026-10-12（领出 0a）与 2026-10-18 09:12（领出 0b）起与它分道——该状态已冻结为 `ai-1018`——又于 2026-10-18 14:12 按庄/闲重写领出阶梯，于 2026-10-24 新增庄4.5（主拖拉机先于通用 5 领出，同日 seed 48 实测 1292；该状态已冻结为 `ai-1024`），再于 2026-10-24 20:33 改为无主非分等级吊主延后到通用 9，又于 2026-10-31 改为 0b 多对甩牌必须证明队友无对、无法证明时先出一对，同日起跟牌侧拆拖拉机改为优先独立对、按结构与分对优先级选择边缘对（有主局主牌对子同样适用，无主局主牌仍走 NT 分支）。该 2026-10-31 状态已冻结为 `ai-1031`。
+  - **现行刻度**——2026-09-16 修复后实测；庄家改为拿进底牌后按 33 张决策。锚点：`ai-0929` = 1263.8（表中取整）。`ai-1005` 是 2026-10-05 的状态、2026-10-09 实测 1271。`ai-latest` 于 2026-10-12（领出 0a）与 2026-10-18 09:12（领出 0b）起与它分道——该状态已冻结为 `ai-1018`——又于 2026-10-18 14:12 按庄/闲重写领出阶梯，于 2026-10-24 新增庄4.5（主拖拉机先于通用 5 领出，同日 seed 48 实测 1292；该状态已冻结为 `ai-1024`），再于 2026-10-24 20:33 改为无主非分等级吊主延后到通用 9，又于 2026-10-31 改为 0b 多对甩牌必须证明队友无对、无法证明时先出一对，同日起跟牌侧拆拖拉机改为优先独立对、按结构与分对优先级选择边缘对（有主局主牌对子同样适用，无主局主牌仍走 NT 分支）。该 2026-10-31 状态已冻结为 `ai-1031`。
 
     | 策略 | Elo |
     |---|---|
-    | `ai`（当前） | 1303 |
+    | `ai-latest`（当前） | 1303 |
     | `ai-1031` | 1299 |
     | `ai-1024` | 1290 |
     | `ai-1018` | 1281 |
@@ -429,7 +429,7 @@ npm run arena -w packages/arena -- --pairs 5000 --seed 42 --strategy-b ai-1024
 | `--step-matches N` | 1000 | 显著性检查与检查点的间隔场数 |
 | `--seed SEED` | 随机 | 64 位随机种子（十进制或 `0x` 十六进制）——同 seed 同参数的每手 deck 与结果完全复现 |
 | `--workers W` | 逻辑核数 | 并行子进程数（1 = 进程内） |
-| `--strategy-a NAME` | `ai` | 策略 A（`ai` / `ai-1031` / `ai-1024` / `ai-1018` / `ai-0929` / `ai-0907` / `ai-0816`） |
+| `--strategy-a NAME` | `ai-latest` | 策略 A（`ai-latest` / `ai-1031` / `ai-1024` / `ai-1018` / `ai-0929` / `ai-0907` / `ai-0816`） |
 | `--strategy-b NAME` | `ai-1024` | 策略 B |
 | `--benchmark N` | — | 跑 N 场测速后退出 |
 | `--detail-pair N` | — | 输出第 N 个对决的镜像升级记录后退出 |
@@ -484,7 +484,7 @@ npm run arena:deal -w packages/arena -- --min-deals 2500 --seed 42
 
 #### 牌局录制数据集（record）
 
-`npm run record` 生成自包含的小局数据集（发牌 → 亮主 → 扣底 → 25 墩 → 结算）供后续分析：小端二进制 `.bin` + `.idx` 分片与原子写的 `manifest.json`。A/B 是两队（A = P0/P2，B = P1/P3），默认都用 `ai`。`random`（默认）以打乱的 52 手块覆盖 13 个等级 × 4 个庄位；`rules` 是无必打、2..A 循环的模式。输出默认在 `packages/arena/results/recordings/<runId>`（gitignored），已存在的目录不覆盖。Ctrl+C 会打完当前手、flush、写分片 footer 后退出。
+`npm run record` 生成自包含的小局数据集（发牌 → 亮主 → 扣底 → 25 墩 → 结算）供后续分析：小端二进制 `.bin` + `.idx` 分片与原子写的 `manifest.json`。A/B 是两队（A = P0/P2，B = P1/P3），默认都用 `ai-latest`。`random`（默认）以打乱的 52 手块覆盖 13 个等级 × 4 个庄位；`rules` 是无必打、2..A 循环的模式。输出默认在 `packages/arena/results/recordings/<runId>`（gitignored），已存在的目录不覆盖。Ctrl+C 会打完当前手、flush、写分片 footer 后退出。
 
 ```bash
 npm run record -- --hands 1000000 --workers 8
@@ -522,7 +522,7 @@ AI 采用规则驱动的出牌策略，覆盖四种出牌位置（领出、第�
 - **拆对纪律**——攻方仅当跨过 40 分阈值时才拆对；守方绝不拆对。
 - **缺门跟牌加分管理**——仅当队友已大时加分，并提防对手阈值。
 
-详见 [`packages/engine/src/ai/STRATEGY.md`](packages/engine/src/ai/STRATEGY.md)。
+详见 [`packages/engine/src/ai-latest/STRATEGY.md`](packages/engine/src/ai-latest/STRATEGY.md)。
 
 ## 开源协议
 

@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { Suit } from '../types.js';
 import { createCard } from '../model.js';
-import { aiChooseBottomCards } from '../ai/index.js';
+import { aiChooseBottomCards } from '../ai-latest/index.js';
 // 下面的场景手牌是手工构造的形状（长度只为凑够可扣的 8 张），打的是选牌算法本身；
 // 对外入口「必须 33 张」的契约由文件末尾的契约用例单独覆盖。
-import { aiChooseBottomCards as chooseBottom } from '../ai/bottom-strategy.js';
+import { aiChooseBottomCards as chooseBottom } from '../ai-latest/bottom-strategy.js';
 import type { Card, CardSuit, TrumpDeclaration } from '../types.js';
 
 type SR = [CardSuit, number];

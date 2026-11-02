@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { Suit } from '../types.js';
 import { createCard } from '../model.js';
 import { computeMandatoryFollow } from '../following/index.js';
-import { aiFollowPlay } from '../ai/index.js';
+import { aiFollowPlay } from '../ai-latest/index.js';
 import type { Card, CardSuit, TrumpDeclaration } from '../types.js';
 
 const cfg5: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 5 };

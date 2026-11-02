@@ -2,12 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { Suit } from '../types.js';
 import { createCard, isTrump } from '../model.js';
 import type { Card, CardSuit, TrumpDeclaration } from '../types.js';
-import type { AIContext } from '../ai/types.js';
+import type { AIContext } from '../ai-latest/types.js';
 import {
   sortDiscards, pickDiscards, selectFillers,
   hasStrongFollowUp, visibleTrickPoints, secondShouldAvoid, defense80, leadHasPoints,
   pickTrumpByTier, pickNoSeizeDiscards,
-} from '../ai/position-policy.js';
+} from '../ai-latest/position-policy.js';
 
 const cfg2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
 const cfg5: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 5 };

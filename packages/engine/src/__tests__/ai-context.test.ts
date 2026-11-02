@@ -3,8 +3,8 @@ import { GamePhase, Suit } from '../types.js';
 import type { Card, CardSuit, GameState, PlayerState } from '../types.js';
 import { createCard } from '../model.js';
 import { createInitialState } from '../types.js';
-import { buildAIContext } from '../ai/context.js';
-import { minimalContext } from '../ai/types.js';
+import { buildAIContext } from '../ai-latest/context.js';
+import { minimalContext } from '../ai-latest/types.js';
 
 function c(s: CardSuit, r: number, i: number): Card { return createCard(s, r, i); }
 

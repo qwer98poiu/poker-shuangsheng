@@ -1,14 +1,14 @@
 /**
- * Strategy adapters: engineStrategy = existing ai/, aiV2Strategy = ai-v2 copy.
+ * Strategy adapters: engineStrategy = the current ai-latest/ strategy.
  * One-line delegations; identical input → identical output (guarded by the
  * engine-side differential tests).
  */
 import { aiTryReveal, aiChooseBottomCards, aiLeadPlay, aiFollowPlay } from '@poker/engine';
-import { ai0816, ai0907, ai0929, ai1018, ai1024, ai1031 } from '@poker/ai-baselines';
+import { ai0816, ai0907, ai0929, ai1018, ai1024, ai1031 } from '@poker/ai';
 import type { Strategy } from './types.js';
 
 export const engineStrategy: Strategy = {
-  name: 'ai',
+  name: 'ai-latest',
   revealsOnlyWhenEffective: true,
   tryReveal: (hand, dealt, pi, level, cur) => aiTryReveal(hand, dealt, pi, level, cur),
   chooseBottom: (hand, config) => aiChooseBottomCards(hand, config),
@@ -76,14 +76,14 @@ export const ai1031Strategy: Strategy = {
   follow: (hand, lead, suit, config) => ai1031.aiFollowPlay(hand, lead, suit, config),
 };
 
-/** Resolve a strategy by name ('ai' | 'ai-0816' | 'ai-0907' | 'ai-0929' | 'ai-1018' | 'ai-1024' | 'ai-1031'). */
+/** Resolve a strategy by name ('ai-latest' | 'ai-0816' | 'ai-0907' | 'ai-0929' | 'ai-1018' | 'ai-1024' | 'ai-1031'). */
 export function strategyByName(name: string): Strategy {
-  if (name === 'ai') return engineStrategy;
+  if (name === 'ai-latest') return engineStrategy;
   if (name === 'ai-0816') return ai0816Strategy;
   if (name === 'ai-0907') return ai0907Strategy;
   if (name === 'ai-0929') return ai0929Strategy;
   if (name === 'ai-1018') return ai1018Strategy;
   if (name === 'ai-1024') return ai1024Strategy;
   if (name === 'ai-1031') return ai1031Strategy;
-  throw new Error(`未知策略: ${name}（可选: ai, ai-0816, ai-0907, ai-0929, ai-1018, ai-1024, ai-1031）`);
+  throw new Error(`未知策略: ${name}（可选: ai-latest, ai-0816, ai-0907, ai-0929, ai-1018, ai-1024, ai-1031）`);
 }

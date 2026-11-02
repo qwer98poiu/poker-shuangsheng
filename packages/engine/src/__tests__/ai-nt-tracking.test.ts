@@ -4,9 +4,9 @@ import { createCard } from '../model.js';
 import { computeNTTrumpState, canFormJokerPair, opponentsHaveTrump,
   canPlayerBeatSingle, canPlayerBeatPair, canAnyOpponentBeatSingle,
   canPlayerTrumpThrow,
-} from '../ai/nt-tracking.js';
+} from '../ai-latest/nt-tracking.js';
 import type { Card, CardSuit, Reveal, Trick, TrumpDeclaration } from '../types.js';
-import type { NTTrumpState } from '../ai/types.js';
+import type { NTTrumpState } from '../ai-latest/types.js';
 
 /** Create a minimal NT config at the given level. */
 function ntCfg(level: number, declarerIdx = 0): TrumpDeclaration {

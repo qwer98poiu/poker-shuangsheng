@@ -19,17 +19,17 @@ import { classify } from '../pattern/index.js';
 import { validateThrow } from '../leading/index.js';
 import { validateFollow } from '../following/index.js';
 import { compareTwo } from '../comparing/index.js';
-import type { AIContext } from '../ai/types.js';
-import { minimalContext } from '../ai/types.js';
-import { computeLongSuit } from '../ai/suit-memory.js';
+import type { AIContext } from '../ai-latest/types.js';
+import { minimalContext } from '../ai-latest/types.js';
+import { computeLongSuit } from '../ai-latest/suit-memory.js';
 import {
   detectFlushEvidence, tryLeadFlushThrow, isFlushFollow, avoidBeatingTeammate,
   detectDrainedSuit, tryLeadDrainedSuitThrow, evaluateDrainedSuitLead,
   detectTeammateSafeLead,
-} from '../ai/flush-detector.js';
-import type { NTTrumpState } from '../ai/types.js';
-import { canAddPoints } from '../ai/helpers.js';
-import { aiLeadPlay, aiFollowPlay } from '../ai/index.js';
+} from '../ai-latest/flush-detector.js';
+import type { NTTrumpState } from '../ai-latest/types.js';
+import { canAddPoints } from '../ai-latest/helpers.js';
+import { aiLeadPlay, aiFollowPlay } from '../ai-latest/index.js';
 
 // ---- 夹具 ----
 

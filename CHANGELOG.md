@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-11-02 19:41
+
+### 基线包更名为 `@poker/ai`
+
+**问题**：包名 `ai-baselines` 与「当前策略 `ai`」在命名上割裂，且包内内容早已不只基线（将承载当前策略的前向导出）。
+
+**修复**：`packages/ai-baselines/` 更名为 `packages/ai/`，包名改为 `@poker/ai`；根 workspaces、`typecheck` 顺序、arena 依赖与导入、`check-commits` 的冻结快照根一并改名。行为不变。
+
+**无新增测试**
+
+- **影响文件**：`packages/ai-baselines/`、`packages/ai/`、`package.json`、`package-lock.json`、`packages/arena/package.json`、`packages/arena/src/strategies.ts`、`packages/arena/src/__tests__/baseline-facade.test.ts`、`README.md`、`CLAUDE.md`、`.claude/skills/check-commits/check-commits.ts`、`.claude/skills/check-commits/SKILL.md`、`.claude/skills/extract-ai-baseline/SKILL.md`、`.githooks/pre-push`
+
+### 当前策略更名为 `ai-latest`
+
+**问题**：当前策略目录与竞技场策略名都叫 `ai`，与历史基线 `ai-XXXX` 并列时语义不清；基线包改名 `@poker/ai` 后更易混淆。
+
+**修复**：`packages/engine/src/ai/` 更名为 `ai-latest/`；engine 根导出、18 个测试文件的相对导入与 `gen-bottom-tests.ts`、竞技场策略名（`strategies.ts`、`run.ts`、`deal-run.ts`、`record.ts`、`elo-matches.json`）与 README/CLAUDE 文档同步。行为不变，策略指纹保持 174 / 6 / 95-15。
+
+**修改 1 项测试**（record-run.test.ts：1 项——默认策略名断言），引擎 1314 项 + arena 248 项 + CLI 87 项 + client 201 项 = 1850 项通过。
+
+- **影响文件**：`packages/engine/src/ai/`、`packages/engine/src/ai-latest/`、`packages/engine/src/index.ts`、`packages/engine/src/__tests__/`、`packages/engine/scripts/gen-bottom-tests.ts`、`packages/arena/src/strategies.ts`、`packages/arena/src/run.ts`、`packages/arena/src/deal-run.ts`、`packages/arena/src/record.ts`、`packages/arena/src/__tests__/strategy-fingerprint.test.ts`、`packages/arena/src/__tests__/record-run.test.ts`、`packages/arena/scripts/elo-matches.json`、`README.md`、`CLAUDE.md`、`.claude/skills/extract-ai-baseline/SKILL.md`、`.claude/skills/check-commits/check-commits.ts`、`.claude/skills/check-commits/SKILL.md`
+
 ## 2026-11-01 00:48
 
 ### 0a 扩展到有主局并去除 0b 的 G2

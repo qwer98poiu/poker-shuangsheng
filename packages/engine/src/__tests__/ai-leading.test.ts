@@ -2,9 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { Rank, SpecialSuit, Suit } from '../types.js';
 import { createCard, isTrump } from '../model.js';
 import { validateLead } from '../leading/index.js';
-import { aiLeadPlay } from '../ai/index.js';
-import { minimalContext } from '../ai/types.js';
-import type { AIContext } from '../ai/types.js';
+import { aiLeadPlay } from '../ai-latest/index.js';
+import { minimalContext } from '../ai-latest/types.js';
+import type { AIContext } from '../ai-latest/types.js';
 import type { Card, CardSuit, TrumpDeclaration } from '../types.js';
 
 function c(s: CardSuit, r: number, idx: number): Card {

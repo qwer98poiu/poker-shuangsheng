@@ -382,7 +382,7 @@ describe('runChain：不去重 / 停止 / 错误', () => {
     expect(body.globalHandIndex).toBe(100);
     expect(body.chainHandIndex).toBe(0);
     expect(body.seed).toBe(CHAIN1);
-    expect(body.strategies).toEqual({ A: 'ai', B: 'ai' });
+    expect(body.strategies).toEqual({ A: 'ai-latest', B: 'ai-latest' });
     expect(body.context.mode).toBe('rules');
     expect(body.deck).toHaveLength(108);
     expect(body.event).toBeNull();

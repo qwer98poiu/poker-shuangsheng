@@ -5,7 +5,7 @@ import { createCard } from '../model.js';
 import {
   getRevealOptions, canOverride, revealStrength, canSelfReinforce, canRevealOrOverride,
 } from '../revealing/index.js';
-import { aiTryReveal, buildAIContext } from '../ai/index.js';
+import { aiTryReveal, buildAIContext } from '../ai-latest/index.js';
 import { tryReveal, finalizeReveal } from '../game/index.js';
 
 describe('Revealing — getRevealOptions', () => {

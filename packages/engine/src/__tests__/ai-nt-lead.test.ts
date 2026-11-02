@@ -12,12 +12,12 @@ import { createCard, isTrump } from '../model.js';
 import { classify } from '../pattern/index.js';
 import { extractComponents } from '../comparing/index.js';
 import { validateLead, validateThrow } from '../leading/index.js';
-import { tryNTLead } from '../ai/nt-lead.js';
-import { worstCaseSuitHand } from '../ai/throw-detector.js';
-import { computeLongSuit, knownOutOfPlay } from '../ai/suit-memory.js';
-import { aiLeadPlay } from '../ai/index.js';
-import { minimalContext } from '../ai/types.js';
-import type { AIContext, NTTrumpState } from '../ai/types.js';
+import { tryNTLead } from '../ai-latest/nt-lead.js';
+import { worstCaseSuitHand } from '../ai-latest/throw-detector.js';
+import { computeLongSuit, knownOutOfPlay } from '../ai-latest/suit-memory.js';
+import { aiLeadPlay } from '../ai-latest/index.js';
+import { minimalContext } from '../ai-latest/types.js';
+import type { AIContext, NTTrumpState } from '../ai-latest/types.js';
 
 function c(s: CardSuit, r: number, idx: number): Card {
   return createCard(s, r, idx);
