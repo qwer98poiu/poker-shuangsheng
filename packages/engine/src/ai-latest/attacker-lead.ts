@@ -1,17 +1,17 @@
 /**
- * 闲家阶梯 1–3。
+ * 领出阶梯 通用2/3/4（所有玩家共用；庄家方另加庄1 与庄3.5）。
  *
- *   闲1  拖拉机 / 含拖拉机的副牌牌型
- *        键：拖拉机对数多 > 出完能断门 > 总张数多；
- *        纯拖拉机同对数：能直接断门的副拖拉机先于主拖拉机，再按最小对大的；
- *        含拖拉机甩牌的闸门只放宽拖拉机成分，非拖拉机成分仍严格。
- *   闲2  含顶张的副牌牌型（顶张单/对/不含拖拉机的甩牌）
- *        键：出完能断门 > 总张数多。顶张静态。
- *   闲3  兜底：断门 + 长花色非断门可甩牌；3 类张数多，4 类对数多，
- *        其他类 safe > 形状 > 对数 > 张数。直接断门小单张不再入候选：
- *        10-18 实测它抢在通用 5/7/8 之前是净负，改由通用梯子兜底。
+ *   通用2  拖拉机 / 含拖拉机的副牌牌型
+ *          键：拖拉机对数多 > 出完能断门 > 总张数多；
+ *          纯拖拉机同对数：能直接断门的副拖拉机先于主拖拉机，再按最小对大的；
+ *          含拖拉机甩牌的闸门只放宽拖拉机成分，非拖拉机成分仍严格。
+ *   通用3  含顶张的副牌牌型（顶张单/对/不含拖拉机的甩牌）
+ *          键：出完能断门 > 总张数多。顶张静态。
+ *   通用4  兜底：断门 + 长花色非断门可甩牌；3 类张数多，4 类对数多，
+ *          其他类 safe > 形状 > 对数 > 张数。直接断门小单张不再入候选：
+ *          10-18 实测它抢在通用 5/7/8 之前是净负，改由通用梯子兜底。
  *
- * 0a/0b 在更前面；闲家没有庄3/庄4，也没有长花色等待。长花色只影响动态顶张
+ * 0a/0b 在更前面；庄家方额外的庄1 与庄3.5 由 `lead.ts` 编排。长花色只影响动态顶张
  * （`topRankForSuit`）、`knownOutOfPlay` 排除集和 0b skip。
  */
 import type { Card, Suit } from '../types.js';
@@ -63,7 +63,7 @@ function pick(candidates: Candidate[]): Proposal | null {
 }
 
 /**
- * 闲1 的放宽甩牌：所有拖拉机成分无条件保留（接受可能被更大拖拉机盖过的风险），
+ * 通用2 的放宽甩牌：所有拖拉机成分无条件保留（接受可能被更大拖拉机盖过的风险），
  * 非拖拉机成分只保留最坏情况下仍安全的那些。
  */
 function relaxedTractorThrow(
@@ -88,9 +88,15 @@ function relaxedTractorThrow(
   return combo.hasTractor ? out : null;
 }
 
-/** 闲1：拖拉机 / 含拖拉机的副牌牌型（含主拖拉机）。 */
+export interface AttackerTractorOptions {
+  /** 纯主拖拉机过滤：返回 true = 排除该候选。只对 allTrump 候选调用。 */
+  readonly forbidMainTractor?: (cards: Card[]) => boolean;
+}
+
+/** 通用2：拖拉机 / 含拖拉机的副牌牌型（含主拖拉机）。 */
 export function tryAttackerTractor(
   hand: Card[], ctx: AIContext, longSuit: Suit | null,
+  opts?: AttackerTractorOptions,
 ): Proposal | null {
   const candidates: Candidate[] = [];
 
@@ -99,6 +105,7 @@ export function tryAttackerTractor(
     const allTrump = t.every(c => isTrump(c, ctx));
     const sameSuit = t.every(c => c.suit === t[0].suit);
     if (!allTrump && !sameSuit) continue;
+    if (allTrump && opts?.forbidMainTractor?.(t) === true) continue;
 
     const offSuit = !allTrump;
     const suitCards = offSuit ? cardsOfSuit(hand, t[0].suit as Suit, ctx) : [];
@@ -143,7 +150,7 @@ export function tryAttackerTractor(
   return pick(candidates);
 }
 
-/** 闲2：含顶张的副牌牌型（静态顶张，不含拖拉机甩牌）。 */
+/** 通用3：含顶张的副牌牌型（静态顶张，不含拖拉机甩牌）。 */
 export function tryAttackerTop(
   hand: Card[], ctx: AIContext, longSuit: Suit | null,
 ): Proposal | null {
@@ -156,7 +163,7 @@ export function tryAttackerTop(
     const topCards = cards.filter(c => c.rank === top);
     if (topCards.length === 0) continue;
 
-    // 不拆拖拉机：顶张若在拖拉机里，交给闲1。
+    // 不拆拖拉机：顶张若在拖拉机里，交给通用2。
     const tractorIds = new Set(detectTractors(cards, ctx).flat().map(c => c.id));
     const freeTops = topCards.filter(c => !tractorIds.has(c.id));
     if (freeTops.length === 0) continue;
@@ -197,7 +204,7 @@ export function tryAttackerTop(
   return pick(candidates);
 }
 
-/** 闲3 的形状层：≥3 张甩牌 > 断门对 > 两单张甩牌 > 断门单 > 长花色单/对。 */
+/** 通用4 的形状层：≥3 张甩牌 > 断门对 > 两单张甩牌 > 断门单 > 长花色单/对。 */
 function shapeScore(cards: Card[], pairCount: number, drains: boolean): number {
   if (cards.length >= 3) return 10;
   if (drains) return pairCount >= 1 ? 8 : (cards.length === 2 ? 7 : 4);
@@ -208,7 +215,7 @@ function totalPairCount(combo: ReturnType<typeof classify>): number {
   return combo.pairCount + combo.tractors.reduce((s, t) => s + t.pairCount, 0);
 }
 
-/** 闲3：断门 + 长花色非断门可甩牌。 */
+/** 通用4：断门 + 长花色非断门可甩牌。 */
 export function tryAttackerDrain(
   hand: Card[], ctx: AIContext, longSuit: Suit | null,
 ): Proposal | null {

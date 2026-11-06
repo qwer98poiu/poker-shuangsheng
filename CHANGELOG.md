@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-11-06 20:29
+
+### 庄家方统一领出阶梯落地为主线
+
+**问题**：默认 `ai-latest` 的庄家方领出仍由旧的庄1.5/庄2/庄3/庄4/庄4.5 阶梯决定，未采用已在竞技场验证过的统一阶梯；旧档实现仍留在领出路径上。
+
+**修复**：把统一阶梯写入默认 `ai-latest`：庄家方 `庄1 → 通用2（不出纯主拖）→ 通用3 → 庄3.5（主拖）→ 通用4 → 通用5+`，闲家保持 `通用2（含主拖）→ 通用3 → 通用4`。庄3.5 仅有主局：庄家手牌 ≥20 不出含王/级牌的主拖，对家 ≥15 不出 0 分主拖；无主局不出庄3.5，主拖落回通用6。删除旧庄档实现（`tryLoneNonTopPair`、`tryDeclarerTractor`、`tryDeclarerTop`、`tryDeclarerTrumpTractor45`、`nt-lead.ts` 及其 T1 长花色记忆）；通用5 去掉仅供旧庄阶梯使用的直接断门副对分支。`hasWorthLeadCards` 与领出共用新的主拖过滤口径。README 两处 `ai-latest` Elo 改为待重测。
+
+**竞技场结果**（用户实测）：A（统一阶梯） vs B（旧阶梯），seed `0x0000000000000031`，288000 场（144000 对决），耗时 27364s；结论 A 显著优于对方，leader=A，p̂=0.5024，99% CI 下界=0.5000（n=288000）。
+
+**新增 14 项测试、删除 40 项测试、修改 6 项测试**（lead-general-ladder.test.ts：新增 14 项；ai-nt-lead.test.ts：删除 20 项；drain.test.ts：删除 6 项、修改 2 项；suit-memory.test.ts：删除 14 项；ai-leading.test.ts：修改 2 项；generic-lead.test.ts：修改 1 项；strategy-fingerprint.test.ts：修改 1 项——镜像对决 `oppLevel` 174 → 175），引擎 1288 项 + arena 248 项 + CLI 87 项 + client 201 项 = 1824 项通过。
+
+- **影响文件**：`packages/engine/src/ai-latest/lead.ts`、`packages/engine/src/ai-latest/index.ts`、`packages/engine/src/ai-latest/attacker-lead.ts`、`packages/engine/src/ai-latest/drain.ts`、`packages/engine/src/ai-latest/generic-lead.ts`、`packages/engine/src/ai-latest/flush-detector.ts`、`packages/engine/src/ai-latest/suit-memory.ts`、`packages/engine/src/ai-latest/nt-trump.ts`、`packages/engine/src/ai-latest/nt-lead.ts`（删除）、`packages/engine/src/ai-latest/STRATEGY.md`、`packages/engine/src/__tests__/lead-general-ladder.test.ts`、`packages/engine/src/__tests__/ai-nt-lead.test.ts`（删除）、`packages/engine/src/__tests__/ai-leading.test.ts`、`packages/engine/src/__tests__/attacker-lead.test.ts`、`packages/engine/src/__tests__/drain.test.ts`、`packages/engine/src/__tests__/generic-lead.test.ts`、`packages/engine/src/__tests__/suit-memory.test.ts`、`packages/arena/src/__tests__/strategy-fingerprint.test.ts`、`README.md`
+
 ## 2026-11-02 19:56
 
 ### `@poker/ai` 增加 `ai-latest` 前向导出，消费方切换导入源

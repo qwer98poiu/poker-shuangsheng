@@ -172,10 +172,9 @@ export function detectFlushEvidence(
  * 有主/无主统一，不再要求两个对手上一墩跟满张数（G2）：对手缺门可能用主牌毙，
  * 该风险按实测结果接受。
  *
- * `skipSuit` 是「无主长花色层的长花色」：该门的甩牌由 `nt-lead.ts` 应甩尽甩
- * 处理（T1 整段过闸门，含最坏情况校验），这条通用规则不得抢先改写它——它只证明
- * **对子**已绝、并不证明整门已断，且无主下不查是否会挨毙。其余花色不受影响；
- * 跟牌侧不经过本函数，统一由 `detectTeammateSafeLead` 判定。
+ * `skipSuit` 是「无主长花色」：该门的甩牌由通用2/3/4 处理，这条通用规则不得
+ * 抢先改写它——它只证明**对子**已绝、并不证明整门已断，且无主下不查是否会挨毙。
+ * 其余花色不受影响；跟牌侧不经过本函数，统一由 `detectTeammateSafeLead` 判定。
  */
 export function tryLeadFlushThrow(
   hand: Card[], ctx: AIContext, skipSuit?: CardSuit,

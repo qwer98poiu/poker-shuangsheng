@@ -10,9 +10,9 @@ import { createCard } from '../model.js';
 import { Suit, Rank } from '../types.js';
 import type { Card, CardSuit, PlayedCards, Trick, TrumpDeclaration } from '../types.js';
 import { classify } from '../pattern/index.js';
-import type { AIContext, NTTrumpState } from '../ai-latest/types.js';
+import type { AIContext } from '../ai-latest/types.js';
 import { minimalContext } from '../ai-latest/types.js';
-import { tryDrain, tryLoneNonTopPair, isAllControlSuit } from '../ai-latest/drain.js';
+import { tryDrain, isAllControlSuit } from '../ai-latest/drain.js';
 import { aiLeadPlay } from '../ai-latest/index.js';
 
 const CFG: TrumpDeclaration = { trumpSuit: Suit.Spades, level: Rank.Two, declarerIndex: 0 };
@@ -56,36 +56,6 @@ function trickOf(cards: Card[], cfg: TrumpDeclaration = NT_CFG): Trick {
     leadPlayerIndex: 0,
     winnerIndex: 0,
     points: 0,
-  };
-}
-
-/** 只填 canPlayerTrumpThrow 会读的字段。 */
-function ntStateOf(possible: Record<number, Record<string, number>>): NTTrumpState {
-  const slots: (Record<string, number> | null)[] = [null, {}, {}, {}, {}];
-  const maxes: [number, number, number, number] = [0, 0, 0, 0];
-  for (const [idx, rec] of Object.entries(possible)) {
-    slots[Number(idx)] = rec;
-    let t = 0;
-    for (const n of Object.values(rec)) t += Math.min(n, 2);
-    maxes[Number(idx)] = t;
-  }
-  return {
-    knownTrumpsPerPlayer: [[], [], [], []],
-    playersWithNoTrump: new Set(),
-    totalTrumps: 12,
-    opponentTrumpCount: 0,
-    remainingBigJokers: 2,
-    remainingSmallJokers: 2,
-    allUnseenJokersOnOurSide: false,
-    allUnseenBigJokersOnOurSide: false,
-    possibleTrumps: slots,
-    isFullyDetermined: false,
-    canFormPair: [false, false, false, false],
-    canHaveJoker: [false, false, false, false],
-    canHaveBigJoker: [false, false, false, false],
-    canHaveSmallJoker: [false, false, false, false],
-    minTrumpCounts: [0, 0, 0, 0],
-    maxTrumpCounts: maxes,
   };
 }
 
@@ -222,7 +192,7 @@ describe('庄1 — 全控 / A 类', () => {
   });
 });
 
-describe('庄2 — 非全控、无顶张、纯拖拉机', () => {
+describe('通用2 — 非全控、无顶张、纯拖拉机', () => {
   it('♥4433+7：无顶张的纯拖拉机 → 出 ♥4433', () => {
     const hand = [c(H, 4), c(H, 4), c(H, 3), c(H, 3), c(H, 7), ...junk()];
     const r = aiLeadPlay(hand, ctxOf(hand));
@@ -230,16 +200,15 @@ describe('庄2 — 非全控、无顶张、纯拖拉机', () => {
     expect(r.reason).toBe('出♥拖拉机(2对)');
   });
 
-  it('跨花色“没有其他独立对”优先于最小对大小', () => {
-    // ♥4433+8：无其他对；♦6655+99+7：拖拉机外加一对独立对。
-    // 虽然 ♦ 的最小对更大，♥ 先赢在“没有其他独立对”。
+  it('跨花色同对数取最小对更大的拖拉机', () => {
+    // ♥4433+8 vs ♦6655+99+7：两者都是 2 对拖拉机，♦ 的最小对更大。
     const hand = [
       c(H, 4), c(H, 4), c(H, 3), c(H, 3), c(H, 8),
       c(D, 6), c(D, 6), c(D, 5), c(D, 5), c(D, 9), c(D, 9), c(D, 7),
       c(C, 4), c(S, 3),
     ];
     const r = aiLeadPlay(hand, ctxOf(hand));
-    expect(show(r.cards)).toEqual(['H4', 'H4', 'H3', 'H3']);
+    expect(show(r.cards)).toEqual(['D6', 'D6', 'D5', 'D5']);
   });
 
   it('同花色内对数多优先', () => {
@@ -253,7 +222,7 @@ describe('庄2 — 非全控、无顶张、纯拖拉机', () => {
   });
 });
 
-describe('庄4 — 非全控、有顶张、无拖拉机', () => {
+describe('通用3 — 非全控、有顶张、无拖拉机', () => {
   it('♥AA+K+8 → 出安全顶张甩牌 ♥AA+K', () => {
     const hand = [c(H, 14), c(H, 14), c(H, 13), c(H, 8), ...junk()];
     const r = aiLeadPlay(hand, ctxOf(hand));
@@ -282,61 +251,15 @@ describe('庄4 — 非全控、有顶张、无拖拉机', () => {
     expect(r.reason).toBe('出♥A');
   });
 
-  it('跨花色张数少优先：♥A+8 压过 ♣AA+8', () => {
+  it('跨花色顶张对优先于顶张单张', () => {
     const hand = [c(H, 14), c(H, 8), c(C, 14), c(C, 14), c(C, 8), c(D, 6), c(S, 3)];
     const r = aiLeadPlay(hand, ctxOf(hand));
-    expect(show(r.cards)).toEqual(['H14']);
+    expect(show(r.cards)).toEqual(['C14', 'C14']);
   });
 
-  it('含顶张的拖拉机不属于庄4（AAKK+8 由庄1出）', () => {
+  it('含顶张的拖拉机不属于通用3（AAKK+8 由庄1出）', () => {
     const hand = [c(H, 14), c(H, 14), c(H, 13), c(H, 13), c(H, 8), ...junk()];
     const r = aiLeadPlay(hand, ctxOf(hand));
     expect(show(r.cards)).toEqual(['H14', 'H14', 'H13', 'H13']);
-  });
-});
-
-describe('庄1.5 — 孤单非顶对（仅无主）', () => {
-  const safeNt = () => ntStateOf({ 1: {}, 3: {} });
-
-  it('♥KK 孤单、非顶张、rank ≥ J、毙牌条件成立 → 出 ♥KK', () => {
-    const hand = [c(H, 13), c(H, 13), ...junk()];
-    const ctx = ctxOf(hand, NT_CFG, { isDeclarer: true, isAttacker: false, ntState: safeNt() });
-    const r = tryLoneNonTopPair(hand, ctx, null)!;
-    expect(show(r.cards)).toEqual(['H13', 'H13']);
-    expect(r.reason).toBe('出♥K对（孤单非顶对）');
-    expect(show(aiLeadPlay(hand, ctx).cards)).toEqual(['H13', 'H13']);
-  });
-
-  it('顶张对（♥AA）归庄1，不由庄1.5出', () => {
-    const hand = [c(H, 14), c(H, 14), ...junk()];
-    const ctx = ctxOf(hand, NT_CFG, { isDeclarer: true, isAttacker: false, ntState: safeNt() });
-    expect(tryLoneNonTopPair(hand, ctx, null)).toBeNull();
-  });
-
-  it('rank < J（♥10 对）不由庄1.5出', () => {
-    const hand = [c(H, 10), c(H, 10), ...junk()];
-    const ctx = ctxOf(hand, NT_CFG, { isDeclarer: true, isAttacker: false, ntState: safeNt() });
-    expect(tryLoneNonTopPair(hand, ctx, null)).toBeNull();
-  });
-
-  it('该门还有其他牌 → 不是孤单对', () => {
-    const hand = [c(H, 13), c(H, 13), c(H, 3), ...junk()];
-    const ctx = ctxOf(hand, NT_CFG, { isDeclarer: true, isAttacker: false, ntState: safeNt() });
-    expect(tryLoneNonTopPair(hand, ctx, null)).toBeNull();
-  });
-
-  it('毙牌条件不成立（第四家能用主对毙）→ 不出', () => {
-    const hand = [c(H, 13), c(H, 13), ...junk()];
-    const ctx = ctxOf(hand, NT_CFG, {
-      isDeclarer: true, isAttacker: false,
-      ntState: ntStateOf({ 1: {}, 3: { 'S-2': 2 } }),
-    });
-    expect(tryLoneNonTopPair(hand, ctx, null)).toBeNull();
-  });
-
-  it('有主局不适用', () => {
-    const hand = [c(H, 13), c(H, 13), ...junk()];
-    const ctx = ctxOf(hand, CFG, { isDeclarer: true, isAttacker: false });
-    expect(tryLoneNonTopPair(hand, ctx, null)).toBeNull();
   });
 });

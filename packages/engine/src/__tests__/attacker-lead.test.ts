@@ -1,9 +1,9 @@
 /**
  * 闲家阶梯 1–3（`ai/attacker-lead.ts`）。
  *
- * 闲1：拖拉机/含拖拉机甩牌；纯拖拉机同对数优先能直接断门的副拖拉机。
- * 闲2：静态顶张单/对/不含拖拉机的甩牌。
- * 闲3：断门兜底；直接断门小单张不再入候选，由通用梯子兜底。
+ * 通用2：拖拉机/含拖拉机甩牌；纯拖拉机同对数优先能直接断门的副拖拉机。
+ * 通用3：静态顶张单/对/不含拖拉机的甩牌。
+ * 通用4：断门兜底；直接断门小单张不再入候选，由通用梯子兜底。
  */
 import { describe, it, expect } from 'vitest';
 import { createCard } from '../model.js';
@@ -36,7 +36,7 @@ function ctxOf(hand: Card[], cfg: TrumpDeclaration = SPADES): AIContext {
   };
 }
 
-describe('闲1 — 拖拉机 / 含拖拉机甩牌', () => {
+describe('通用2 — 拖拉机 / 含拖拉机甩牌', () => {
   it('纯拖拉机同对数：能直接断门的副拖拉机先于主拖拉机', () => {
     // ♥ 是主；♥4433 与 ♣4433 同对数。♣ 是整门（直接断门），应优先。
     const hand = [
@@ -50,21 +50,21 @@ describe('闲1 — 拖拉机 / 含拖拉机甩牌', () => {
   });
 
   it('含拖拉机甩牌：拖拉机成分放宽，顶张一起甩出', () => {
-    // ♥A4433：严格判据只允许 ♥A，但闲1把 4433 拖拉机与顶张 A 一起甩出。
+    // ♥A4433：严格判据只允许 ♥A，但通用2把 4433 拖拉机与顶张 A 一起甩出。
     const hand = [c(H, 14), c(H, 4), c(H, 4), c(H, 3), c(H, 3), c(C, 7), c(D, 8), c(S, 3)];
     const r = tryAttackerTractor(hand, ctxOf(hand), null)!;
     expect(show(r.cards)).toBe('H14,H4,H4,H3,H3');
     expect(r.reason).toBe('甩♥副牌(5张)');
   });
 
-  it('接线：闲家优先走闲1，而不是庄1', () => {
+  it('接线：闲家优先走通用2，而不是庄1', () => {
     const hand = [c(H, 14), c(H, 4), c(H, 4), c(H, 3), c(H, 3), c(C, 7), c(D, 8), c(S, 3)];
     const r = aiLeadPlay(hand, ctxOf(hand));
     expect(show(r.cards)).toBe('H14,H4,H4,H3,H3');
   });
 });
 
-describe('闲2 — 静态顶张（不含拖拉机）', () => {
+describe('通用3 — 静态顶张（不含拖拉机）', () => {
   it('顶张 + 单张组成的安全甩牌（最大集合）', () => {
     const hand = [c(H, 14), c(H, 14), c(H, 13), c(H, 8), c(C, 7), c(D, 8), c(S, 3)];
     const r = tryAttackerTop(hand, ctxOf(hand), null)!;
@@ -72,7 +72,7 @@ describe('闲2 — 静态顶张（不含拖拉机）', () => {
     expect(r.reason).toBe('甩♥副牌(3张)');
   });
 
-  it('顶张在拖拉机里 → 闲2不拆，交给闲1', () => {
+  it('顶张在拖拉机里 → 通用3不拆，交给通用2', () => {
     const hand = [c(H, 14), c(H, 14), c(H, 13), c(H, 13), c(C, 7)];
     expect(tryAttackerTop(hand, ctxOf(hand), null)).toBeNull();
   });
@@ -85,7 +85,7 @@ describe('闲2 — 静态顶张（不含拖拉机）', () => {
   });
 });
 
-describe('闲3 — 断门兜底（直接断门小单张不再入候选）', () => {
+describe('通用4 — 断门兜底（直接断门小单张不再入候选）', () => {
   it('3 类断门（含顶张）整门出', () => {
     const hand = [c(H, 14), c(H, 14), c(C, 7), c(D, 8), c(S, 3)];
     const r = tryAttackerDrain(hand, ctxOf(hand), null)!;
@@ -106,7 +106,7 @@ describe('闲3 — 断门兜底（直接断门小单张不再入候选）', () =
   });
 
   it('直接断门小单张不再抢在通用 8 的低副对之前', () => {
-    // C9 对不可安全甩出，旧闲3 会退回 ♥7 小单张；现在应交给通用 8 出 C9 对。
+    // C9 对不可安全甩出，旧通用4 会退回 ♥7 小单张；现在应交给通用 8 出 C9 对。
     const hand = [c(H, 7), c(C, 9), c(C, 9), c(C, 6)];
     expect(tryAttackerDrain(hand, ctxOf(hand), null)).toBeNull();
     const r = aiLeadPlay(hand, ctxOf(hand));

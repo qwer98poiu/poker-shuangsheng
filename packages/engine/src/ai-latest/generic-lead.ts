@@ -1,9 +1,9 @@
 /**
  * 通用领出阶梯 5–12（庄家方与闲家共用）。
  *
- *   5  直接断门副对 / J 以上副对（排除顶张；不避分）
+ *   5  J 以上副对（排除顶张；不避分）。直接断门副对归通用4。
  *   6  无主吊主（单张/对子/拖拉机；仅 NT 且等级为分牌 5/10/K，规则见 nt-trump.ts）
- *   7  有主吊主对（两队）；主拖拉机归庄4.5
+ *   7  有主吊主对（两队）；主拖拉机归庄3.5（庄家方）与通用2（闲家）
  *      两队都不受“副牌分对”与“保留主对”两条限制
  *   8  副牌 10 以下对牌（非直接断门；非分优先）
  *   9  有主单张吊主（最小的 A 以下主单；不再分首次/非首次）
@@ -74,7 +74,7 @@ function pairReason(suit: Suit, rank: number): string {
   return `出${suitLabelCn(suit)}${rankLabelStr(rank)}对`;
 }
 
-// ---- 通用 5：直接断门副对 / J 以上副对 ----
+// ---- 通用 5：J 以上副对 ----
 
 export function tryTier5Pair(
   hand: Card[], ctx: AIContext, longSuit: Suit | null,
@@ -84,17 +84,13 @@ export function tryTier5Pair(
     const cards = cardsOfSuit(hand, suit, ctx);
     if (cards.length < 2) continue;
     const top = topRankForSuit(suit, ctx, longSuit);
-    const directDrain = cards.length === 2;
     for (const pair of findAllPairs(cards)) {
       const rank = pair[0].rank;
-      if (rank === top) continue; // 顶张归庄1/庄4（闲家归闲2）
-      const jPlus = rank >= Rank.Jack;
-      if (!directDrain && !jPlus) continue;
+      if (rank === top) continue; // 顶张归庄1/通用3
+      if (rank < Rank.Jack) continue;
       candidates.push({
         cards: pair,
         keys: [
-          directDrain ? 1 : 0,
-          jPlus ? 1 : 0,
           -getEffectiveRank(pair[0], ctx),
           suitWeight(suit),
         ],
@@ -175,7 +171,7 @@ export function tryTier7TrumpPair(
   if (ctx.trumpSuit === null) return null;
 
   // 有主：庄家对家永不出主对；庄家与闲家都只出独立主对。主拖拉机归
-  // 庄4.5（庄家本人）与闲1（闲家）。
+  // 庄3.5（庄家方）与通用2（闲家）。
   // 两队都不受“有副牌分对才吊”“至少保留一个主对”两条限制：10-18 实测
   // 庄家受两条限制时有主局当庄胜率约 -3.5；闲家去掉两条门禁后 10000 场
   // 直接 A/B 显著更好（p̂=0.5160，99% CI 下界 0.5031），故两队统一去掉。
@@ -208,7 +204,7 @@ export function tryTier7TrumpPair(
     });
   };
 
-  // 主拖拉机由庄4.5 先取走；本档不拆拖拉机取其中的对子。
+  // 主拖拉机由庄3.5 先取走；本档不拆拖拉机取其中的对子。
   for (const p of standalonePairs) {
     add(p, '出主对');
   }
@@ -225,7 +221,8 @@ export function tryTier8LowPair(
   for (const suit of SUIT_ORDER) {
     const cards = cardsOfSuit(hand, suit, ctx);
     if (cards.length < 2) continue;
-    if (cards.length === 2) continue; // 直接断门副对归通用 5
+    // 直接断门副对归通用4（排在通用5 之前）。
+    if (cards.length === 2) continue;
     const top = topRankForSuit(suit, ctx, longSuit);
     for (const pair of findAllPairs(cards)) {
       const rank = pair[0].rank;
@@ -391,7 +388,7 @@ export function tryGenericLadder(
 export function hasWorthGenericLead(
   hand: Card[], ctx: AIContext, longSuit: Suit | null,
 ): boolean {
-  // 顶张（庄4/闲2 的领地，但兼容 ctx 可能没有队伍标记）：顶张单/对都值得。
+  // 顶张（通用3 的领地，但兼容 ctx 可能没有队伍标记）：顶张单/对都值得。
   for (const suit of SUIT_ORDER) {
     const cards = cardsOfSuit(hand, suit, ctx);
     const top = getTopOffSuitRank(suit, ctx);

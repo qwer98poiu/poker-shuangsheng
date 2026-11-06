@@ -3,7 +3,7 @@
  *
  * 消费方是通用领出阶梯（`generic-lead.ts`）：等级为分牌（5/10/K）时在通用 6 档返回，
  * 其余等级延后到通用 9（排在通用 8 之后）。全部单张/对子/拖拉机都在同一档返回，
- * 规则本身不随位置变化。庄3（`nt-lead.ts`）不再调用本模块。
+ * 规则本身不随位置变化。
  */
 import type { Card } from '../types.js';
 import { Rank, SpecialSuit, isPointRank } from '../types.js';

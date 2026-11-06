@@ -38,6 +38,7 @@ import {
   pickBestAddCards, pickFlushFollowCards, visibleTrickPoints, type DiscardMode,
 } from './position-policy.js';
 import { _aiLeadPlay } from './lead.js';
+import type { LeadTier } from './lead.js';
 
 // ---- Public API ----
 
@@ -149,10 +150,14 @@ export function aiChooseBottomCards(
 export function aiLeadPlay(
   hand: Card[],
   config: AIContext | TrumpDeclaration,
-): { cards: Card[]; reason: string } {
+): { cards: Card[]; reason: string; tier: LeadTier } {
   const ctx = ensureContext(config);
   const result = _aiLeadPlay(hand, ctx);
-  return { cards: result.cards, reason: maybeAppendFinal(result.cards, hand, result.reason, ctx) };
+  return {
+    cards: result.cards,
+    reason: maybeAppendFinal(result.cards, hand, result.reason, ctx),
+    tier: result.tier,
+  };
 }
 
 // ---- Following strategy ----

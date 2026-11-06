@@ -4,7 +4,7 @@
  * 候选花色（仅副牌）：
  *   1. 全控花色：当前手牌里该门全部是底牌规则的 T1/T2 控制张；
  *   2. 非全控、但同时含顶张和拖拉机的花色（A 类）。
- * 不含顶张的纯拖拉机归庄2；非全控、有顶张、无拖拉机的花色归庄4。
+ * 其余副牌牌型由通用2/3/4 处理。
  *
  * 门内先看整门：24 张反推成立，或整门能作为一手安全甩牌，就整门出。
  * 否则按“含顶张的牌型”取最大集合：安全的含顶张+拖拉机甩牌 → 含顶张拖拉机
@@ -286,29 +286,4 @@ export function tryDrain(
   }
 
   return best === null ? null : { cards: best.cards, reason: best.reason };
-}
-
-/**
- * 庄1.5（仅无主）：该门手里只有一对非顶张对牌、rank ≥ J，且满足毙牌条件。
- * 0b 在更前面，条件满足时已经由 0b 出掉；这里只接管剩下的孤单非顶对。
- */
-export function tryLoneNonTopPair(
-  hand: Card[], ctx: AIContext, longSuit: Suit | null,
-): { cards: Card[]; reason: string } | null {
-  if (ctx.trumpSuit !== null) return null;
-
-  for (const suit of SUIT_ORDER) {
-    const cards = cardsOfSuit(hand, suit, ctx);
-    if (cards.length !== 2 || cards[0].rank !== cards[1].rank) continue;
-    const rank = cards[0].rank;
-    if (rank < Rank.Jack) continue;
-    const { rank: top } = topRankOf(suit, ctx, longSuit);
-    if (rank === top) continue; // 顶张对归庄1
-    if (!beatsSafely(cards, ctx)) continue;
-    return {
-      cards,
-      reason: `出${suitLabelCn(suit)}${rankLabelStr(rank)}对（孤单非顶对）`,
-    };
-  }
-  return null;
 }

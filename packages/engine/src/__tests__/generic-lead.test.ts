@@ -1,9 +1,9 @@
 /**
  * 通用领出阶梯 5–12（`ai/generic-lead.ts`）。
  *
- * 5  直接断门副对 / J 以上副对（顶张除外）
+ * 5  J 以上副对（顶张除外；直接断门副对归通用4）
  * 6  无主吊主（仅 NT 且等级为分牌 5/10/K）
- * 7  有主主对（两队；主拖拉机归庄4.5，庄家对家不出主对）
+ * 7  有主主对（两队；主拖拉机归庄3.5/通用2，庄家对家不出主对）
  * 8  10 以下副对（非分优先）
  * 9  有主单张吊主 + 无主非分等级吊主（排在通用 8 之后）
  * 10 直接断门单张 / J 以上单张（取最大）
@@ -73,12 +73,12 @@ function trumpLeadTrick(leader: number, cfg: AIContext): Trick {
   };
 }
 
-describe('通用 5 — 直接断门副对 / J 以上副对', () => {
-  it('直接断门的低对优先于 J+ 非断门对', () => {
+describe('通用 5 — J 以上副对', () => {
+  it('直接断门的低对归通用4，本档只取 J+ 对', () => {
     const hand = [c(S, 2), c(S, 2), c(H, 11), c(H, 11), c(H, 3)];
     const r = tryTier5Pair(hand, ctxOf(), null)!;
-    expect(show(r.cards)).toBe('S2,S2');
-    expect(r.reason).toBe('出♠2对');
+    expect(show(r.cards)).toBe('H11,H11');
+    expect(r.reason).toBe('出♥J对');
   });
 
   it('J 以上非断门对', () => {
@@ -98,7 +98,7 @@ describe('通用 5 — 直接断门副对 / J 以上副对', () => {
     expect(show(r.cards)).toBe('H11,H11');
   });
 
-  it('同为直接断门时 J+ 优先', () => {
+  it('低对即使直接断门也不入本档，J+ 对仍可取', () => {
     const hand = [c(S, 2), c(S, 2), c(H, 11), c(H, 11)];
     const r = tryTier5Pair(hand, ctxOf(), null)!;
     expect(show(r.cards)).toBe('H11,H11');
@@ -118,7 +118,7 @@ describe('通用 8 — 10 以下副对', () => {
     expect(show(r.cards)).toBe('C6,C6');
   });
 
-  it('直接断门的低对归通用 5，不在本档', () => {
+  it('直接断门的低对归通用4，不在本档', () => {
     const hand = [c(H, 9), c(H, 9)];
     expect(tryTier8LowPair(hand, ctxOf(), null)).toBeNull();
   });

@@ -219,7 +219,7 @@ describe('AI leading play', () => {
     });
   });
 
-  describe('庄4.5: lead trump tractor', () => {
+  describe('庄3.5: lead trump tractor', () => {
     const declarerCtx = (n: number): AIContext => ctx(cfg5, {
       myIndex: 0, isDeclarer: true, isDeclarerPartner: false,
       handCounts: [n, 25, 25, 25] as const,
@@ -227,7 +227,7 @@ describe('AI leading play', () => {
     const names = (cards: Card[]): string[] => cards.map(x => `${x.suit}${x.rank}`);
 
     it('leads a trump tractor before generic 5 off-suit pairs', () => {
-      // 主拖拉机 ♥4433；♠10 对是 J 以上、通用 5 的候选，但庄4.5 更靠前。
+      // 主拖拉机 ♥4433；♠10 对是 J 以上、通用 5 的候选，但庄3.5 更靠前。
       const hand = [
         c('H', 4, 0), c('H', 4, 1), c('H', 3, 0), c('H', 3, 1),
         c('S', 10, 0), c('S', 10, 1), c('S', 3, 0), c('C', 6, 0),
@@ -238,7 +238,7 @@ describe('AI leading play', () => {
       expect(result.reason).toBe('出主拖拉机(2对)');
     });
 
-    it('stays behind 庄4: an off-suit top is led first', () => {
+    it('stays behind 通用3: an off-suit top is led first', () => {
       const hand = [
         c('S', 14, 0), c('S', 3, 0),
         c('H', 4, 0), c('H', 4, 1), c('H', 3, 0), c('H', 3, 1),
@@ -260,13 +260,13 @@ describe('AI leading play', () => {
       ];
       const result = aiLeadPlay(hand, declarerCtx(hand.length));
       checkLead(result.cards, hand, cfg5);
-      // 小型王牌对 + 大王牌对构成主拖拉机，但含 A 以上（王）→ 庄4.5 放弃；
+      // 小型王牌对 + 大王牌对构成主拖拉机，但含 A 以上（王）→ 庄3.5 放弃；
       // 后续档位出 ♠K 单张。
       expect(names(result.cards)).toEqual(['S13']);
       expect(result.reason).toBe('出♠K');
     });
 
-    it('declarer partner never leads a trump tractor', () => {
+    it('declarer partner can lead a trump tractor', () => {
       const hand = [
         c('H', 4, 0), c('H', 4, 1), c('H', 3, 0), c('H', 3, 1),
         c('S', 3, 0), c('C', 6, 0),
@@ -277,11 +277,11 @@ describe('AI leading play', () => {
       });
       const result = aiLeadPlay(hand, ctxDP);
       checkLead(result.cards, hand, cfg5);
-      expect(names(result.cards)).toEqual(['H3']);
-      expect(result.reason).toBe('吊主');
+      expect(names(result.cards)).toEqual(['H4', 'H4', 'H3', 'H3']);
+      expect(result.reason).toBe('出主拖拉机(2对)');
     });
 
-    it('two same-length trump tractors: the one with the smaller top goes first', () => {
+    it('two same-length trump tractors: the one with the larger top goes first', () => {
       const hand = [
         c('H', 10, 0), c('H', 10, 1), c('H', 9, 0), c('H', 9, 1),
         c('H', 4, 0), c('H', 4, 1), c('H', 3, 0), c('H', 3, 1),
@@ -289,7 +289,7 @@ describe('AI leading play', () => {
       ];
       const result = aiLeadPlay(hand, declarerCtx(hand.length));
       checkLead(result.cards, hand, cfg5);
-      expect(names(result.cards).sort()).toEqual(['H3', 'H3', 'H4', 'H4']);
+      expect(names(result.cards).sort()).toEqual(['H10', 'H10', 'H9', 'H9']);
       expect(result.reason).toBe('出主拖拉机(2对)');
     });
 
