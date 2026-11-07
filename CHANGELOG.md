@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-11-07 23:37
+
+### 修正 AI 分牌估值中 K=5 的错误
+
+**问题**：`follow-trump.ts` 的毙牌分值、第四家加分分值、对子总分/拖拉机分值和 `position-policy.ts` 的分对排序都把 K 当作 5 分；引擎计分 `cardPointsFromRank` 中 K 与 10 都是 10 分。第四家加分、盖毙和对子选择因此会把 K 排在 5 后面，或不按真实分值取最高。
+
+**修复**：上述数值统一改用 `cardPointsFromRank`（K=10、5=5），保留级牌在毙牌分值中的保底例外；`position-policy.ts` 的跟牌分对顺序改为显式 `10 > K > 5`（策略偏好，行为不变）。README 的 Elo 表未改（`ai-latest` 行本就待重测）。
+
+**新增 3 项测试**（ai-position-follow.test.ts：3 项），引擎 1298 项 + arena 248 项 + CLI 87 项 + client 201 项 = 1834 项通过。
+
+- **影响文件**：`packages/engine/src/ai-latest/follow-trump.ts`、`packages/engine/src/ai-latest/position-policy.ts`、`packages/engine/src/__tests__/ai-position-follow.test.ts`
+
 ## 2026-11-07 22:05
 
 ### 提取 ai-1106 基线、归档 ai-0816，ai-0929 迁入 `@poker/ai`

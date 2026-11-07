@@ -272,8 +272,10 @@ function unitCompare(a: Unit, b: Unit, mode: DiscardMode, ctx: TrumpDeclaration)
   if (ca !== cb) return ca - cb;
   // 副牌分对类内 10>K>5（分高在前，同分 rank 大在前）
   if (mode === 'add' && (ca === 4 || ca === 6)) {
-    const pv = (c: Card): number => c.rank === Rank.Ten ? 10 : 5;
-    const d = pv(b.card) - pv(a.card);
+    // 跟牌分对垫出顺序 10 > K > 5（策略偏好，不是分值）：10 先垫、K 保留、5 最后。
+    const order = (c: Card): number =>
+      c.rank === Rank.Ten ? 0 : c.rank === Rank.King ? 1 : 2;
+    const d = order(a.card) - order(b.card);
     if (d !== 0) return d;
     return b.card.rank - a.card.rank;
   }

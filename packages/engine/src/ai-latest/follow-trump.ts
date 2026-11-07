@@ -3,7 +3,7 @@
  * NT (no-trump) trump following.
  */
 import type { Card, ComboClass } from '../types.js';
-import { Rank, Suit, isPointRank } from '../types.js';
+import { Rank, Suit, cardPointsFromRank, isPointRank } from '../types.js';
 import { isTrump, getEffectiveRank } from '../model.js';
 import { findAllPairs, detectTractors } from '../pattern/index.js';
 import { compareTwo, matchPattern } from '../comparing/index.js';
@@ -41,17 +41,15 @@ function trumpDumpKey(c: Card, pool: Card[], ctx: AIContext): number {
 }
 
 
-/** 毙牌选牌的分牌值：10>K>5（级牌除外——常主只在跨 40 分台阶时出）。 */
+/** 毙牌选牌的分牌值：10/K=10 分、5=5 分（级牌除外——常主只在跨 40 分台阶时出）。 */
 function killPointVal(c: Card, ctx: AIContext): number {
-  return c.rank === ctx.level ? 0
-    : (c.rank === Rank.Ten ? 10 : (c.rank === Rank.King || c.rank === Rank.Five ? 5 : 0));
+  return c.rank === ctx.level ? 0 : cardPointsFromRank(c.rank);
 }
 
 /** 第四家加分口径的分牌值：级牌（常主）的 5/10/K 也计分。
  *  用于「第四家身后无人、赢墩后取最高分」：常主分牌同样能加分，不能按保底档跳过。 */
 function addPointVal(c: Card): number {
-  return c.rank === Rank.Ten ? 10
-    : (c.rank === Rank.King || c.rank === Rank.Five ? 5 : 0);
+  return cardPointsFromRank(c.rank);
 }
 
 /** 第1条毙牌三档：有强牌(拖拉机/可甩副牌)用最大主牌毙；
@@ -286,10 +284,9 @@ export function followTrumpLead(
   return padWithDiscards(hand, myTrump, leadLen, ctx, tmWin, position, leadCombo);
 }
 
-/** 对子总分（10=10 分、K/5=5 分，级牌 2 无分）。 */
+/** 对子总分（10/K=10 分、5=5 分；级牌为 5/10/K 时同样按分牌计）。 */
 function pairPoints(p: Card[]): number {
-  return p.reduce((s, c) =>
-    s + (c.rank === Rank.Ten ? 10 : (c.rank === Rank.King || c.rank === Rank.Five ? 5 : 0)), 0);
+  return p.reduce((s, c) => s + cardPointsFromRank(c.rank), 0);
 }
 
 /**
@@ -407,8 +404,8 @@ export function matchTrumpPattern(
       const ptsStrat = addPoints ? 'add' : (shouldAvoidT ? 'avoid' : undefined);
 
       // 含最多分且能盖过的优先（第四家能盖过对手）；同分取最小能盖过
-      const tractorPoints = (t: Card[]) => t.reduce((s, c) =>
-        s + (c.rank === Rank.Ten ? 10 : (c.rank === Rank.King || c.rank === Rank.Five ? 5 : 0)), 0);
+      const tractorPoints = (t: Card[]) =>
+        t.reduce((s, c) => s + cardPointsFromRank(c.rank), 0);
       myTractors.sort((a, b) => {
         const pd = tractorPoints(b) - tractorPoints(a);
         if (pd !== 0) return pd;
