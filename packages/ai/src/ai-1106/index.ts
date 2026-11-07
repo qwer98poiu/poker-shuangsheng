@@ -13,26 +13,32 @@ import { compareTwo, matchPattern } from '../comparing/index.js';
 import type { AIContext } from './types.js';
 import {
   getPositionInTrick, isTeammateWinning,
-  discardSort, fillerSort,
   groupBySuit, suitLabelCn,
 } from './utils.js';
 import { isOnlyLegalPlay } from '../following/index.js';
-import { aiChooseBottomCards as aiChooseBottomImpl } from './bottom-strategy.js';
+import { canRevealOrOverride } from '../revealing/index.js';
+import {
+  aiChooseBottomCards as aiChooseBottomImpl,
+  BOTTOM_DECISION_HAND_SIZE,
+} from './bottom-strategy.js';
 import { annotateReason } from './reason.js';
 import {
   discardNonTrump,
-  canAddPoints, isMaxPattern, attackerNearThreshold,
+  canAddPoints, attackerNearThreshold,
 } from './helpers.js';
 import {
   followTrumpLead,
-  trumpKill, followTrumpThrow, rule1KillMode,
+  trumpKill, followTrumpThrow, rule1KillMode, isBeatingTrumpKill,
 } from './follow-trump.js';
+import { probeDeclineKill } from './no-seize.js';
+import { detectTeammateSafeLead, avoidBeatingTeammate } from './flush-detector.js';
 import { followOffSuit, followOffSuitThrow } from './follow-offsuit.js';
 import {
   pickDiscards, selectFillers, secondShouldAvoid, shouldBreakPairForPoints,
-  pickBestAddCards, visibleTrickPoints, type DiscardMode,
+  pickBestAddCards, pickFlushFollowCards, visibleTrickPoints, type DiscardMode,
 } from './position-policy.js';
 import { _aiLeadPlay } from './lead.js';
+import type { LeadTier } from './lead.js';
 
 // ---- Public API ----
 
@@ -45,6 +51,9 @@ export { groupBySuit };
 export { buildAIContext, computeBestSoFar } from './context.js';
 export type { AIContext, NTTrumpState, PlayPosition } from './types.js';
 export { findThrowableOffSuitCombos } from './throw-detector.js';
+export { computeOffSuitControls } from './bottom-controls.js';
+export type { OffSuitControlInfo } from './bottom-controls.js';
+export { longShape } from './bottom-strategy.js';
 
 /** try to reveal trump during dealing */
 export function aiTryReveal(
@@ -54,34 +63,50 @@ export function aiTryReveal(
   level: number,
   currentReveal: { suit: Suit | null; strength: number; playerIndex?: number } | null,
 ): { suit: Suit | null; reason: string } | null {
-  const allCards = hand;
+  // 快速路径：按当前亮主力量判断这手牌是否可能产生一次**会生效**的亮主。
+  // 不可能时直接返回 null（例如无人亮主且没有常主、他人已亮对级牌且没有对王、
+  // 他人已亮对大王等）。发牌期每家每落一张都会调用一次，这一步省掉后面的所有分支。
+  if (!canRevealOrOverride(hand, playerIndex, level, currentReveal)) return null;
 
-  const bigJokers = allCards.filter(c => c.rank === Rank.BigJoker);
-  const smallJokers = allCards.filter(c => c.rank === Rank.SmallJoker);
-  const levelCardsOf = (suit: Suit) => allCards.filter(c => c.suit === suit && c.rank === level);
+  // 一次遍历统计全部常主：大小王 + 各花色级牌。单张与常主对牌都由同一份计数
+  // 覆盖（对子 = 计数 >= 2），不再每次调用做 10 次 filter。
+  let bigJokers = 0;
+  let smallJokers = 0;
+  const levelCounts = [0, 0, 0, 0]; // SUIT_ORDER 下标
+  for (const c of hand) {
+    if (c.rank === Rank.BigJoker) { bigJokers += 1; continue; }
+    if (c.rank === Rank.SmallJoker) { smallJokers += 1; continue; }
+    if (c.rank === level) {
+      const idx = SUIT_ORDER.indexOf(c.suit as Suit);
+      if (idx >= 0) levelCounts[idx] += 1;
+    }
+  }
+  const levelCountOf = (suit: Suit): number => levelCounts[SUIT_ORDER.indexOf(suit)] ?? 0;
 
   // 自己亮的主：自保仅限有主同花色巩固（单张→同花色对子）；无主不可自保，禁止自反
   if (currentReveal?.playerIndex === playerIndex) {
     if (currentReveal.suit !== null
       && currentReveal.strength === 1
-      && levelCardsOf(currentReveal.suit).length >= 2) {
+      && levelCountOf(currentReveal.suit) >= 2) {
       return { suit: currentReveal.suit, reason: `同花色对${suitLabelCn(currentReveal.suit)}级牌自保` };
     }
     return null;
   }
 
-  // 别人亮的主（或未亮）：按力量亮主/反主
-  if (bigJokers.length >= 2 || smallJokers.length >= 2) {
-    if (!currentReveal || currentReveal.strength < 3) {
-      return { suit: null, reason: '有对王，亮无主' };
-    }
+  // 别人亮的主（或未亮）：按力量亮主/反主。
+  // 判据是"自己可亮的最佳力量 > 当前力量"（力量值 4/3 对应 revealing/index.ts 的
+  // getRevealOptions：对大王 4、对小王 3）。曾经写成 `currentReveal.strength < 3`，
+  // 那等于把对小王(3)与对大王(4)当成同一档：手握对大王也不去反别人的对小王无主，
+  // 与引擎 canOverride 的 4 > 3 不一致（对小王遇对小王仍不反，正确）。
+  const myJokerStrength = bigJokers >= 2 ? 4 : smallJokers >= 2 ? 3 : 0;
+  if (myJokerStrength > (currentReveal?.strength ?? 0)) {
+    return { suit: null, reason: currentReveal ? '有对王，反无主' : '有对王，亮无主' };
   }
 
   // 亮主过程：无人亮主时只能单张亮（不直接亮一对，见 revealStrength）——
   // 对级牌只用于反主（他人已亮单张）；单张亮主由下方单张分支处理
   for (const suit of SUIT_ORDER) {
-    const levelCards = levelCardsOf(suit);
-    if (levelCards.length >= 2) {
+    if (levelCountOf(suit) >= 2) {
       if (currentReveal && currentReveal.strength < 2) {
         return { suit, reason: `有${suitLabelCn(suit)}级牌对，反主` };
       }
@@ -89,7 +114,7 @@ export function aiTryReveal(
   }
 
   for (const suit of SUIT_ORDER) {
-    if (levelCardsOf(suit).length >= 1) {
+    if (levelCountOf(suit) >= 1) {
       if (!currentReveal) {
         return { suit, reason: `有${suitLabelCn(suit)}级牌单张，亮主` };
       }
@@ -99,11 +124,23 @@ export function aiTryReveal(
   return null;
 }
 
-/** Bottom exchange - delegates to bottom-strategy module. */
+/**
+ * Bottom exchange - delegates to bottom-strategy module.
+ *
+ * 契约：`hand` 是庄家**拿进 8 张底牌之后**的 33 张手牌（先拿后扣，拿上来的牌
+ * 可以再扣回去），不是发到的 25 张。调用点曾长期只喂 25 张，等价于先扣后拿，
+ * 而且不报错、静默降级；所以这里硬断言，喂错张数立刻炸而不是悄悄换个问题解。
+ */
 export function aiChooseBottomCards(
   hand: Card[],
   config: AIContext | TrumpDeclaration,
 ): { keep: Card[]; discard: Card[]; reason: string } {
+  if (hand.length !== BOTTOM_DECISION_HAND_SIZE) {
+    throw new Error(
+      `扣底决策必须基于 ${BOTTOM_DECISION_HAND_SIZE} 张手牌（发到的 25 张 + 拿进的 8 张底牌），`
+      + `实收 ${hand.length} 张`,
+    );
+  }
   return aiChooseBottomImpl(hand, config);
 }
 
@@ -113,10 +150,14 @@ export function aiChooseBottomCards(
 export function aiLeadPlay(
   hand: Card[],
   config: AIContext | TrumpDeclaration,
-): { cards: Card[]; reason: string } {
+): { cards: Card[]; reason: string; tier: LeadTier } {
   const ctx = ensureContext(config);
   const result = _aiLeadPlay(hand, ctx);
-  return { cards: result.cards, reason: maybeAppendFinal(result.cards, hand, result.reason, ctx) };
+  return {
+    cards: result.cards,
+    reason: maybeAppendFinal(result.cards, hand, result.reason, ctx),
+    tier: result.tier,
+  };
 }
 
 // ---- Following strategy ----
@@ -140,13 +181,10 @@ function finishTeammateWin(
   cards: Card[], leadCards: Card[], leadCombo: ComboClass, leadLen: number,
   ctx: AIContext, position: string, tmWin: boolean, trumpCards: Card[],
 ): { cards: Card[]; reason: string } {
-  const allTrump = cards.every(c => isTrump(c, ctx));
   const overkill = !!(ctx.bestSoFar && ctx.bestSoFar.cards.length > 0
     && ctx.bestSoFar.cards.some(c => isTrump(c, ctx)));
   // 盖毙: all trump + pattern matches + beats current winner
-  const isKill = allTrump && overkill
-    && matchPattern(leadCards, cards, ctx)
-    && compareTwo(ctx.bestSoFar!.cards, cards, leadCards, ctx) === 'second';
+  const isKill = overkill && isBeatingTrumpKill(cards, leadCards, ctx);
   if (isKill) {
     const baseReason = overkill ? '盖毙' : '用主牌毙';
     const reason = annotateReason(baseReason, cards, [], trumpCards,
@@ -241,7 +279,6 @@ function _aiFollowPlay(
       : fill.some(c => c.suit !== leadSuitCards[0].suit)
         ? '同花色不够，垫其他花色'
         : '垫同花色';
-    const addPoints = tmWin && canAddPoints(tmWin, position, leadCombo, ctx);
     const isPositioned = position === 'second' || position === 'third' || position === 'fourth';
     const intent = (mode === 'add' || mode === 'full') ? 'add'
       : (mode === 'avoid' && isPositioned) ? 'avoid' : 'none';
@@ -252,6 +289,21 @@ function _aiFollowPlay(
 
   // Void in lead suit
   if (trumpCards.length >= leadLen) {
+    // 0a/0b 领出（优先级 0）：上一墩已验该门已绝/对子已绝，本墩必须归队友。
+    // 按加分优先级垫牌，且**不得盖过队友**（牌权一旦易主，剩下的牌就再也兑现不了；
+    // 第二家已毙时 tmWin 为 false，走不到这里）。
+    if (tmWin && detectTeammateSafeLead(ctx, leadCombo) !== null) {
+      const wantAdd = canAddPoints(tmWin, position, leadCombo, ctx);
+      const { cards: picked, added } = pickFlushFollowCards(hand, leadLen, ctx, wantAdd);
+      const cards = avoidBeatingTeammate(picked, hand, leadCards, leadCombo, ctx);
+      if (!added) {
+        // 禁分（庄家方 70/75 等）或只有主牌：不加分，同样不得盖过队友
+        const reason = annotateReason('垫牌', cards, [], trumpCards,
+          leadCombo, leadLen, ctx, position, tmWin, false, 'none');
+        return { cards, reason };
+      }
+      return finishTeammateWin(cards, leadCards, leadCombo, leadLen, ctx, position, tmWin, trumpCards);
+    }
     // 队友已大且可加分：按加分优先级选牌（第三家有副牌垫副牌、全主出主分；
     // 第四家全手选可含主牌=毙加分；全力加分能跨 40 台阶时用全力加分优先级）
     if (tmWin && canAddPoints(tmWin, position, leadCombo, ctx)) {
@@ -283,6 +335,10 @@ function _aiFollowPlay(
       return trumpKill(trumpCards, hand, leadCards, leadCombo, leadLen, ctx, position, tmWin,
         { killMode });
     }
+    // 第四家：对手大 + 无分墩 + 抢来无牌可领 → 不抢（垫不起则照常毙）
+    const declined = probeDeclineKill(
+      hand, leadCards, leadCombo, leadLen, ctx, position, tmWin, trumpCards);
+    if (declined) return declined;
     return trumpKill(trumpCards, hand, leadCards, leadCombo, leadLen, ctx, position, tmWin);
   }
 
@@ -343,11 +399,13 @@ function ensureContext(
     isDeclarerPartner: idx === (declIdx + 2) % 4,
     isAttacker: idx >= 0 ? idx % 2 !== declIdx % 2 : false,
     attackerPoints: 0,
+    throwPenalties: [0, 0],
     handCounts: [25, 25, 25, 25] as const,
     trickHistory: [],
     reveals: [],
     playCount: pc,
     leadPlayerIndex: leadIdx,
+    trickPlays: [],
     bestSoFar: bs,
     ntState: null,
     bottomCards: [],

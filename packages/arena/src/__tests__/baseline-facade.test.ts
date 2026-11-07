@@ -12,7 +12,7 @@ describe('baseline facade', () => {
     const engineBaselines = Object.keys(engine)
       .filter((name) => /^ai\d{4}$/.test(name))
       .sort();
-    expect(engineBaselines).toEqual(['ai0816', 'ai0907', 'ai0929', 'ai1018']);
+    expect(engineBaselines).toEqual(['ai0907', 'ai1018']);
 
     const facade = baselines as Record<string, unknown>;
     const exported = engine as Record<string, unknown>;

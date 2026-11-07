@@ -106,7 +106,7 @@ export function unitize(cards: Card[], ctx?: TrumpDeclaration): Unit[] {
 }
 
 /** 主牌 A 的有效大小（"主牌A或更大"的阈值）。 */
-function aceEff(ctx: TrumpDeclaration): number {
+export function aceEff(ctx: TrumpDeclaration): number {
   return getEffectiveRank(
     { suit: ctx.trumpSuit ?? Suit.Spades, rank: Rank.Ace, isJoker: false, id: '' } as Card, ctx);
 }
@@ -198,6 +198,74 @@ export function catOf(u: Unit, mode: DiscardMode, ctx: TrumpDeclaration): number
   return 7;
 }
 
+// ---- 主牌档位筛选（毙单张 / 第四家吊主单张·队友大） ----
+
+/** 档位模式：fourth = 第四家（毙/盖毙单张、吊主单张队友大）；mid = 第二/三家毙单张。 */
+export type TrumpTierMode = 'fourth' | 'mid';
+
+/** 分牌档内序：10(0) > K(1) > 5(2)；非分牌 3（只在分牌档内比较）。 */
+function pointOrder(c: Card): number {
+  return c.rank === Rank.Ten ? 0 : c.rank === Rank.King ? 1 : c.rank === Rank.Five ? 2 : 3;
+}
+
+/**
+ * 按档位从候选主牌池取一张：档位优先，同档内取最小；池空返回 null。
+ *
+ * fourth（规格 2.3 第 3 条、第 1 条）：分牌单张（10>K>5）> 拆分牌散对（10>K>5）
+ *   > A 以下非分单张 > A 以下非分散对（拆对）> A 以下含分拖拉机（出其中分牌）
+ *   > A 以下不含分拖拉机 > A 和常主（升序，不区分单张/对牌/拖拉机）。
+ *   分牌含「级牌本身 rank 为 5/10/K」的常主。
+ * mid（规格毙牌通用规则·第二/三家，不区分分牌与非分）：A 以下单张 > A 以下散对（拆对）
+ *   > A 以下拖拉机 > A 和常主（升序，不区分单张/对牌/拖拉机）。
+ *
+ * 拖拉机成员一律按拖拉机档归类（含 A 的拖拉机整段归末档，不按成员拆档），
+ * 否则 A-K 拖拉机里的 K 会被分牌档抢走、含分拖拉机里的分牌会让拖拉机档永不可达。
+ * 「A 以下」= 有效大小 < 主牌 A（级牌与王都算 A 以上）。
+ */
+export function pickTrumpByTier(
+  pool: Card[], mode: TrumpTierMode, ctx: TrumpDeclaration,
+): Card | null {
+  if (pool.length === 0) return null;
+
+  const unitOf = new Map<string, Unit>();
+  for (const u of unitize(pool)) for (const c of u.cards) unitOf.set(c.id, u);
+  const tractorOf = new Map<string, Card[]>();
+  for (const t of detectTractors(pool, ctx)) for (const c of t) tractorOf.set(c.id, t);
+  const ace = aceEff(ctx);
+
+  const tier = (c: Card): number => {
+    const eff = getEffectiveRank(c, ctx);
+    const tr = tractorOf.get(c.id);
+    if (tr) {
+      const belowA = tr.every(x => getEffectiveRank(x, ctx) < ace);
+      if (mode === 'mid') return belowA ? 2 : 3;
+      if (!belowA) return 6;
+      return tr.some(x => isPointRank(x.rank)) ? 4 : 5;
+    }
+    const single = unitOf.get(c.id)!.kind === 'single';
+    if (mode === 'mid') {
+      if (eff >= ace) return 3;
+      return single ? 0 : 1;
+    }
+    // fourth：分牌档先于「A 和常主」档——rank 为 5/10/K 的常主（级牌）也按分牌算
+    if (isPointRank(c.rank)) return single ? 0 : 1;
+    if (eff >= ace) return 6;
+    return single ? 2 : 3;
+  };
+
+  return [...pool].sort((a, b) => {
+    const ta = tier(a);
+    const tb = tier(b);
+    if (ta !== tb) return ta - tb;
+    // 仅 fourth 的分牌档（0/1/4）先比 10>K>5，再比有效大小；其余档只比有效大小
+    if (mode === 'fourth' && (ta === 0 || ta === 1 || ta === 4)) {
+      const d = pointOrder(a) - pointOrder(b);
+      if (d !== 0) return d;
+    }
+    return getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx);
+  })[0];
+}
+
 function unitCompare(a: Unit, b: Unit, mode: DiscardMode, ctx: TrumpDeclaration): number {
   const ca = catOf(a, mode, ctx);
   const cb = catOf(b, mode, ctx);
@@ -259,6 +327,69 @@ export function pickDiscards(
   return picked;
 }
 
+/**
+ * 第四家「不抢无分墩」的垫牌：按 avoid 梯子（第二家原则 5）取 need 张，但只用"垫得起"的档位。
+ *
+ * 可用档（按 `catOf('avoid')` 的先后取，同类内从小到大）：副非分单(1)、副非分对(2)、
+ *   主A下非分单张(3)、庄家副分单(4)与副分对(5)。
+ * 禁用档（取到就返回 null，调用方改为毙/盖毙）：**一切主对**——散对与拖拉机成员都算，
+ *   整对垫出与拆半张都不允许（含第 7 档主A下非分对）；主A下分单(6)、主A下分对(8)、
+ *   主A或更大(9)；非庄家还禁用副分(4/5)。
+ * **NT 下禁用档多一条：任何主牌（级牌与王）一律不得垫**（没有"主A以下非分单张"这一档）
+ *   → NT 版只剩副牌各档可用，等价于"只垫副牌，垫不起就照常毙"。副分口径两模式相同。
+ * 本路径下不会有副对：手里有副对即"优先级 4 能领出"，调用方早判为有值得出的牌而照常毙。
+ * 庄家的"垫光副牌变全主"由梯子自然覆盖——副牌各档都排在禁用主牌档之前，副牌不够时
+ *   梯子自动下探主牌非分单张（NT 下无此档，副牌不够即返回 null）。
+ *
+ * 分牌上限只算副分：累计 ≤10 分，且 `attackerPoints + 累计副分 < 80`（本墩已出分由
+ *   调用方保证为 0——无分墩正是触发条件之一）。闲家 70 分可垫 5 分，75 分则一分不能垫。
+ *
+ * 不拆对：对单元放不下就跳过，绝不为凑数拆对（与 `pickDiscards` 的兜底拆对不同）。
+ */
+export function pickNoSeizeDiscards(
+  hand: Card[], need: number, ctx: AIContext,
+): Card[] | null {
+  const tractorIds = new Set(detectTractors(hand, ctx).flat().map(c => c.id));
+  const usable = (u: Unit): boolean => {
+    const c = u.card;
+    if (isTrump(c, ctx)) {
+      // NT：主牌只有级牌与王（eff 800/900/1000），没有"主A以下非分单张"这一档，
+      // 一律不得垫——若可垫的只剩主牌，那张主牌垫或毙都要花掉（垫=白丢控制张且丢
+      // 牌权，毙=花同一张但赢下此墩），落回毙更优。此处显式判 NT，不要靠
+      // "eff >= aceEff 在 NT 恒成立"这个算术巧合（级牌为 A 时 aceEff 会变成 800）。
+      if (ctx.trumpSuit === null) return false;
+      if (u.kind === 'pair' || tractorIds.has(c.id)) return false; // 一切主对
+      if (isPointRank(c.rank)) return false;                       // 主分牌
+      return getEffectiveRank(c, ctx) < aceEff(ctx);               // 主A下非分单张
+    }
+    if (!isPointRank(c.rank)) return true;                         // 副非分（单/对）
+    return ctx.isDeclarer;                                         // 副分：仅庄家（上限见下）
+  };
+
+  const sorted = unitize(hand, ctx)
+    .filter(usable)
+    .sort((a, b) => {
+      const d = catOf(a, 'avoid', ctx) - catOf(b, 'avoid', ctx);
+      return d !== 0 ? d : getEffectiveRank(a.card, ctx) - getEffectiveRank(b.card, ctx);
+    });
+
+  const MAX_OFF_SUIT_POINTS = 10;
+  const picked: Card[] = [];
+  let offSuitPoints = 0;
+  for (const u of sorted) {
+    if (picked.length + u.cards.length > need) continue; // 整单位消费，放不下就跳过（不拆对）
+    if (!isTrump(u.card, ctx) && isPointRank(u.card.rank)) {
+      const add = u.cards.reduce((s, c) => s + (c.rank === Rank.Five ? 5 : 10), 0);
+      if (offSuitPoints + add > MAX_OFF_SUIT_POINTS) continue;
+      if (ctx.attackerPoints + offSuitPoints + add >= 80) continue;
+      offSuitPoints += add;
+    }
+    picked.push(...u.cards);
+    if (picked.length === need) break;
+  }
+  return picked.length === need ? picked : null;
+}
+
 /** 闲家加分时拆对跨 40 台阶的判定：存在分牌使闲家得分 + 本墩已出分 + 该分牌
  *  跨入更高的 40 台阶（40/80/120）。 */
 export function shouldBreakPairForPoints(ctx: AIContext, leadCombo: ComboClass): boolean {
@@ -283,6 +414,25 @@ function pickVoidSuitCards(hand: Card[], need: number, ctx: TrumpDeclaration): C
   const rest = hand.filter(c => !g.includes(c));
   const fill = pickDiscards(rest, need - g.length, ctx, 'add');
   return [...g, ...fill];
+}
+
+/**
+ * 0b 跟牌（第三家）：队友领出对子已绝的副牌，第三家缺门时的选牌。
+ *
+ * - 有非主分牌 → 加分：只在副牌里选；副牌不够领出张数时才动主牌；
+ * - 无非主分牌（只有主牌）→ **不加分**，按 avoid 垫非分牌。
+ * 返回值 `added` 供理由串使用；"不得盖过队友"由调用方的 `avoidBeatingTeammate` 兜底。
+ */
+export function pickFlushFollowCards(
+  hand: Card[], need: number, ctx: AIContext, wantAdd: boolean,
+): { cards: Card[]; added: boolean } {
+  const nonTrump = hand.filter(c => !isTrump(c, ctx));
+  const hasOffSuitPoints = nonTrump.some(c => isPointRank(c.rank));
+  if (wantAdd && hasOffSuitPoints) {
+    const pool = nonTrump.length >= need ? nonTrump : hand;
+    return { cards: selectFillers(pool, need, ctx, 'add'), added: true };
+  }
+  return { cards: selectFillers(hand, need, ctx, 'avoid'), added: false };
 }
 
 /**

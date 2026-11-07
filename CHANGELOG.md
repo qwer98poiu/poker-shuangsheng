@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-11-07 22:05
+
+### 提取 ai-1106 基线、归档 ai-0816，ai-0929 迁入 `@poker/ai`
+
+**问题**：2026-11-06 的庄家方统一领出阶梯已经落地并实测 1304 分，但该状态尚未冻结为基线；`ai-0816` 已被后续基线覆盖，继续占用存量；`ai-0929` 仍留在 engine，包边界不完整。
+
+**修复**：`git archive` 提取 2026-11-06 20:32 的 `ai/` 为 `packages/ai/src/ai-1106/`（22 文件，含当时的 `STRATEGY.md`，逐字节保持快照），注册 `ai1106` 命名空间与竞技场 `ai1106Strategy`，合法性用例使用 pair 32/33。归档 `ai-0816`：删除 `packages/engine/src/ai-0816/`，移除 engine 命名空间导出、facade 行、竞技场策略/分支与合法性用例，`baseline-facade` 的 engine 集合收窄为 `ai0907`/`ai1018`，并从 `elo-matches.json` 删除所有含 `ai-0816` 的 4 条边。`ai-0929` 用 `git mv` 从 `packages/engine/src/ai-0929/` 移到 `packages/ai/src/ai-0929/`，engine 删除导出、本包新增导出，快照内容不变。读数：`ai-1106` = 1304（拟合 1304.3），`ai-latest` 标待重测；`elo-matches.json` 中原 `ai-latest` 的 5 条实测记录改归 `ai-1106`。`elo-calc.ts` 重算后剩余图连通，锚点 `ai-0929` 仍可解。
+
+**新增 1 项测试、删除 1 项测试、修改 1 项测试**（historical-strategies.test.ts：新增 1 项 ai-1106、删除 1 项 ai-0816；baseline-facade.test.ts：修改 1 项——engine 基线集合收窄为 ai0907/ai1018），引擎 1295 项 + arena 248 项 + CLI 87 项 + client 201 项 = 1831 项通过。
+
+- **影响文件**：`packages/ai/src/ai-1106/`（新目录，22 文件）、`packages/ai/src/ai-0929/`（移动）、`packages/engine/src/ai-0929/`（移动）、`packages/engine/src/ai-0816/`（删除）、`packages/engine/src/index.ts`、`packages/ai/src/index.ts`、`packages/arena/src/strategies.ts`、`packages/arena/src/record.ts`、`packages/arena/src/__tests__/historical-strategies.test.ts`、`packages/arena/src/__tests__/baseline-facade.test.ts`、`packages/arena/scripts/elo-matches.json`、`README.md`
+
 ## 2026-11-07 21:56
 
 ### 第四家该加分没加：单张、对子与毙牌按最高分选牌

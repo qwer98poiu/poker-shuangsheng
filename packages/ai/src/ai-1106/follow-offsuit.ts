@@ -5,7 +5,7 @@
  * 分位置跟牌规格：第二家/第三家/第四家分别决策；lead（backward-compat）
  * 保留旧逻辑。
  */
-import type { Card, ComboClass } from '../types.js';
+import type { Card, ComboClass, Rank } from '../types.js';
 import { Suit, isPointRank } from '../types.js';
 import { isTrump, getEffectiveRank } from '../model.js';
 import { findAllPairs, detectTractors, classify as classifyCombo } from '../pattern/index.js';
@@ -13,14 +13,18 @@ import type { AIContext } from './types.js';
 import { canBeat, maxCardT, discardSort, getTopOffSuitRank } from './utils.js';
 import { annotateReason } from './reason.js';
 import {
-  pairKillSort, discardNonTrump, canAddPoints, isMaxPattern, tryMatchTractorSlots,
-  attackerNearThreshold,
+  pairKillSort, discardNonTrump, canAddPoints, tryMatchTractorSlots,
+  attackerNearThreshold, analyzePairStructure, pickTractorSplitPair,
+  type PairSplitMode,
 } from './helpers.js';
-import { trumpKill, throwKillMode, rule1KillMode } from './follow-trump.js';
+import { trumpKill, throwKillMode, isBeatingTrumpKill } from './follow-trump.js';
+import { canPlayerTrumpThrow } from './nt-tracking.js';
+import { probeDeclineKill, trickHasNoPoints } from './no-seize.js';
+import { detectTeammateSafeLead, avoidBeatingTeammate } from './flush-detector.js';
 import {
   hasStrongFollowUp, minEff, maxEff, pickDiscards, selectFillers,
   secondShouldAvoid, shouldBreakPairForPoints, pickBestAddCards,
-  visibleTrickPoints, type DiscardMode,
+  pickFlushFollowCards, visibleTrickPoints, type DiscardMode,
 } from './position-policy.js';
 
 // ---- Follow off-suit lead ----
@@ -251,6 +255,187 @@ function pickThirdBeating(beaters: Card[], leadSuitCards: Card[], ctx: AIContext
   return sorted[sorted.length - 1];
 }
 
+function minFollowPair(pairs: Card[][], ctx: AIContext): Card[] {
+  return pairs.reduce((best, pair) =>
+    getEffectiveRank(pair[0], ctx) < getEffectiveRank(best[0], ctx) ? pair : best);
+}
+
+function maxFollowPair(pairs: Card[][], ctx: AIContext): Card[] {
+  return pairs.reduce((best, pair) =>
+    getEffectiveRank(pair[0], ctx) > getEffectiveRank(best[0], ctx) ? pair : best);
+}
+
+/**
+ * Standalone-pair choice (no tractor needs to be split). Keeps the existing
+ * position rules: second/third take the largest beating pair or the smallest
+ * pair when nothing beats; fourth prefers a point pair when its default pair
+ * already beats, otherwise the smallest non-point pair.
+ */
+function pickStandalonePair(
+  candidates: Card[][],
+  position: string,
+  needBeat: boolean,
+  thirdNoSeize: boolean,
+  ctx: AIContext,
+): Card[] {
+  if (thirdNoSeize) return minFollowPair(candidates, ctx);
+  if (position === 'second' || position === 'third') {
+    return needBeat ? maxFollowPair(candidates, ctx) : minFollowPair(candidates, ctx);
+  }
+
+  const nonPoints = candidates.filter(p => !isPointRank(p[0].rank));
+  const initial = minFollowPair(nonPoints.length > 0 ? nonPoints : candidates, ctx);
+  if (canBeat(initial, ctx.bestSoFar, ctx)) {
+    const pointBeating = candidates.filter(p =>
+      isPointRank(p[0].rank) && canBeat(p, ctx.bestSoFar, ctx));
+    if (pointBeating.length > 0) return minFollowPair(pointBeating, ctx);
+    return initial;
+  }
+  if (needBeat) {
+    const beating = candidates.filter(p => canBeat(p, ctx.bestSoFar, ctx));
+    const pointBeating = beating.filter(p => isPointRank(p[0].rank));
+    return minFollowPair(pointBeating.length > 0 ? pointBeating : beating, ctx);
+  }
+  return initial;
+}
+
+/** Existing pair-set selection, used when no tractor has to be split. */
+function legacySelectPairSet(
+  pairs: Card[][],
+  count: number,
+  thirdNoSeize: boolean,
+  position: string,
+  tmWin: boolean,
+  ctx: AIContext,
+  leadSuitCards: Card[],
+): Card[][] {
+  const sorted = pairs.slice();
+  if (thirdNoSeize) {
+    sorted.sort((a, b) => getEffectiveRank(a[0], ctx) - getEffectiveRank(b[0], ctx));
+    return sorted.slice(0, count);
+  }
+  if (position === 'second' || position === 'third') {
+    sorted.sort((a, b) => getEffectiveRank(b[0], ctx) - getEffectiveRank(a[0], ctx));
+    let chosen = sorted.slice(0, count);
+    if (!canBeat(chosen.flat(), ctx.bestSoFar, ctx)) {
+      sorted.sort((a, b) => getEffectiveRank(a[0], ctx) - getEffectiveRank(b[0], ctx));
+      chosen = sorted.slice(0, count);
+    }
+    return chosen;
+  }
+
+  pairKillSort(sorted, leadSuitCards, ctx);
+  let chosen = sorted.slice(0, count);
+  const pairBeats = canBeat(chosen.flat(), ctx.bestSoFar, ctx);
+  if (!pairBeats && !(position === 'fourth' && tmWin)) {
+    const beating = sorted.filter(p => canBeat(p, ctx.bestSoFar, ctx));
+    if (beating.length >= count) {
+      beating.sort((a, b) => {
+        const aPts = isPointRank(a[0].rank) ? 0 : 100;
+        const bPts = isPointRank(b[0].rank) ? 0 : 100;
+        if (aPts !== bPts) return aPts - bPts;
+        return getEffectiveRank(a[0], ctx) - getEffectiveRank(b[0], ctx);
+      });
+      chosen = beating.slice(0, count);
+    }
+  } else if (position === 'fourth' && pairBeats) {
+    const pointBeating = sorted.filter(p =>
+      isPointRank(p[0].rank) && canBeat(p, ctx.bestSoFar, ctx));
+    if (pointBeating.length >= count) {
+      pointBeating.sort((a, b) =>
+        getEffectiveRank(a[0], ctx) - getEffectiveRank(b[0], ctx));
+      chosen = pointBeating.slice(0, count);
+    }
+  }
+  return chosen;
+}
+
+/**
+ * Choose the pair slots for a pair lead or a throw's standalone-pair slots.
+ *
+ * Invariant: the existing "beat if possible" decision is preserved. Only the
+ * choice of *which* pair changes: standalone pairs are used before breaking
+ * a tractor; when a tractor must be split, `pickTractorSplitPair` applies
+ * the follow-side structure/point rules.
+ */
+function selectFollowPairs(
+  myPairs: Card[][],
+  leadSuitCards: Card[],
+  leadCombo: ComboClass,
+  ctx: AIContext,
+  position: string,
+  tmWin: boolean,
+  hand: Card[],
+  thirdNoSeize: boolean,
+): Card[][] {
+  const count = leadCombo.pairCount;
+  if (count <= 0 || myPairs.length === 0) return [];
+  const best = ctx.bestSoFar;
+  const anyBeat = (pair: Card[]) => canBeat(pair, best, ctx);
+  const beatingCount = myPairs.filter(anyBeat).length;
+
+  let mustBeat = false;
+  if (!thirdNoSeize) {
+    if (position === 'second' || position === 'third') {
+      mustBeat = beatingCount > 0;
+    } else if (position === 'fourth') {
+      // Fourth only searches for beating pairs when the teammate is not
+      // already winning; preserve that decision boundary.
+      mustBeat = !tmWin && beatingCount >= count;
+    }
+  }
+
+  const structure = analyzePairStructure(leadSuitCards, ctx);
+  if (count > 1 && structure.standalone.length >= count) {
+    const legacy = legacySelectPairSet(structure.standalone, count, thirdNoSeize,
+      position, tmWin, ctx, leadSuitCards);
+    if (!mustBeat || canBeat(legacy.flat(), best, ctx)) return legacy;
+  }
+
+  const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
+  const fullAdd = addPoints
+    && (position === 'third' || position === 'fourth')
+    && ctx.isAttacker
+    && attackerNearThreshold(ctx, visibleTrickPoints(ctx, leadCombo.cards));
+  const mode: PairSplitMode = thirdNoSeize ? 'open'
+    : fullAdd ? 'full'
+      : (position === 'second' && !secondShouldAvoid(hand)) ? 'open'
+        : addPoints ? 'add' : 'avoid';
+
+  const remaining = myPairs.slice();
+  const chosen: Card[][] = [];
+  const used = new Set<string>();
+  let needBeat = mustBeat;
+  for (let slot = 0; slot < count; slot++) {
+    if (remaining.length === 0) break;
+    const cardsLeft = leadSuitCards.filter(c => !used.has(c.id));
+    const structureLeft = analyzePairStructure(cardsLeft, ctx);
+    const pool = needBeat ? remaining.filter(anyBeat) : remaining;
+    if (pool.length === 0) break;
+
+    const standaloneCandidates = pool.filter(p => !structureLeft.chainIndex.has(p[0].id));
+    let picked = standaloneCandidates.length > 0
+      ? pickStandalonePair(standaloneCandidates, position, needBeat, thirdNoSeize, ctx)
+      : pickTractorSplitPair(pool, cardsLeft, ctx, mode);
+    if (!picked) picked = minFollowPair(pool, ctx);
+
+    chosen.push(picked);
+    picked.forEach(c => used.add(c.id));
+    const idx = remaining.findIndex(p =>
+      p[0].id === picked[0].id && p[1].id === picked[1].id);
+    if (idx >= 0) remaining.splice(idx, 1);
+    if (anyBeat(picked)) needBeat = false;
+  }
+
+  if (chosen.length < count) {
+    return legacySelectPairSet(myPairs, count, thirdNoSeize, position, tmWin, ctx, leadSuitCards);
+  }
+  if (mustBeat && !canBeat(chosen.flat(), best, ctx)) {
+    return legacySelectPairSet(myPairs, count, thirdNoSeize, position, tmWin, ctx, leadSuitCards);
+  }
+  return chosen;
+}
+
 function followOffSuitMulti(
   leadSuitCards: Card[],
   leadCards: Card[],
@@ -263,8 +448,13 @@ function followOffSuitMulti(
 ): { cards: Card[]; reason: string } {
   const myPairs = findAllPairs(leadSuitCards);
   const seize = position === 'second' || position === 'third';
+  // 0a/0b 安全领出：第三家自己的对子可以直接跟，但不得盖过队友——
+  // 即使手里有强牌也不抢（能出最小对/拖拉机就不出大的）。
+  const flushFollow = position === 'third' && tmWin
+    && detectTeammateSafeLead(ctx, leadCombo) !== null;
   // 第三家领出更大（队友大）且无强牌 → 不盖（出最小）
-  const thirdNoSeize = position === 'third' && tmWin && !hasStrongFollowUp(hand, ctx);
+  const thirdNoSeize = position === 'third' && tmWin
+    && (flushFollow || !hasStrongFollowUp(hand, ctx));
 
   // Tractor lead - try to match with tractor
   if (leadCombo.hasTractor) {
@@ -344,52 +534,9 @@ function followOffSuitMulti(
 
   // Pair lead / throw-with-pairs - include available pairs.
   if (leadCombo.pairCount > 0 && myPairs.length > 0) {
-    pairKillSort(myPairs, leadSuitCards, ctx);
-    let chosen: Card[];
-    if (thirdNoSeize) {
-      // 第三家领出更大且无强牌：不盖，出最小对
-      myPairs.sort((a, b) =>
-        getEffectiveRank(a[0], ctx) - getEffectiveRank(b[0], ctx));
-      chosen = myPairs.slice(0, leadCombo.pairCount).flat();
-    } else {
-      if (seize) {
-        // 第二/三家：能盖就盖最大；最大盖不过 → 出最小
-        myPairs.sort((a, b) =>
-          getEffectiveRank(b[0], ctx) - getEffectiveRank(a[0], ctx));
-      }
-      chosen = myPairs.slice(0, leadCombo.pairCount).flat();
-      const pairBeats = canBeat(chosen, ctx.bestSoFar, ctx);
-      // 第四家队友已大：不需要找能盖的对子盖队友（加分走分牌对分支）
-      if (!pairBeats && !seize && !(position === 'fourth' && tmWin)) {
-        // 找能盖过的对子（第四家能盖时优先分牌对）
-        const beatingPairs = myPairs.filter(p => canBeat(p, ctx.bestSoFar, ctx));
-        if (beatingPairs.length >= leadCombo.pairCount) {
-          const isFourth = position === 'fourth';
-          beatingPairs.sort((a, b) => {
-            if (isFourth) {
-              const aPts = isPointRank(a[0].rank) ? 0 : 100;
-              const bPts = isPointRank(b[0].rank) ? 0 : 100;
-              if (aPts !== bPts) return aPts - bPts;
-            }
-            return getEffectiveRank(a[0], ctx) - getEffectiveRank(b[0], ctx);
-          });
-          chosen = beatingPairs.slice(0, leadCombo.pairCount).flat();
-        }
-      } else if (!pairBeats && seize) {
-        myPairs.sort((a, b) =>
-          getEffectiveRank(a[0], ctx) - getEffectiveRank(b[0], ctx));
-        chosen = myPairs.slice(0, leadCombo.pairCount).flat();
-      } else if (position === 'fourth' && pairBeats) {
-        // Fourth can beat — prefer point cards（用分牌盖）
-        const pointBeating = myPairs.filter(p =>
-          isPointRank(p[0].rank) && canBeat(p, ctx.bestSoFar, ctx));
-        if (pointBeating.length >= leadCombo.pairCount) {
-          pointBeating.sort((a, b) =>
-            getEffectiveRank(a[0], ctx) - getEffectiveRank(b[0], ctx));
-          chosen = pointBeating.slice(0, leadCombo.pairCount).flat();
-        }
-      }
-    }
+    const selectedPairs = selectFollowPairs(myPairs, leadSuitCards, leadCombo, ctx,
+      position, tmWin, hand, thirdNoSeize);
+    const chosen = selectedPairs.flat();
     if (chosen.length < leadLen) {
       const used = new Set(chosen.map(c => c.id));
       const rest = leadSuitCards.filter(c => !used.has(c.id));
@@ -477,15 +624,51 @@ export function followOffSuitThrow(
   // dump points instead of wasting trump.
   if (trumpCards.length >= leadLen) {
     const throwCombo = classifyCombo(leadCards, ctx);
-    if (tmWin && canAddPoints(tmWin, position, throwCombo, ctx)) {
+    // 0a/0b 领出（优先级 0）：上一墩已验该门已绝/对子已绝，本墩必须归队友 →
+    // 垫牌且**不得盖过队友**（牌权易主则剩下的牌再也兑现不了；第二家已毙时
+    // tmWin 为 false，走不到这里）
+    if (tmWin && detectTeammateSafeLead(ctx, throwCombo) !== null) {
+      const wantAdd = canAddPoints(tmWin, position, throwCombo, ctx);
+      const { cards: picked, added } = pickFlushFollowCards(hand, leadLen, ctx, wantAdd);
+      const cards = avoidBeatingTeammate(picked, hand, leadCards, throwCombo, ctx);
+      const reason = annotateReason('垫牌', cards, [], trumpCards,
+        throwCombo, leadLen, ctx, position, tmWin, false, added ? 'add' : 'none');
+      return { cards, reason };
+    }
+    const addOk = canAddPoints(tmWin, position, throwCombo, ctx);
+    if (tmWin && addOk) {
       // 垫分（加分）：第三家/第四家按加分优先级选牌（第三家有副牌垫副牌，
       // 全主才出主牌；第四家全手选，可含主牌=毙加分；闲家跨 40 台阶全力加分）
       const cards = pickBestAddCards(hand, leadLen, throwCombo, ctx);
-      const reason = annotateReason('垫牌', cards, [], trumpCards,
-        throwCombo, leadLen, ctx, position, tmWin, false, 'add');
-      return { cards, reason };
+      // 第三家垫出的牌反而盖过队友（手牌接近全主时会拿主牌）→ 放弃加分，退回下面照常毙。
+      // 这段兜底原先只长在「NT 第三家甩副牌加分口子」里；该口子的条件已被 canAddPoints 吸收
+      // （见 helpers.canAddPoints：无顶张时改判第四家能否毙），故上提到共享路径。
+      if (!(position === 'third' && isBeatingTrumpKill(cards, leadCards, ctx))) {
+        const reason = annotateReason('垫牌', cards, [], trumpCards,
+          throwCombo, leadLen, ctx, position, tmWin, false, 'add');
+        return { cards, reason };
+      }
+    }
+    // NT 第三家的"无分墩不毙"：第四家**可能**毙时，本墩没分就不值得花主牌盖过队友
+    // （盖了也可能被第四家盖毙，白白送出去），也不给第四家喂分。两处例外照常毙：
+    // ① 级牌为分牌且自己是闲家；② 本墩已出牌含分（这墩丢不起）。垫不出不盖过队友的
+    // 牌（手牌接近全主）时同样退回照常毙。
+    if (tmWin && position === 'third' && ctx.ntState && ctx.myIndex >= 0
+        && !(isPointRank(ctx.level as Rank) && ctx.isAttacker)
+        && trickHasNoPoints(ctx)
+        && canPlayerTrumpThrow((ctx.myIndex + 1) % 4, leadCards, ctx.ntState, ctx)) {
+      const cards = pickDiscards(hand, leadLen, ctx, 'avoid');
+      if (!isBeatingTrumpKill(cards, leadCards, ctx)) {
+        const reason = annotateReason('垫牌', cards, [], trumpCards,
+          throwCombo, leadLen, ctx, position, tmWin, false, 'noKill');
+        return { cards, reason };
+      }
     }
     const killMode = throwKillMode(throwCombo, ctx, leadCards);
+    // 第四家：对手大 + 无分墩 + 抢来无牌可领 → 不抢（垫不起则照常毙）
+    const declined = probeDeclineKill(
+      hand, leadCards, throwCombo, leadLen, ctx, position, tmWin, trumpCards, { killMode });
+    if (declined) return declined;
     return trumpKill(trumpCards, hand, leadCards, throwCombo, leadLen, ctx, position, tmWin,
       { killMode });
   }
