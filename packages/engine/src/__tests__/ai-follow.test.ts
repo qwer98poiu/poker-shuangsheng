@@ -3356,7 +3356,8 @@ describe('fourth position reason always carries add/avoid mark', () => {
     const hand = [c4('J', 16, 0), c4('S', 2, 0), c4('S', 13, 0), c4('S', 7, 0), c4('H', 9, 0)];
     const lead = [c4('S', 5, 200)];
     const r = aiFollowPlay(hand, lead, Suit.Spades, ctx4({ cards: [c4('S', 5, 200)], playerIndex: 0 }));
-    expect(r.reason).toBe('同花色出大（用最小牌盖）');
+    expect(r.cards[0].id).toBe('S-13-0'); // 第四家能盖 → 取分最高的 ♠K，而非更小的 ♠7
+    expect(r.reason).toBe('同花色出大（用分牌盖）');
   });
 
   it('主牌单张 对手大、盖不过 → 不加分标注', () => {

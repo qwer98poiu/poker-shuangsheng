@@ -276,15 +276,27 @@ function pickStandalonePair(
   position: string,
   needBeat: boolean,
   thirdNoSeize: boolean,
+  addPoints: boolean,
   ctx: AIContext,
 ): Card[] {
-  if (thirdNoSeize) return minFollowPair(candidates, ctx);
+  if (thirdNoSeize) {
+    return addPoints ? minFollowPair(
+      candidates.filter(p => isPointRank(p[0].rank)).length > 0
+        ? candidates.filter(p => isPointRank(p[0].rank)) : candidates,
+      ctx,
+    ) : minFollowPair(candidates, ctx);
+  }
   if (position === 'second' || position === 'third') {
     return needBeat ? maxFollowPair(candidates, ctx) : minFollowPair(candidates, ctx);
   }
 
   const nonPoints = candidates.filter(p => !isPointRank(p[0].rank));
   const initial = minFollowPair(nonPoints.length > 0 ? nonPoints : candidates, ctx);
+  // 队友已大且本墩可加分：分对即使不盖过队友也要出（加分优先于“不盖队友”）。
+  if (addPoints && !needBeat) {
+    const pointPairs = candidates.filter(p => isPointRank(p[0].rank));
+    if (pointPairs.length > 0) return minFollowPair(pointPairs, ctx);
+  }
   if (canBeat(initial, ctx.bestSoFar, ctx)) {
     const pointBeating = candidates.filter(p =>
       isPointRank(p[0].rank) && canBeat(p, ctx.bestSoFar, ctx));
@@ -385,6 +397,7 @@ function selectFollowPairs(
     }
   }
 
+  const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
   const structure = analyzePairStructure(leadSuitCards, ctx);
   if (count > 1 && structure.standalone.length >= count) {
     const legacy = legacySelectPairSet(structure.standalone, count, thirdNoSeize,
@@ -392,7 +405,6 @@ function selectFollowPairs(
     if (!mustBeat || canBeat(legacy.flat(), best, ctx)) return legacy;
   }
 
-  const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
   const fullAdd = addPoints
     && (position === 'third' || position === 'fourth')
     && ctx.isAttacker
@@ -400,7 +412,9 @@ function selectFollowPairs(
   const mode: PairSplitMode = thirdNoSeize ? 'open'
     : fullAdd ? 'full'
       : (position === 'second' && !secondShouldAvoid(hand)) ? 'open'
-        : addPoints ? 'add' : 'avoid';
+        // 第四家对手大、确定要盖：赢墩后取分 → 拆拖拉机时也优先分对
+        : (position === 'fourth' && !tmWin && mustBeat) ? 'add'
+          : addPoints ? 'add' : 'avoid';
 
   const remaining = myPairs.slice();
   const chosen: Card[][] = [];
@@ -415,7 +429,7 @@ function selectFollowPairs(
 
     const standaloneCandidates = pool.filter(p => !structureLeft.chainIndex.has(p[0].id));
     let picked = standaloneCandidates.length > 0
-      ? pickStandalonePair(standaloneCandidates, position, needBeat, thirdNoSeize, ctx)
+      ? pickStandalonePair(standaloneCandidates, position, needBeat, thirdNoSeize, addPoints, ctx)
       : pickTractorSplitPair(pool, cardsLeft, ctx, mode);
     if (!picked) picked = minFollowPair(pool, ctx);
 

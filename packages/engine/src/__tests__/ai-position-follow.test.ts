@@ -727,6 +727,38 @@ describe('第三/四家：不能毙路径跨 40 台阶例外（selectFillers ful
 // 第四家吊主单张：能盖过对手（无分墩）——最小单张 / 对子按"加分不拆对"优先级
 // ================================================================
 
+describe('第四家吊主单张：能盖过对手时加分优先', () => {
+  it('能加 10 分 → 出 ♠10 而非更小的 ♠9', () => {
+    // P0 领出 ♠7；第二家 ♠8（对手）最大；P3 第四家有 ♠9/♠10(分)/♠J。
+    const lead: Card[] = [cc('S', 7, 900)];
+    const ctx = ctxOf(cfgS2, {
+      myIndex: 3, playCount: 3, leadPlayerIndex: 0,
+      trickPlays: [],
+      bestSoFar: { cards: [cc('S', 8, 901)], playerIndex: 2 },
+      isAttacker: true,
+    });
+    const hand = [cc('S', 9, 0), cc('S', 10, 1), cc('S', 11, 2)];
+    const r = aiFollowPlay(hand, lead, null, ctx);
+    checkFollow(r.cards, hand, lead, null, cfgS2);
+    expect(r.cards.map(c => c.rank)).toEqual([10]);
+  });
+
+  it('多个能盖分牌 → 取分最高（♠5 的 5 分 < ♠10 的 10 分）', () => {
+    const lead: Card[] = [cc('S', 3, 900)];
+    const ctx = ctxOf(cfgS2, {
+      myIndex: 3, playCount: 3, leadPlayerIndex: 0,
+      trickPlays: [],
+      bestSoFar: { cards: [cc('S', 4, 901)], playerIndex: 2 },
+      isAttacker: true,
+    });
+    // ♠5 与 ♠10 都能盖，5 分 vs 10 分 → 出 ♠10。
+    const hand = [cc('S', 5, 0), cc('S', 10, 1), cc('S', 9, 2)];
+    const r = aiFollowPlay(hand, lead, null, ctx);
+    checkFollow(r.cards, hand, lead, null, cfgS2);
+    expect(r.cards.map(c => c.rank)).toEqual([10]);
+  });
+});
+
 describe('第四家吊主单张：能盖过对手（无分墩）', () => {
   const fourthCtx = () => ctxOf(cfgS2, {
     myIndex: 3, playCount: 3, leadPlayerIndex: 0,
@@ -827,6 +859,133 @@ describe('第四家对子领出：能盖过对手', () => {
     const r = aiFollowPlay(hand, lead8, null, ctxFor(lead8));
     expect(r.cards.map(c => c.rank).sort()).toEqual([11, 11]);
     checkFollow(r.cards, hand, lead8, null, cfgS2);
+  });
+});
+
+describe('第四家：队友已大时的加分选牌', () => {
+  it('副牌对子：分对不盖队友也要出（♣5♣5 而非 ♣2♣2）', () => {
+    // P0 领出 ♣9♣9；P1（队友）♣A♣A 已大；P2 跟 ♣8♣8。
+    // P3 有 ♣2♣2 与 ♣5♣5；分对 ♣5♣5 不盖队友，但仍应加分。
+    const lead: Card[] = [cc('C', 9, 900), cc('C', 9, 901)];
+    const partner = { cards: [cc('C', 14, 902), cc('C', 14, 903)], playerIndex: 1 };
+    const ctx = ctxOf(cfgS2, {
+      myIndex: 3, playCount: 3, leadPlayerIndex: 0,
+      trickPlays: [],
+      bestSoFar: partner, isAttacker: true,
+    });
+    const hand = [
+      cc('C', 2, 0), cc('C', 2, 1), cc('C', 3, 2),
+      cc('C', 5, 3), cc('C', 5, 4), cc('C', 7, 5), cc('C', 11, 6),
+    ];
+    const r = aiFollowPlay(hand, lead, Suit.Clubs, ctx);
+    checkFollow(r.cards, hand, lead, 'C', cfgS2);
+    expect(r.cards.map(c => c.rank).sort()).toEqual([5, 5]);
+  });
+
+  it('主牌对子：分对不盖队友也要出（♦K♦K 而非 ♥7♥7）', () => {
+    // P1 领出 ♦10♦10；P2（队友）♦7♦7 是级牌对已大；P3 跟 ♦5♦5。
+    // 第四家 P0 有 ♦K♦K(20 分) 与 ♥7♥7(级牌对、非分) → 出 ♦K♦K。
+    const cfg: TrumpDeclaration = { declarerIndex: 1, trumpSuit: Suit.Diamonds, level: 7 };
+    const lead: Card[] = [cc('D', 10, 900), cc('D', 10, 901)];
+    const partner = { cards: [cc('D', 7, 902), cc('D', 7, 903)], playerIndex: 2 };
+    const ctx = ctxOf(cfg, {
+      myIndex: 0, playCount: 3, leadPlayerIndex: 1,
+      trickPlays: [
+        { cards: lead },
+        { cards: partner.cards },
+        { cards: [cc('D', 5, 904), cc('D', 5, 905)] },
+      ],
+      bestSoFar: partner, isAttacker: true,
+    });
+    const hand = [
+      cc('C', 10, 0), cc('C', 2, 1), cc('C', 6, 2),
+      cc('D', 4, 3), cc('D', 8, 4), cc('D', 9, 5), cc('D', 11, 6), cc('D', 13, 7),
+      cc('D', 13, 8), cc('D', 12, 9),
+      cc('H', 10, 10), cc('H', 3, 11), cc('H', 4, 12), cc('H', 7, 13), cc('H', 7, 14),
+      cc('H', 9, 15), cc('H', 11, 16), cc('J', 15, 17), cc('S', 3, 18), cc('S', 7, 19),
+      cc('S', 8, 20), cc('S', 11, 21), cc('S', 13, 22),
+    ];
+    const r = aiFollowPlay(hand, lead, null, ctx);
+    checkFollow(r.cards, hand, lead, null, cfg);
+    expect(r.cards.map(c => `${c.suit}${c.rank}`).sort()).toEqual(['D13', 'D13']);
+  });
+
+  it('主牌对子无对可跟：先垫分牌，非分牌取最小（♦K + ♥4，不选 ♥J）', () => {
+    // P3 领出 ♥6♥6，P0（队友）♥K♥K 已大，P1 跟 ♥2♥2。
+    // P2 手里无主对：候选 ♦K(常主 10 分) + ♥J 不如 ♦K + ♥4。
+    const cfgH13: TrumpDeclaration = {
+      declarerIndex: 3, trumpSuit: Suit.Hearts, level: 13,
+    };
+    const lead: Card[] = [cc('H', 6, 900), cc('H', 6, 901)];
+    const partner = { cards: [cc('H', 13, 902), cc('H', 13, 903)], playerIndex: 0 };
+    const ctx = ctxOf(cfgH13, {
+      myIndex: 2, playCount: 3, leadPlayerIndex: 3,
+      trickPlays: [],
+      bestSoFar: partner, isAttacker: true, isDeclarer: false, isDeclarerPartner: false,
+    });
+    const hand = [
+      cc('C', 10, 0), cc('C', 4, 1), cc('C', 7, 2), cc('C', 8, 3), cc('C', 8, 4),
+      cc('C', 9, 5), cc('D', 5, 6), cc('D', 7, 7), cc('D', 8, 8), cc('D', 13, 9),
+      cc('H', 4, 10), cc('H', 9, 11), cc('H', 14, 12), cc('H', 11, 13), cc('H', 12, 14),
+      cc('J', 15, 15), cc('J', 16, 16), cc('S', 10, 17), cc('S', 4, 18), cc('S', 4, 19),
+      cc('S', 11, 20),
+    ];
+    const r = aiFollowPlay(hand, lead, null, ctx);
+    checkFollow(r.cards, hand, lead, null, cfgH13);
+    expect(r.cards.map(c => `${c.suit}${c.rank}`).sort()).toEqual(['D13', 'H4']);
+  });
+});
+
+describe('第四家：加分选牌的边角分支', () => {
+  it('缺门毙副对：级牌分对也优先（♣5♣5=10 分，而非 ♣3♣3）', () => {
+    // P2 领出 ♦10♦10；P3 ♦? → P0 ♥2♥K 对手最大；P1 缺门，主 ♣、级 5。
+    const cfg: TrumpDeclaration = { declarerIndex: 2, trumpSuit: Suit.Clubs, level: 5 };
+    const lead: Card[] = [cc('D', 10, 900), cc('D', 10, 901)];
+    const p3 = [cc('S', 3, 902), cc('S', 8, 903)];
+    const p0 = [cc('H', 2, 904), cc('H', 13, 905)];
+    const ctx = ctxOf(cfg, {
+      myIndex: 1, playCount: 3, leadPlayerIndex: 2,
+      trickPlays: [
+        { cards: lead },
+        { cards: p3 },
+        { cards: p0 },
+      ],
+      bestSoFar: { cards: p0, playerIndex: 0 }, isAttacker: true,
+    });
+    const hand = [
+      cc('C', 2, 0), cc('C', 3, 1), cc('C', 3, 2), cc('C', 5, 3), cc('C', 5, 4),
+      cc('C', 6, 5), cc('C', 8, 6), cc('C', 8, 7), cc('C', 9, 8), cc('C', 14, 9),
+      cc('C', 14, 10), cc('C', 11, 11), cc('C', 13, 12), cc('C', 13, 13),
+      cc('H', 3, 14), cc('H', 8, 15), cc('H', 13, 16), cc('H', 12, 17),
+      cc('S', 5, 18), cc('S', 7, 19),
+    ];
+    const r = aiFollowPlay(hand, lead, Suit.Diamonds, ctx);
+    checkFollow(r.cards, hand, lead, 'D', cfg);
+    expect(r.cards.map(c => `${c.suit}${c.rank}`).sort()).toEqual(['C5', 'C5']);
+  });
+
+  it('副牌三对拖拉机拆边：对手大时取分对（♠10♠10，而非 ♠Q♠Q）', () => {
+    // P3 领出 ♠6♠6；P0/P1 都没盖过；P2 第四家有 ♠10♠10-♠J♠J-♠Q♠Q 拖拉机。
+    const cfg: TrumpDeclaration = { declarerIndex: 3, trumpSuit: Suit.Diamonds, level: 7 };
+    const lead: Card[] = [cc('S', 6, 900), cc('S', 6, 901)];
+    const ctx = ctxOf(cfg, {
+      myIndex: 2, playCount: 3, leadPlayerIndex: 3,
+      trickPlays: [
+        { cards: lead },
+        { cards: [cc('H', 3, 902), cc('S', 14, 903)] },
+        { cards: [cc('C', 3, 904), cc('S', 8, 905)] },
+      ],
+      bestSoFar: { cards: lead, playerIndex: 3 }, isAttacker: true,
+    });
+    const hand = [
+      cc('C', 8, 0), cc('C', 13, 1), cc('D', 4, 2), cc('D', 11, 3), cc('D', 13, 4),
+      cc('H', 14, 5), cc('H', 13, 6), cc('S', 10, 7), cc('S', 10, 8), cc('S', 3, 9),
+      cc('S', 4, 10), cc('S', 5, 11), cc('S', 7, 12), cc('S', 8, 13), cc('S', 9, 14),
+      cc('S', 11, 15), cc('S', 11, 16), cc('S', 13, 17), cc('S', 12, 18), cc('S', 12, 19),
+    ];
+    const r = aiFollowPlay(hand, lead, Suit.Spades, ctx);
+    checkFollow(r.cards, hand, lead, 'S', cfg);
+    expect(r.cards.map(c => `${c.suit}${c.rank}`).sort()).toEqual(['S10', 'S10']);
   });
 });
 

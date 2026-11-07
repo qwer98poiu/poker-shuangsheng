@@ -53,8 +53,9 @@ describe('AI 策略指纹', () => {
     // 2026-10-31 0b 队友对子状态未知时先出一对后为 173
     // 2026-10-31 0a 有主门槛 + 0b 去 G2 后为 174
     // 2026-11-06 庄家方统一阶梯（庄1 + 通用2/3/4 + 庄3.5）后为 175
-    expect(statsA.matches.oppLevel).toEqual({ n: 175, d: 20 });
-    expect(statsB.matches.oppLevel).toEqual({ n: 175, d: 20 });
+    // 2026-11-07 第四家加分修复（单张/对子/毙牌取最高分）后为 180
+    expect(statsA.matches.oppLevel).toEqual({ n: 180, d: 20 });
+    expect(statsB.matches.oppLevel).toEqual({ n: 180, d: 20 });
     expect(statsA.handsPlayed).toBe(statsB.handsPlayed);
     expect(statsA.abortedHands).toBe(0);
     const sig = checkSignificance(statsA.matches.won, statsB.matches.won, statsA.matches.drawn, statsA.matches.played);

@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-11-07 21:56
+
+### 第四家该加分没加：单张、对子与毙牌按最高分选牌
+
+**问题**：决策扫描发现第四家“该加分没加”158 例：主牌单张只取最小能盖牌而忽略分牌（如 ♦K 能盖却出 ♦Q）；队友已大时对子分支先把非分对排在前面，分对即使不盖队友也不选；主牌对子无对可跟时填充牌按有效大小排序，不先垫分牌；缺门毙副对时级牌分对（如 ♣5♣5）被当作保底牌跳过。另有副牌三对拖拉机拆边时按避分选非分对，未取能盖的分对。
+
+**修复**：第四家能盖过对手时，在能赢的牌里按 10 > K > 5 取最高分（级牌也计分），同分优先不拆对、再取最小；队友已大时对子槽不再要求 `canBeat`，分对优先，独立对优先于拆拖拉机；主牌对子/拖拉机无对可跟时填充牌先垫分牌、非分牌取最小；缺门毙副对的分牌值把级牌计入；副牌第四家必须盖过对手时，拆三对拖拉机边优先取分对。复测同一扫描：第四家“该加分没加”由 158 例降至 56 例；剩余 56 例均为缺门或短套垫牌时保留主牌的情况，本次不改，留待另行对照实验。
+
+**新增 7 项测试、修改 2 项测试**（ai-position-follow.test.ts：新增 7 项；ai-follow.test.ts：修改 1 项；strategy-fingerprint.test.ts：修改 1 项——镜像对决 `oppLevel` 175 → 180），引擎 1295 项 + arena 248 项 + CLI 87 项 + client 201 项 = 1831 项通过。
+
+- **影响文件**：`packages/engine/src/ai-latest/follow-trump.ts`、`packages/engine/src/ai-latest/follow-offsuit.ts`、`packages/engine/src/__tests__/ai-position-follow.test.ts`、`packages/engine/src/__tests__/ai-follow.test.ts`、`packages/arena/src/__tests__/strategy-fingerprint.test.ts`
+
 ## 2026-11-06 20:29
 
 ### 庄家方统一领出阶梯落地为主线
