@@ -5,7 +5,7 @@
  * 所有用例的牌型均为同花色对子/甩牌对子槽，且手里没有独立对（除专门用例）。
  */
 import { describe, it, expect } from 'vitest';
-import { Suit } from '../types.js';
+import { Rank, Suit } from '../types.js';
 import { createCard } from '../model.js';
 import { classify } from '../pattern/index.js';
 import { validateFollow } from '../following/index.js';
@@ -450,6 +450,119 @@ describe('拆拖拉机：第四家跨 40 台阶精确比较', () => {
     const r = aiFollowPlay(hand, lead, null, ctx);
     checkFollow(r.cards, hand, lead, cfg2);
     expect(r.cards.map(c => c.id).sort()).toEqual(['S-9-0', 'S-9-1']);
+  });
+});
+
+describe('第四家吊主对：add/full 候选与级牌/王对', () => {
+  const lead = [cc('S', 3, 700), cc('S', 3, 701)];
+  const partner = [cc('S', 4, 702), cc('S', 4, 703)];
+  const fill = () => [
+    cc('C', 3, 800), cc('C', 4, 801), cc('D', 3, 802), cc('D', 4, 803),
+  ];
+
+  it('add 保留级牌对：有非常主分对时出 ♠10 对，不出级牌对 ♠2', () => {
+    const hand = [
+      cc('S', 2, 0), cc('S', 2, 1),
+      cc('S', 10, 2), cc('S', 10, 3),
+      cc('S', 6, 4), cc('S', 6, 5),
+      ...fill(),
+    ];
+    const ctx = fourthWin(cfg2, partner, { isAttacker: true, attackerPoints: 0 });
+    const r = aiFollowPlay(hand, lead, null, ctx);
+    checkFollow(r.cards, hand, lead, cfg2);
+    expect(r.cards.map(c => c.id).sort()).toEqual(['S-10-2', 'S-10-3']);
+  });
+
+  it('没有非常主分对：出最小非常主非分对 ♠6，保留级牌对', () => {
+    const hand = [
+      cc('S', 2, 0), cc('S', 2, 1),
+      cc('S', 6, 2), cc('S', 6, 3),
+      cc('S', 7, 4), cc('S', 7, 5),
+      ...fill(),
+    ];
+    const ctx = fourthWin(cfg2, partner, { isAttacker: true, attackerPoints: 0 });
+    const r = aiFollowPlay(hand, lead, null, ctx);
+    checkFollow(r.cards, hand, lead, cfg2);
+    expect(r.cards.map(c => c.id).sort()).toEqual(['S-6-2', 'S-6-3']);
+  });
+
+  it('级 K 分对只在 full 跨台阶时使用：20 分时出 ♠K 对', () => {
+    const hand = [
+      cc('S', 13, 0), cc('S', 13, 1),
+      cc('S', 6, 2), cc('S', 6, 3),
+      cc('S', 7, 4), cc('S', 7, 5),
+      ...fill(),
+    ];
+    const ctx = fourthWin(cfgK, partner, { isAttacker: true, attackerPoints: 20 });
+    const r = aiFollowPlay(hand, lead, null, ctx);
+    checkFollow(r.cards, hand, lead, cfgK);
+    expect(r.cards.map(c => c.id).sort()).toEqual(['S-13-0', 'S-13-1']);
+    expect(r.reason).toContain('全力加分');
+  });
+
+  it('非常主分对能跨时优先非常主：出 ♠10 对而非级 K 对', () => {
+    const hand = [
+      cc('S', 13, 0), cc('S', 13, 1),
+      cc('S', 10, 2), cc('S', 10, 3),
+      cc('S', 6, 4), cc('S', 6, 5),
+      ...fill(),
+    ];
+    const ctx = fourthWin(cfgK, partner, { isAttacker: true, attackerPoints: 20 });
+    const r = aiFollowPlay(hand, lead, null, ctx);
+    checkFollow(r.cards, hand, lead, cfgK);
+    expect(r.cards.map(c => c.id).sort()).toEqual(['S-10-2', 'S-10-3']);
+  });
+
+  it('级牌非分时不因跨台阶选级牌对：级 2 时仍出 ♠6', () => {
+    const hand = [
+      cc('S', 2, 0), cc('S', 2, 1),
+      cc('S', 6, 2), cc('S', 6, 3),
+      ...fill(),
+    ];
+    const ctx = fourthWin(cfg2, partner, { isAttacker: true, attackerPoints: 30 });
+    const r = aiFollowPlay(hand, lead, null, ctx);
+    checkFollow(r.cards, hand, lead, cfg2);
+    expect(r.cards.map(c => c.id).sort()).toEqual(['S-6-2', 'S-6-3']);
+  });
+
+  it('非常主 5 分对不跨、级 K 分对可跨：选级 K 对', () => {
+    const hand = [
+      cc('S', 13, 0), cc('S', 13, 1),
+      cc('S', 5, 2), cc('S', 5, 3),
+      cc('S', 6, 4), cc('S', 6, 5),
+      ...fill(),
+    ];
+    const ctx = fourthWin(cfgK, partner, { isAttacker: true, attackerPoints: 25 });
+    const r = aiFollowPlay(hand, lead, null, ctx);
+    checkFollow(r.cards, hand, lead, cfgK);
+    expect(r.cards.map(c => c.id).sort()).toEqual(['S-13-0', 'S-13-1']);
+    expect(r.reason).toContain('全力加分');
+  });
+
+  it('王对不作为分对候选：有 ♠10 对时出 ♠10，保留小王对', () => {
+    const hand = [
+      cc('J', Rank.SmallJoker, 0), cc('J', Rank.SmallJoker, 1),
+      cc('S', 10, 2), cc('S', 10, 3),
+      cc('S', 6, 4), cc('S', 6, 5),
+      ...fill(),
+    ];
+    const ctx = fourthWin(cfg2, partner, { isAttacker: true, attackerPoints: 20 });
+    const r = aiFollowPlay(hand, lead, null, ctx);
+    checkFollow(r.cards, hand, lead, cfg2);
+    expect(r.cards.map(c => c.id).sort()).toEqual(['S-10-2', 'S-10-3']);
+  });
+
+  it('同台阶时 add 选独立非分对：出 ♠K 对，不拆 9-10 拖拉机取 ♠10 对', () => {
+    const hand = [
+      cc('S', 9, 0), cc('S', 9, 1),
+      cc('S', 10, 2), cc('S', 10, 3),
+      cc('S', 13, 4), cc('S', 13, 5),
+      ...fill(),
+    ];
+    const ctx = fourthWin(cfg2, partner, { isAttacker: true, attackerPoints: 0 });
+    const r = aiFollowPlay(hand, lead, null, ctx);
+    checkFollow(r.cards, hand, lead, cfg2);
+    expect(r.cards.map(c => c.id).sort()).toEqual(['S-13-4', 'S-13-5']);
   });
 });
 

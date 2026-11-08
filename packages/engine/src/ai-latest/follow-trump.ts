@@ -306,6 +306,107 @@ function pickBeatingPairsForFourth(
   return pool.slice(0, pairCount);
 }
 
+interface FourthPairChoice {
+  readonly cards: Card[];
+  readonly full: boolean;
+}
+
+function isJokerPair(pair: Card[]): boolean {
+  return pair[0].rank === Rank.SmallJoker || pair[0].rank === Rank.BigJoker;
+}
+
+/** 分对内部的加分偏好：10 > K > 5（同为 10 分时先出 10，保留 K）。 */
+function fourthPointOrder(pair: Card[]): number {
+  const rank = pair[0].rank;
+  if (rank === Rank.Ten) return 0;
+  if (rank === Rank.King) return 1;
+  if (rank === Rank.Five) return 2;
+  return 3;
+}
+
+/**
+ * 第四家闲家、纯主牌对、本队能赢时的最终选对。
+ *
+ * add 候选：优先独立对；独立对里先分对（10 > K > 5），没有分对取最小。
+ * 级牌对/王对默认保留，只有手里没有非常主对时才被迫使用。
+ * full 候选：只从能跨过 add 候选台阶的非常主分对中选；没有才考虑
+ * 级牌为 5/10/K 的级牌对。full 可以拆拖拉机，add 不拆。
+ */
+function chooseFourthTrumpPair(
+  myPairs: Card[][],
+  myTrump: Card[],
+  leadCombo: ComboClass,
+  ctx: AIContext,
+  tmWin: boolean,
+): FourthPairChoice | null {
+  if (myPairs.length === 0) return null;
+
+  const best = ctx.bestSoFar;
+  const canWin = (pair: Card[]): boolean => tmWin || canBeat(pair, best, ctx);
+  const winners = myPairs.filter(canWin);
+  if (winners.length === 0) return null;
+
+  const structure = analyzePairStructure(myTrump, ctx);
+  const inTractor = (pair: Card[]): boolean => structure.chainIndex.has(pair[0].id);
+  const nonLevelNonJoker = (pair: Card[]): boolean =>
+    pair[0].rank !== ctx.level && !isJokerPair(pair);
+  const lowRank = (a: Card[], b: Card[]): number =>
+    getEffectiveRank(a[0], ctx) - getEffectiveRank(b[0], ctx);
+  const pointOrder = (a: Card[], b: Card[]): number =>
+    fourthPointOrder(a) - fourthPointOrder(b) || lowRank(a, b);
+
+  const nonSpecialWinners = winners.filter(nonLevelNonJoker);
+  const levelWinners = winners.filter(p => p[0].rank === ctx.level);
+  const addPool = nonSpecialWinners.length > 0
+    ? nonSpecialWinners
+    : levelWinners.length > 0 ? levelWinners : winners;
+
+  const standalone = addPool.filter(p => !inTractor(p));
+  let addCand: Card[];
+  if (standalone.length > 0) {
+    const pointStandalone = standalone.filter(p => isPointRank(p[0].rank));
+    addCand = (pointStandalone.length > 0 ? pointStandalone : standalone)
+      .slice()
+      .sort(pointStandalone.length > 0 ? pointOrder : lowRank)[0];
+  } else {
+    addCand = pickTractorSplitPair(addPool, myTrump, ctx, 'add')
+      ?? addPool.slice().sort(lowRank)[0];
+  }
+  if (!addCand || !canWin(addCand)) return null;
+
+  const scoreOf = (pair: Card[]): number =>
+    attackerScoreAfterTrick(ctx, leadCombo.cards, pair);
+  const tierOf = (pair: Card[]): number => attackerTier(scoreOf(pair));
+  const addTier = tierOf(addCand);
+
+  const bestCrossing = (pool: Card[][]): Card[] | null => {
+    const crossing = pool.filter(p => tierOf(p) > addTier);
+    if (crossing.length === 0) return null;
+    return crossing.slice().sort((a, b) => {
+      const tierDiff = tierOf(b) - tierOf(a);
+      if (tierDiff !== 0) return tierDiff;
+      const scoreDiff = scoreOf(b) - scoreOf(a);
+      if (scoreDiff !== 0) return scoreDiff;
+      const tractorDiff = (inTractor(a) ? 1 : 0) - (inTractor(b) ? 1 : 0);
+      if (tractorDiff !== 0) return tractorDiff;
+      return pointOrder(a, b);
+    })[0];
+  };
+
+  const nonLevelPoints = winners.filter(p =>
+    nonLevelNonJoker(p) && isPointRank(p[0].rank));
+  const levelIsPoint = ctx.level === Rank.Five
+    || ctx.level === Rank.Ten || ctx.level === Rank.King;
+  const levelPoints = levelIsPoint
+    ? winners.filter(p => p[0].rank === ctx.level)
+    : [];
+  const fullCand = bestCrossing(nonLevelPoints) ?? bestCrossing(levelPoints);
+  if (!fullCand || fullCand[0].id === addCand[0].id) {
+    return { cards: addCand, full: false };
+  }
+  return { cards: fullCand, full: true };
+}
+
 /**
  * 拆拖拉机（2.4）在主牌对子槽上的实现。
  *
@@ -371,24 +472,6 @@ function pickTrumpSplitPairs(
     if (mustBeat && !canBeat(chosen.flat(), best, ctx)) return null;
     return chosen;
   };
-
-  // 第四家闲家、纯主牌对、本队能赢：add/full 各生成一套最终候选，
-  // 按赢墩后闲家总分的 40 分台阶比较；full 严格更高才选 full，
-  // 同台阶/更低保留 add。候选在生成阶段就已能赢，不再写“一赢一输”分支。
-  const exactFourthPair = position === 'fourth' && ctx.isAttacker
-    && leadCombo.type === 'pair' && count === 1
-    && (tmWin ? addPoints : mustBeat);
-  if (exactFourthPair) {
-    const addSplit = splitWithMode('add');
-    const fullSplit = splitWithMode('full');
-    const addCards = addSplit ? addSplit.flat() : original;
-    const fullCards = fullSplit ? fullSplit.flat() : original;
-    const winning = (cards: Card[]): boolean => tmWin || canBeat(cards, best, ctx);
-    if (!winning(addCards) || !winning(fullCards)) return null;
-    const addScore = attackerScoreAfterTrick(ctx, leadCombo.cards, addCards);
-    const fullScore = attackerScoreAfterTrick(ctx, leadCombo.cards, fullCards);
-    return attackerTier(fullScore) > attackerTier(addScore) ? fullSplit : addSplit;
-  }
 
   const fullAdd = addPoints
     && (position === 'third' || position === 'fourth')
@@ -500,6 +583,11 @@ export function matchTrumpPattern(
 
   if (leadCombo.pairCount > 0) {
     const myPairs = findAllPairs(myTrump); pairKillSort(myPairs, myTrump, ctx);
+    // 第四家闲家、纯主牌对、本队能赢：add/full 两套最终候选，按实际台阶比较。
+    const fourthPair = position === 'fourth' && ctx.isAttacker
+      && leadCombo.type === 'pair' && leadCombo.pairCount === 1
+      ? chooseFourthTrumpPair(myPairs, myTrump, leadCombo, ctx, tmWin)
+      : null;
     // Has points in trick → use biggest pair to beat
     const hasPoints = (ctx.bestSoFar && ctx.bestSoFar.cards.some(c => isPointRank(c.rank)))
       || leadCards.some(c => isPointRank(c.rank));
@@ -561,10 +649,14 @@ export function matchTrumpPattern(
         }
       }
     }
-    // 2.4 拆拖拉机：主牌对子槽与副牌同一套选对规则。
-    const splitPairs = pickTrumpSplitPairs(myPairs, myTrump, leadCombo, ctx,
-      position, tmWin, hand, thirdNoSeize, chosen);
-    if (splitPairs) chosen = splitPairs.flat();
+    if (fourthPair) {
+      chosen = fourthPair.cards;
+    } else {
+      // 2.4 拆拖拉机：主牌对子槽与副牌同一套选对规则。
+      const splitPairs = pickTrumpSplitPairs(myPairs, myTrump, leadCombo, ctx,
+        position, tmWin, hand, thirdNoSeize, chosen);
+      if (splitPairs) chosen = splitPairs.flat();
+    }
 
     const addPt = tmWin && canAddPoints(tmWin, position, leadCombo, ctx);
     if (chosen.length < leadLen) {
@@ -607,8 +699,9 @@ export function matchTrumpPattern(
       baseReason = beating ? '同花色出大' : '同花色出小';
     }
     const intent = addPt ? 'add' : (shouldAvoid ? 'avoid' : 'none');
-    const reason = annotateReason(baseReason, cards, myTrump, myTrump,
+    let reason = annotateReason(baseReason, cards, myTrump, myTrump,
       leadCombo, leadLen, ctx, position, tmWin, false, intent);
+    if (fourthPair?.full) reason += '（全力加分：跨 40 台阶）';
     return { cards, reason };
   }
 

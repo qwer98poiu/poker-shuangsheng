@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-11-08 09:26
+
+### 第四家吊主对按 add/full 候选选对
+
+**问题**：第四家闲家吊主对时，选对由“分对优先/最小能盖”等分散规则决定，没有把 add（保结构、保级牌对）与 full（实际跨过 40 台阶才动结构/级牌对）作为两套最终候选比较；自己能盖过对手时也缺少结构优先的 add 候选，可能为分提前拆拖拉机或动级牌对。
+
+**修复**：新增 `chooseFourthTrumpPair`：第四家闲家、纯主牌对、本队能赢时，生成 add/full 两套最终候选。add 独立对优先、不拆拖拉机；独立对里先非常主分对（10>K>5），没有分对取最小非常主非分对；级牌对/王对默认保留，只有没有非常主对时才被迫使用。full 只从能跨过 add 台阶的非常主分对中选，允许拆拖拉机；没有非常主分对能跨时，才考虑等级为 5/10/K 的级牌对；王对不作为分对候选。两候选都必须合法且能赢，台阶相同选 add；原先埋在拆拖拉机路径里的第四家精确台阶比较并入该候选选择。README 的 Elo 表未改（`ai-latest` 行本就待重测）。
+
+**新增 8 项测试**（ai-tractor-split.test.ts：8 项），引擎 1312 项 + arena 248 项 + CLI 87 项 + client 201 项 = 1848 项通过。
+
+- **影响文件**：`packages/engine/src/ai-latest/follow-trump.ts`、`packages/engine/src/ai-latest/STRATEGY.md`、`packages/engine/src/__tests__/ai-tractor-split.test.ts`
+
 ## 2026-11-08 08:56
 
 ### 第四家吊主对按实际本墩得分跨 40 台阶
