@@ -4,7 +4,7 @@
  * and card selection.
  */
 import type { Card, ComboClass } from '../types.js';
-import { Rank, isPointRank } from '../types.js';
+import { Rank, cardPointsFromRank, isPointRank } from '../types.js';
 import { isTrump, getEffectiveRank, playOf } from '../model.js';
 import { findAllPairs, detectTractors } from '../pattern/index.js';
 import type { AIContext } from './types.js';
@@ -416,6 +416,40 @@ export function attackerNearThreshold(ctx: AIContext, visiblePts = 0): boolean {
   const pts = ctx.attackerPoints + visiblePts;
   const next = Math.floor(pts / 40) * 40 + 40;
   return next - pts <= 10;
+}
+
+/** 40 分一档的台阶序号。 */
+export function attackerTier(points: number): number {
+  return Math.floor(points / 40);
+}
+
+function cardPointsOf(cards: Card[]): number {
+  return cards.reduce((sum, c) => sum + cardPointsFromRank(c.rank), 0);
+}
+
+/**
+ * 本墩在出候选牌之前已经落下的分数。
+ *
+ * 有完整 `trickPlays` 时逐手求和（能算上第三家非最大但带分的牌）；
+ * 测试或旧上下文只有 `bestSoFar` 时退化为“领出 + 当前最大”。
+ */
+function trickPointsBefore(ctx: AIContext, leadCards: Card[]): number {
+  if (ctx.trickPlays.length > 0) {
+    return ctx.trickPlays.reduce((sum, play) => sum + cardPointsOf(play.cards), 0);
+  }
+  let points = cardPointsOf(leadCards);
+  const best = ctx.bestSoFar;
+  if (best && best.cards.length > 0 && best.playerIndex !== ctx.leadPlayerIndex) {
+    points += cardPointsOf(best.cards);
+  }
+  return points;
+}
+
+/** 赢下本墩后闲家的总分（含候选牌）。 */
+export function attackerScoreAfterTrick(
+  ctx: AIContext, leadCards: Card[], candidate: Card[],
+): number {
+  return ctx.attackerPoints + trickPointsBefore(ctx, leadCards) + cardPointsOf(candidate);
 }
 
 // ---- Tractor matching ----

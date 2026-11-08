@@ -371,6 +371,88 @@ describe('拆拖拉机：甩牌中的对子槽', () => {
   });
 });
 
+describe('拆拖拉机：第四家跨 40 台阶精确比较', () => {
+  const lead = [cc('S', 3, 200), cc('S', 3, 201)];
+  const partner = [cc('S', 8, 300), cc('S', 8, 301)];
+  const hand = [
+    cc('S', 9, 0), cc('S', 9, 1), cc('S', 10, 2), cc('S', 10, 3),
+    cc('S', 11, 4), cc('S', 11, 5), cc('S', 12, 6), cc('S', 12, 7),
+    ...fillerClubs(8),
+  ];
+
+  it('20 分对实际跨 40 台阶：出 ♠10 对，而非拆边缘 ♠9 对', () => {
+    const ctx = fourthWin(cfg2, partner, { isAttacker: true, attackerPoints: 20 });
+    const r = aiFollowPlay(hand, lead, null, ctx);
+    checkFollow(r.cards, hand, lead, cfg2);
+    expect(r.cards.map(c => c.id).sort()).toEqual(['S-10-2', 'S-10-3']);
+  });
+
+  it('同台阶不拆结构：闲家 0 分仍出 ♠9 对', () => {
+    const ctx = fourthWin(cfg2, partner, { isAttacker: true, attackerPoints: 0 });
+    const r = aiFollowPlay(hand, lead, null, ctx);
+    checkFollow(r.cards, hand, lead, cfg2);
+    expect(r.cards.map(c => c.id).sort()).toEqual(['S-9-0', 'S-9-1']);
+  });
+
+  it('30 分时 20 分对跨 40：保留原有全力加分', () => {
+    const ctx = fourthWin(cfg2, partner, { isAttacker: true, attackerPoints: 30 });
+    const r = aiFollowPlay(hand, lead, null, ctx);
+    checkFollow(r.cards, hand, lead, cfg2);
+    expect(r.cards.map(c => c.id).sort()).toEqual(['S-10-2', 'S-10-3']);
+  });
+
+  it('第三家非最大但带分的牌计入本墩：20 + 第三家 10 + ♠10 对 → 跨 40', () => {
+    const third = [cc('S', 5, 400), cc('S', 5, 401)];
+    const ctx = fourthWin(cfg2, partner, {
+      isAttacker: true, attackerPoints: 20,
+      trickPlays: [
+        { cards: lead },
+        { cards: partner },
+        { cards: third },
+      ],
+    });
+    const r = aiFollowPlay(hand, lead, null, ctx);
+    checkFollow(r.cards, hand, lead, cfg2);
+    expect(r.cards.map(c => c.id).sort()).toEqual(['S-10-2', 'S-10-3']);
+  });
+
+  it('自己能盖过对手且 20 分对跨 40：出 ♠10 对', () => {
+    const second = [cc('S', 7, 500), cc('S', 7, 501)];
+    const third = [cc('S', 8, 502), cc('S', 8, 503)];
+    const ctx = ctxOf(cfg2, {
+      myIndex: 3, playCount: 3, leadPlayerIndex: 0,
+      isAttacker: true, attackerPoints: 20,
+      trickPlays: [
+        { cards: lead },
+        { cards: second },
+        { cards: third },
+      ],
+      bestSoFar: { cards: third, playerIndex: 2 },
+    });
+    const r = aiFollowPlay(hand, lead, null, ctx);
+    checkFollow(r.cards, hand, lead, cfg2);
+    expect(r.cards.map(c => c.id).sort()).toEqual(['S-10-2', 'S-10-3']);
+  });
+
+  it('自己能盖过对手但同台阶：保留 ♠9 对，不无条件全力', () => {
+    const second = [cc('S', 7, 600), cc('S', 7, 601)];
+    const third = [cc('S', 8, 602), cc('S', 8, 603)];
+    const ctx = ctxOf(cfg2, {
+      myIndex: 3, playCount: 3, leadPlayerIndex: 0,
+      isAttacker: true, attackerPoints: 0,
+      trickPlays: [
+        { cards: lead },
+        { cards: second },
+        { cards: third },
+      ],
+      bestSoFar: { cards: third, playerIndex: 2 },
+    });
+    const r = aiFollowPlay(hand, lead, null, ctx);
+    checkFollow(r.cards, hand, lead, cfg2);
+    expect(r.cards.map(c => c.id).sort()).toEqual(['S-9-0', 'S-9-1']);
+  });
+});
+
 describe('拆拖拉机：有主局吊主对（主牌对子）', () => {
   const leadA2 = [cc('S', 14, 200), cc('S', 14, 201)];
 

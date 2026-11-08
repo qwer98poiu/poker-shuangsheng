@@ -15,7 +15,8 @@ import { annotateReason } from './reason.js';
 import {
   pairKillSort, discardNonTrump, padWithDiscards,
   canAddPoints, isMaxPattern, tryMatchTractorSlots,
-  attackerNearThreshold, analyzePairStructure, pickTractorSplitPair,
+  attackerNearThreshold, attackerScoreAfterTrick, attackerTier,
+  analyzePairStructure, pickTractorSplitPair,
   type PairSplitMode,
 } from './helpers.js';
 import {
@@ -334,6 +335,61 @@ function pickTrumpSplitPairs(
   const anyBeat = (pair: Card[]): boolean => canBeat(pair, best, ctx);
   const mustBeat = canBeat(original, best, ctx);
   const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
+
+  const splitWithMode = (mode: PairSplitMode): Card[][] | null => {
+    const remaining = myPairs.slice();
+    const used = new Set<string>();
+    const chosen: Card[][] = [];
+    let needBeat = mustBeat;
+    let replaced = false;
+
+    for (let slot = 0; slot < count; slot++) {
+      const pair = [original[slot * 2], original[slot * 2 + 1]];
+      const inTractor = structure.chainIndex.has(pair[0].id);
+      if (!inTractor) {
+        chosen.push(pair);
+        pair.forEach(c => used.add(c.id));
+        const idx = remaining.findIndex(p => p[0].id === pair[0].id);
+        if (idx >= 0) remaining.splice(idx, 1);
+        continue;
+      }
+
+      const cardsLeft = myTrump.filter(c => !used.has(c.id));
+      const pool = needBeat ? remaining.filter(anyBeat) : remaining;
+      if (pool.length === 0) return null;
+      const picked = pickTractorSplitPair(pool, cardsLeft, ctx, mode);
+      if (!picked) return null;
+      replaced = true;
+      chosen.push(picked);
+      picked.forEach(c => used.add(c.id));
+      const idx = remaining.findIndex(p => p[0].id === picked[0].id);
+      if (idx >= 0) remaining.splice(idx, 1);
+      if (anyBeat(picked)) needBeat = false;
+    }
+
+    if (!replaced) return null;
+    if (mustBeat && !canBeat(chosen.flat(), best, ctx)) return null;
+    return chosen;
+  };
+
+  // 第四家闲家、纯主牌对、本队能赢：add/full 各生成一套最终候选，
+  // 按赢墩后闲家总分的 40 分台阶比较；full 严格更高才选 full，
+  // 同台阶/更低保留 add。候选在生成阶段就已能赢，不再写“一赢一输”分支。
+  const exactFourthPair = position === 'fourth' && ctx.isAttacker
+    && leadCombo.type === 'pair' && count === 1
+    && (tmWin ? addPoints : mustBeat);
+  if (exactFourthPair) {
+    const addSplit = splitWithMode('add');
+    const fullSplit = splitWithMode('full');
+    const addCards = addSplit ? addSplit.flat() : original;
+    const fullCards = fullSplit ? fullSplit.flat() : original;
+    const winning = (cards: Card[]): boolean => tmWin || canBeat(cards, best, ctx);
+    if (!winning(addCards) || !winning(fullCards)) return null;
+    const addScore = attackerScoreAfterTrick(ctx, leadCombo.cards, addCards);
+    const fullScore = attackerScoreAfterTrick(ctx, leadCombo.cards, fullCards);
+    return attackerTier(fullScore) > attackerTier(addScore) ? fullSplit : addSplit;
+  }
+
   const fullAdd = addPoints
     && (position === 'third' || position === 'fourth')
     && ctx.isAttacker
@@ -343,39 +399,7 @@ function pickTrumpSplitPairs(
       : (position === 'second' && !secondShouldAvoid(hand)) ? 'open'
         : addPoints ? 'add' : 'avoid';
 
-  const remaining = myPairs.slice();
-  const used = new Set<string>();
-  const chosen: Card[][] = [];
-  let needBeat = mustBeat;
-  let replaced = false;
-
-  for (let slot = 0; slot < count; slot++) {
-    const pair = [original[slot * 2], original[slot * 2 + 1]];
-    const inTractor = structure.chainIndex.has(pair[0].id);
-    if (!inTractor) {
-      chosen.push(pair);
-      pair.forEach(c => used.add(c.id));
-      const idx = remaining.findIndex(p => p[0].id === pair[0].id);
-      if (idx >= 0) remaining.splice(idx, 1);
-      continue;
-    }
-
-    const cardsLeft = myTrump.filter(c => !used.has(c.id));
-    const pool = needBeat ? remaining.filter(anyBeat) : remaining;
-    if (pool.length === 0) return null;
-    const picked = pickTractorSplitPair(pool, cardsLeft, ctx, mode);
-    if (!picked) return null;
-    replaced = true;
-    chosen.push(picked);
-    picked.forEach(c => used.add(c.id));
-    const idx = remaining.findIndex(p => p[0].id === picked[0].id);
-    if (idx >= 0) remaining.splice(idx, 1);
-    if (anyBeat(picked)) needBeat = false;
-  }
-
-  if (!replaced) return null;
-  if (mustBeat && !canBeat(chosen.flat(), best, ctx)) return null;
-  return chosen;
+  return splitWithMode(mode);
 }
 
 export function matchTrumpPattern(

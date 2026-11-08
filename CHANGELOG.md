@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-11-08 08:56
+
+### 第四家吊主对按实际本墩得分跨 40 台阶
+
+**问题**：第四家闲家吊主对时，是否“全力加分”由 `attackerNearThreshold` 的近 10 分闸门决定；对子一次可带 20 分，20 分差距下会漏判实际跨 40 台阶的情况。该闸门用的 `visibleTrickPoints` 只算领出与当前最大，第三家非最大但带分的牌不计入；第四家自己盖过对手时也没有 add/full 两套候选的台阶比较。
+
+**修复**：新增 `attackerTier` 与 `attackerScoreAfterTrick`，本墩分按 `trickPlays` 全量累计（无完整记录时退回领出 + 当前最大）。第四家闲家、纯主牌对、本队能赢时，分别生成 add/full 最终候选；两者都必须合法且能赢，只有 full 赢墩后的闲家总分台阶严格更高才选 full，否则保留 add。该精确比较只用于第四家纯主牌对，不全局替换 `attackerNearThreshold`。README 的 Elo 表未改（`ai-latest` 行本就待重测）。
+
+**新增 6 项测试**（ai-tractor-split.test.ts：6 项），引擎 1304 项 + arena 248 项 + CLI 87 项 + client 201 项 = 1840 项通过。
+
+- **影响文件**：`packages/engine/src/ai-latest/helpers.ts`、`packages/engine/src/ai-latest/follow-trump.ts`、`packages/engine/src/__tests__/ai-tractor-split.test.ts`
+
 ## 2026-11-07 23:37
 
 ### 修正 AI 分牌估值中 K=5 的错误
