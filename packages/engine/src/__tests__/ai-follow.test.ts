@@ -3871,6 +3871,14 @@ describe('canAddPoints — 第三家无顶张甩副牌按形状 × 已出主牌�
     expect(canAddPoints(true, 'third', comboT, ctxOf(CFG_NT, canTrump4th()))).toBe(true);
   });
 
+  it('主拖拉机领出 → 加分（不要求 isTrumpMax）', () => {
+    const comboT = classify([
+      c('H', 10, 200), c('H', 10, 201), c('H', 9, 200), c('H', 9, 201),
+    ], CFG_SUIT);
+    expect(comboT.hasTractor).toBe(true);
+    expect(canAddPoints(true, 'third', comboT, ctxOf(CFG_SUIT, null))).toBe(true);
+  });
+
   it('甩主牌 → 加分（原有行为，回归锁）', () => {
     const comboT = classify([c('S', 2, 200), c('H', 2, 200), c('D', 2, 200)], CFG_NT);
     expect(canAddPoints(true, 'third', comboT, ctxOf(CFG_NT, canTrump4th()))).toBe(true);
@@ -3881,5 +3889,41 @@ describe('canAddPoints — 第三家无顶张甩副牌按形状 × 已出主牌�
     const pair = classify([c('C', 13, 200), c('C', 13, 201)], CFG_NT);
     expect(canAddPoints(true, 'third', single, ctxOf(CFG_NT, ntState4th({})))).toBe(false);
     expect(canAddPoints(true, 'third', pair, ctxOf(CFG_NT, ntState4th({})))).toBe(false);
+  });
+});
+
+// 回归：主拖拉机领出、第二家没盖过（队友仍大）时，第三家应加分。
+describe('第三家跟主拖拉机加分', () => {
+  it('主拖拉机领出、队友大：垫 H5 加分', () => {
+    const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Hearts, level: 12 };
+    const lead = [
+      c('H', 10, 200), c('H', 10, 201), c('H', 9, 200), c('H', 9, 201),
+    ];
+    const second = [c('H', 2, 300), c('H', 4, 301), c('H', 13, 302), c('H', 13, 303)];
+    const hand = [
+      c('C', 4, 0), c('C', 8, 1), c('C', 9, 2), c('C', 14, 3), c('C', 13, 4),
+      c('D', 10, 5), c('D', 3, 6), c('D', 4, 7), c('D', 6, 8), c('D', 8, 9), c('D', 13, 10),
+      c('H', 2, 11), c('H', 4, 12), c('H', 5, 13), c('H', 7, 14), c('H', 14, 15),
+      c('H', 12, 16), c('H', 12, 17),
+      c('S', 10, 18), c('S', 2, 19), c('S', 7, 20), c('S', 8, 21),
+      c('S', 14, 22), c('S', 11, 23), c('S', 13, 24),
+    ];
+    const ctx: AIContext = {
+      declarerIndex: 0, trumpSuit: Suit.Hearts, level: 12, myIndex: 2,
+      isDeclarer: false, isDeclarerPartner: true, isAttacker: false,
+      attackerPoints: 0,
+      throwPenalties: [0, 0],
+      handCounts: [25, 25, 24, 25] as const,
+      trickHistory: [], reveals: [], playCount: 2, leadPlayerIndex: 0,
+      trickPlays: [{ cards: lead }, { cards: second }],
+      bestSoFar: { cards: lead, playerIndex: 0 },
+      ntState: null, bottomCards: [], debug: false,
+    };
+    const r = aiFollowPlay(hand, lead, null, ctx);
+    checkFollow(r.cards, hand, lead, null, cfg);
+    expect(r.cards.length).toBe(4);
+    expect(r.cards.map(x => x.rank).sort((a, b) => a - b)).toEqual([2, 5, 12, 12]);
+    expect(r.cards.some(x => x.suit === 'H' && x.rank === 4)).toBe(false);
+    expect(r.reason).toContain('加分');
   });
 });

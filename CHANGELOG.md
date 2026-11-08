@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-11-08 13:56
+
+### 第三家跟主拖拉机领出时加分
+
+**问题**：第三家跟队友的主牌拖拉机领出、第二家没盖过时，`canAddPoints` 对主牌领出先走 `isTrumpMax`（只认大王或特定小王对）。主拖拉机通常不含王，因此被误判为“不能安全加分”，第三家只按最小牌填充，漏掉本墩可加的分（例：领出 ♥10♥10♥9♥9 时，应垫 ♥5，实际垫 ♥4）。
+
+**修复**：第三家、队友已大且领出为主牌拖拉机时，`canAddPoints` 直接返回 true，不再要求 `isTrumpMax`；其余主牌单张/对子与甩主牌判据不变。`STRATEGY.md` 同步注明主拖拉机也属于加分牌型。策略指纹的镜像对决 `oppLevel` 由 180 变为 173，README Elo 表未改（`ai-latest` 行本就待重测）。
+
+**新增 2 项测试、修改 1 项测试**（ai-follow.test.ts：新增 2 项；strategy-fingerprint.test.ts：修改 1 项——镜像对决 `oppLevel` 180 → 173），引擎 1314 项 + arena 248 项 + CLI 87 项 + client 201 项 = 1850 项通过。
+
+- **影响文件**：`packages/engine/src/ai-latest/helpers.ts`、`packages/engine/src/ai-latest/STRATEGY.md`、`packages/engine/src/__tests__/ai-follow.test.ts`、`packages/arena/src/__tests__/strategy-fingerprint.test.ts`
+
 ## 2026-11-08 09:26
 
 ### 第四家吊主对按 add/full 候选选对

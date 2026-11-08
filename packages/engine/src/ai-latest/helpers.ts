@@ -331,6 +331,7 @@ export function canAddPoints(tmWin: boolean, position: string, leadCombo: ComboC
     if (detectTeammateSafeLead(ctx, leadCombo) !== null) return true;
     const isTrumpLead = leadCombo.cards.every(c => isTrump(c, ctx));
     if (isTrumpLead) {
+      if (leadCombo.hasTractor) return true; // 主拖拉机 → 加分（不要求 isTrumpMax）
       if (leadCombo.type === 'throw') return true; // 甩主牌 → 加分
       return isTrumpMax(leadCombo, ctx);
     }
