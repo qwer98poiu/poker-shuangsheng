@@ -56,8 +56,9 @@ describe('AI 策略指纹', () => {
     // 2026-11-07 第四家加分修复（单张/对子/毙牌取最高分）后为 180
     // 2026-11-08 第三家主拖拉机领出加分后为 173
     // 2026-11-08 第三家缺主/盖不过时避分（不再按 tmWin 加分、非分优先）后为 188
-    expect(statsA.matches.oppLevel).toEqual({ n: 188, d: 20 });
-    expect(statsB.matches.oppLevel).toEqual({ n: 188, d: 20 });
+    // 2026-11-08 第四家盖不过时不再按跨 40 台阶加分后为 191
+    expect(statsA.matches.oppLevel).toEqual({ n: 191, d: 20 });
+    expect(statsB.matches.oppLevel).toEqual({ n: 191, d: 20 });
     expect(statsA.handsPlayed).toBe(statsB.handsPlayed);
     expect(statsA.abortedHands).toBe(0);
     const sig = checkSignificance(statsA.matches.won, statsB.matches.won, statsA.matches.drawn, statsA.matches.played);

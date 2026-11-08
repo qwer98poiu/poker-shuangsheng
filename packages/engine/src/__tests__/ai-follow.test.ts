@@ -2911,38 +2911,22 @@ describe('NT second position seizing lead (抢牌权)', () => {
 
 
 // ================================================================
-// Item 5: attacker breaks pair to cross 40-point threshold (拆对跨分台阶)
+// 第四家盖不过时不拆对加分（跨 40 台阶须本队赢下本墩）
 // ================================================================
 // P0 leads S-A (max off-suit single). P1 plays S-3 (no beat).
 // P2 (attacker, myIndex=3, fourth, !tmWin since P0 is defender winning).
 // attacker at 35pts. Hand: S-10,S-10 (pair) + S-4 (non-point, rank≠level so not trump).
-// No single S-10 or S-K available. shouldAvoid → S-4 (non-point).
-// But breaking the pair to play S-10: 35+10=45≥40, crosses threshold.
-// Should override shouldAvoid when threshold crossing is possible.
-describe('attacker crosses 40-point threshold', () => {
-  it('third+!tmWin+35pts: breaks 10-pair to cross 40', () => {
+// 本墩归庄家方 P0：S-10 的 10 分不会进闲家的账（仍是 35），
+// 跨 40 的前提不成立；因此不拆 10 对，出 S-4（0 分）。
+describe('attacker cannot cross 40 without winning the trick', () => {
+  it('fourth+!tmWin+35pts: keeps the 10-pair and plays S-4', () => {
     const cfg: TrumpDeclaration = { declarerIndex: 1, trumpSuit: Suit.Hearts, level: 5 };
     function cc(s: CardSuit, r: number, i: number): Card { return createCard(s, r, i); }
-    // declarerIndex=1 → P0 is attacker. P0 leads S-A.
-    // P1 (defender) plays S-3. P2 (attacker myIndex=2, third).
-    // P0 wins with S-A, but P2's teammate IS P0 → tmWin=true for P2!
-    // Need declarerIndex=0 so P2(aligned with P0) is defender...
-
-    // Actually: declarerIndex=0 → P0,P2 defenders. P1,P3 attackers.
-    // But P2 needs to be an ATTACKER. So declarerIndex=1:
-    // P1,P3 defenders. P0,P2 attackers. P0 leads S-A (attacker).
-    // P1 (defender) plays S-3. P2 (attacker, third, tmWin since P0 wins)...
-    // tmWin=true → canAddPoints, not shouldAvoid...
-
-    // Need shouldAvoid. So P0 NOT teammate. declarerIndex=0:
-    // P0,P2 defenders(庄家方). P1,P3 attackers(闲家).
+    // declarerIndex=0 → P0,P2 defenders(庄家方). P1,P3 attackers(闲家).
     // myIndex=3 (fourth attacker). P0 leads S-A, P1 defender S-3.
     // P2 defender plays. Now P3 (attacker, fourth).
     // playCount=3, fourth, tmWin=(best.playerIndex===myIndex+2) → P0(index0) vs P3(index3): 0≠1 → tmWin=false.
-    // shouldAvoid: fourth+!tmWin → true.
-    // Hand: S-10,S-10(pair) + S-4(small). shouldAvoid picks S-4.
-    // But 35+S-10(10)=45≥40 → cross threshold, should play S-10 breaking pair.
-
+    // 盖不过 S-A：不拆 10 对，出 S-4。
     const lead: Card[] = [cc('S', 14, 200)]; // P0 leads S-A
     const best = { cards: lead, playerIdx: 0 }; // P0 winning (defender wins)
     const hand = [
@@ -2963,8 +2947,8 @@ describe('attacker crosses 40-point threshold', () => {
     const r = aiFollowPlay(hand, lead, Suit.Spades, ctx);
     checkFollow(r.cards, hand, lead, 'S', cfg);
     expect(r.cards.length).toBe(1);
-    // Break 10 pair → play S-10 to cross threshold (35+10=45≥40)
-    expect(r.cards[0].rank).toBe(10);
+    // 盖不过 S-A：10 分只会送给庄家方，不拆 10 对，出 S-4
+    expect(r.cards[0].rank).toBe(4);
   });
 });
 
@@ -3990,6 +3974,35 @@ describe('第三家同花色盖不过时避分', () => {
     expect(r.cards.length).toBe(1);
     expect(r.cards[0].suit).toBe('H');
     expect(r.cards[0].rank).toBe(12);
+    expect(r.reason).toContain('不加分');
+  });
+});
+
+// 回归：第四家盖不过对手的 ♥A，本墩必输；
+// 闲家虽在 75 分（差 5 到 80），也不能把 ♥5 送给庄家方。
+describe('第四家同花色盖不过时避分', () => {
+  it('盖不过 ♥A：出 ♥6（0 分），不出 ♥5（5 分）', () => {
+    const cfg: TrumpDeclaration = { declarerIndex: 1, trumpSuit: null, level: 11 };
+    const lead = [c('H', 14, 200)];
+    const second = [c('H', 7, 300)];
+    const third = [c('D', 9, 400)];
+    const hand = [c('H', 5, 0), c('H', 6, 1), c('S', 4, 2), c('S', 6, 3)];
+    const ctx: AIContext = {
+      declarerIndex: 1, trumpSuit: null, level: 11, myIndex: 2,
+      isDeclarer: false, isDeclarerPartner: false, isAttacker: true,
+      attackerPoints: 75,
+      throwPenalties: [0, 0],
+      handCounts: [3, 3, 4, 3] as const,
+      trickHistory: [], reveals: [], playCount: 3, leadPlayerIndex: 3,
+      trickPlays: [{ cards: lead }, { cards: second }, { cards: third }],
+      bestSoFar: { cards: lead, playerIndex: 3 },
+      ntState: null, bottomCards: [], debug: false,
+    };
+    const r = aiFollowPlay(hand, lead, 'H', ctx);
+    checkFollow(r.cards, hand, lead, 'H', cfg);
+    expect(r.cards.length).toBe(1);
+    expect(r.cards[0].suit).toBe('H');
+    expect(r.cards[0].rank).toBe(6);
     expect(r.reason).toContain('不加分');
   });
 });

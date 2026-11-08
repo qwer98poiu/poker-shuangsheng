@@ -192,13 +192,14 @@ function followOffSuitSingle(
     return { cards, reason };
   }
 
-  // Can't beat opponent - play smallest
+  // Can't beat opponent - play smallest and avoid points.
+  // 本分支已确定盖不过：本墩必归对手，跨 40 台阶的前提（本队赢下本墩）不成立，
+  // 加分只会把分送给对手。恒按 avoid 排序，不再看 attackerNearThreshold。
   if (!canBeat([leadSuitCards[0]], ctx.bestSoFar, ctx)) {
-    const crossThreshold = attackerNearThreshold(ctx, visibleTrickPoints(ctx, leadCombo.cards));
-    leadSuitCards.sort(crossThreshold ? discardSort(true, ctx, leadSuitCards, ctx) : discardSort(false, ctx));
+    leadSuitCards.sort(discardSort(false, ctx));
     const cards = [leadSuitCards[0]];
-    const shouldAvoid = !crossThreshold && ((position === 'fourth' && !tmWin)
-      || (position === 'third' && !tmWin));
+    const shouldAvoid = (position === 'fourth' && !tmWin)
+      || (position === 'third' && !tmWin);
     const intent = shouldAvoid ? 'avoid' : 'none';
     const reason = annotateReason('同花色出小', cards, leadSuitCards, trumpCards,
       leadCombo, 1, ctx, position, tmWin, false, intent);

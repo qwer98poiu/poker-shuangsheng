@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-11-08 16:58
+
+### 第四家盖不过时不再按跨 40 台阶加分
+
+**问题**：第四家跟副牌单张、盖不过当前最大（本墩必归对手）时，`followOffSuitSingle` 仍先用 `attackerNearThreshold` 判断“加分可跨 40 台阶”，为真就用 `discardSort(true)` 加分排序。例：无主、闲家 75 分，P2 必须跟 ♥ 且盖不过 ♥A，仍出 ♥5（5 分）而不是 ♥6；本墩归庄家方，这 5 分进不了闲家的账，“75 + 5 = 80”的前提（本队赢墩）并不成立。
+
+**修复**：该分支恒按 `discardSort(false)` 避分排序（非分牌优先），intent 标为 avoid；跨台阶判据只保留在“本队能赢 / 队友已大”的分支。原先锁定“拆 10 对跨 40”的测试同步改为“盖不过时不拆 10 对、出 ♠4”。策略指纹镜像 `oppLevel` 由 188 变为 191；client 种子局原始分仍为 100（15 墩不变）。README Elo 表未改（`ai-latest` 行本就待重测）。
+
+**新增 1 项测试、修改 2 项测试**（ai-follow.test.ts：新增 1 项、修改 1 项；strategy-fingerprint.test.ts：修改 1 项——镜像对决 `oppLevel` 188 → 191、client 种子局仍为 100 分 / 15 墩），引擎 1317 项 + arena 248 项 + CLI 87 项 + client 201 项 = 1853 项通过。
+
+- **影响文件**：`packages/engine/src/ai-latest/follow-offsuit.ts`、`packages/engine/src/__tests__/ai-follow.test.ts`、`packages/arena/src/__tests__/strategy-fingerprint.test.ts`
+
 ## 2026-11-08 15:02
 
 ### 第三家缺主、盖不过时避免送分
