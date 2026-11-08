@@ -3927,3 +3927,69 @@ describe('第三家跟主拖拉机加分', () => {
     expect(r.reason).toContain('加分');
   });
 });
+
+// 回归：主牌单张领出，第三家缺主且一张主牌都没有——
+// 队友只是暂时大（canAddPoints=false，D4 不满足 isTrumpMax），不能按 tmWin 加分。
+describe('第三家缺主跟主牌单张领出避分', () => {
+  it('队友暂时大但不能加分：垫非分牌，不送 10 分', () => {
+    const cfg: TrumpDeclaration = { declarerIndex: 3, trumpSuit: Suit.Diamonds, level: 6 };
+    const lead = [c('D', 4, 200)];
+    const second = [c('S', 3, 300)];
+    const hand = [
+      c('C', 2, 0), c('C', 3, 1), c('C', 3, 2), c('C', 9, 3), c('C', 14, 4), c('C', 14, 5),
+      c('H', 4, 6), c('H', 7, 7), c('H', 8, 8), c('H', 14, 9),
+      c('S', 3, 10), c('S', 4, 11), c('S', 5, 12), c('S', 9, 13), c('S', 14, 14),
+      c('S', 13, 15), c('S', 12, 16), c('S', 12, 17),
+    ];
+    const ctx: AIContext = {
+      declarerIndex: 3, trumpSuit: Suit.Diamonds, level: 6, myIndex: 2,
+      isDeclarer: false, isDeclarerPartner: false, isAttacker: true,
+      attackerPoints: 30,
+      throwPenalties: [0, 0],
+      handCounts: [17, 17, 18, 18] as const,
+      trickHistory: [], reveals: [], playCount: 2, leadPlayerIndex: 0,
+      trickPlays: [{ cards: lead }, { cards: second }],
+      bestSoFar: { cards: lead, playerIndex: 0 },
+      ntState: null, bottomCards: [], debug: false,
+    };
+    const r = aiFollowPlay(hand, lead, null, ctx);
+    checkFollow(r.cards, hand, lead, null, cfg);
+    expect(r.cards.length).toBe(1);
+    expect(r.cards[0].suit).toBe('C');
+    expect(r.cards[0].rank).toBe(2);
+    expect(r.reason).toBe('垫牌');
+  });
+});
+
+// 回归：第三家有 ♥ 必须跟 ♥，HA 已盖过队友的 HK——
+// 本墩必输时“出小”不能把 10 分送出去，应优先出非分牌。
+describe('第三家同花色盖不过时避分', () => {
+  it('盖不过 HA：出 HQ（0 分），不出 H10（10 分）', () => {
+    const cfg: TrumpDeclaration = { declarerIndex: 3, trumpSuit: Suit.Diamonds, level: 6 };
+    const lead = [c('H', 13, 200)];
+    const second = [c('H', 14, 300)];
+    const hand = [
+      c('C', 10, 0), c('C', 5, 1), c('C', 6, 2), c('C', 11, 3), c('C', 12, 4),
+      c('H', 10, 5), c('H', 12, 6),
+      c('J', 15, 7),
+      c('S', 6, 8),
+    ];
+    const ctx: AIContext = {
+      declarerIndex: 3, trumpSuit: Suit.Diamonds, level: 6, myIndex: 3,
+      isDeclarer: true, isDeclarerPartner: false, isAttacker: false,
+      attackerPoints: 55,
+      throwPenalties: [0, 0],
+      handCounts: [9, 8, 8, 9] as const,
+      trickHistory: [], reveals: [], playCount: 2, leadPlayerIndex: 1,
+      trickPlays: [{ cards: lead }, { cards: second }],
+      bestSoFar: { cards: second, playerIndex: 2 },
+      ntState: null, bottomCards: [], debug: false,
+    };
+    const r = aiFollowPlay(hand, lead, 'H', ctx);
+    checkFollow(r.cards, hand, lead, 'H', cfg);
+    expect(r.cards.length).toBe(1);
+    expect(r.cards[0].suit).toBe('H');
+    expect(r.cards[0].rank).toBe(12);
+    expect(r.reason).toContain('不加分');
+  });
+});

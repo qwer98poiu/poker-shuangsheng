@@ -268,8 +268,10 @@ export function followTrumpLead(
       return { cards, reason };
     }
     // No trump - discard
+    // 只有 canAddPoints 允许时才加分：主牌单张/对子领出须 isTrumpMax，
+    // 否则队友只是“暂时大”，第四家随时可盖过（如低主单张领出）。
     const nonTrump = hand.filter(c => !isTrump(c, ctx));
-    nonTrump.sort(discardSort(!!tmWin, ctx, nonTrump, ctx));
+    nonTrump.sort(discardSort(canAddPoints(tmWin, position, leadCombo, ctx), ctx, nonTrump, ctx));
     const forced = [nonTrump[0] || hand[0]];
     const reason = annotateReason('垫牌', forced, [], [],
       leadCombo, leadLen, ctx, position, tmWin, false, 'none');

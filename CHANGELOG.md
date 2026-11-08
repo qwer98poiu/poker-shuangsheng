@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-11-08 15:02
+
+### 第三家缺主、盖不过时避免送分
+
+**问题**：两处第三家跟牌只看“大小/队友暂时大”，没有检查加分是否安全：
+
+1. 主牌单张领出、第三家缺主（一张主牌都没有）时，`followTrumpLead` 的无主可垫分支按 `tmWin` 直接进加分排序。队友只是暂时大（例：领出低主单张 ♦4，第四家是庄家、主牌充足），本墩必输仍垫出 ♠K 送 10 分。
+2. 副牌同花色盖不过第二家时，`followOffSuitSingle` 用 `minEff` 按有效点数取最小。例：必然跟 ♥ 且盖不过 ♥A，♥10 的 rank 比 ♥Q 小但 ♥10 是分牌，reason 标着“尽量少加分”却把 10 分送掉。
+
+**修复**：前者改用 `canAddPoints(tmWin, position, leadCombo, ctx)` 决定垫牌排序——主牌单张/对子须 `isTrumpMax`，主拖拉机、甩主牌照旧加分；后者新增 `minAvoidPoint`，盖不过时优先非分牌里最小的，没有非分牌才出最小。`STRATEGY.md` 无需改动（原本就写“主牌单张/对子一般不加”“不能盖出小，尽量不加分”）。策略指纹的镜像对决 `oppLevel` 由 173 变为 188、client 种子局原始分由 95 变为 100（15 墩不变）；README Elo 表未改（`ai-latest` 行本就待重测）。
+
+**新增 2 项测试、修改 2 项测试**（ai-follow.test.ts：新增 2 项；strategy-fingerprint.test.ts：修改 2 项——镜像对决 `oppLevel` 173 → 188、client 种子局原始分 95 → 100、15 墩不变），引擎 1316 项 + arena 248 项 + CLI 87 项 + client 201 项 = 1852 项通过。
+
+- **影响文件**：`packages/engine/src/ai-latest/follow-trump.ts`、`packages/engine/src/ai-latest/follow-offsuit.ts`、`packages/engine/src/__tests__/ai-follow.test.ts`、`packages/arena/src/__tests__/strategy-fingerprint.test.ts`
+
 ## 2026-11-08 13:56
 
 ### 第三家跟主拖拉机领出时加分

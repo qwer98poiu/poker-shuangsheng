@@ -60,6 +60,12 @@ function breaksPair(card: Card, cards: Card[]): boolean {
   return cards.filter(x => x.suit === card.suit && x.rank === card.rank).length >= 2;
 }
 
+/** 盖不过时“尽量不加分”：优先非分牌里最小的；没有非分牌才出最小。 */
+function minAvoidPoint(cards: Card[], ctx: AIContext): Card {
+  const nonPoint = cards.filter(c => !isPointRank(c.rank));
+  return minEff(nonPoint.length > 0 ? nonPoint : cards, ctx);
+}
+
 /** 垫牌/填充类别模式：按位置与手牌数选择。
  *  第三家领出（队友）大但不可加分时，垫牌分非分一视同仁（open）。 */
 function fillMode(position: string, tmWin: boolean, hand: Card[], leadCombo: ComboClass, ctx: AIContext): DiscardMode {
@@ -148,7 +154,7 @@ function followOffSuitSingle(
     }
     if (overkill) {
       // 第二家毙了：不能盖毙 → 出最小副牌且不加分
-      const cards = [minEff(leadSuitCards, ctx)];
+      const cards = [minAvoidPoint(leadSuitCards, ctx)];
       const reason = annotateReason('同花色出小', cards, leadSuitCards, trumpCards,
         leadCombo, 1, ctx, position, tmWin, false, 'avoid');
       return { cards, reason };
@@ -160,8 +166,8 @@ function followOffSuitSingle(
         leadCombo, 1, ctx, position, tmWin, false, 'none');
       return { cards, reason };
     }
-    // 盖不过：出最小（不加分）
-    const cards = [minEff(leadSuitCards, ctx)];
+    // 盖不过：出最小（不加分）——非分牌优先，避免“出小”送出 10 分
+    const cards = [minAvoidPoint(leadSuitCards, ctx)];
     const reason = annotateReason('同花色出小', cards, leadSuitCards, trumpCards,
       leadCombo, 1, ctx, position, tmWin, false, 'avoid');
     return { cards, reason };

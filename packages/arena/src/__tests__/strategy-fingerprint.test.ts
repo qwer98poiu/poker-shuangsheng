@@ -55,8 +55,9 @@ describe('AI 策略指纹', () => {
     // 2026-11-06 庄家方统一阶梯（庄1 + 通用2/3/4 + 庄3.5）后为 175
     // 2026-11-07 第四家加分修复（单张/对子/毙牌取最高分）后为 180
     // 2026-11-08 第三家主拖拉机领出加分后为 173
-    expect(statsA.matches.oppLevel).toEqual({ n: 173, d: 20 });
-    expect(statsB.matches.oppLevel).toEqual({ n: 173, d: 20 });
+    // 2026-11-08 第三家缺主/盖不过时避分（不再按 tmWin 加分、非分优先）后为 188
+    expect(statsA.matches.oppLevel).toEqual({ n: 188, d: 20 });
+    expect(statsB.matches.oppLevel).toEqual({ n: 188, d: 20 });
     expect(statsA.handsPlayed).toBe(statsB.handsPlayed);
     expect(statsA.abortedHands).toBe(0);
     const sig = checkSignificance(statsA.matches.won, statsB.matches.won, statsA.matches.drawn, statsA.matches.played);
@@ -118,7 +119,8 @@ describe('AI 策略指纹', () => {
     // 2026-10-24 无主非分等级吊主延后到通用 9 后为 105 分 / 15 墩
     // 2026-10-31 跟牌侧拆拖拉机按结构/分对优先级选牌后为 95 分 / 15 墩
     // 2026-10-31 0b 队友对子状态未知时先出一对后仍为 95 分 / 15 墩
-    expect(ev.finalPts - ev.kouDiAdd).toBe(95);
+    // 2026-11-08 第三家缺主/盖不过时避分后为 100 分 / 15 墩
+    expect(ev.finalPts - ev.kouDiAdd).toBe(100);
     expect(ev.tricksPlayed).toBe(15);
   });
 });
