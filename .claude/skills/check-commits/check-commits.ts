@@ -1500,6 +1500,259 @@ function checkT8ModifiedTests(c: CommitInfo): void {
   reportMissing('Changelog', parseTestDelta(own.map((s) => s.text).join('\n')));
 }
 
+// ────────────────────────────────────────────────────────────
+// T9/T10：测试数行的格式
+// ────────────────────────────────────────────────────────────
+
+/** 测试增量行里的一个子句：`新增 7 项测试（engine）` */
+interface TestLineClause {
+  verb: string;
+  count: number;
+  /** 括号里的子包列表；null = 该子句没写括号 */
+  pkgs: { name: Pkg; count: number | null }[] | null;
+}
+
+const VERB_ITEM_RE = /^(新增|删除|修改|重写|移除)\s*(\d+)\s*项测试/;
+
+/** 解析 `engine 5 + arena 1` 这类子包括号；不是合法子包列表时返回 null */
+function parsePkgList(inner: string): { name: Pkg; count: number | null }[] | null {
+  const parts = inner.split(/[+＋、，,]/).map((p) => p.trim()).filter((p) => p.length > 0);
+  if (parts.length === 0) return null;
+  const out: { name: Pkg; count: number | null }[] = [];
+  for (const part of parts) {
+    const m = part.match(/^(engine|arena|cli|client)(?:\s*(\d+)\s*项?)?$/);
+    if (!m) return null;
+    out.push({ name: m[1] as Pkg, count: m[2] === undefined ? null : Number(m[2]) });
+  }
+  return out;
+}
+
+/**
+ * 提交信息的测试增量行（合法返回 null）：
+ *   `新增 14 项测试（engine）、删除 40 项测试（engine）、修改 6 项测试（engine 5 + arena 1）。`
+ *   `新增 1 项测试、删除 1 项测试、修改 1 项测试（arena）。`
+ *   `无新增测试。`
+ *
+ * 约束：不写总量；各子句后的子包括号可有可无，但至少有一个；括号里列 ≥2 个子包时
+ * 每个子包都要带数量。
+ */
+function messageTestLineError(line: string): string | null {
+  if (/^无新增测试[。.]?$/.test(line)) return null;
+  if (/项通过|合计|总数|总量/.test(line)) return '提交信息不写测试总数（总量只写在 Changelog）';
+  const text = line.replace(/[。.]$/, '');
+  const clauses: TestLineClause[] = [];
+  let rest = text;
+  while (rest.length > 0) {
+    const m = rest.match(VERB_ITEM_RE);
+    if (!m) return `无法解析「${rest}」：每个子句须形如「新增 3 项测试」`;
+    const verb = m[1];
+    const count = Number(m[2]);
+    rest = rest.slice(m[0].length);
+    let pkgs: TestLineClause['pkgs'] = null;
+    if (rest.startsWith('（')) {
+      const pm = rest.match(/^（([^（）]*)）/);
+      if (!pm) return '测试数行的括号里不能再嵌套括号';
+      pkgs = parsePkgList(pm[1]);
+      if (pkgs === null) {
+        return `括号内应为子包名（engine/arena/cli/client），或用「+」连接的多子包：「${pm[1]}」`;
+      }
+      rest = rest.slice(pm[0].length);
+    }
+    clauses.push({ verb, count, pkgs });
+    if (rest.length === 0) break;
+    const sep = rest.match(/^[、，,]\s*/);
+    if (!sep) return `子句之间只能用「、」「，」或「,」分隔：「${rest}」`;
+    rest = rest.slice(sep[0].length);
+    if (rest.length === 0) return '测试数行末尾多了一个分隔符';
+  }
+  if (clauses.length === 0) return '缺少测试增量子句';
+  if (!clauses.some((cl) => cl.pkgs !== null)) {
+    return '至少一个子句要用括号注明涉及的子包（如「（engine）」）';
+  }
+  for (const cl of clauses) {
+    if (cl.pkgs !== null && cl.pkgs.length >= 2 && cl.pkgs.some((p) => p.count === null)) {
+      return `「${cl.verb} ${cl.count} 项测试」的括号里列了多个子包，每个子包都要带数量（如「engine 5 + arena 1」）`;
+    }
+  }
+  return null;
+}
+
+/** Changelog 测试数行里的文件明细 */
+interface FileDetail {
+  file: string;
+  counts: Map<string, number>;
+}
+
+/** 解析 `file.test.ts：新增 2 项；other.test.ts：修改 1 项——…` */
+function parseFileDetails(inner: string): { details: FileDetail[]; error: string | null } {
+  const details: FileDetail[] = [];
+  for (const raw of inner.split('；')) {
+    const seg = raw.trim();
+    if (seg.length === 0) continue;
+    const m = seg.match(/^([^：；\s]+\.(?:test|spec)\.tsx?)\s*：(.+)$/);
+    if (!m) {
+      return { details, error: `明细须按文件写「file.test.ts：新增 1 项」，无法解析「${seg}」` };
+    }
+    const counts = new Map<string, number>();
+    for (const cm of m[2].matchAll(/(新增|删除|修改|重写|移除)\s*(\d+)\s*项/g)) {
+      counts.set(cm[1], (counts.get(cm[1]) ?? 0) + Number(cm[2]));
+    }
+    if (counts.size === 0) {
+      return { details, error: `「${m[1]}」的明细里没有「新增/删除/修改 N 项」` };
+    }
+    details.push({ file: m[1], counts });
+  }
+  if (details.length === 0) return { details, error: '测试增量必须按文件列出改动的测试文件' };
+  return { details, error: null };
+}
+
+/** 解析 Changelog 测试数行的加粗子句：`**新增 1 项测试、修改 2 项测试**` */
+function parseBoldClauses(header: string): { clauses: { verb: string; count: number }[]; error: string | null } {
+  const clauses: { verb: string; count: number }[] = [];
+  for (const raw of header.split(/[、，,]/)) {
+    const part = raw.trim();
+    if (part.length === 0) continue;
+    const m = part.match(/^(新增|删除|修改|重写|移除)\s*(\d+)\s*项测试$/);
+    if (!m) return { clauses, error: `加粗部分须只含「新增/删除/修改 N 项测试」子句，无法解析「${part}」` };
+    clauses.push({ verb: m[1], count: Number(m[2]) });
+  }
+  if (clauses.length === 0) return { clauses, error: '加粗部分没有测试增量子句' };
+  return { clauses, error: null };
+}
+
+/** T9/T10 的生效基线：该提交自己的树里已含这两项规则（与 T8 同口径，不追溯旧账） */
+function hasTestLineFormatRule(sha: string): boolean {
+  const src = readFileAt(sha, '.claude/skills/check-commits/check-commits.ts');
+  return src !== null && src.includes('function checkStrictTestLines');
+}
+
+/**
+ * T9：提交信息的测试增量行必须是正文最后一行（`Co-Authored-By` 之前）、单独占一行、
+ * 不写总量；子包括号至少有一个，括号里列 ≥2 个子包时每个都要带数量。
+ *
+ * T10：Changelog 的测试增量行必须按文件列出改动，项数与加粗部分一致；末小节同时给出
+ * 子包总量（与测试数行同一行）。
+ */
+function checkStrictTestLines(c: CommitInfo): void {
+  if (c.isDoc || c.isMerge || !hasTestLineFormatRule(c.sha)) return;
+
+  // ── T9：提交信息
+  const lines = c.body.replace(/\s+$/, '').split('\n');
+  let i = lines.length - 1;
+  if (i >= 0 && /^Co-Authored-By:/.test(lines[i].trim())) i--;
+  while (i >= 0 && lines[i].trim() === '') i--;
+  const last = i >= 0 ? lines[i].trim() : '';
+  if (last === '') {
+    report('T9', MODE.ERROR, c.short, '提交信息缺少测试数行');
+  } else {
+    const err = messageTestLineError(last);
+    if (err !== null) {
+      report('T9', MODE.ERROR, c.short, '提交信息的测试数行不符合格式', `${err}\n实际：${last}`);
+    }
+  }
+
+  // ── T10：Changelog
+  if (c.addedSections.length === 0) return;
+  const clAt = readFileAt(c.sha, 'CHANGELOG.md');
+  if (clAt === null) return;
+  const sections = parseChangelogSections(clAt)
+    .filter((s) => c.addedSections.some((a) => a.time === s.time));
+  if (sections.length === 0) return;
+  for (let si = 0; si < sections.length; si++) {
+    const sec = sections[si];
+    const isLastSection = si === sections.length - 1;
+    const testLines = sec.text
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => /^\*\*[^*]*项测试[^*]*\*\*/.test(l));
+    const noChange = /(^|\n)\s*\*\*?无新增测试/.test(sec.text);
+    if (isLastSection && parseChangelogCounts(sec.text) === null) {
+      report(
+        'T10',
+        MODE.ERROR,
+        c.short,
+        `小节 \`## ${sec.time}\` 缺少子包总量`,
+        '末小节必须写「引擎 X 项 + arena X 项 + CLI X 项 + client X 项 = X 项通过」',
+      );
+    }
+    if (testLines.length === 0) {
+      if (!noChange) {
+        report(
+          'T10',
+          MODE.ERROR,
+          c.short,
+          `小节 \`## ${sec.time}\` 缺少测试数行`,
+          '每个 Changelog 小节都要写测试增量（或「无新增测试」），并写在一个加粗行里',
+        );
+      }
+      continue;
+    }
+    for (let li = 0; li < testLines.length; li++) {
+      const line = testLines[li];
+      const headerM = line.match(/^\*\*([^*]+)\*\*/);
+      if (headerM === null) continue;
+      const { clauses, error: headerErr } = parseBoldClauses(headerM[1]);
+      if (headerErr !== null) {
+        report('T10', MODE.ERROR, c.short, `小节 \`## ${sec.time}\` 的测试数行格式不对`, `${headerErr}\n实际：${line}`);
+        continue;
+      }
+      const after = line.slice(headerM[0].length);
+      if (!after.startsWith('（')) {
+        report(
+          'T10',
+          MODE.ERROR,
+          c.short,
+          `小节 \`## ${sec.time}\` 的测试数行缺少按文件的明细`,
+          `须写成「**…**（file.test.ts：新增 N 项；…）」，不能用子包汇总代替文件明细\n实际：${line}`,
+        );
+        continue;
+      }
+      const detailM = after.match(/^（([^（）]*)）/);
+      if (detailM === null) {
+        report(
+          'T10',
+          MODE.ERROR,
+          c.short,
+          `小节 \`## ${sec.time}\` 的测试明细括号内不能再嵌套括号`,
+          `嵌套会让测试增量解析重复计数（T5）\n实际：${line}`,
+        );
+        continue;
+      }
+      const { details, error: detailErr } = parseFileDetails(detailM[1]);
+      if (detailErr !== null) {
+        report('T10', MODE.ERROR, c.short, `小节 \`## ${sec.time}\` 的测试明细不符合格式`, `${detailErr}\n实际：${line}`);
+        continue;
+      }
+      const declared = new Map<string, number>();
+      for (const cl of clauses) declared.set(cl.verb, (declared.get(cl.verb) ?? 0) + cl.count);
+      const detailed = new Map<string, number>();
+      for (const d of details) {
+        for (const [v, n] of d.counts) detailed.set(v, (detailed.get(v) ?? 0) + n);
+      }
+      const mismatch = [...new Set([...declared.keys(), ...detailed.keys()])]
+        .filter((v) => (declared.get(v) ?? 0) !== (detailed.get(v) ?? 0));
+      if (mismatch.length > 0) {
+        report(
+          'T10',
+          MODE.ERROR,
+          c.short,
+          `小节 \`## ${sec.time}\` 的测试明细与加粗部分的项数不符`,
+          mismatch.map((v) => `${v}：加粗 ${declared.get(v) ?? 0} 项，明细 ${detailed.get(v) ?? 0} 项`).join('\n'),
+        );
+      }
+      if (isLastSection && li === testLines.length - 1 && parseChangelogCounts(line) === null) {
+        report(
+          'T10',
+          MODE.ERROR,
+          c.short,
+          `小节 \`## ${sec.time}\` 的测试数行缺少子包总量`,
+          `末小节的测试数行要同时写「引擎 X 项 + arena X 项 + CLI X 项 + client X 项 = X 项通过」\n实际：${line}`,
+        );
+      }
+    }
+  }
+}
+
 /** Changelog 里的测试数行：`引擎 X 项 + arena X 项 + CLI X 项 + client X 项 = X 项通过` */
 interface ClCounts {
   counts: Partial<Record<Pkg, number>>;
@@ -1773,6 +2026,7 @@ async function main(): Promise<number> {
     checkS15(c);
     checkS6(c, readFileAt(c.sha, 'CHANGELOG.md'));
     checkT8ModifiedTests(c);
+    checkStrictTestLines(c);
   }
   checkS9(commits);
   const tip = commits[commits.length - 1];
