@@ -717,7 +717,11 @@ function collectCodeAddedLines(range: string): Map<string, { file: string; line:
 const CJK_RE = /[　-〿一-鿿＀-￯]/;
 
 function checkS12(c: CommitInfo): void {
-  const level: Level = c.isDoc ? MODE.INFO : MODE.WARN;
+  // merge 提交没有类型前缀，也不是正常的 LLM+harness 提交；与 S15 一致跳过。
+  if (c.isMerge) return;
+  const lineLevel: Level = c.isDoc ? MODE.INFO : MODE.WARN;
+  // 署名：docs 可能是人工编辑，不强制；其余类型（含 skill）一律要求。
+  const trailerLevel: Level = c.prefix === 'docs' ? MODE.INFO : MODE.ERROR;
   const lines = c.body.split('\n');
 
   // 尾行单独整篇找：中文简述排在 Co-Authored-By 之前，用「遇到 CJK 就停」的循环会
@@ -736,14 +740,14 @@ function checkS12(c: CommitInfo): void {
   if (englishLines > 12) {
     report(
       'S12',
-      level,
+      lineLevel,
       c.short,
       `英文正文 ${englishLines} 行，超过 12 行上限`,
       '更长的解释写进 Changelog 对应小节，不堆在提交信息里',
     );
   }
   if (trailerLine === null) {
-    report('S12', level, c.short, '提交信息缺少 `Co-Authored-By:` 尾行');
+    report('S12', trailerLevel, c.short, '提交信息缺少 `Co-Authored-By:` 尾行');
   }
 }
 
@@ -1639,7 +1643,8 @@ function checkStrictTestLines(c: CommitInfo): void {
   // ── T9：提交信息
   const lines = c.body.replace(/\s+$/, '').split('\n');
   let i = lines.length - 1;
-  if (i >= 0 && /^Co-Authored-By:/.test(lines[i].trim())) i--;
+  // 多模型署名：跳过末尾连续的全部 Co-Authored-By 行。
+  while (i >= 0 && /^Co-Authored-By:/.test(lines[i].trim())) i--;
   while (i >= 0 && lines[i].trim() === '') i--;
   const last = i >= 0 ? lines[i].trim() : '';
   if (last === '') {

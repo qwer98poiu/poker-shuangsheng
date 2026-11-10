@@ -4,6 +4,16 @@
 
 需要把某个提交合并进它前面的提交（如 e2e 断言修复并入策略提交）、精简历史提交的提交信息/Changelog 条目，或把改动回填到历史提交。目标：历史保持"一提交一主题"，无叠加提交、无内容混入。
 
+## 回溯修复（push 前发现 bug）
+
+用户尚未 push、但发现 `origin/main..HEAD` 的某个提交有 bug 时，**不要新增提交**，把修复折进引入 bug 的那个（或那些）提交：
+
+- **先确认未 push**：`git log origin/main..HEAD` 确认范围；`git merge-base --is-ancestor <sha> origin/main` 为真即禁止改写——已离开本机的历史只能新开 `fix:` 提交。可改写的范围只有 `origin/main..HEAD`。
+- **出生即正确**：折进去后，该提交的 diff、提交信息与 Changelog 都应像 bug 从未存在；不要留下「补充修复」「并补」之类的痕迹。风格对照它周围的提交，而不是当前 HEAD。
+- **测试数连锁**：Changelog 的「= X 项通过」是该提交时点的**绝对总数**。若修复增删了测试，被改提交**之后每个条目的总数都要平移**，逐条回填后用 `check-commits` 的 T4 校验；无法回填就把新增测试放到更晚的未推送提交。
+- **不超时空引用**：折进去的文本只能在那个提交的时点成立（见「注意事项」里的「禁止超时空引用」）。
+- 改完整段重跑 `npm run typecheck`、`npm run test:all`（改了 client 时加 `npm run build -w packages/client`），再用 `check-commits` 复查。
+
 ## 核心安全规则
 
 1. **reset 前保证工作区干净**：`git status` 有未提交改动时**提醒用户，不操作**（不自动 stash——reset --hard 会丢改动）。用户自行处理后确认干净再继续。
