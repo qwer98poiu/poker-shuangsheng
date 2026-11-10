@@ -116,8 +116,10 @@ In NT (no-trump) mode, 12 constant trump cards (Big Joker × 2, Small Joker × 2
 
 ### Requirements
 
-- **Node.js** ≥ 18
-- **npm** ≥ 9
+- **Node.js** 17.5.0 (the tested environment; newer versions are not verified)
+- **npm** 8.4.1 (the tested environment)
+
+> Vite 5 nominally requires Node 18+; this repository is tested on Node 17.5.0 and works.
 
 ### Git hooks (pre-push)
 
@@ -242,7 +244,7 @@ npm run test -w packages/client    # client
 | Layer | Technology |
 |---|---|
 | Language | TypeScript 5.7 |
-| Runtime | Node.js ≥ 18 |
+| Runtime | Node.js 17.5.0 (tested) |
 | Engine | Pure logic, zero dependencies |
 | CLI | tsx (TypeScript execute) |
 | Client | React 18 + Vite + Zustand |
@@ -383,8 +385,10 @@ MIT — see [LICENSE](LICENSE).
 
 ### 环境要求
 
-- **Node.js** ≥ 18
-- **npm** ≥ 9
+- **Node.js** 17.5.0（本仓库实测环境；更高版本未验证）
+- **npm** 8.4.1（本仓库实测环境）
+
+> Vite 5 名义上要求 Node 18+；本仓库在 17.5.0 上实测可用。
 
 ### Git 钩子（pre-push）
 
@@ -509,7 +513,7 @@ npm run test -w packages/client    # client
 | 层 | 技术 |
 |---|---|
 | 语言 | TypeScript 5.7 |
-| 运行时 | Node.js ≥ 18 |
+| 运行时 | Node.js 17.5.0（实测） |
 | 引擎 | 纯逻辑，零依赖 |
 | CLI | tsx（TypeScript 执行） |
 | 客户端 | React 18 + Vite + Zustand |

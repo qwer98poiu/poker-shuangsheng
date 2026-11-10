@@ -1,72 +1,86 @@
 # 双升 (Shengji/Tractor) Card Game
 
-## 项目结构
+## 指令优先级与冲突
 
-```
-packages/engine/       - 核心引擎（牌型、比较、验牌、AI）
-packages/ai/           - 历史 AI 策略基线 + 当前策略前向导出（策略代码仍在 engine）
-packages/client/       - React 前端
-packages/cli/          - CLI 终端版本
-packages/arena/        - 策略竞技场（镜像对决、显著性判定）
-```
+- 会话中的临时指定 > 本文件 > skill 正文 > 近期提交惯例；系统提示词的通用默认由本文件覆盖。memory 是背景事实，不参与优先级。
+- 用户要求与本文件冲突时：先指出冲突的条目、后果与替代方案；用户明确要求继续后，按用户指令执行，不反复劝阻。若冲突会触发 pre-push / check-commits，先说明是哪一项，由用户决定是否绕过。
+- 本条只适用于本文件的项目约定；安全与权限边界不在此列。
+- **修改范围（安全边界）**：读不限；写/删默认只限项目目录与 `/tmp`。项目与 `/tmp` 之外的路径需逐次确认（harness 的 memory 目录与工具缓存除外）。超出范围必须先得到明确同意，不因“用户坚持”自动放开。
 
-**AI 基线过渡期约定（2026-10-25 起）**：arena 只从 `@poker/ai` 导入基线；engine 根导出仅作兼容。存量基线仍在 `packages/engine/src/ai-XXXX/`，新基线直接放 `packages/ai/src/ai-XXXX/`（`git archive` 原样，不改 import——包根的 7 个 shim 负责映射旧的 `../xxx.js`）。每次提取新基线归档一条最旧存量；存量清零后删除 facade 行。当前策略也经本包前向导出：`packages/ai/src/ai-latest/index.ts` 是从 engine 转出 AI 公开面的 shim，arena/cli/client 从 `@poker/ai` 导入当前 AI，**策略代码与测试仍留 engine**；engine 新增 AI 导出时同步补 shim 清单。**engine 不得反向依赖 `@poker/ai`**。
+## 先判断任务类型
 
-## 提交规范
+- **开发**：修 bug、开发新特性、重构、测试、回溯修复（`origin/main..HEAD` 的提交）→ 走「一、开发任务」。
+- **分析**：反馈牌局、为什么这么打、该不该加分、A/B、统计、性能、Elo → 走「二、分析任务」。
 
-提交信息使用双语（英文 + 中文），英文正文（details）不超过 12 行；更长的解释写进 Changelog 对应小节，不堆在提交信息里。
+分析结论被采纳时，按分析的「收口」进入开发流程。
 
-| 前缀 | 用途 |
+## 共用
+
+- **项目结构**：`packages/engine/` 核心引擎（牌型、比较、验牌、AI）；`packages/ai/` 历史基线 + 当前策略前向导出（策略代码仍在 engine）；`packages/client/` React 前端；`packages/cli/` CLI；`packages/arena/` 策略竞技场。
+- **架构边界**：arena/cli/client 从 `@poker/ai` 导入 AI，engine 根导出仅作兼容；**engine 不得反向依赖 `@poker/ai`**。新增 AI 导出时同步补 `packages/ai/src/ai-latest/index.ts` 的 shim 清单。
+- **冻结快照**：`packages/{engine,ai}/src/ai-XXXX/` 是 `git archive` 产物，**只读**。提取/归档流程见 `extract-ai-baseline` skill。
+- **命名**：内部编号 P0-P3（P0=玩家1、P1=AI-2、P2=AI-3、P3=AI-4，不存在 P4）；外部显示用 `playerLabel(idx)` 生成 `玩家1` / `AI-2`；测试注释优先 P0-P3 或 `P2(AI-3)` 同时标注。
+- **依赖**：tsx 钉在 `~4.16.5`，**不要升到 4.17+**，区间必须写 `~`（原因见 memory `tsx-pin-esbuild`）。
+- **删除符号链接路径下的内容前先 `ls -la`/`readlink`**：worktree 复用依赖时 `node_modules/@poker/*` 指向主仓库，顺着链接删会删掉真身。
+- **环境与入口**：Node/npm 版本与完整 Quick Start 见 README。`npm install` 装 workspaces，并由 `prepare` 设置 `core.hooksPath=.githooks`。
+  - `npm run dev` = client vite（:3000）；`npm run build` = engine（tsc）+ client（`tsc && vite build`），不含 ai/cli/arena。
+  - CLI：`npm start -w packages/cli`；竞技场/记录：根目录 `npm run arena -- …` / `arena:deal` / `record`。
+  - CLI、arena、record 都由 tsx 直接运行，不需要先 build；engine/ai 的 `main` 指向 `src/index.ts`，测试与类型检查也不依赖 build。
+
+## 一、开发任务
+
+开发任务有两种模式：
+
+- **新增改动**：走下面的 1～7 步。
+- **回溯修复**：`origin/main..HEAD` 的提交有 bug 时，**不新增提交**，按 `edit-history` skill 把修复折进**引入 bug 的那个（或那些）提交**，遵循「出生即正确」——该提交的 diff、提交信息与 Changelog 都应像 bug 从未存在；测试数变化时重测并回填。**已 push 的提交不在此列**，只能新开 `fix:` 提交。整段改完后重跑 `npm run typecheck`、`npm run test:all`（改了 client 时加 `npm run build -w packages/client`），再用 `check-commits` 复查。
+  - 改写前用 `git log origin/main..HEAD` 确认范围；`git merge-base --is-ancestor <sha> origin/main` 为真即禁止改写。
+  - Changelog 的「= X 项通过」是该提交时点的**绝对总数**：回溯修复若增删测试，被改提交**之后每个条目的总数都要平移**，需逐条回填并用 `check-commits` 的 T4 校验。
+
+### 1. 明确目标与达成共识
+
+- **修 bug / 反馈牌局**：先复现——构造场景直接调引擎 AI（`aiFollowPlay`/`aiLeadPlay` 等，可手写 AIContext 或写临时脚本）或写复现测试，确认能复现再动手；不要先手推逻辑或凭规格推断。测试应还原用户描述的场景（手牌、领出、位置）。
+- **新特性，只给了目标**：先深入思考，必要时**分多轮追问**范围、交互、边界条件与验收标准，直到没有关键歧义；不要凭猜测开工。
+- **新特性或重构，给了原型/方案**：做**对抗性审查**——逐条指出不明确、不合理、与现有架构冲突、无法验收或无回滚方案的点；宁可多问，不要默默改方案。
+- **达成共识后再动手**；较大改动先出方案并获批。分析采纳而来的改动，分析结论经用户确认即视为共识，可直接从第 2 步开始。
+
+### 2. 定改动类型与连带义务
+
+| 改动 | 连带义务 |
 |---|---|
-| `fix:` | 修复 bug（含策略 bug） |
-| `feat:` | 新功能（非策略） |
-| `strategy:` | 修改 AI 策略 |
-| `refactor:` | 重构（无行为变更） |
-| `test:` | 新增或修改测试（含产物为测试数据/断言的生成器脚本，见下） |
-| `docs:` | 文档 |
-| `chore:` | 构建/依赖 |
-| `skill:` | 新增或修改 skill（`.claude/skills/` 下的技能；提交时用 `git add -f`，该目录在 .gitignore 中） |
+| `packages/engine/src/ai-latest/` 策略（含 `fix:`） | 至少一个竞技场（`arena` 或 `arena:deal`）对改动前的 ai-latest 显著（99% Wilson 下界 > 0.5）；更新 `packages/arena/src/__tests__/strategy-fingerprint.test.ts` 三项数值（测试数行写「修改 3 项测试（arena 3）」）；README 中英「现行刻度」表当前行改 `待重测`；`strategy:` 提交同提交更新 `STRATEGY.md` |
+| 共享引擎代码（`model.ts`、`pattern/`、`comparing/`、`following/`、扣底/升级、发牌） | README 中英「现行刻度」表全表重测（口径变了另开一表） |
+| GUI 组件位置 | 跑 `layout-regression` skill |
+| 提取/归档 AI 基线 | `extract-ai-baseline` skill |
+| 冻结快照 `ai-XXXX/` | 只读，不得改动 |
+| 只改 `.md` / 数据 `.json` | 不写 Changelog；提交标题写明测量/生成时点 |
 
-**开发脚本（`packages/*/scripts/`）按用途归类**：产物是测试断言或测试场景数据 → `test:`（`gen-bottom-tests.ts`；不改测试套件本身，提交信息与 Changelog 的测试数行均写「无新增测试」）；通用调试基建、供人工手动运行 → `chore:`（`ui-dump.ts`、`ui-smoke.ts`）；本身构成一项可用的检查能力（接入流程）→ `feat:`（`layout-regression.ts`）；仅挪位置/改名/重构 → `refactor:`（`elo-verify.ts → elo-calc.ts`）。
+判据是「行为是否可能改变 AI 决策或牌局结算」，不是「是否动了 engine 目录」：纯注释、纯类型、测试、无行为变更的重构、尚未接线的导出函数不必按失效处理。**拿不准就按失效处理。**
 
-示例：
-```
-fix: add missing add-points check in followOffSuitThrow void path
+策略类改动的竞技场必须**显式指定** `--strategy-b <改动前基线>`；不要依赖默认值（默认值会随基线更新而变化）。结果写进 Changelog（竞技场、种子、样本量、p̂/CI），不引用报告；预算内未显著但有趋势时停下报告，不自行扩大样本（见分析「样本有预算」）。
 
-Third position with tmWin should check canAddPoints before trumping.
-Adds nonTrump.length >= leadLen guard for safe filler selection.
+### 3. 改代码与测试
 
-第三家队友已大时，缺门应先检查可加分再毙牌。
-新增 1 项测试（engine）。
+- 测试断言优先精确值（`toBe(n)`），避免 `toBeGreaterThan` 等模糊匹配，除非值本身受外部因素影响。
+- 基础模块（如记牌器）逐项穷举：所有视角 × 目标玩家 × 所有 suit-rank × 精确张数，不允许只验证部分卡牌（见 `packages/engine/src/__tests__/ai-nt-tracking.test.ts`）。
+- 测试场景的庄家（`declarerIndex`）与亮主者（reveal 的 `playerIndex`）必须与真实游戏一致——设错会测到另一条分支而测试照样绿。
+- 策略指纹集中在一个文件，不要把这类数字散落在 client/arena 的其他测试里。
+- 不要用 `as any` 消音；类型对不上用最小 cast（`as CardSuit`）。`Suit`/`SpecialSuit` 是 `as const` 联合，`Suit.Spades` 与 `'S'` 都合法。
 
-Co-Authored-By: DeepSeek V4.1 Flash <noreply@deepseek.com>
-```
+### 4. 本地验证
 
-测试数行写 `新增/修改/删除 N 项测试（子包）`——该行须单独占一行、位于中文正文最后一行（`Co-Authored-By` 之前），只写测试变动本身、不列测试总数；各分项后不必都带子包括号，但至少有一个，括号里列两个及以上子包时每个子包都要注明数量（跨子包写 `新增 3 项测试（engine 1 + client 2）`）；无测试改动写 `无新增测试`；数字必须与实际测试结果一致，取数命令见「测试命令」。
+- 根目录 `npm run typecheck` 零错误（engine → ai → arena → cli → client → skills）。
+- 根目录 `npm run test:all` 全绿（engine → arena → cli → client）。
+- **改了 client 时**额外跑 `npm run build -w packages/client`（`tsc && vite build`）——typecheck 不覆盖打包，测试也不覆盖。
+- 单包用 `npm run test -w packages/<pkg>`；**不要从仓库根用 `npx vitest run <包路径>` 统计测试数**（会混入其他包）。根目录 `npm run test` 只跑 engine。
+- `packages/ai` 无独立测试套件，不要在 Changelog 里给它列测试数。
+- `packages/*/scripts/` 不在包 tsconfig 的 `include` 内；新增含 scripts 的包要补 `tsconfig.scripts.json`（engine/arena/client 已有）。`.claude/skills/` 由根 `tsconfig.skills.json` 自动覆盖。
+- 本地 typecheck 看不见未提交/被忽略的文件，`check-commits` 的 T2 在干净 worktree 里跑——两者不可互替。
 
-### 引用历史：用日期，不用提交哈希
+### 5. 写 Changelog
 
-**提交信息、Changelog、代码一律不得引用提交哈希**。
+**必须在代码提交之前写**，与代码一起 `git add`；时间与提交时间允许相差几分钟。**Changelog 只在更新代码时写**；纯文档提交（`docs:` 和 `skill:`）一律不写。
 
-开发过程中改写历史会让旧哈希变成**悬空引用**（`git cat-file` 解析不到，或只解析到改写前的旧对象）——它既指不到任何东西，也失去了「可查」这个唯一优点。日期不会因改写而失效：`MM-DD HH:MM` 取自该提交**自己那条 Changelog 条目**的时间，在文件里就能查到。
-
-- Changelog 正文与代码注释写 `08-23 00:40` 或 `2026-08-23`，不写 `<hash>`：例如「组粒度（08-23 00:40 引入）」「提取 08-14 22:12 的 `ai/`」。
-- **不追溯旧账**：只对**本次提交新增的文本**生效；历史上已有的哈希原样保留，不再修改。
-
-**两处例外**（仅限代码载体；提交信息与 Changelog 正文**没有**例外）：
-
-| 例外 | 形态 | 为什么必须留哈希 |
-|---|---|---|
-| **快照出处注释** | `packages/{engine,ai}/src/ai-XXXX/` 的出处注释、`// ai/ as of <hash> (日期)` 导出注释、`it('ai-XXXX（<hash>, …）')` 测试名 | 目录名 `ai-XXXX` 只到日，且快照日与提取提交往往不同日（`ai-0808` ← 08-08 的提交、提取在 08-09），只留日期无法唯一定位提取源——必须**同时**给出哈希与日期 |
-| **出处字段** | 生成物里记录来源提交的机器可读字段，如布局基线的 `"commit": "<hash>"`（`layout-regression.ts --snapshot` 写入） | 同上；判据看键名（须含 `commit`/`revision`）与值（7–40 位十六进制） |
-
-出处哈希必须**在 main 上可达**（`git merge-base --is-ancestor <hash> main` 成立）：指向被改写掉的旧对象时，眼下还能 `git show <hash>:<path>`，GC 之后彻底失效。
-
-**路径同此**：不得引用 **main 上不存在的路径**（文件、目录、分支名）——它与引用一个被改写的哈希是同一个病：读者打不开。典型是临时实验产物（`scripts/` 下的脚本与笔记）被删掉之后，条目里还留着「详见 `…`」。要留证据就把结论本身写出来（数字、判据），别留指针。提交信息与 Changelog 解释「为什么做、做了什么」时，只能以 main 上存在的东西为参照系。
-
-提交前自检与全量校验见 `.claude/skills/check-commits` 的 **S11**（两处例外报 info，其余报 error）与 **S15**（merge 提交与「反例」行豁免）。
-
-## Changelog 格式
+模板：
 
 ```markdown
 ## YYYY-MM-DD HH:MM
@@ -82,77 +96,86 @@ Co-Authored-By: DeepSeek V4.1 Flash <noreply@deepseek.com>
 - **影响文件**：`path/to/file.ts`
 ```
 
-Changelog 的测试数行与提交信息不同：按文件列出改动（`file.test.ts：新增 N 项；…`），明细括号内不得再嵌套括号（嵌套会让增量解析重复计数）；末小节在同一行附子包分项与总数（`引擎 X 项 + arena X 项 + CLI X 项 + client X 项 = X 项通过`）；无新增写 `无新增测试`；删除写 `删除 N 项测试`；client 无测试时省略 `client` 项。每项修改为一个独立的日期时间小节，按时间倒序排列。
+- 测试数行按文件列出改动（`file.test.ts：新增 N 项`），明细括号内**不得嵌套括号**；末小节同一行附子包分项与总数；无新增写 `无新增测试`，删除写 `删除 N 项测试`；client 无测试时省略该项。
+- 多小节条目：同一时间下可有多个 `###`；只有最后一个小节写总数，前面的只写分项。新条目置顶，按时间倒序。
+- 取数：`npm run test:all 2>&1 | grep -E "^> @poker/.* test$|Tests +[0-9]+ passed"`（四包顺序 = engine + arena + CLI + client）。
+- 详细格式以 `check-commits` 的 T10 为准。
 
-**多小节条目**：一个日期时间条目下可包含多个 `###` 小节（同一提交的多方面改动，如策略变更 + 其影响）。只有**最后**一个小节写测试总数（同上一行的分项+总数格式），前面的小节只写 `**新增/修改/删除 N 项测试**（file.ts：M 项）`，不写总数。
+### 6. 提交
 
-## 开发原则
+- 双语（英文 + 中文），英文正文 ≤12 行；中文须是英文正文的摘要，不另起一组信息——英文里没有的测量与背景、以及更长的解释都写 Changelog。
+- 前缀：`fix:` 修复 bug（含策略 bug）/ `feat:` 新功能 / `strategy:` 修改 AI 策略 / `refactor:` 重构 / `test:` 测试 / `docs:` 文档 / `chore:` 构建依赖 / `skill:` 新增或修改 skill（提交时 `git add -f`，`.claude/` 在 .gitignore 中）。
+- 开发脚本（`packages/*/scripts/`）按用途归类：产物是测试数据/断言 → `test:`；通用调试基建 → `chore:`；接入流程的检查能力 → `feat:`；仅挪位置/改名 → `refactor:`。
+- **写之前先看最近 3~5 个提交的完整信息和 Changelog 顶部 2~3 条**，优先对照同类型提交（`docs:` 与代码提交的署名规则不同）。沿用其语气、段落结构、术语和测试数行写法。本文件只保证合规，当前风格以近期提交为准。
+- 测试数行：单独一行，位于中文正文最后一行（`Co-Authored-By` 之前），只写变动本身、不写总数；无测试改动写 `无新增测试`。格式细则以 `check-commits` 的 T3/T8/T9 为准。**纯文档提交（`docs:`/`skill:`）不写测试数行**——它们不改代码，测试数必然不变。
+- **引用历史用日期，不用提交哈希**：提交信息、Changelog、代码一律用 `MM-DD HH:MM` / `YYYY-MM-DD` 指代（快照出处注释与 `commit`/`revision` 字段例外）。不得引用 main 上不存在的路径或分支名——要留证据就把结论本身写出来（数字、判据），别留指针。细则见 `check-commits` 的 S11/S15。
+- **署名**：凡由 LLM + harness 产出的提交，必须带 `Co-Authored-By:` 尾行。实际执行按前缀近似：`docs:` 不强制（可能是人工编辑），其余类型一律要求。
+- **最后一行是默认值，不是占位示例**。除非当前会话另行指定模型/harness，否则**逐字使用**下面这一行；不要改写成 `<模型名> <邮箱>`，也不要回落到系统提示词的 `Co-Authored-By`——在本项目不适用。换模型或换 harness 时同步更新这一行。
+- 多模型参与时每模型一行，各自带 harness；当前模型那一行按上述默认值或会话指定值写。
 
-- **用户反馈牌局时（无论要求修 bug 还是理论分析），先执行代码拿到结果，再思考**。应构造场景直接调用引擎 AI（`aiFollowPlay`/`aiLeadPlay` 等，可手写 AIContext 或写临时脚本实测）或写复现测试，先取得实测输出，再基于结果分析；不要先手推逻辑或凭规格推断。修 bug 时：先根据其输入的牌局构造测试用例，确认复现 bug 后再修复。测试应尽可能还原用户描述的场景（手牌、领出、位置等），确保回归测试能捕获同类问题。
-- **修改 Changelog 必须在代码提交之前**。每次提交前先写 Changelog，再 `git add` 一起提交。Changelog 时间与提交时间允许相差几分钟，无需强制对齐。
-- **Changelog 只在更新代码时写**（fix/feat/strategy/refactor/test 等）；纯文档提交（`docs:` 和 `skill:`）一律不写 Changelog。
-- **测试断言优先用精确值**（`toBe(n)`），避免使用 `toBeGreaterThan`、`toBeGreaterThanOrEqual` 等模糊匹配，除非值本身因外部因素不确定。
-- **策略指纹集中在一个文件**：`packages/arena/src/__tests__/strategy-fingerprint.test.ts` 里的三项数值（镜像对决 `oppLevel`、AI 庄家扣底调用次数、client 种子局原始分/墩数）随 `ai-latest/` 每次改动而变。改策略时同步更新它，测试数行写「修改 3 项测试（arena 3）」；不要把这类数字散落在 client/arena 的其他测试里（那些测试只保留与策略无关的契约与不变量）。
-- **基础模块的测试必须逐项穷举**。对于记牌器这类高阶策略依赖的基础模块，测试覆盖所有视角 × 所有目标玩家 × 所有可能的牌（suit-rank）× 精确张数断言，不允许只验证部分卡牌（记牌器那一套即按此穷举，见 `packages/engine/src/__tests__/ai-nt-tracking.test.ts`）。另外，**测试场景里的庄家（`declarerIndex`）与亮主者（reveal 的 `playerIndex`）必须与真实游戏一致**——庄家身份决定底牌是否进入可能列表，设错会测到另一条分支而测试照样绿，这类错误不会自己暴露。
-- **每次提交前必须跑类型检查并清理全部错误**：根目录 `npm run typecheck`，须零错误后才提交（范围与 `scripts/` 的坑见「类型检查」节）。vitest 经 esbuild 转译不做类型检查，类型错误不会导致测试失败，因此必须显式检查。
-- **删除符号链接路径下的内容前先确认目标**：`git worktree` 无 node_modules，复用主仓库依赖时通常把 worktree 的 `node_modules` 符号链接到主仓库——此时 `rm worktree/node_modules/@poker/engine` 会顺着链接删掉**主仓库**里的真身（2026-08-15 实测：误删 `@poker/engine` 导致 vite 无法解析）。删除/重建前用 `ls -la`/`readlink` 确认是否为链接及指向；worktree 清理（`git worktree remove`）前先把指向 worktree 内部路径的链接改回相对链接（`../../packages/engine`），否则悬空。
+提交格式与当前署名（**最后一行是默认值，不是占位示例**）：
 
-## 测试命令
+```
+fix: add missing add-points check in followOffSuitThrow void path
 
-- **单包测试**：`npm run test -w packages/engine` / `-w packages/cli` / `-w packages/arena` / `-w packages/client`（等价于进入该包目录后 `vitest run`，读取各自的 vitest.config.ts）
-- **全量测试**：根目录 `npm run test:all`，依次执行四个单包测试命令（engine → arena → cli → client，任一失败即停止）
-- **`packages/ai` 无独立测试套件**：其代码由 arena 的 `historical-strategies` / `baseline-facade` 测试间接覆盖（`ai-latest` shim 对应的策略测试仍留 engine），因此 `test:all` 仍只跑上述四个包；不要在 Changelog 里给它列测试数
-- **根目录 `npm run test` 只跑引擎**（根 package.json 的 test 脚本指向 engine）
-- **不要从仓库根用 `npx vitest run <包路径>` 统计测试数**——positional filter 在存在多个 vitest.config.ts 时会混入其他包的测试（实测 `npx vitest run packages/cli` 混入 client 测试，127 ≠ 真实 80）
-- **Changelog 的测试总数**：运行 `npm run test:all 2>&1 | grep -E "^> @poker/.* test$|Tests +[0-9]+ passed"`，取输出中对应包的 `Tests N passed` 中的 N（四包顺序 = engine + arena + CLI + client），四者之和为总数
+Third position with tmWin should check canAddPoints before trumping.
+Adds nonTrump.length >= leadLen guard for safe filler selection.
 
-## 类型检查
+第三家队友已大时，缺门应先检查可加分再毙牌。
+新增 1 项测试（engine）。
 
-- **命令**：根目录 `npm run typecheck`，按 engine → ai → arena → cli → client → skills 顺序各跑一次 `tsc --noEmit`（与 `test:all` 同风格，任一失败即停止）。提交前必零错误。
-- **门禁在 pre-push，不在 pre-commit**：`.githooks/pre-push` 依次跑「工作区 `npm run typecheck` → `npm run test:all` → `check-commits <本次推送范围> --no-tests --no-typecheck`」，任一失败即阻断推送；`git push --no-verify` 可跳过。`core.hooksPath` 由根 `package.json` 的 `prepare` 在 `npm install` 后自动设好，**新克隆无需手工配置**（提交保持快，推送才是「离开本机」的时刻）。
-- **本地 `npm run typecheck` ≠ `check-commits` 的 T2**：两者跑的都是 typecheck，但 T2 是在为每个提交新建的**干净 worktree** 里跑，看不见未提交的与被 `.gitignore` 忽略的文件——2026-09-26 实测的最坏组合：本机因 `packages/arena/scripts/` 下三个被忽略的实验脚本而红，而 T2 报告「通过」。**两者不可互相替代**，门禁里跑的是前者；同理，把一个文件写进 `.gitignore` 并不会把它移出 tsconfig 的 `include`（`include` 按目录取），必须同步加 `exclude`。
-- **历史坑一（范围）**：该条原先只写「engine 与 client」，`cli`/`arena` 从未被检查过——2026-09-19 修掉的 13 个 TS2345（`packages/cli/src/__tests__/round-result.test.ts`）在此之前一直存在于 HEAD 上，而 vitest 全绿。
-- **历史坑二（`scripts/`）**：各包的 `tsconfig.json` 都只 `include: ["src"]`，**`packages/*/scripts/` 不在任何 tsconfig 范围内**。有 scripts 的包（engine / arena / client）另配 `tsconfig.scripts.json`，已并入该包的 `typecheck` 脚本；新增含 scripts 的包要同步补一个，否则脚本仍然裸奔（`ai` 目前无 scripts）。
-- **历史坑三（`.claude/skills/`）**：skills 在各包之外，同样不在任何 tsconfig 范围内，脚本一直裸奔——2026-09-26 接入时当场报出 6 个错误（`inject-gui.ts` 的 `JSON.parse` 未定型 → `Object.values` 推成 `unknown[]`，各处展开报 TS2488、回调参数隐式 any）。现由根 `tsconfig.skills.json`（`include: [".claude/skills"]`）与根 `typecheck:skills` 脚本覆盖；**新增带 `.ts` 的 skill 自动纳入，不必再改配置**。
-- **花色类型**：`Suit`/`SpecialSuit` 是 `as const` 对象 + 同名联合类型（2026-09-19 由**字符串枚举**改来；字符串枚举是名义类型，那时 `'S'` 赋给 `CardSuit` 会报 TS2345，没有任何编译器开关能放宽）。现在 `Suit.Spades` 与 `'S'` 都合法，不需要任何 cast；`Rank` 仍是数值枚举，传裸数字合法（`createCard(Suit.Spades, 14, 200)`）。
-- **不要用 `as any` 消音**：那会把整条链路的类型检查一起关掉——`createCard(s, r as any, i)` 就是反例，它同时掩盖了 rank 传错这类真错误。类型实在对不上时用最小必要的 cast（`as CardSuit` 而非 `as any`）。
+Co-Authored-By: DeepSeek V4.1 Flash (Claude Code) <noreply@deepseek.com>
+```
 
-## 依赖
+### 7. 复查与推送
 
-- **tsx 钉在 `~4.16.5`，不要升到 4.17+**（2026-10-01 起本地依赖）。4.17 起 tsx 要求 esbuild `~0.23`+，而根已有 esbuild 0.21.5（vite/vitest 那条线）：npm 8 不会为嵌套的 esbuild 装同名平台包 `@esbuild/darwin-x64`（嵌套目录建了但为空），esbuild 的 postinstall 便拿根那份去校验，报 `Expected "0.28.2" but got "0.21.5"`，`npm i` 失败回滚；`--ignore-scripts` 也不行（平台包缺失，tsx 一启动就 TransformError）。4.16.5 要 `~0.21.5`，dedupe 到已有那份，零新增 esbuild——**区间必须写 `~` 而非 `^`**，`^4.16.5` 会在下次 `npm install` 解析回 4.23 并把安装弄坏。
-- **`npx tsx` 与本地 `tsx` 的取舍**：仓库自己的入口（`npm run arena`、`npm start -w packages/cli`）直接调本地 `tsx`；文档与脚本注释里的 `npx tsx …` 保持原样——那些命令在普通终端里跑，PATH 上没有 `node_modules/.bin`。本地有依赖后 npx 不再联网（解析不到才会联网下载，2026-09-30 那晚的竞技场卡死正是这个形态）。
+- 提交后**默认停在这里**：**除非用户明确要求，否则不要替用户 push**。
+- 用户要求推送前，先确认 `origin/main..HEAD` 没有待回溯修复的 bug；有就先按「回溯修复」处理，不要用新提交盖住。
+- pre-push 门禁：`.githooks/pre-push` 依次跑「`npm run typecheck` → `npm run test:all` → `check-commits <范围> --no-tests --no-typecheck`」，任一失败即阻断推送；`git push --no-verify` 可跳过。
+- 提交序列的事后复查用 `check-commits` skill（默认 `origin/main..HEAD`）。
 
-## 布局回归检查
+## 二、分析任务
 
-- **用途**：修改任意 GUI 组件的位置后，验证其他所有组件位置不变（历史教训：给 `.center-area` 加 `position: relative` 导致等级框掉到桌布上——定位祖先被劫持）。
-- **用法**（vite dev server 默认跑在 3000；该端口被占用时 vite 会顺延到下一个可用端口并打印实际地址，那就用 `--url` 指定它。浏览器 = 系统 Chrome）：
-  - 检查：`cd packages/client && npx tsx scripts/layout-regression.ts`——注入 6 个代表性阶段（发牌/亮主/扣底/出牌/甩 10 张/局末），测量 40 个关键组件的矩形，与基线 `scripts/layout-baseline.json` 比对；任一组件位移 >1px 时列出该组件及精确 delta，退出码 1。
-  - 生成基线：`npx tsx scripts/layout-regression.ts --snapshot`——**仅当人工确认当前布局正确时**执行；基线随代码提交，视口固定 1280×720。
-- **有意移动组件时**：人工确认全布局正确后重新 `--snapshot` 更新基线，再提交。
+分析产物是草稿，不进 main。分析没有固定流程，按问题选方法；硬约束只有四条：
 
-## Elo 分与 README 数值
+- **先拿事实**：先执行代码拿到结果，再思考；不要先手推逻辑或凭规格推断。按问题形态选工具（见下）。
+- **样本有预算**：开跑前定样本上限，到上限即停。不得为追求显著性反复加大样本，也不要把竞技场的默认上限当作“跑完再说”（默认值会变，必须自己设预算）。有限样本下若有变显著的趋势（p̂ > 0.5 但下界仍 ≤ 0.5，或随样本单调改善），停下来报告趋势与已测样本；大样本由用户手动跑，或取得明确授权后再跑。
+  - 固定样本：对局用 `--max-matches 2×pairs`，发牌用 `--max-deals = --min-deals`。
+- **结论自足**：数字 + 样本量 + 显著性 + 可复现命令（种子、环境）；读者只 checkout main 就能理解并验证。区分「可疑候选」与「定论」：只比较本墩、不看未来价值的结果不能当最终结论。
+- **收口**：采纳 → 按开发流程走；暂缓/放弃 → 一条 memory（含口径、数字、搜索空间）；然后删除报告与临时脚本。
 
-- **用途**：README 中英两张表里的 Elo 分是**实测快照**（`packages/arena/scripts/elo-calc.ts` 拟合，锚点 `ANCHOR_ELO`）。被测代码或测量口径一变旧数字就失效，**必须改标 `待重测`（TBD）**——中英两处都改，不得让旧分数挂着不动。
-- **失效范围按被测物的依赖边界划分**（实测：冻结快照只 import 共享模块 `model`/`pattern`/`comparing`/`following`/`types`，**不 import `ai-latest/`**——所以改 `ai-latest/` 只波及当前行，改共享模块才波及全表）：
+**策略类分析**的产出按开发第 2 步验收：至少一个竞技场对改动前的 ai-latest 显著。
 
-  | 改了什么 | 失效范围 | 处理 |
-  |---|---|---|
-  | `packages/engine/src/ai-latest/` 策略代码 | 仅 `ai-latest`（当前）一行 | 该格改 `待重测`；基线行与锚点不动 |
-  | 共享引擎代码——`model.ts`、`pattern/`、`comparing/`、`following/`、扣底/升级、发牌 | **整张表**（含锚点） | 全表重测；口径变了（如扣底口径）另开一表，不与旧表混列 |
-  | `packages/engine/src/ai-XXXX/`（过渡期存量）或 `packages/ai/src/ai-XXXX/`（新基线）冻结快照 | 该基线 | 不应改动——快照是 `git archive` 产物，改了就不再是那个日期的策略 |
-  | 策略接线（`packages/arena/src/strategies.ts` 的策略名 → 引擎入口） | 被改接线的那些行 | 名字必须继续指同一份代码；换实现 = 换策略，旧分不成立 |
-  | 竞技场测量口径（`packages/arena/src/run.ts`、镜像对局、平局按 0.5、n 局数） | `MATCHES` 全部 p̂ | 重跑对局、重填 `MATCHES` |
-  | `ANCHOR` / `ANCHOR_ELO` | 整张表（构造上） | 只在有意改刻度时动 |
+常用做法（非强制）：先定口径（视角、判据、「更好」怎么算）；分析前后保持工作区干净。
 
-- **判据是「行为是否可能改变 AI 决策或牌局结算」**，不是「是否动了 engine 目录」：纯注释、纯类型、测试、无行为变更的重构、尚未接线的导出函数不必改标。**拿不准就改标**——旧数字挂着不动的代价远大于多测一次。
-- 重测后按 `elo-calc.ts` 的读数规则填表（新拟合值与表中原值只差 **1** 时保留原值）。CLI / GUI 改动**不影响** Elo——竞技场在 Node 里直接跑引擎，不经前端。
+### 常用工具
 
-## 命名约定
+| 问题 | 工具 |
+|---|---|
+| 这手牌为什么这么打 / 该不该加分 | 构造 AIContext 调 `aiFollowPlay`/`aiLeadPlay`；或 `gui-inject-ai` skill 注入 GUI 复现 |
+| 策略是不是更强 | 两个竞技场之一（见下）+ 显著性；分值用 `elo-calc` |
+| 批量行为/违规统计 | 按需写扫描器跑录像（临时脚本，收口时删除） |
+| 性能 | `npm run arena -- --benchmark` / `npm run record` |
 
-- **内部编号 P0-P3**：代码和测试中统一使用，P0=玩家1、P1=AI-2、P2=AI-3、P3=AI-4。不存在 P4。
-- **外部显示**：CLI 输出使用 `玩家1`（非 AI）或 `AI-2`（AI），由 `playerLabel(idx)` 生成。
-- **测试注释中的玩家标注**：优先使用 P0-P3 内部编号，或用 `P2(AI-3)` 同时标注两者。
+| 竞技场 | 命令 | 单位 |
+|---|---|---|
+| 对局 | `npm run arena -- --pairs <n> --seed <n> --strategy-a ai-latest --strategy-b <基线>` | 对局 |
+| 发牌 | `npm run arena:deal -- --min-deals <n> --seed <n> --strategy-a ai-latest --strategy-b <基线>` | 一副牌 |
 
-## AI 策略文档
+判据：99% Wilson 下界 > 0.5。**不要依赖 `--strategy-b` 的默认值**（会随基线更新而变）；必须显式指定改动前的基线。
 
-参见 [packages/engine/src/ai-latest/STRATEGY.md](packages/engine/src/ai-latest/STRATEGY.md)。
+## 参考
+
+- AI 策略说明：`packages/engine/src/ai-latest/STRATEGY.md`
+- 提取/归档基线：`extract-ai-baseline` skill
+- 布局回归：`layout-regression` skill
+- Elo 失效判定与重测：`elo-measure` skill
+- 提交序列校验：`check-commits` skill
+- 历史改写/回溯修复：`edit-history` skill
+- GUI 状态注入：`gui-inject-ai` skill
+
+## 文档维护
+
+- 每条规则都要有“执法者”：checker / skill / 人工。既没有检查器、又长期没触发过的规则，下次重构优先删。
+- 本文件不存会过期的值（锚点、Elo 分数、当前基线列表等）。**唯一例外**是 `Co-Authored-By` 的当前默认模型与 harness：它必须写在示例里，换模型/换 harness 时同步更新。
+- 机器可判的格式细则以 `check-commits` 为准；操作步骤以 skill 为准；事故经过放 memory。本文件只写“做什么、按什么顺序做、什么不能做”。
