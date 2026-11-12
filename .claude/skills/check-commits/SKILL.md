@@ -50,7 +50,7 @@ npx tsx .claude/skills/check-commits/check-commits.ts --no-tests --no-typecheck
 
 ## 检查项
 
-三级：**error**（影响退出码）/ **warn** / **info**。纯文档指 `docs:` 与 `skill:` 前缀（规范：不写 Changelog 条目）。
+三级：**error**（影响退出码）/ **warn** / **info**。纯文档指 `docs:` 与 `skill:` 前缀（规范：不写 Changelog 条目，也不写测试数行）。
 
 ### 结构类（不跑测试）
 
@@ -72,7 +72,7 @@ npx tsx .claude/skills/check-commits/check-commits.ts --no-tests --no-typecheck
 | S14 | 冻结快照 `packages/{engine,ai}/src/ai-XXXX/` 只读；跨根搬迁必须逐字节一致 | error / info |
 | S15 | **动机与范围必须以 main 为参照系**：提交信息与 Changelog 不得引用分支名——分支删掉之后引用还在，读者在 main 上找不到它（merge 提交与「反例」行豁免） | error |
 | T8 | **被修改的测试必须被声明**：测试文件改了既有断言（有 `expect(` 增删、无 `it(`/`test(` 增删）时，提交信息与 Changelog 的测试数行须有「修改/重写 N 项测试」子句覆盖对应子包（只核对子包覆盖，不核对 N；不跑测试，`--no-tests` 时照跑）。**只对树里已含 T8 的提交生效**，不追溯 T8 之前的提交 | error / info |
-| T9 | **提交信息的测试数行格式**：必须是正文最后一行（`Co-Authored-By` 之前）、单独占一行、不写总量；各子句后的子包括号可有可无，但至少有一个；括号里列 ≥2 个子包时每个子包都要带数量。**只对树里已含 T9/T10 的提交生效** | error |
+| T9 | **提交信息的测试数行格式**：必须是正文最后一行（`Co-Authored-By` 之前）、单独占一行、不写总量；各子句后的子包括号可有可无，但至少有一个；括号里列 ≥2 个子包时每个子包都要带数量；只有一个子包时不写数量（`（engine）`，不写 `（engine 6）`）。纯文档提交（`docs:`/`skill:`）不得写测试数行。**格式规则只对树里已含 T9/T10 的提交生效，纯文档分支只对树里已含该分支的提交生效** | error |
 | T10 | **Changelog 的测试数行格式**：必须按文件列出改动（`file.test.ts：新增 N 项；…`），明细项数与加粗子句一致；明细括号内不得再嵌套括号；末小节的测试数行须同时写子包总量（`引擎 X 项 + … = X 项通过`）。**只对树里已含 T9/T10 的提交生效** | error |
 
 ### 实测类（跑测试 / 类型检查）
@@ -114,11 +114,12 @@ npx tsx .claude/skills/check-commits/check-commits.ts --no-tests --no-typecheck
 Changelog：**新增 1 项测试、修改 2 项测试**（ai-follow.test.ts：新增 1 项、修改 1 项；strategy-fingerprint.test.ts：修改 1 项——…），引擎 1317 项 + arena 248 项 + CLI 87 项 + client 201 项 = 1853 项通过。
 ```
 
-- 提交信息：测试数行不写总量；子包括号至少有一个；括号里列 ≥2 个子包时每个都要带数量（`engine + arena` 不合格，`engine 5 + arena 1` 合格）。
+- 提交信息：测试数行不写总量；子包括号至少有一个；括号里列 ≥2 个子包时每个都要带数量（`engine + arena` 不合格，`engine 5 + arena 1` 合格）；只有一个子包时不写数量（`（engine）` 合格，`（engine 6）` 不合格）。
 - 测试数行必须在**末尾全部 `Co-Authored-By:` 行之前**；T9 按连续署名行整段跳过（多模型时有多行）。
 - Changelog：按文件写明细（`file.test.ts：新增 N 项`），文件明细的项数必须与加粗子句逐动词一致；末小节的明细与总量写在同一行。
 - 明细括号内**不得再嵌套括号**：`parseTestDelta` 抹括号用的 `/（([^（）]*)）/` 不支持嵌套，嵌套会让明细里的「新增 N 项」被重复计数，T5 随即报 Changelog 与提交信息增量不一致（2026-11-09 实测：`（15 墩不变）` 导致 4 ≠ 2）。
 - 与 T8 同口径，只对「自己的树里已含 `checkStrictTestLines`」的提交生效，不追溯旧账；实现时不要改名这个函数。
+- 纯文档分支：`docs:`/`skill:` 提交的正文不得出现测试增量（含「无新增测试」）——它们不改代码，测试数必然不变。该分支用独立的 `checkDocNoTestLine` 自描述判据，不追溯旧提交，实现时同样不要改名。
 
 **S12 的署名口径**：凡由 LLM + harness 产出的提交都必须带 `Co-Authored-By:`；检查器只能按前缀近似——`docs:` 可能是人工编辑，不强制；其余类型（含 `skill:`）缺失即 error，merge 提交跳过。允许一个模型一行，可带 harness：`Co-Authored-By: DeepSeek V4.1 Flash (Claude Code) <noreply@deepseek.com>`。S12 只校验「存在 + `Name <email>` 格式」，不校验模型名，占位符（如 `<模型名>`）也能通过。
 

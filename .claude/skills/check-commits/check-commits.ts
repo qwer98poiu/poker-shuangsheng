@@ -1538,7 +1538,7 @@ function parsePkgList(inner: string): { name: Pkg; count: number | null }[] | nu
  *   `无新增测试。`
  *
  * 约束：不写总量；各子句后的子包括号可有可无，但至少有一个；括号里列 ≥2 个子包时
- * 每个子包都要带数量。
+ * 每个子包都要带数量；只有一个子包时不写数量（写 `（engine）`，不写 `（engine 6）`）。
  */
 function messageTestLineError(line: string): string | null {
   if (/^无新增测试[。.]?$/.test(line)) return null;
@@ -1574,6 +1574,9 @@ function messageTestLineError(line: string): string | null {
     return '至少一个子句要用括号注明涉及的子包（如「（engine）」）';
   }
   for (const cl of clauses) {
+    if (cl.pkgs !== null && cl.pkgs.length === 1 && cl.pkgs[0].count !== null) {
+      return `「${cl.verb} ${cl.count} 项测试」的括号里只有一个子包，不写数量（写成「（${cl.pkgs[0].name}）」）`;
+    }
     if (cl.pkgs !== null && cl.pkgs.length >= 2 && cl.pkgs.some((p) => p.count === null)) {
       return `「${cl.verb} ${cl.count} 项测试」的括号里列了多个子包，每个子包都要带数量（如「engine 5 + arena 1」）`;
     }
@@ -1630,9 +1633,27 @@ function hasTestLineFormatRule(sha: string): boolean {
   return src !== null && src.includes('function checkStrictTestLines');
 }
 
+/** T9 纯文档分支的生效基线：独立判据，避免追溯标记引入前的旧提交 */
+function hasDocNoTestLineRule(sha: string): boolean {
+  const src = readFileAt(sha, '.claude/skills/check-commits/check-commits.ts');
+  return src !== null && src.includes('function checkDocNoTestLine');
+}
+
+/**
+ * T9（纯文档分支）：`docs:`/`skill:` 提交不写测试增量——它们不改代码，测试数
+ * 必然不变，写「无新增测试」只会与真正改代码的提交混淆。
+ */
+function checkDocNoTestLine(c: CommitInfo): void {
+  if (!c.isDoc || c.isMerge || !hasDocNoTestLineRule(c.sha)) return;
+  if (parseTestDelta(c.body) !== null) {
+    report('T9', MODE.ERROR, c.short, '纯文档提交不写测试数行');
+  }
+}
+
 /**
  * T9：提交信息的测试增量行必须是正文最后一行（`Co-Authored-By` 之前）、单独占一行、
- * 不写总量；子包括号至少有一个，括号里列 ≥2 个子包时每个都要带数量。
+ * 不写总量；子包括号至少有一个，括号里列 ≥2 个子包时每个都要带数量，只有一个子包时
+ * 不写数量。
  *
  * T10：Changelog 的测试增量行必须按文件列出改动，项数与加粗部分一致；末小节同时给出
  * 子包总量（与测试数行同一行）。
@@ -2032,6 +2053,7 @@ async function main(): Promise<number> {
     checkS6(c, readFileAt(c.sha, 'CHANGELOG.md'));
     checkT8ModifiedTests(c);
     checkStrictTestLines(c);
+    checkDocNoTestLine(c);
   }
   checkS9(commits);
   const tip = commits[commits.length - 1];
