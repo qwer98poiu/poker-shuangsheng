@@ -27,9 +27,8 @@ export * from './ai-latest/index.js';
 // (archived & removed: ai-0707/ai-0712/ai-0726 on 2026-08-07, ai-0801 on 2026-09-16,
 //  ai-0719 on 2026-09-16, ai-0808 on 2026-09-27, ai-0809 on 2026-10-01,
 //  ai-0802 on 2026-10-06, ai-0927/ai-1002 on 2026-10-18, ai-1005 on 2026-10-31,
-//  ai-0816 on 2026-11-07 — their Elo scores stay in the README for reference)
+//  ai-0816 on 2026-11-07, ai-1018 on 2026-11-12 — their Elo scores stay in the README for reference)
 export * as ai0907 from './ai-0907/index.js'; // ai/ as of 6aa2b80 (2026-09-07), before the trump-kill single-card tier selection
-export * as ai1018 from './ai-1018/index.js'; // ai/ as of b5de66 (2026-10-18), before the team-split lead ladder rewrite — includes the 0a/0b loosening
 
 // Serialization (reusing old model/serialize.ts)
 export * from './model/serialize.js';

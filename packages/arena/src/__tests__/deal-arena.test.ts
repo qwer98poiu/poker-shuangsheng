@@ -3,7 +3,7 @@ import { createCard, Rank, SpecialSuit, Suit } from '@poker/engine';
 import type { Card } from '@poker/engine';
 import { deckForHand } from '../rng.js';
 import { playHand, dealtHands, naturalDeclaration } from '../match.js';
-import { engineStrategy, ai0929Strategy, ai1018Strategy } from '../strategies.js';
+import { engineStrategy, ai0929Strategy, ai1106Strategy } from '../strategies.js';
 import type { HandEvent, Strategy } from '../types.js';
 import {
   addDealSweep, createDealStats, dealStatsFromJSON, dealStatsToJSON,
@@ -150,7 +150,7 @@ describe('runDealSweep 契约', () => {
       const deck = deckForHand(11, 0, k);
       const hands = dealtHands(deck);
       for (const seat of ALL_DECLARER_SEATS) {
-        const decl = naturalDeclaration(deck, seat, LEVEL, false, [ai1018Strategy, ai1018Strategy]);
+        const decl = naturalDeclaration(deck, seat, LEVEL, false, [ai1106Strategy, ai1106Strategy]);
         if (longSuitDealFilter({ hands, deck, level: LEVEL, decl })) {
           found = { deck, seat };
           break outer;
@@ -161,10 +161,10 @@ describe('runDealSweep 契约', () => {
     const { deck } = found!;
     const hands = dealtHands(deck);
     expect(levelPassesDealFilters(
-      deck, hands, LEVEL, ['long-suit'], ai1018Strategy, ALL_DECLARER_SEATS,
+      deck, hands, LEVEL, ['long-suit'], ai1106Strategy, ALL_DECLARER_SEATS,
     )).toBe(true);
     expect(levelPassesDealFilters(
-      deck, hands, LEVEL, [], ai1018Strategy, ALL_DECLARER_SEATS,
+      deck, hands, LEVEL, [], ai1106Strategy, ALL_DECLARER_SEATS,
     )).toBe(true);
   });
 });
@@ -391,14 +391,14 @@ describe('累加器', () => {
 describe('确定性、merge 与 JSON', () => {
   it('同 seed 同参数两次运行 JSON 完全一致', () => {
     const run = (): Record<string, unknown> => dealStatsToJSON(runDealDeals(
-      7, 0, 1, [LEVEL], engineStrategy, ai1018Strategy, [],
+      7, 0, 1, [LEVEL], engineStrategy, ai1106Strategy, [],
     ));
     expect(run()).toEqual(run());
   });
 
   it('分段跑 == 一次跑：整数计数精确，均值桶用 toBeCloseTo', () => {
     const run = (start: number, count: number): ReturnType<typeof runDealDeals> =>
-      runDealDeals(7, start, count, [LEVEL], engineStrategy, ai1018Strategy, []);
+      runDealDeals(7, start, count, [LEVEL], engineStrategy, ai1106Strategy, []);
     const merged = mergeDealStats(run(0, 1), run(1, 1));
     const whole = run(0, 2);
     expect(merged.acceptedDeals).toBe(whole.acceptedDeals);
@@ -416,7 +416,7 @@ describe('确定性、merge 与 JSON', () => {
 
   it('JSON 往返保持场景、胜率配对桶与精确计数', () => {
     const acc = runDealDeals(
-      7, 0, 1, [LEVEL], engineStrategy, ai1018Strategy, [], ALL_DECLARER_SEATS,
+      7, 0, 1, [LEVEL], engineStrategy, ai1106Strategy, [], ALL_DECLARER_SEATS,
     );
     const back = dealStatsFromJSON(dealStatsToJSON(acc, { includeInternal: true }));
     expect([...back.levels.keys()]).toEqual([LEVEL]);
@@ -433,7 +433,7 @@ describe('确定性、merge 与 JSON', () => {
 
   it('最终导出 JSON 不含内部 winRates 字段', () => {
     const acc = runDealDeals(
-      7, 0, 1, [LEVEL], engineStrategy, ai1018Strategy, [],
+      7, 0, 1, [LEVEL], engineStrategy, ai1106Strategy, [],
     );
     const exported = dealStatsToJSON(acc);
     expect(exported).not.toHaveProperty('winRates');

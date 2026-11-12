@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { engineStrategy, ai0907Strategy, ai0929Strategy, ai1018Strategy, ai1024Strategy, ai1031Strategy, ai1106Strategy } from '../strategies.js';
+import { engineStrategy, ai0907Strategy, ai0929Strategy, ai1024Strategy, ai1031Strategy, ai1106Strategy, ai1108Strategy } from '../strategies.js';
 import { playMatch } from '../match.js';
 
 /**
@@ -24,14 +24,6 @@ describe('historical strategies legality', () => {
     }
   });
 
-  it('ai-1018（b5de66, 10-18 领出阶梯按庄/闲分档重写之前）：无中止、无验牌回退', () => {
-    for (const pair of [26, 27]) {
-      const m = playMatch({ seed: 42, pairIndex: pair, strategies: [ai1018Strategy, engineStrategy], captureEvents: true });
-      expect(m.abortedHands).toBe(0);
-      for (const ev of m.events) expect(ev.errors).toBe(0);
-    }
-  });
-
   it('ai-1024（bc38d6, 10-24 庄 4.5：主拖拉机先于通用 5 领出）：无中止、无验牌回退', () => {
     for (const pair of [30, 31]) {
       const m = playMatch({ seed: 42, pairIndex: pair, strategies: [ai1024Strategy, engineStrategy], captureEvents: true });
@@ -51,6 +43,14 @@ describe('historical strategies legality', () => {
   it('ai-1106（6c77d74, 11-06 庄家方统一领出阶梯落地）：无中止、无验牌回退', () => {
     for (const pair of [32, 33]) {
       const m = playMatch({ seed: 42, pairIndex: pair, strategies: [ai1106Strategy, engineStrategy], captureEvents: true });
+      expect(m.abortedHands).toBe(0);
+      for (const ev of m.events) expect(ev.errors).toBe(0);
+    }
+  });
+
+  it('ai-1108（086ac7d, 11-08 第四家盖不过时不加分）：无中止、无验牌回退', () => {
+    for (const pair of [34, 35]) {
+      const m = playMatch({ seed: 42, pairIndex: pair, strategies: [ai1108Strategy, engineStrategy], captureEvents: true });
       expect(m.abortedHands).toBe(0);
       for (const ev of m.events) expect(ev.errors).toBe(0);
     }

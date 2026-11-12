@@ -33,9 +33,9 @@ export function findThrowableOffSuitCombos(
     const mySuitCards = hand.filter(
       c => c.suit === suit && !isTrump(c, config),
     );
-    // 静态判据下 2 张不可达：两张不同 rank 的单张里，较低那张必被 worst case 盖过
-    // （worst case 摊着该门剩下的**全部**牌），剩下 1 张 < 3；同 rank 两张是对子、不是甩。
-    // 故这条 ≥3 门槛与"≥2"等价，放宽它不会有行为差异。
+    // 静态判据下 2 张不是可甩牌型：两张不同 rank 的单张里，较低那张必被 worst case
+    // 盖过（worst case 摊着该门剩下的**全部**牌），剩不下第二个成分；同 rank 两张是
+    // 对子、不是甩。故 ≥3 门槛即最小可达张数。
     if (mySuitCards.length < 3) continue;
 
     const throwableCards = findThrowableSuitCards(mySuitCards, suit, config);

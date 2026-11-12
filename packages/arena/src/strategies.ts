@@ -4,7 +4,7 @@
  * engine-side differential tests).
  */
 import { aiTryReveal, aiChooseBottomCards, aiLeadPlay, aiFollowPlay } from '@poker/ai';
-import { ai0907, ai0929, ai1018, ai1024, ai1031, ai1106 } from '@poker/ai';
+import { ai0907, ai0929, ai1024, ai1031, ai1106, ai1108 } from '@poker/ai';
 import type { Strategy } from './types.js';
 
 export const engineStrategy: Strategy = {
@@ -34,16 +34,6 @@ export const ai0929Strategy: Strategy = {
   chooseBottom: (hand, config) => ai0929.aiChooseBottomCards(hand, config),
   lead: (hand, config) => ai0929.aiLeadPlay(hand, config),
   follow: (hand, lead, suit, config) => ai0929.aiFollowPlay(hand, lead, suit, config),
-};
-
-/** 快照基线：ai/ 在 b5de66（2026-10-18，领出阶梯按庄/闲分档重写之前，含 0a/0b 放宽）时的版本。 */
-export const ai1018Strategy: Strategy = {
-  name: 'ai-1018',
-  revealsOnlyWhenEffective: true,
-  tryReveal: (hand, dealt, pi, level, cur) => ai1018.aiTryReveal(hand, dealt, pi, level, cur),
-  chooseBottom: (hand, config) => ai1018.aiChooseBottomCards(hand, config),
-  lead: (hand, config) => ai1018.aiLeadPlay(hand, config),
-  follow: (hand, lead, suit, config) => ai1018.aiFollowPlay(hand, lead, suit, config),
 };
 
 /** 快照基线：ai/ 在 bc38d6（2026-10-24，庄 4.5：主拖拉机先于通用 5 领出）时的版本。 */
@@ -76,14 +66,24 @@ export const ai1106Strategy: Strategy = {
   follow: (hand, lead, suit, config) => ai1106.aiFollowPlay(hand, lead, suit, config),
 };
 
-/** Resolve a strategy by name ('ai-latest' | 'ai-0907' | 'ai-0929' | 'ai-1018' | 'ai-1024' | 'ai-1031' | 'ai-1106'). */
+/** 快照基线：ai/ 在 086ac7d（2026-11-08，第四家盖不过时不加分）时的版本。 */
+export const ai1108Strategy: Strategy = {
+  name: 'ai-1108',
+  revealsOnlyWhenEffective: true,
+  tryReveal: (hand, dealt, pi, level, cur) => ai1108.aiTryReveal(hand, dealt, pi, level, cur),
+  chooseBottom: (hand, config) => ai1108.aiChooseBottomCards(hand, config),
+  lead: (hand, config) => ai1108.aiLeadPlay(hand, config),
+  follow: (hand, lead, suit, config) => ai1108.aiFollowPlay(hand, lead, suit, config),
+};
+
+/** Resolve a strategy by name ('ai-latest' | 'ai-0907' | 'ai-0929' | 'ai-1024' | 'ai-1031' | 'ai-1106' | 'ai-1108'). */
 export function strategyByName(name: string): Strategy {
   if (name === 'ai-latest') return engineStrategy;
   if (name === 'ai-0907') return ai0907Strategy;
   if (name === 'ai-0929') return ai0929Strategy;
-  if (name === 'ai-1018') return ai1018Strategy;
   if (name === 'ai-1024') return ai1024Strategy;
   if (name === 'ai-1031') return ai1031Strategy;
   if (name === 'ai-1106') return ai1106Strategy;
-  throw new Error(`未知策略: ${name}（可选: ai-latest, ai-0907, ai-0929, ai-1018, ai-1024, ai-1031, ai-1106）`);
+  if (name === 'ai-1108') return ai1108Strategy;
+  throw new Error(`未知策略: ${name}（可选: ai-latest, ai-0907, ai-0929, ai-1024, ai-1031, ai-1106, ai-1108）`);
 }

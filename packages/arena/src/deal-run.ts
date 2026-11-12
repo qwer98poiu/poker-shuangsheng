@@ -74,7 +74,7 @@ Deal 竞技场 —— 以发牌为单位，按 --declarer-seats 坐庄；每（�
                        long-suit = 任一座位在该副的候选主牌下有副牌长套即保留
                        （候选庄家按 33 张池＝25＋底牌 8；主牌门不算）
   --strategy-a NAME    策略 A，默认 ai-latest
-  --strategy-b NAME    策略 B，默认 ai-1024
+  --strategy-b NAME    策略 B，默认 ai-1108
   --min-deals N        起跑有效发牌数下限，默认 2500
   --until-significant  不设最小样本：任一次检查显著即停（与 --min-deals 互斥）
   --step-deals N       显著性检查间隔与目标取整粒度（单位：副），默认 250
@@ -103,7 +103,7 @@ function parseArgs(argv: string[]): Args {
     seed: randomSeed(),
     workers: defaultWorkerCount(),
     strategyA: 'ai-latest',
-    strategyB: 'ai-1024',
+    strategyB: 'ai-1108',
     levels: [...DEFAULT_LEVELS],
     declarerSeats: [...DEFAULT_DECLARER_SEATS],
     dealFilters: [],

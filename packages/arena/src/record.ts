@@ -61,7 +61,7 @@ function printUsage(): void {
   --hands N          手数总数，默认 1000000
   --workers W        独立链数，默认 min(8, 物理核数, hands)；1 = 进程内
   --seed SEED        base seed（十进制或 0x 十六进制），默认时间戳+随机派生
-  --strategy-a NAME  座位 0/2 的策略，默认 ai-latest（可选: ai-latest, ai-0907, ai-0929, ai-1018, ai-1024, ai-1031, ai-1106）
+  --strategy-a NAME  座位 0/2 的策略，默认 ai-latest（可选: ai-latest, ai-0907, ai-0929, ai-1024, ai-1031, ai-1106, ai-1108）
   --strategy-b NAME  座位 1/3 的策略，默认 ai-latest
   --out PATH         输出目录（必须不存在），默认 packages/arena/results/recordings/<runId>
   --shard-hands N    每个 .bin 的手数，默认 50000

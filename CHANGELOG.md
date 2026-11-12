@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-11-12 23:42
+
+### 提取 ai-1108 基线、归档 ai-1018
+
+**问题**：2026-11-08 16:58 的「第四家盖不过时不加分」状态已实测 1332 分（2026-11-08 20:03 的 Elo 测量），但该状态尚未冻结为基线；`ai-1018` 已被后续基线覆盖，继续占用 engine 存量。
+
+**修复**：`git archive` 提取 2026-11-08 16:58 的 `ai-latest/` 为 `packages/ai/src/ai-1108/`（22 文件，含当时的 `STRATEGY.md`，逐字节保持快照），注册 `ai1108` 命名空间与竞技场 `ai1108Strategy`，合法性用例使用 pair 34/35。归档 `ai-1018`：删除 `packages/engine/src/ai-1018/`，移除 engine 命名空间导出、facade 行、竞技场策略/分支、`record.ts` 帮助与 `record-e2e` 的未知策略断言，`baseline-facade` 的 engine 集合收窄为 `ai0907`；`deal-arena` 的既有用例改用 `ai-1106`。`elo-matches.json` 中 `ai-latest` 的 3 条实测记录改归 `ai-1108`（该分数即 2026-11-08 实测的 1332），并删除所有含 `ai-1018` 的 4 条边；`elo-calc.ts` 重算后剩余图连通，锚点 `ai-0929` 可解。两个竞技场入口（`run.ts` 与 `deal-run.ts`）的 `--strategy-b` 默认值由 `ai-1024` 改为 `ai-1108`，README 示例与参数表同步。README 中英历史基线列表、归档列表与 Elo 表同步：`ai-1108` 加入（1332），`ai-1018` 移入已归档移除，历史 Elo 行保留展示。
+
+**新增 1 项测试、删除 1 项测试、修改 2 项测试**（historical-strategies.test.ts：新增 1 项、删除 1 项；baseline-facade.test.ts：修改 1 项；record-e2e.test.ts：修改 1 项），引擎 1325 项 + arena 248 项 + CLI 87 项 + client 201 项 = 1861 项通过。
+
+- **影响文件**：`packages/ai/src/ai-1108/`（新目录，22 文件）、`packages/engine/src/ai-1018/`（删除）、`packages/engine/src/index.ts`、`packages/ai/src/index.ts`、`packages/arena/src/strategies.ts`、`packages/arena/src/record.ts`、`packages/arena/src/run.ts`、`packages/arena/src/deal-run.ts`、`packages/arena/src/__tests__/historical-strategies.test.ts`、`packages/arena/src/__tests__/baseline-facade.test.ts`、`packages/arena/src/__tests__/deal-arena.test.ts`、`packages/arena/src/__tests__/record-e2e.test.ts`、`packages/arena/scripts/elo-matches.json`、`README.md`
+
 ## 2026-11-12 22:51
 
 ### 队友大加分时不拆对凑数

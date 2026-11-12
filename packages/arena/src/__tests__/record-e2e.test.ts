@@ -152,6 +152,6 @@ describe('record CLI e2e', () => {
     const unknown = await runCli(['--hands', '1', '--strategy-a', 'nope', '--out', tmpOut()]);
     expect(unknown.code).toBe(1);
     expect(unknown.stderr).toMatch(/未知策略/);
-    expect(unknown.stderr).toMatch(/ai-1018/);
+    expect(unknown.stderr).toMatch(/ai-1108/);
   }, 120_000);
 });

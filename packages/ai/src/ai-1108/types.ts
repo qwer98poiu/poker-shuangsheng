@@ -65,6 +65,8 @@ export interface AIContext extends TrumpDeclaration {
   readonly isAttacker: boolean;
   /** Current attacking team score. */
   readonly attackerPoints: number;
+  /** 甩牌失败罚分次数：[庄家方, 闲家方] 本局已用次数（每方上限 3 次）。 */
+  readonly throwPenalties: readonly [number, number];
   /** Number of cards remaining in each player's hand. */
   readonly handCounts: readonly [number, number, number, number];
   /** Completed tricks in this round. */
@@ -104,6 +106,7 @@ export function minimalContext(config: TrumpDeclaration): AIContext {
     isDeclarerPartner: false,
     isAttacker: false,
     attackerPoints: 0,
+    throwPenalties: [0, 0] as const,
     handCounts: [25, 25, 25, 25] as const,
     trickHistory: [],
     reveals: [],
