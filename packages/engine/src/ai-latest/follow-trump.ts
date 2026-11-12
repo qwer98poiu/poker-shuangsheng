@@ -8,7 +8,7 @@ import { isTrump, getEffectiveRank } from '../model.js';
 import { findAllPairs, detectTractors } from '../pattern/index.js';
 import { compareTwo, matchPattern } from '../comparing/index.js';
 import type { AIContext } from './types.js';
-import { canBeat, maxCardT, discardSort } from './utils.js';
+import { canBeat, maxCardT, discardSort, pickLowestAvoid } from './utils.js';
 import { isOnlyLegalPlay } from '../following/index.js';
 import { findThrowableOffSuitCombos } from './throw-detector.js';
 import { annotateReason } from './reason.js';
@@ -271,8 +271,15 @@ export function followTrumpLead(
     // 只有 canAddPoints 允许时才加分：主牌单张/对子领出须 isTrumpMax，
     // 否则队友只是“暂时大”，第四家随时可盖过（如低主单张领出）。
     const nonTrump = hand.filter(c => !isTrump(c, ctx));
-    nonTrump.sort(discardSort(canAddPoints(tmWin, position, leadCombo, ctx), ctx, nonTrump, ctx));
-    const forced = [nonTrump[0] || hand[0]];
+    const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
+    let forced: Card[];
+    if (addPoints) {
+      nonTrump.sort(discardSort(true, ctx, nonTrump, ctx));
+      forced = [nonTrump[0] || hand[0]];
+    } else {
+      // 必输墩垫副牌：非分单张优先、不拆对（第二家第 2/5 条）
+      forced = [pickLowestAvoid(nonTrump.length > 0 ? nonTrump : hand, ctx)];
+    }
     const reason = annotateReason('垫牌', forced, [], [],
       leadCombo, leadLen, ctx, position, tmWin, false, 'none');
     return { cards: forced, reason };

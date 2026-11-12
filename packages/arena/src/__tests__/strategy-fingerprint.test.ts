@@ -57,8 +57,9 @@ describe('AI 策略指纹', () => {
     // 2026-11-08 第三家主拖拉机领出加分后为 173
     // 2026-11-08 第三家缺主/盖不过时避分（不再按 tmWin 加分、非分优先）后为 188
     // 2026-11-08 第四家盖不过时不再按跨 40 台阶加分后为 191
-    expect(statsA.matches.oppLevel).toEqual({ n: 191, d: 20 });
-    expect(statsB.matches.oppLevel).toEqual({ n: 191, d: 20 });
+    // 2026-11-12 盖不过/缺主垫副改为按 avoid 梯子取最小后为 200
+    expect(statsA.matches.oppLevel).toEqual({ n: 200, d: 20 });
+    expect(statsB.matches.oppLevel).toEqual({ n: 200, d: 20 });
     expect(statsA.handsPlayed).toBe(statsB.handsPlayed);
     expect(statsA.abortedHands).toBe(0);
     const sig = checkSignificance(statsA.matches.won, statsB.matches.won, statsA.matches.drawn, statsA.matches.played);
@@ -67,7 +68,7 @@ describe('AI 策略指纹', () => {
   });
 
   it('AI 庄家扣底调用（seed 42，pair 0–2）', () => {
-    // 锁两件事：A 队在这三个 pair 里实际扣底 7 次（策略指纹），且每次拿到的都是
+    // 锁两件事：A 队在这三个 pair 里实际扣底次数（策略指纹），且每次拿到的都是
     // 并入底牌后的 33 张（接线契约；内容逐张相符由 bottom-exchange-input.test.ts 覆盖）。
     const sizes: number[] = [];
     const spy: Strategy = {
@@ -89,11 +90,12 @@ describe('AI 策略指纹', () => {
     // 2026-10-28 竞技场发牌改为 64 位 seed + sfc32 顺序流后仍为 7
     // 2026-10-31 0b 队友对子状态未知时先出一对后仍为 7
     // 2026-10-31 0a 有主门槛 + 0b 去 G2 后为 6
+    // 2026-11-12 盖不过/缺主垫副改为按 avoid 梯子取最小后为 7
     for (const pair of [0, 1, 2]) {
       playMatch({ seed: 42, pairIndex: pair, maxHands: 4, strategies: [spy, engineStrategy] });
     }
 
-    expect(sizes.length).toBe(6);
+    expect(sizes.length).toBe(7);
     expect([...new Set(sizes)]).toEqual([33]);
   });
 
@@ -121,7 +123,8 @@ describe('AI 策略指纹', () => {
     // 2026-10-31 跟牌侧拆拖拉机按结构/分对优先级选牌后为 95 分 / 15 墩
     // 2026-10-31 0b 队友对子状态未知时先出一对后仍为 95 分 / 15 墩
     // 2026-11-08 第三家缺主/盖不过时避分后为 100 分 / 15 墩
-    expect(ev.finalPts - ev.kouDiAdd).toBe(100);
-    expect(ev.tricksPlayed).toBe(15);
+    // 2026-11-12 盖不过/缺主垫副改为按 avoid 梯子取最小后为 85 分 / 14 墩
+    expect(ev.finalPts - ev.kouDiAdd).toBe(85);
+    expect(ev.tricksPlayed).toBe(14);
   });
 });

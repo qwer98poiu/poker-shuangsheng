@@ -13,7 +13,7 @@ import { detectTeammateSafeLead } from './flush-detector.js';
 import { canPlayerTrumpThrow } from './nt-tracking.js';
 import {
   visibleTrickPoints, selectFillers, secondShouldAvoid, shouldBreakPairForPoints,
-  type DiscardMode,
+  pickDiscards, type DiscardMode,
 } from './position-policy.js';
 import { annotateReason } from './reason.js';
 
@@ -273,8 +273,12 @@ export function padWithDiscards(
   const shouldAvoid = ((position === 'fourth' && !tmWin)
     || (position === 'second' && !tmWin && isMaxPattern(leadCombo, ctx))
     || (position === 'third' && !tmWin)) && !attackerNearThreshold(ctx);
-  nonTrump.sort(discardSort(!shouldAvoid && !!tmWin, ctx));
-  const cards = [...myTrump, ...nonTrump].slice(0, leadLen);
+  const need = Math.max(0, leadLen - myTrump.length);
+  // 队友大时按加分顺序送分；其余情况按第二家第 5 条 avoid 梯子整对消费，不拆对。
+  const fillers = !shouldAvoid && tmWin
+    ? nonTrump.sort(discardSort(true, ctx)).slice(0, need)
+    : pickDiscards(nonTrump, need, ctx, 'avoid');
+  const cards = [...myTrump, ...fillers].slice(0, leadLen);
   const addPts = !shouldAvoid && canAddPoints(tmWin, position, leadCombo, ctx);
   const intent = shouldAvoid ? 'avoid' : (addPts ? 'add' : 'none');
   const reason = annotateReason('主牌不够，垫副牌', cards, myTrump, myTrump,

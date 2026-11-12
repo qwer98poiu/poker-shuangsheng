@@ -109,6 +109,32 @@ function shouldAvoidBreakingPair(card: Card, hand: Card[], ctx: AIContext): bool
   return projTier === currTier;
 }
 
+/** `cards` 中与 `card` 同花色同点数的张数 ≥ 2（这张牌属于对子）。 */
+export function breaksPairIn(cards: Card[], card: Card): boolean {
+  return cards.filter(c => c.suit === card.suit && c.rank === card.rank).length >= 2;
+}
+
+/**
+ * 盖不过 / 必输墩垫一张：按第二家第 5 条 avoid 梯子取最小——
+ * 非分单 > 非分对 > 分单 > 分对；同档内优先不拆对，再取有效点数最小。
+ * 第三家、第四家与缺主垫副共用。
+ */
+export function pickLowestAvoid(cards: Card[], ctx: TrumpDeclaration): Card {
+  const weight = (c: Card): number[] => [
+    isPointRank(c.rank) ? 1 : 0,
+    breaksPairIn(cards, c) ? 1 : 0,
+    getEffectiveRank(c, ctx),
+  ];
+  return cards.reduce((a, b) => {
+    const wa = weight(a);
+    const wb = weight(b);
+    for (let i = 0; i < wa.length; i++) {
+      if (wa[i] !== wb[i]) return wa[i] < wb[i] ? a : b;
+    }
+    return a;
+  });
+}
+
 // ---- Sort helpers ----
 
 /** When adding points, compare two point cards for dump order: 10 > K > 5.

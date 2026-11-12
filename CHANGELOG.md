@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-11-12 21:44
+
+### 盖不过/缺主垫副不再为凑数拆对
+
+**问题**：必输墩的垫牌/跟小只看最小牌，不看对子结构，与 `STRATEGY.md` 第二家第 2/5 条不符。两处录像复现（2026-11-07 数据集）：第四家跟副牌单张 ♦A 盖不过时拆 ♦4♦4 出 ♦4，而手里唯一的非分单张是 ♦9；缺主垫两张副牌时拆 ♣3♣3 出 ♣2♣3，而最低两张非分单张是 ♣2♠3（♣A 不是分牌）。第三家「第二家毙了不能盖毙」「盖不过」、第四家「队友大但禁分」以及单张吊主无主垫副同样受影响。
+
+**修复**：新增 `breaksPairIn`/`pickLowestAvoid`，按 avoid 梯子取最小：非分单 > 非分对 > 分单 > 分对；同档内优先不拆对，再取有效点数最小。`followOffSuitSingle` 四处改用它；`padWithDiscards` 在非 `tmWin` 时改用 `pickDiscards(..., 'avoid')`（整对消费）；`followTrumpLead` 单张吊主、无主可垫时同理。加分侧（`tmWin`）与持主不盖/主牌匹配分支不动。`STRATEGY.md` 无需改动（第二家第 2/5 条及第三/四家的交叉引用原本就这样规定）。
+
+**发牌竞技场对改动前的 ai-latest（按提交前状态临时冻结）**：seed `0x1112000000000002`，3750 副，p̂=0.5273，99% CI 下界=0.5063，显著。
+
+**新增 6 项测试、修改 3 项测试**（ai-follow.test.ts：新增 6 项；strategy-fingerprint.test.ts：修改 3 项——镜像对决 oppLevel 191 → 200、AI 庄家扣底调用 6 → 7、client 种子局 100 分 / 15 墩 → 85 分 / 14 墩），引擎 1323 项 + arena 248 项 + CLI 87 项 + client 201 项 = 1859 项通过。
+
+- **影响文件**：`packages/engine/src/ai-latest/utils.ts`、`packages/engine/src/ai-latest/follow-offsuit.ts`、`packages/engine/src/ai-latest/follow-trump.ts`、`packages/engine/src/ai-latest/helpers.ts`、`packages/engine/src/__tests__/ai-follow.test.ts`、`packages/arena/src/__tests__/strategy-fingerprint.test.ts`、`README.md`
+
 ## 2026-11-08 16:58
 
 ### 第四家盖不过时不再按跨 40 台阶加分
