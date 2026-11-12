@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-11-12 22:51
+
+### 队友大加分时不拆对凑数
+
+**问题**：第四家/lead fallback 的「队友大 → 加分」分支用 `discardSort(true)` 取第一张，不看对子结构。领牌花色没有分牌时，加分排序退化成按点数从小到大：扫描示例（手 6 第 6 墩，NT 级 12）里队友 ♠Q 毙后，第四家跟 ♦ 从 ♦3♦3♦4♦7 里出 ♦3，拆了 ♦3♦3；`STRATEGY.md` 第三家第 6 条要求「加分不拆对」。
+
+**修复**：该分支改用 `pickDiscards(leadSuitCards, 1, ctx, 'add')`——按 add 梯子整对消费，`need=1` 时放不下的对子跳过，取分单/非分单；有分单时仍照常加分。加分侧其余分支与避分侧不动。
+
+**发牌竞技场对改动前的 ai-latest（2026-11-12 21:45 提交的冻结快照），三个种子合并**：`0x1112000000000002` / 3750 副 / p̂=0.51307、`0x1112000000000003` / 10000 副 / p̂=0.50965、`0x1112000000000004` / 10000 副 / p̂=0.50950；合计 23750 副，p̂=0.51013，99% CI 下界=0.50177，显著（单轮均未显著）。
+
+**新增 2 项测试、修改 1 项测试**（ai-follow.test.ts：新增 2 项；strategy-fingerprint.test.ts：修改 1 项——镜像对决 oppLevel 200 → 196），引擎 1325 项 + arena 248 项 + CLI 87 项 + client 201 项 = 1861 项通过。
+
+- **影响文件**：`packages/engine/src/ai-latest/follow-offsuit.ts`、`packages/engine/src/__tests__/ai-follow.test.ts`、`packages/arena/src/__tests__/strategy-fingerprint.test.ts`
+
 ## 2026-11-12 21:44
 
 ### 盖不过/缺主垫副不再为凑数拆对

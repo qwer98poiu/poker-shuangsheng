@@ -58,8 +58,9 @@ describe('AI 策略指纹', () => {
     // 2026-11-08 第三家缺主/盖不过时避分（不再按 tmWin 加分、非分优先）后为 188
     // 2026-11-08 第四家盖不过时不再按跨 40 台阶加分后为 191
     // 2026-11-12 盖不过/缺主垫副改为按 avoid 梯子取最小后为 200
-    expect(statsA.matches.oppLevel).toEqual({ n: 200, d: 20 });
-    expect(statsB.matches.oppLevel).toEqual({ n: 200, d: 20 });
+    // 2026-11-12 加分侧（队友大）不拆对后为 196
+    expect(statsA.matches.oppLevel).toEqual({ n: 196, d: 20 });
+    expect(statsB.matches.oppLevel).toEqual({ n: 196, d: 20 });
     expect(statsA.handsPlayed).toBe(statsB.handsPlayed);
     expect(statsA.abortedHands).toBe(0);
     const sig = checkSignificance(statsA.matches.won, statsB.matches.won, statsA.matches.drawn, statsA.matches.played);

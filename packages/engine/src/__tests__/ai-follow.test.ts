@@ -545,6 +545,58 @@ describe('AI follow play compliance', () => {
     });
   });
 
+  describe('teammate-wins add: keep pairs when no points to add (NT, level=12)', () => {
+    const cfg: TrumpDeclaration = { declarerIndex: 2, trumpSuit: null, level: 12 };
+    const lead = [c('D', 14, 200)]; // ♦A
+    const partner = [c('S', 12, 201)]; // ♠Q：级牌=主，队友毙
+    const third = [c('D', 5, 202)]; // 第三家 ♦5
+    const ctx: AIContext = {
+      declarerIndex: 2, trumpSuit: null, level: 12,
+      myIndex: 0, isDeclarer: false, isDeclarerPartner: true, isAttacker: false,
+      attackerPoints: 0, throwPenalties: [0, 0],
+      handCounts: [16, 16, 16, 16], trickHistory: [], reveals: [],
+      playCount: 3, leadPlayerIndex: 1,
+      trickPlays: [
+        { cards: lead },
+        { cards: partner },
+        { cards: third },
+      ],
+      bestSoFar: { cards: partner, playerIndex: 2 },
+      ntState: null, bottomCards: [], debug: false,
+    };
+
+    it('no point diamonds: plays D4 single, not D3 from the D3 pair', () => {
+      // 2026-11-12 扫描示例：队友 ♠Q 毙后第四家跟 ♦，手里 ♦3♦3♦4♦7。
+      // 加分不拆对（第三家第 6 条）：没有分牌可加时取单张 ♦4，不拆 ♦3♦3。
+      const hand = [
+        c('C', 5, 300), c('C', 6, 301), c('C', 6, 302), c('C', 7, 303),
+        c('D', 3, 304), c('D', 3, 305), c('D', 4, 306), c('D', 7, 307),
+        c('H', 6, 308), c('H', 9, 309), c('H', 11, 310), c('H', 12, 311),
+        c('J', 15, 312), c('J', 15, 313), c('S', 8, 314), c('S', 9, 315),
+      ];
+      const r = aiFollowPlay(hand, lead, Suit.Diamonds, ctx);
+      checkFollow(r.cards, hand, lead, Suit.Diamonds, cfg);
+      expect(r.cards.map(x => `${x.suit}${x.rank}`)).toEqual(['D4']);
+      expect(r.reason).toContain('同花色出小');
+      expect(r.reason).toContain('但没分可加');
+    });
+
+    it('point single available: still adds D5', () => {
+      // 有分单时照常加分，pair 保护不改变“加分优先”的排序。
+      const hand = [
+        c('C', 5, 300), c('C', 6, 301), c('C', 6, 302), c('C', 7, 303),
+        c('D', 3, 304), c('D', 3, 305), c('D', 4, 306), c('D', 5, 307),
+        c('H', 6, 308), c('H', 9, 309), c('H', 11, 310), c('H', 12, 311),
+        c('J', 15, 312), c('J', 15, 313), c('S', 8, 314), c('S', 9, 315),
+      ];
+      const r = aiFollowPlay(hand, lead, Suit.Diamonds, ctx);
+      checkFollow(r.cards, hand, lead, Suit.Diamonds, cfg);
+      expect(r.cards.map(x => `${x.suit}${x.rank}`)).toEqual(['D5']);
+      expect(r.reason).toContain('同花色出小');
+      expect(r.reason).toContain('加分');
+    });
+  });
+
   describe('trump throw (cfgDiamondA: diamonds, level=14)', () => {
 
     it('multi-tractor throw (12 cards), has tractors -> matches all slots', () => {

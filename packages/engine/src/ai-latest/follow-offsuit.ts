@@ -164,10 +164,10 @@ function followOffSuitSingle(
     return { cards, reason };
   }
 
-  // ---- Fourth / lead fallback（保留现逻辑）----
+  // ---- Fourth / lead fallback ----
   if (canAddPoints(tmWin, position, leadCombo, ctx)) {
-    leadSuitCards.sort(discardSort(true, ctx, leadSuitCards, ctx));
-    const cards = [leadSuitCards[0]];
+    // 加分不拆对：按 add 梯子整对消费；need=1 时放不下的对子跳过，取分单/非分单。
+    const cards = pickDiscards(leadSuitCards, 1, ctx, 'add');
     const reason = annotateReason('同花色出小', cards, leadSuitCards, trumpCards,
       leadCombo, 1, ctx, position, tmWin, false, 'add');
     return { cards, reason };
