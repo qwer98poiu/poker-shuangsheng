@@ -59,9 +59,10 @@ describe('AI 策略指纹', () => {
     // 2026-11-08 第四家盖不过时不再按跨 40 台阶加分后为 191
     // 2026-11-12 盖不过/缺主垫副改为按 avoid 梯子取最小后为 200
     // 2026-11-12 加分侧（队友大）不拆对后为 196
-    // 2026-11-14 级牌单张保对（副级牌/无主级牌同点平局不拆对）后仍为 196
-    expect(statsA.matches.oppLevel).toEqual({ n: 196, d: 20 });
-    expect(statsB.matches.oppLevel).toEqual({ n: 196, d: 20 });
+    // 2026-11-14 级牌单张保对（副级牌/无主级牌同点平局不拆对）后为 196
+    // 2026-11-14 第三/第四家吊主单张盖不过统一垫牌后为 195
+    expect(statsA.matches.oppLevel).toEqual({ n: 195, d: 20 });
+    expect(statsB.matches.oppLevel).toEqual({ n: 195, d: 20 });
     expect(statsA.handsPlayed).toBe(statsB.handsPlayed);
     expect(statsA.abortedHands).toBe(0);
     const sig = checkSignificance(statsA.matches.won, statsB.matches.won, statsA.matches.drawn, statsA.matches.played);

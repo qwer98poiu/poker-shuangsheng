@@ -399,6 +399,39 @@ describe('AI follow play compliance', () => {
       expect(r.reason).toContain('盖不过');
     });
 
+    it('fourth in-suit trump single cannot beat (2026-11-07 录像手 2): plays C7, not C4', () => {
+      // 主 C 级 3，第四家跟 C2、盖不过 P1 的级牌 C3；手里 ♣4♣4 对 + ♣7 单。
+      // 第二家第 5 条主牌部分：非分单（C7）先于拆 C4C4。
+      const cfg: TrumpDeclaration = { declarerIndex: 1, trumpSuit: Suit.Clubs, level: 3 };
+      const lead = [c('C', 2, 200)];
+      const second = [c('C', 10, 201)];
+      const third = [c('C', 3, 202)]; // 级牌主，第四家没有王，盖不过
+      const hand = [
+        c('C', 4, 300), c('C', 4, 301), c('C', 7, 302), c('C', 12, 303), c('C', 14, 304),
+        c('D', 5, 305), c('D', 6, 306), c('D', 14, 307), c('D', 13, 308), c('D', 12, 309),
+        c('D', 12, 310), c('S', 10, 311), c('S', 3, 312), c('S', 14, 313),
+      ];
+      const ctx: AIContext = {
+        declarerIndex: 1, trumpSuit: Suit.Clubs, level: 3,
+        myIndex: 2, isDeclarer: false, isDeclarerPartner: false, isAttacker: true,
+        attackerPoints: 0, throwPenalties: [0, 0],
+        handCounts: [14, 14, 14, 14], trickHistory: [], reveals: [],
+        playCount: 3, leadPlayerIndex: 3,
+        trickPlays: [
+          { cards: lead },
+          { cards: second },
+          { cards: third },
+        ],
+        bestSoFar: { cards: third, playerIndex: 1 },
+        ntState: null, bottomCards: [], debug: false,
+      };
+      const r = aiFollowPlay(hand, lead, null, ctx);
+      checkFollow(r.cards, hand, lead, null, cfg);
+      expect(r.cards.map(x => `${x.suit}${x.rank}`)).toEqual(['C7']);
+      expect(r.reason).toContain('同花色出小');
+      expect(r.reason).toContain('盖不过');
+    });
+
     it('fourth void in trump, pad two (2026-11-12 录像手 0): plays C2 + S3, not C2 + C3', () => {
       // 主 D 级 6，领出 ♥6♥6 是级牌对（主牌对）；本家 0 张主，垫两张副牌。
       // 不拆 C3C3：取最低两张非分单张 C2 + S3（第二家第 2/5 条）。

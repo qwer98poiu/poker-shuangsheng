@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-11-14 22:42
+
+### 第三/第四家吊主单张盖不过时统一垫牌优先级
+
+**问题**：吊主单张、队友不大且自己盖不过时，第三家按结构优先的 avoid 梯子（非分单 < 分单 < 非分对 < 分对 < A/级牌/王）选牌，第四家按 `discardSort(false)`，两家不一致。第四家在有低非分单张时会拆 A 以下非分对；第三家即使有低非分单张，也会先出分单或拆对，没有落实「低非分单张优先」。
+
+**修复**：抽出共享的 `pickLosingTrumpSingle`：以 `discardSort(false)` 为底座（非分先于分；有主局级牌排最后），若首选会拆 A 以下非分对且手里存在 A 以下非分单张，改出最小非分单张；A/王不再单独保底。第三家只在单张吊主、盖不过且 `tmWin === false` 时使用，`tmWin === true` 保留原梯子；第四家原 avoid 分支改调同一函数；对子/拖拉机/甩牌与加分分支不动。`STRATEGY.md` 同步 2.1 第 5 条的例外、2.2 第 8 条与第 4 条、2.3 第 2 条。
+
+**验证**：发牌竞技场 A=改动后 ai-latest，B=HEAD 的 ai-latest（临时副本，逐字节相同），seed `0x0000000000011140`，6 个默认等级（2/5/10/Q/K/A），固定 P0，60000 副：p̂=0.5058，99% Wilson 下界=0.5005，显著；0 中止。策略指纹镜像对决 `oppLevel` 196→195；README 的 ai-latest 行原已为「待重测」，未改。
+
+**新增 1 项测试、修改 1 项测试**（ai-follow.test.ts：新增 1 项；strategy-fingerprint.test.ts：修改 1 项），引擎 1335 项 + arena 248 项 + CLI 87 项 + client 201 项 = 1871 项通过。
+
+- **影响文件**：`packages/engine/src/ai-latest/follow-trump.ts`、`packages/engine/src/ai-latest/STRATEGY.md`、`packages/engine/src/__tests__/ai-follow.test.ts`、`packages/arena/src/__tests__/strategy-fingerprint.test.ts`
+
 ## 2026-11-14 12:14
 
 ### 级牌单张同点数优先不成对的单张

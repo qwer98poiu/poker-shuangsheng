@@ -39,9 +39,39 @@ export type KillMode = 'auto' | 'max' | 'a-or-max';
  *  垫分牌损失分，垫 A/级牌/王损失控制力——宁垫分牌保 A/级牌/王；不拆对先于拆对。 */
 function trumpDumpKey(c: Card, pool: Card[], ctx: AIContext): number {
   if (getEffectiveRank(c, ctx) >= aceEff(ctx)) return 4; // 主A、级牌、王保底
-  const inPair = pool.some(x => x.id !== c.id && x.suit === c.suit && x.rank === c.rank);
+  const inPair = hasPairPartner(pool, c);
   if (isPointRank(c.rank)) return inPair ? 3 : 1;
   return inPair ? 2 : 0;
+}
+
+/** 同花色同点数的另一张牌（对子成员判定，与 trumpDumpKey 一致）。 */
+function hasPairPartner(pool: Card[], c: Card): boolean {
+  return pool.some(x => x.id !== c.id && x.suit === c.suit && x.rank === c.rank);
+}
+
+/** A 以下（不含）、非分，且不是级牌/王。 */
+function isLowNonPoint(c: Card, ctx: AIContext): boolean {
+  return !isPointRank(c.rank) && c.rank < Rank.Ace && getEffectiveRank(c, ctx) < aceEff(ctx);
+}
+
+/**
+ * 单张吊主盖不过时的垫牌（第三家队友不大、第四家不加分时共用）：
+ * 点数优先——非分牌先于分牌，A 以下非分对先于分单；
+ * 仅当首选会拆 A 以下非分对、且手里有 A 以下非分单张时，改出最小非分单张，
+ * 做到「不花分也能保对」。A/王不再单独保底；有主局级牌仍由 discardSort 排在分牌之后。
+ */
+function pickLosingTrumpSingle(pool: Card[], ctx: AIContext): Card {
+  const sorted = [...pool].sort(discardSort(false, ctx, pool, ctx));
+  const oldPick = sorted[0];
+  if (isLowNonPoint(oldPick, ctx) && hasPairPartner(sorted, oldPick)) {
+    const lowSingles = sorted.filter(c =>
+      isLowNonPoint(c, ctx) && !hasPairPartner(sorted, c));
+    if (lowSingles.length > 0) {
+      lowSingles.sort(discardSort(false, ctx, lowSingles, ctx));
+      return lowSingles[0];
+    }
+  }
+  return oldPick;
 }
 
 /** avoid 梯子排序；同级牌同点数时，不拆对的单张先出（副级牌跨门 / 无主级牌）。 */
@@ -199,10 +229,17 @@ export function followTrumpLead(
             leadCombo, 1, ctx, position, tmWin, false, 'none');
           return { cards, reason };
         }
-        // 盖不过前两家 → 最小主牌且不加分（垫牌原则与第二家相同：
-        // 非分单 < 分单(级牌归保底) < 非分对 < 分对 < A/级牌/王，从小到大）
-        myTrump.sort((a, b) => trumpDumpCompare(a, b, myTrump, ctx));
-        const cards = [myTrump[0]];
+        // 盖不过前两家 → 不加分。队友不大时与第四家共用同一垫牌规则
+        // （点数优先；A 以下非分对先于分单；有 A 以下非分单张时优先出单张）。
+        // 队友大时保留原 avoid 梯子：非分单 < 分单 < 非分对 < 分对 < A/级牌/王。
+        let chosen: Card;
+        if (!tmWin) {
+          chosen = pickLosingTrumpSingle(myTrump, ctx);
+        } else {
+          myTrump.sort((a, b) => trumpDumpCompare(a, b, myTrump, ctx));
+          chosen = myTrump[0];
+        }
+        const cards = [chosen];
         const reason = annotateReason('同花色出小', cards, myTrump, myTrump,
           leadCombo, 1, ctx, position, tmWin, false, 'avoid');
         return { cards, reason };
@@ -294,8 +331,12 @@ export function followTrumpLead(
       if (addPoints) {
         myTrump.sort(discardSort(true, ctx, myTrump, ctx));
       } else if (position === 'fourth') {
-        // 必输墩垫主牌：非分优先、取最小；同为级牌时单张先于对子（见 discardSort）。
-        myTrump.sort(discardSort(false, ctx, myTrump, ctx));
+        // 必输墩垫主牌：与第三家（队友不大）共用 pickLosingTrumpSingle。
+        const cards = [pickLosingTrumpSingle(myTrump, ctx)];
+        const reason = annotateReason('同花色出小', cards, myTrump, myTrump,
+          leadCombo, 1, ctx, position, tmWin, false,
+          shouldAvoid ? 'avoid' : (addPoints ? 'add' : 'none'));
+        return { cards, reason };
       } else {
         myTrump.sort((a, b) => (getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx))
           || levelSingleTiebreak(a, b, myTrump, ctx));
