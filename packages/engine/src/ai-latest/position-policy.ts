@@ -13,7 +13,7 @@ import { Rank, Suit, isPointRank } from '../types.js';
 import { isTrump, getEffectiveRank } from '../model.js';
 import { detectTractors } from '../pattern/index.js';
 import { findThrowableOffSuitCombos } from './throw-detector.js';
-import { groupBySuit } from './utils.js';
+import { groupBySuit, levelSingleTiebreak } from './utils.js';
 import type { AIContext } from './types.js';
 
 // ---- Position predicates ----
@@ -111,14 +111,22 @@ export function aceEff(ctx: TrumpDeclaration): number {
     { suit: ctx.trumpSuit ?? Suit.Spades, rank: Rank.Ace, isJoker: false, id: '' } as Card, ctx);
 }
 
-/** 有效大小最小/最大的牌。 */
-export function minEff(cards: Card[], config: TrumpDeclaration): Card {
-  return cards.reduce((best, c) =>
-    getEffectiveRank(c, config) < getEffectiveRank(best, config) ? c : best);
+/** 有效大小最小/最大的牌；传 pool 时同点数级牌优先不成对的单张。 */
+export function minEff(cards: Card[], config: TrumpDeclaration, pool?: Card[]): Card {
+  return cards.reduce((best, c) => {
+    const d = getEffectiveRank(c, config) - getEffectiveRank(best, config);
+    if (d < 0) return c;
+    if (d === 0 && pool && levelSingleTiebreak(c, best, pool, config) < 0) return c;
+    return best;
+  });
 }
-export function maxEff(cards: Card[], config: TrumpDeclaration): Card {
-  return cards.reduce((best, c) =>
-    getEffectiveRank(c, config) > getEffectiveRank(best, config) ? c : best);
+export function maxEff(cards: Card[], config: TrumpDeclaration, pool?: Card[]): Card {
+  return cards.reduce((best, c) => {
+    const d = getEffectiveRank(c, config) - getEffectiveRank(best, config);
+    if (d > 0) return c;
+    if (d === 0 && pool && levelSingleTiebreak(c, best, pool, config) < 0) return c;
+    return best;
+  });
 }
 
 /** 单元类别编号（小 = 先垫）。 */
@@ -262,7 +270,14 @@ export function pickTrumpByTier(
       const d = pointOrder(a) - pointOrder(b);
       if (d !== 0) return d;
     }
-    return getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx);
+    const d = getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx);
+    if (d !== 0) return d;
+    // 同档同点数（NT 的级牌、A 等）：单张先于对子/拖拉机成员，不拆结构。
+    // 没有这条时比较器返回 0，选择退化为依赖池（手牌）顺序——录像手 9 因此
+    // 在 D9D9 对 + H9 单里拆对出 D9。
+    const sa = unitOf.get(a.id)!.kind === 'single' ? 0 : 1;
+    const sb = unitOf.get(b.id)!.kind === 'single' ? 0 : 1;
+    return sa - sb;
   })[0];
 }
 

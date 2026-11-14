@@ -12,6 +12,7 @@ import { tryDrain } from './drain.js';
 import { tryAttackerTractor, tryAttackerTop, tryAttackerDrain } from './attacker-lead.js';
 import { computeActiveLongSuit } from './suit-memory.js';
 import { tryGenericLadder, hasWorthGenericLead } from './generic-lead.js';
+import { sortPreferLevelSingle } from './utils.js';
 
 /** 领出阶梯档位标签（诊断/测试用，随 `_aiLeadPlay` 的结果一起返回）。 */
 export type LeadTier =
@@ -186,5 +187,5 @@ export function _aiLeadPlay(
   const generic = tryGenericLadder(hand, ctx, longSuit, myHandCount);
   if (generic) return { ...generic, tier: '通用' };
 
-  return { cards: [hand[0]], reason: '出最小牌', tier: '兜底' };
+  return { cards: [sortPreferLevelSingle(hand, ctx)[0]], reason: '出最小牌', tier: '兜底' };
 }

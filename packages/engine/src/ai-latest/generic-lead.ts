@@ -27,7 +27,7 @@ import { classify, findAllPairs, detectTractors } from '../pattern/index.js';
 import { suitGroup, validateThrow } from '../leading/index.js';
 import type { AIContext } from './types.js';
 import { createCard } from '../model.js';
-import { getTopOffSuitRank, suitLabelCn } from './utils.js';
+import { getTopOffSuitRank, levelSingleTiebreak, suitLabelCn } from './utils.js';
 import { rankLabelStr } from './reason.js';
 import { topRankForSuit } from './drain.js';
 import { worstCaseSuitHand } from './throw-detector.js';
@@ -356,6 +356,7 @@ export function tryTier12LastHand(
 
   const card = [...hand].sort((a, b) =>
     getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx)
+    || levelSingleTiebreak(a, b, hand, ctx)
     || String(a.suit).localeCompare(String(b.suit)))[0];
   return { cards: [card], reason: '出最小牌' };
 }

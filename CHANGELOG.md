@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-11-14 12:14
+
+### 级牌单张同点数优先不成对的单张
+
+**问题**：多名玩家在出级牌单张时，比较器只看有效点数：有主局各门副级牌同为 eff 700、无主局全部级牌同为 eff 800，单张与对子成员撞成平局后回退到手牌顺序，于是拆对。受影响路径包括第二/第三/第四家的吊主避分与垫牌、加分垫牌、毙单张的 max/a-or-max、毙牌盖不过垫主牌、NT 吊主（`吊主(级牌)`）以及领出兜底 `出最小牌`。扫描 1000 场 × 10 手（起始种子 9,200,000，连续 1000 场）：修正前 57758 次级牌单张决策中 1047 次拆对（1.81%），分布在 14 类 reason。
+
+**修复**：新增 `levelSingleTiebreak`/`sortPreferLevelSingle`：仅当两张都是级牌且有效点数相同时，不成对的单张排在前面；其余比较结果不变，因此不改任何点数、阈值或方向选择。接入 `discardSort`/`fillerSort`（同时修掉「10>K>5」分支提前 return、导致平局规则不可达的问题）、`minEff`/`maxEff` 的可选 `pool` 参数、吊主各单张排序、avoid 梯子 `trumpDumpCompare`、`pickTrumpByTier` 同档同点平局、第三家能盖同点平局、毙牌盖不过且无副牌时的 `trumpCards[0]`、NT 吊主级牌与领出兜底。同一批发牌重扫：56602 次级牌单张决策 0 拆对（10000 手 / 703628 决策）。
+
+**验证边界**：这是零代价平局修正，只打破同点数级牌之间的平局，不改变任何非平局选择；本次没有对应的竞技场实测，因此不重测 Elo（README 当前刻度行已是「待重测」）。
+
+**新增 9 项测试、修改 1 项测试**（ai-follow.test.ts：新增 9 项；strategy-fingerprint.test.ts：修改 1 项），引擎 1334 项 + arena 248 项 + CLI 87 项 + client 201 项 = 1870 项通过。
+
+- **影响文件**：`packages/engine/src/ai-latest/utils.ts`、`packages/engine/src/ai-latest/position-policy.ts`、`packages/engine/src/ai-latest/follow-trump.ts`、`packages/engine/src/ai-latest/nt-trump.ts`、`packages/engine/src/ai-latest/lead.ts`、`packages/engine/src/ai-latest/generic-lead.ts`、`packages/engine/src/ai-latest/STRATEGY.md`、`packages/engine/src/__tests__/ai-follow.test.ts`、`packages/arena/src/__tests__/strategy-fingerprint.test.ts`
+
 ## 2026-11-12 23:42
 
 ### 提取 ai-1108 基线、归档 ai-1018

@@ -59,6 +59,7 @@ describe('AI 策略指纹', () => {
     // 2026-11-08 第四家盖不过时不再按跨 40 台阶加分后为 191
     // 2026-11-12 盖不过/缺主垫副改为按 avoid 梯子取最小后为 200
     // 2026-11-12 加分侧（队友大）不拆对后为 196
+    // 2026-11-14 级牌单张保对（副级牌/无主级牌同点平局不拆对）后仍为 196
     expect(statsA.matches.oppLevel).toEqual({ n: 196, d: 20 });
     expect(statsB.matches.oppLevel).toEqual({ n: 196, d: 20 });
     expect(statsA.handsPlayed).toBe(statsB.handsPlayed);
@@ -125,7 +126,8 @@ describe('AI 策略指纹', () => {
     // 2026-10-31 0b 队友对子状态未知时先出一对后仍为 95 分 / 15 墩
     // 2026-11-08 第三家缺主/盖不过时避分后为 100 分 / 15 墩
     // 2026-11-12 盖不过/缺主垫副改为按 avoid 梯子取最小后为 85 分 / 14 墩
-    expect(ev.finalPts - ev.kouDiAdd).toBe(85);
-    expect(ev.tricksPlayed).toBe(14);
+    // 2026-11-14 级牌单张保对后为 110 分 / 18 墩
+    expect(ev.finalPts - ev.kouDiAdd).toBe(110);
+    expect(ev.tricksPlayed).toBe(18);
   });
 });

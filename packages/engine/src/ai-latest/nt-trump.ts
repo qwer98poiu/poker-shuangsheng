@@ -11,6 +11,7 @@ import { getEffectiveRank } from '../model.js';
 import { findAllPairs, detectTractors } from '../pattern/index.js';
 import type { AIContext } from './types.js';
 import { canFormJokerPair, opponentsHaveTrump } from './nt-tracking.js';
+import { levelSingleTiebreak } from './utils.js';
 
 export function shouldDrawTrumpInNT(ctx: AIContext): boolean {
   if (!ctx.ntState) return false;
@@ -86,7 +87,8 @@ export function pickNTTrumpLead(
   if (s.allUnseenJokersOnOurSide) {
     const levelCards = trumpCards.filter(c => c.suit !== SpecialSuit.Joker);
     if (levelCards.length > 0) {
-      levelCards.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+      levelCards.sort((a, b) => (getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx))
+        || levelSingleTiebreak(a, b, levelCards, ctx));
       return { cards: [levelCards[0]], reason: '吊主(级牌)' };
     }
     if (trumpCards.length > 0) {
@@ -98,7 +100,8 @@ export function pickNTTrumpLead(
   // Rule 6: Opponents can't form pairs -> drawing single is safe
   const allOpponentsNoPair = opponents.every(p => !s.canFormPair[p]);
   if (allOpponentsNoPair && trumpCards.length > 0) {
-    trumpCards.sort((a, b) => getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx));
+    trumpCards.sort((a, b) => (getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx))
+      || levelSingleTiebreak(a, b, trumpCards, ctx));
     return { cards: [trumpCards[0]], reason: '吊主(对手无对)' };
   }
 

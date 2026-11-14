@@ -545,6 +545,235 @@ describe('AI follow play compliance', () => {
     });
   });
 
+  describe('third position can beat: equal eff -> single before breaking a pair（方案 A）', () => {
+    it('无分墩：同为副级牌 700 的 ♦5♦5 对与 ♠5 单，出单张 ♠5', () => {
+      // 主 ♥5：所有 5 都是级牌（主 ♥5 = 800，副花色 5 = 700）。
+      // 领 ♥6、第二家 ♥7 无分；能盖池里 ♦5♦5 与 ♠5 同为 700。
+      // 旧行为按手牌顺序取 ♦5（拆对），方案 A 同点数优先单张 ♠5。
+      const cfg: TrumpDeclaration = { declarerIndex: 1, trumpSuit: Suit.Hearts, level: 5 };
+      const lead = [c('H', 6, 200)];
+      const second = [c('H', 7, 201)];
+      const hand = [
+        c('D', 5, 500), c('D', 5, 501), c('S', 5, 502), c('H', 8, 503), c('H', 9, 504),
+      ];
+      const ctx: AIContext = {
+        declarerIndex: 1, trumpSuit: Suit.Hearts, level: 5,
+        myIndex: 2, isDeclarer: false, isDeclarerPartner: false, isAttacker: true,
+        attackerPoints: 0, throwPenalties: [0, 0],
+        handCounts: [5, 5, 5, 5], trickHistory: [], reveals: [],
+        playCount: 2, leadPlayerIndex: 0,
+        trickPlays: [
+          { cards: lead },
+          { cards: second },
+        ],
+        bestSoFar: { cards: second, playerIndex: 1 },
+        ntState: null, bottomCards: [], debug: false,
+      };
+      const r = aiFollowPlay(hand, lead, Suit.Hearts, ctx);
+      checkFollow(r.cards, hand, lead, Suit.Hearts, cfg);
+      expect(r.cards.map(x => `${x.suit}${x.rank}`)).toEqual(['S5']);
+      expect(r.reason).toContain('同花色出大');
+    });
+
+    it('有强后续（主拖拉机）：最大能盖同为 700 时，出 ♠5 而非拆 ♦5♦5', () => {
+      // ♥8♥8♥9♥9 是主拖拉机 → 走「有强牌取最大能盖」分支；
+      // 最大能盖仍是 700 档，同点数优先单张 ♠5。
+      const cfg: TrumpDeclaration = { declarerIndex: 1, trumpSuit: Suit.Hearts, level: 5 };
+      const lead = [c('H', 6, 200)];
+      const second = [c('H', 7, 201)];
+      const hand = [
+        c('D', 5, 510), c('D', 5, 511), c('S', 5, 512),
+        c('H', 8, 513), c('H', 8, 514), c('H', 9, 515), c('H', 9, 516),
+      ];
+      const ctx: AIContext = {
+        declarerIndex: 1, trumpSuit: Suit.Hearts, level: 5,
+        myIndex: 2, isDeclarer: false, isDeclarerPartner: false, isAttacker: true,
+        attackerPoints: 0, throwPenalties: [0, 0],
+        handCounts: [7, 7, 7, 7], trickHistory: [], reveals: [],
+        playCount: 2, leadPlayerIndex: 0,
+        trickPlays: [
+          { cards: lead },
+          { cards: second },
+        ],
+        bestSoFar: { cards: second, playerIndex: 1 },
+        ntState: null, bottomCards: [], debug: false,
+      };
+      const r = aiFollowPlay(hand, lead, Suit.Hearts, ctx);
+      checkFollow(r.cards, hand, lead, Suit.Hearts, cfg);
+      expect(r.cards.map(x => `${x.suit}${x.rank}`)).toEqual(['S5']);
+      expect(r.reason).toContain('同花色出大');
+    });
+
+    it('有分墩：主级牌阈值仍优先于保对——出 ♥5（拆 ♥5♥5），不改用 ♦5 单', () => {
+      // 墩里有 10 分，「≥主级牌（800）」池只有 ♥5♥5；即使 ♦5 是单张且能盖，
+      // 也不越过阈值去保对。锁的是方案 A「只打破平局」的边界。
+      const cfg: TrumpDeclaration = { declarerIndex: 1, trumpSuit: Suit.Hearts, level: 5 };
+      const lead = [c('H', 10, 200)];
+      const second = [c('H', 7, 201)];
+      const hand = [
+        c('H', 5, 520), c('H', 5, 521), c('D', 5, 522), c('H', 8, 523), c('H', 9, 524),
+      ];
+      const ctx: AIContext = {
+        declarerIndex: 1, trumpSuit: Suit.Hearts, level: 5,
+        myIndex: 2, isDeclarer: false, isDeclarerPartner: false, isAttacker: true,
+        attackerPoints: 0, throwPenalties: [0, 0],
+        handCounts: [5, 5, 5, 5], trickHistory: [], reveals: [],
+        playCount: 2, leadPlayerIndex: 0,
+        trickPlays: [
+          { cards: lead },
+          { cards: second },
+        ],
+        bestSoFar: { cards: lead, playerIndex: 0 },
+        ntState: null, bottomCards: [], debug: false,
+      };
+      const r = aiFollowPlay(hand, lead, Suit.Hearts, ctx);
+      checkFollow(r.cards, hand, lead, Suit.Hearts, cfg);
+      expect(r.cards.map(x => `${x.suit}${x.rank}`)).toEqual(['H5']);
+      expect(r.reason).toContain('同花色出大');
+    });
+  });
+
+  describe('level-card single before breaking a level pair (all seats)', () => {
+    it('有主第二家：同为 700 的 ♦5♦5 与 ♠5，出单张 ♠5', () => {
+      // 主 ♥5：副花色 5 都是级牌，eff 700；领 ♥6，第二家若取最小会撞平局。
+      const cfg: TrumpDeclaration = { declarerIndex: 1, trumpSuit: Suit.Hearts, level: 5 };
+      const lead = [c('H', 6, 200)];
+      const hand = [c('D', 5, 500), c('D', 5, 501), c('S', 5, 502)];
+      const ctx: AIContext = {
+        declarerIndex: 1, trumpSuit: Suit.Hearts, level: 5,
+        myIndex: 1, isDeclarer: true, isDeclarerPartner: false, isAttacker: false,
+        attackerPoints: 0, throwPenalties: [0, 0],
+        handCounts: [3, 3, 3, 3], trickHistory: [], reveals: [],
+        playCount: 1, leadPlayerIndex: 0,
+        trickPlays: [{ cards: lead }],
+        bestSoFar: { cards: lead, playerIndex: 0 },
+        ntState: null, bottomCards: [], debug: false,
+      };
+      const r = aiFollowPlay(hand, lead, Suit.Hearts, ctx);
+      checkFollow(r.cards, hand, lead, Suit.Hearts, cfg);
+      expect(r.cards.map(x => `${x.suit}${x.rank}`)).toEqual(['S5']);
+      expect(r.reason).toContain('同花色出小');
+    });
+
+    it('有主第三家盖不过：同为 700 的 ♦5♦5 与 ♠5，出 ♠5', () => {
+      // 领主级牌 ♥5（800），第三家盖不过，走 trumpDumpKey 保底档；平局取单张。
+      const cfg: TrumpDeclaration = { declarerIndex: 1, trumpSuit: Suit.Hearts, level: 5 };
+      const lead = [c('H', 5, 210)];
+      const second = [c('H', 6, 211)];
+      const hand = [c('D', 5, 510), c('D', 5, 511), c('S', 5, 512)];
+      const ctx: AIContext = {
+        declarerIndex: 1, trumpSuit: Suit.Hearts, level: 5,
+        myIndex: 2, isDeclarer: false, isDeclarerPartner: false, isAttacker: true,
+        attackerPoints: 0, throwPenalties: [0, 0],
+        handCounts: [3, 3, 3, 3], trickHistory: [], reveals: [],
+        playCount: 2, leadPlayerIndex: 0,
+        trickPlays: [
+          { cards: lead },
+          { cards: second },
+        ],
+        bestSoFar: { cards: lead, playerIndex: 0 },
+        ntState: null, bottomCards: [], debug: false,
+      };
+      const r = aiFollowPlay(hand, lead, Suit.Hearts, ctx);
+      checkFollow(r.cards, hand, lead, Suit.Hearts, cfg);
+      expect(r.cards.map(x => `${x.suit}${x.rank}`)).toEqual(['S5']);
+      expect(r.reason).toContain('同花色出小');
+    });
+
+    it('有主第四家盖不过：同为 700 的 ♦5♦5 与 ♠5，出 ♠5', () => {
+      // 第四家必输墩垫主，discardSort 平局时同样不拆级牌对。
+      const cfg: TrumpDeclaration = { declarerIndex: 1, trumpSuit: Suit.Hearts, level: 5 };
+      const lead = [c('H', 5, 220)];
+      const second = [c('H', 6, 221)];
+      const third = [c('H', 7, 222)];
+      const hand = [c('D', 5, 520), c('D', 5, 521), c('S', 5, 522)];
+      const ctx: AIContext = {
+        declarerIndex: 1, trumpSuit: Suit.Hearts, level: 5,
+        myIndex: 3, isDeclarer: false, isDeclarerPartner: true, isAttacker: false,
+        attackerPoints: 0, throwPenalties: [0, 0],
+        handCounts: [3, 3, 3, 3], trickHistory: [], reveals: [],
+        playCount: 3, leadPlayerIndex: 0,
+        trickPlays: [
+          { cards: lead },
+          { cards: second },
+          { cards: third },
+        ],
+        bestSoFar: { cards: lead, playerIndex: 0 },
+        ntState: null, bottomCards: [], debug: false,
+      };
+      const r = aiFollowPlay(hand, lead, Suit.Hearts, ctx);
+      checkFollow(r.cards, hand, lead, Suit.Hearts, cfg);
+      expect(r.cards.map(x => `${x.suit}${x.rank}`)).toEqual(['S5']);
+      expect(r.reason).toContain('同花色出小');
+    });
+
+    it('NT 第三家盖不过、队友已大加分：同为 800 的 ♣5♣5 与 ♦5，出 ♦5', () => {
+      // 领大王（1000），第三家盖不过；队友（P0）已大，走 discardSort(true)。
+      // 5 是分牌，旧比较器在「10>K>5」分支提前返回 0，导致同点平局拆对。
+      const mockNT: NTTrumpState = {
+        knownTrumpsPerPlayer: [[], [], [], []],
+        playersWithNoTrump: new Set(),
+        totalTrumps: 12,
+        opponentTrumpCount: 4,
+        remainingBigJokers: 0,
+        remainingSmallJokers: 0,
+        allUnseenJokersOnOurSide: false,
+        allUnseenBigJokersOnOurSide: false,
+        possibleTrumps: [null, {}, {}, {}, {}],
+        isFullyDetermined: false,
+        canFormPair: [false, false, false, false],
+        canHaveJoker: [false, false, false, false],
+        canHaveBigJoker: [false, false, false, false],
+        canHaveSmallJoker: [false, false, false, false],
+        minTrumpCounts: [0, 0, 0, 0],
+        maxTrumpCounts: [0, 0, 0, 0],
+      };
+      const cfg: TrumpDeclaration = { declarerIndex: 0, trumpSuit: null, level: 5 };
+      const lead = [c('J', 16, 230)];
+      const second = [c('H', 5, 231)];
+      const hand = [c('C', 5, 530), c('C', 5, 531), c('D', 5, 532)];
+      const ctx: AIContext = {
+        declarerIndex: 0, trumpSuit: null, level: 5,
+        myIndex: 2, isDeclarer: false, isDeclarerPartner: true, isAttacker: false,
+        attackerPoints: 0, throwPenalties: [0, 0],
+        handCounts: [3, 3, 3, 3], trickHistory: [], reveals: [],
+        playCount: 2, leadPlayerIndex: 0,
+        trickPlays: [
+          { cards: lead },
+          { cards: second },
+        ],
+        bestSoFar: { cards: lead, playerIndex: 0 },
+        ntState: mockNT, bottomCards: [], debug: false,
+      };
+      const r = aiFollowPlay(hand, lead, null, ctx);
+      checkFollow(r.cards, hand, lead, null, cfg);
+      expect(r.cards.map(x => `${x.suit}${x.rank}`)).toEqual(['D5']);
+      expect(r.reason).toContain('队友已大，加分');
+    });
+
+    it('有主第二家毙牌 a-or-max：同为 700 的 ♦2♦2 与 ♠2，出 ♠2', () => {
+      // 领 ♠10（副牌分），缺门用主牌毙；rule1 取 a-or-max，最小 A 以上撞 700 平局。
+      const cfg: TrumpDeclaration = { declarerIndex: 1, trumpSuit: Suit.Hearts, level: 2 };
+      const lead = [c('S', 10, 240)];
+      const hand = [c('D', 2, 540), c('D', 2, 541), c('S', 2, 542), c('H', 5, 543)];
+      const ctx: AIContext = {
+        declarerIndex: 1, trumpSuit: Suit.Hearts, level: 2,
+        myIndex: 1, isDeclarer: true, isDeclarerPartner: false, isAttacker: false,
+        attackerPoints: 0, throwPenalties: [0, 0],
+        handCounts: [4, 4, 4, 4], trickHistory: [], reveals: [],
+        playCount: 1, leadPlayerIndex: 0,
+        trickPlays: [{ cards: lead }],
+        bestSoFar: { cards: lead, playerIndex: 0 },
+        ntState: null, bottomCards: [], debug: false,
+      };
+      const r = aiFollowPlay(hand, lead, Suit.Spades, ctx);
+      checkFollow(r.cards, hand, lead, Suit.Spades, cfg);
+      expect(r.cards.map(x => `${x.suit}${x.rank}`)).toEqual(['S2']);
+      expect(r.reason).toContain('用主牌毙');
+      expect(r.reason).toContain('用最小牌盖');
+    });
+  });
+
   describe('teammate-wins add: keep pairs when no points to add (NT, level=12)', () => {
     const cfg: TrumpDeclaration = { declarerIndex: 2, trumpSuit: null, level: 12 };
     const lead = [c('D', 14, 200)]; // ♦A
@@ -1023,6 +1252,24 @@ describe('trump kill validity (hearts trump, level=5)', () => {
       checkFollow(r.cards, hand, lead, 'S', cfg);
       expect(r.cards.length).toBe(1);
       expect(r.cards[0].id).toBe(c2('H', 3, 0).id);
+      expect(r.reason).toBe('用主牌毙（用最小牌盖）');
+    });
+
+    it('NT: among equal level-card trumps, plays the singleton H9, not a D9 pair member', () => {
+      // 2026-11-07 录像手 9：NT 级 9，第二家缺 ♠ 毙 ♠Q，手里 D9D9 对 + H9 单。
+      // 三张级牌主同档同有效点数；第二家第 2 条要求尽量不拆对 → 出 H9。
+      const ncfg: TrumpDeclaration = { declarerIndex: 1, trumpSuit: null, level: 9 };
+      const lead = [createCard('S', 12, 400)]; // ♠Q
+      const best = { cards: lead, playerIdx: 2 };
+      const hand = [
+        c2('H', 2, 500), c2('H', 4, 501), c2('H', 14, 502), c2('C', 4, 503),
+        c2('H', 6, 504), c2('H', 3, 505), c2('D', 8, 506), c2('D', 9, 507),
+        c2('D', 5, 508), c2('D', 14, 509), c2('D', 9, 510), c2('H', 8, 511),
+        c2('C', 11, 512), c2('D', 7, 513), c2('C', 2, 514), c2('H', 9, 515),
+      ];
+      const r = aiFollowPlay(hand, lead, Suit.Spades, ncfg, best, 1);
+      checkFollow(r.cards, hand, lead, 'S', ncfg);
+      expect(r.cards.map(x => `${x.suit}${x.rank}`)).toEqual(['H9']);
       expect(r.reason).toBe('用主牌毙（用最小牌盖）');
     });
 
