@@ -25,7 +25,7 @@ description: README Elo 表的失效判定与重测——改动波及哪一行�
 
 ## 重测步骤
 
-1. 编辑 `packages/arena/scripts/elo-matchups.json`（本地实验配置，不入库）：`{ "seed": <n>, "matchups": [["a", "b"], …] }`。
+1. 编辑 `packages/arena/scripts/elo-matchups.json`（本地实验配置，不入库）：`{ "matchups": [["a", "b", <seed>], …] }`；每组第三项是该组 seed，也可省略第三项并在顶层写 `"seed": <n>` 作为默认值。
 2. `npx tsx packages/arena/scripts/run-elo-matchups.ts`——逐组跑竞技场，把 a 对 b 的**含平局胜率**写回 `elo-matches.json`（同 `(a, b)` 覆盖，新对追加）。
 3. `npx tsx packages/arena/scripts/elo-calc.ts`——输出各策略 Elo 与拟合残差。
 4. 填表：新拟合值与表中原值**只差 1** 时保留原值；差 ≥2 才改。README 中英两处同步。
