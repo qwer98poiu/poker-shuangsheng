@@ -55,6 +55,25 @@ function isLowNonPoint(c: Card, ctx: AIContext): boolean {
 }
 
 /**
+ * 第二家 <=15 张、单张吊主盖不过时的保结构选牌（不区分分牌与非分牌）：
+ * A 以下单张 < A 以下独立对 < A 以下拖拉机成员 < A 及以上（不分单张/对牌）。
+ * 同档取有效点数最小；同点数级牌优先不成对的单张（副级牌跨门 / 无主级牌）。
+ */
+function pickSecondLosingSingle(pool: Card[], ctx: AIContext): Card {
+  const tractorIds = new Set(detectTractors(pool, ctx).flat().map(c => c.id));
+  const tier = (c: Card): number => {
+    if (getEffectiveRank(c, ctx) >= aceEff(ctx)) return 4;
+    if (tractorIds.has(c.id)) return 3;
+    return hasPairPartner(pool, c) ? 2 : 1;
+  };
+  const sorted = [...pool].sort((a, b) =>
+    (tier(a) - tier(b))
+    || (getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx))
+    || levelSingleTiebreak(a, b, pool, ctx));
+  return sorted[0];
+}
+
+/**
  * 单张吊主盖不过时的垫牌（第三家队友不大、第四家不加分时共用）：
  * 点数优先——非分牌先于分牌，A 以下非分对先于分单；
  * 仅当首选会拆 A 以下非分对、且手里有 A 以下非分单张时，改出最小非分单张，
@@ -175,23 +194,23 @@ export function followTrumpLead(
       const canBeatCards = myTrump.filter(c => getEffectiveRank(c, ctx) > currentMax);
 
       if (position === 'second') {
-        // 第3条：出最小主牌（不一定盖过）；有拖拉机或可甩副牌 → 出最大主牌；
-        // 避分（>15 张）：非分小牌优先，级牌次之，分牌再次，主 A/王保底
-        if (hasStrongFollowUp(hand, ctx)) {
-          myTrump.sort((a, b) => (getEffectiveRank(b, ctx) - getEffectiveRank(a, ctx))
+        // 第3条：出最小主牌（不一定盖过）；能盖过且有拖拉机或可甩副牌 → 出最大主牌；
+        // 「能盖过」是前提：盖不过时本墩必输，出最大主牌只会白送大牌（还可能拆对/拆拖拉机），
+        // 没有抢权收益。
+        if (canBeatCards.length > 0 && hasStrongFollowUp(hand, ctx)) {
+          canBeatCards.sort((a, b) => (getEffectiveRank(b, ctx) - getEffectiveRank(a, ctx))
             || levelSingleTiebreak(a, b, myTrump, ctx));
-          const cards = [myTrump[0]];
+          const cards = [canBeatCards[0]];
           const reason = annotateReason('同花色出大', cards, myTrump, myTrump,
             leadCombo, 1, ctx, position, tmWin, false, 'none');
           return { cards, reason };
         }
-        if (secondShouldAvoid(hand)) {
-          myTrump.sort((a, b) => trumpDumpCompare(a, b, myTrump, ctx));
-        } else {
-          myTrump.sort((a, b) => (getEffectiveRank(a, ctx) - getEffectiveRank(b, ctx))
-            || levelSingleTiebreak(a, b, myTrump, ctx));
-        }
-        const cards = [myTrump[0]];
+        // 盖不过：>15 张尽量不加分，与第四家共用 pickLosingTrumpSingle；
+        // <=15 张优先保结构、不区分分牌与非分牌（A 以下单张 → 独立对 → 拖拉机 → A 及以上）。
+        const chosen = secondShouldAvoid(hand)
+          ? pickLosingTrumpSingle(myTrump, ctx)
+          : pickSecondLosingSingle(myTrump, ctx);
+        const cards = [chosen];
         const intent = secondShouldAvoid(hand) ? 'avoid' : 'none';
         const reason = annotateReason('同花色出小', cards, myTrump, myTrump,
           leadCombo, 1, ctx, position, tmWin, false, intent);

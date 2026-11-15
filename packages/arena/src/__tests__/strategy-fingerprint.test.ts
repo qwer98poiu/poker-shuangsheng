@@ -62,8 +62,9 @@ describe('AI 策略指纹', () => {
     // 2026-11-14 级牌单张保对（副级牌/无主级牌同点平局不拆对）后为 196
     // 2026-11-14 第三/第四家吊主单张盖不过统一垫牌后为 195
     // 2026-11-15 第三家队友大且凭手牌可证副牌单/对为顶张时不盖后为 194
-    expect(statsA.matches.oppLevel).toEqual({ n: 194, d: 20 });
-    expect(statsB.matches.oppLevel).toEqual({ n: 194, d: 20 });
+    // 2026-11-15 第二家吊主单张盖不过时保结构（<=15 四级阶梯、>15 与第四家同选牌）后为 189
+    expect(statsA.matches.oppLevel).toEqual({ n: 189, d: 20 });
+    expect(statsB.matches.oppLevel).toEqual({ n: 189, d: 20 });
     expect(statsA.handsPlayed).toBe(statsB.handsPlayed);
     expect(statsA.abortedHands).toBe(0);
     const sig = checkSignificance(statsA.matches.won, statsB.matches.won, statsA.matches.drawn, statsA.matches.played);
@@ -95,11 +96,12 @@ describe('AI 策略指纹', () => {
     // 2026-10-31 0b 队友对子状态未知时先出一对后仍为 7
     // 2026-10-31 0a 有主门槛 + 0b 去 G2 后为 6
     // 2026-11-12 盖不过/缺主垫副改为按 avoid 梯子取最小后为 7
+    // 2026-11-15 第二家吊主单张盖不过时保结构后为 6
     for (const pair of [0, 1, 2]) {
       playMatch({ seed: 42, pairIndex: pair, maxHands: 4, strategies: [spy, engineStrategy] });
     }
 
-    expect(sizes.length).toBe(7);
+    expect(sizes.length).toBe(6);
     expect([...new Set(sizes)]).toEqual([33]);
   });
 

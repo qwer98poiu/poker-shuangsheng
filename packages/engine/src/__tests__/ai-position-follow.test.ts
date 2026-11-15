@@ -204,7 +204,9 @@ describe('第二家：对子/拖拉机领出字面用最大盖过', () => {
 });
 
 describe('第二家：主牌单张领出', () => {
-  it('有拖拉机/可甩副牌 → 出最大主牌（不管能否盖过）', () => {
+  const cfgS8: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 8 };
+
+  it('能盖过 + 有拖拉机/可甩副牌 → 出最大主牌', () => {
     // P0 领出主牌 S-K。P1 有主牌 S-A、S-5 和副牌拖拉机 ♣33-♣44。
     const lead: Card[] = [cc('S', 13, 200)];
     const hand = [
@@ -217,6 +219,33 @@ describe('第二家：主牌单张领出', () => {
     expect(r.cards[0].rank).toBe(14); // 最大主牌
   });
 
+  it('盖不过 + 主牌拖拉机 → 出最小主牌（不拆拖拉机、不出最大）', () => {
+    // 报告局面：第二家、级 8、主 S，P0 领出 S-K；S9-SJ-SJ-SQ-SQ 含主拖拉机 JJQQ。
+    const lead: Card[] = [cc('S', 13, 200)];
+    const hand = [
+      cc('C', 10, 0), cc('D', 14, 1), cc('H', 6, 2), cc('H', 7, 3),
+      cc('S', 9, 4), cc('S', 11, 5), cc('S', 11, 6), cc('S', 12, 7), cc('S', 12, 8),
+    ];
+    const ctx = secondCtx(cfgS8, lead);
+    const r = aiFollowPlay(hand, lead, null, ctx);
+    checkFollow(r.cards, hand, lead, null, cfgS8);
+    expect(r.cards.map(c => `${c.suit}${c.rank}`)).toEqual(['S9']);
+    expect(r.reason).toContain('同花色出小');
+  });
+
+  it('盖不过 + 副牌拖拉机强牌 → 出最小主牌', () => {
+    // P0 领出 S-A；P1 有主牌 S-K、S-5 和副牌拖拉机 ♣33-♣44，盖不过。
+    const lead: Card[] = [cc('S', 14, 200)];
+    const hand = [
+      cc('S', 13, 0), cc('S', 5, 1),
+      cc('C', 3, 2), cc('C', 3, 3), cc('C', 4, 4), cc('C', 4, 5),
+    ];
+    const ctx = secondCtx(cfgS8, lead);
+    const r = aiFollowPlay(hand, lead, null, ctx);
+    checkFollow(r.cards, hand, lead, null, cfgS8);
+    expect(r.cards.map(c => `${c.suit}${c.rank}`)).toEqual(['S5']);
+  });
+
   it('无强牌 → 出最小主牌（不一定盖过）', () => {
     const lead: Card[] = [cc('S', 13, 200)];
     const hand = [cc('S', 14, 0), cc('S', 5, 1), cc('S', 3, 2)];
@@ -224,6 +253,116 @@ describe('第二家：主牌单张领出', () => {
     const r = aiFollowPlay(hand, lead, null, ctx);
     checkFollow(r.cards, hand, lead, null, cfgS2);
     expect(r.cards[0].rank).toBe(3); // 最小主牌，不盖
+  });
+});
+
+describe('第二家：吊主单张盖不过时保结构（<=15 张，不区分分/非分）', () => {
+  const cfgDA: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Diamonds, level: 14 };
+  const cfgSA: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 14 };
+  const cfgCK: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Clubs, level: 13 };
+  const cfgC5: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Clubs, level: 5 };
+  const cfgSQ: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 12 };
+  const cfgS5: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 5 };
+
+  it('不拆拖拉机，出独立单张（发牌 1201 / 第 8 墩：♦9♦9♦10♦10 + ♦J → ♦J）', () => {
+    // 级 A、主 ♦，P0 领出 ♦K；主牌 99-1010 拖拉机 + 散张 J。
+    const lead: Card[] = [cc('D', 13, 200)];
+    const hand = [
+      cc('C', 9, 0), cc('S', 13, 1), cc('D', 10, 2), cc('C', 8, 3),
+      cc('S', 11, 4), cc('S', 8, 5), cc('D', 9, 6), cc('D', 10, 7),
+      cc('D', 11, 8), cc('S', 5, 9), cc('D', 9, 10), cc('C', 11, 11),
+    ];
+    const ctx = secondCtx(cfgDA, lead);
+    const r = aiFollowPlay(hand, lead, null, ctx);
+    checkFollow(r.cards, hand, lead, null, cfgDA);
+    expect(r.cards.map(c => `${c.suit}${c.rank}`)).toEqual(['D11']);
+  });
+
+  it('不拆独立对，出散张（发牌 5639 / 第 11 墩：♠8♠8 + ♠9 → ♠9）', () => {
+    // 级 A、主 ♠，P0 领出 ♠J。
+    const lead: Card[] = [cc('S', 11, 200)];
+    const hand = [
+      cc('S', 8, 0), cc('D', 5, 1), cc('S', 8, 2), cc('D', 12, 3),
+      cc('D', 10, 4), cc('D', 13, 5), cc('D', 12, 6), cc('S', 9, 7),
+    ];
+    const ctx = secondCtx(cfgSA, lead);
+    const r = aiFollowPlay(hand, lead, null, ctx);
+    checkFollow(r.cards, hand, lead, null, cfgSA);
+    expect(r.cards.map(c => `${c.suit}${c.rank}`)).toEqual(['S9']);
+  });
+
+  it('同为单张取最小（发牌 10831 / 第 8 墩：♣4♣4 + ♣6/♣9 → ♣6）', () => {
+    // 级 K、主 ♣，P0 领出 ♣Q。
+    const lead: Card[] = [cc('C', 12, 200)];
+    const hand = [
+      cc('D', 7, 0), cc('C', 6, 1), cc('H', 7, 2), cc('S', 10, 3),
+      cc('C', 4, 4), cc('C', 9, 5), cc('S', 12, 6), cc('S', 14, 7),
+      cc('S', 10, 8), cc('D', 9, 9), cc('D', 4, 10), cc('C', 4, 11),
+      cc('S', 12, 12), cc('D', 11, 13),
+    ];
+    const ctx = secondCtx(cfgCK, lead);
+    const r = aiFollowPlay(hand, lead, null, ctx);
+    checkFollow(r.cards, hand, lead, null, cfgCK);
+    expect(r.cards.map(c => `${c.suit}${c.rank}`)).toEqual(['C6']);
+  });
+
+  it('无单张时独立对先于拖拉机（发牌 7193 / 第 9 墩：22-33 拖 + ♣9♣9 → ♣9）', () => {
+    // 级 5、主 ♣，P0 领出 ♣10；级牌 5 已抽走，♣2♣2♣3♣3 是拖拉机。
+    const lead: Card[] = [cc('C', 10, 200)];
+    const hand = [
+      cc('C', 2, 0), cc('C', 9, 1), cc('C', 3, 2), cc('H', 11, 3),
+      cc('C', 2, 4), cc('C', 9, 5), cc('H', 10, 6), cc('H', 11, 7),
+      cc('C', 3, 8), cc('H', 3, 9), cc('H', 10, 10),
+    ];
+    const ctx = secondCtx(cfgC5, lead);
+    const r = aiFollowPlay(hand, lead, null, ctx);
+    checkFollow(r.cards, hand, lead, null, cfgC5);
+    expect(r.cards.map(c => `${c.suit}${c.rank}`)).toEqual(['C9']);
+  });
+
+  it('不区分分牌与非分牌，取最小（发牌 8450 / 第 8 墩：♠5 + ♠8 → ♠5）', () => {
+    // 级 Q、主 ♠，P0 领出 ♠9；两张主牌都是散张，♠5 是分牌。
+    const lead: Card[] = [cc('S', 9, 200)];
+    const hand = [
+      cc('S', 5, 0), cc('S', 8, 1), cc('C', 4, 2), cc('C', 4, 3),
+      cc('C', 7, 4), cc('C', 10, 5), cc('H', 4, 6), cc('H', 5, 7),
+      cc('H', 5, 8), cc('H', 6, 9), cc('H', 6, 10), cc('H', 11, 11),
+      cc('H', 13, 12),
+    ];
+    const ctx = secondCtx(cfgSQ, lead);
+    const r = aiFollowPlay(hand, lead, null, ctx);
+    checkFollow(r.cards, hand, lead, null, cfgSQ);
+    expect(r.cards.map(c => `${c.suit}${c.rank}`)).toEqual(['S5']);
+  });
+
+  it('>15 张改为避分：同手主牌换 16 张时出非分 ♠7（<=15 张见 8450 出 ♠5）', () => {
+    // 级 2、主 ♠，P0 领出 ♠A；主牌只有 ♠7（非分）与 ♠5（分）。
+    const lead: Card[] = [cc('S', 14, 200)];
+    const fillers = [
+      cc('C', 3, 1), cc('C', 4, 2), cc('C', 5, 3), cc('C', 6, 4),
+      cc('C', 7, 5), cc('C', 8, 6), cc('C', 9, 7), cc('C', 11, 8),
+      cc('C', 12, 9), cc('C', 13, 10), cc('C', 14, 11), cc('D', 3, 12),
+      cc('D', 4, 13), cc('D', 5, 14),
+    ];
+    const hand = [cc('S', 7, 0), cc('S', 5, 15), ...fillers];
+    expect(hand.length).toBe(16);
+    const ctx = secondCtx(cfgS2, lead);
+    const r = aiFollowPlay(hand, lead, null, ctx);
+    checkFollow(r.cards, hand, lead, null, cfgS2);
+    expect(r.cards.map(c => `${c.suit}${c.rank}`)).toEqual(['S7']);
+  });
+
+  it('A 及以上同档取最小，副级牌散张优先于对子（♠5♠5 + ♥5 → ♥5）', () => {
+    // 级 5、主 ♠，P0 领出 ♠A；三张常主同有效点数，出不成对的 ♥5。
+    const lead: Card[] = [cc('S', 14, 200)];
+    const hand = [
+      cc('S', 5, 0), cc('S', 5, 1), cc('H', 5, 2),
+      cc('D', 3, 3), cc('D', 4, 4), cc('D', 6, 5), cc('D', 7, 6), cc('D', 8, 7),
+    ];
+    const ctx = secondCtx(cfgS5, lead);
+    const r = aiFollowPlay(hand, lead, null, ctx);
+    checkFollow(r.cards, hand, lead, null, cfgS5);
+    expect(r.cards.map(c => `${c.suit}${c.rank}`)).toEqual(['H5']);
   });
 });
 
