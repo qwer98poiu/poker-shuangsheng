@@ -216,6 +216,8 @@ Aborted hands are **settled, not voided** (this applies to the general arena too
 | `--until-significant` | — | Drop the minimum sample: stop at the first significant check (mutually exclusive with `--min-deals`) |
 | `--step-deals N` | 250 | Significance-check interval and target rounding granularity |
 | `--max-deals N` | 10000 | Accepted-deal cap |
+| `--probe-module PATH` | — | Probe mode: load a temporary module exporting `hit(decision)`; the report adds affected-only deals/triples where A actually plays a different card. After `--min-deals`, the run also stops early when the affected deals become significant (99% Wilson lower bound > 0.5) |
+| `--probe-check N` | 200 | Before the run, compare A/B at every decision for the first N deals; abort if the condition misses any actual card change (false negative). `0` skips the check — debugging only |
 | `--seed SEED` / `--workers W` / `--strategy-a NAME` / `--strategy-b NAME` / `--out PATH` / `--no-json` | as above | `--strategy-b` defaults to `ai-1108` |
 
 As in the general arena, missing significance raises the target using the same `requiredMatchesForSignificance` projection, and Ctrl+C writes the partial report plus a `"partial": true` JSON before exiting. The old `arena:solo` / `arena:nt` commands have been removed.
@@ -486,6 +488,8 @@ npm run arena:deal -w packages/arena -- --min-deals 2500 --seed 42
 | `--until-significant` | — | 不设最小样本：任一次检查显著即停（与 `--min-deals` 互斥） |
 | `--step-deals N` | 250 | 显著性检查的间隔，也是推算目标向上取整的粒度 |
 | `--max-deals N` | 10000 | 有效发牌数上限 |
+| `--probe-module PATH` | — | probe 模式：动态加载临时模块（导出 `hit(decision)`）；报告增加「实际改牌」的受影响发牌/三元组统计；达到 `--min-deals` 后，受影响发牌显著（99% Wilson 下界 > 0.5）也会早停 |
+| `--probe-check N` | 200 | 正式跑前在前 N 副的每个决策对比 A/B；条件漏判（假阴性）非 0 直接中止。`0` = 跳过，仅调试用 |
 | `--seed SEED` / `--workers W` / `--strategy-a NAME` / `--strategy-b NAME` / `--out PATH` / `--no-json` | 同上 | `--strategy-b` 默认 `ai-1108` |
 
 与整体竞技场同口径：未显著时按当前 p̂ 推算显著所需发牌数并上调目标（同一个 `requiredMatchesForSignificance`）；Ctrl+C 写出部分报告与 `"partial": true` 的 JSON 后退出。旧的 `arena:solo` / `arena:nt` 已移除。

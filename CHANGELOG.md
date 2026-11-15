@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-11-15 21:12
+
+### 发牌竞技场支持 probe：只统计实际改牌的发牌
+
+**问题**：策略改动的显著性验证此前靠一次性脚本：复制临时 A/B 快照、手写条件、单独汇总。基线容易引到 main 之外的提交，条件与策略分支漂移时无人发现，跨 worker 的统计也要自己拼。
+
+**修复**：`arena:deal` 新增 `--probe-module PATH` 与 `--probe-check N`。probe 模块导出 `hit(decision)`；A 侧仅在命中时再调用 B 比较牌，只有实际改牌的发牌/三元组进入 probe 统计（命中、改牌数、A/B/平、p̂、99% Wilson、均值），报告新增 `probe` 块并跨 worker 合并。达到 `--min-deals` 后，受影响发牌的 99% Wilson 下界 > 0.5 也会早停（probe 口径），窄分支不必白跑到上限。`--probe-check` 在正式跑前对前 N 副的每个决策同时查询 A/B，统计假阴性/假阳性；假阴性非 0 直接中止并打印样例。条件模块保持一次性、放 `/tmp`、不入库。README 中英参数表同步；新增 `deal-arena-probe` skill 记录口径与流程。
+
+**新增 14 项测试**（probe.test.ts：新增 10 项；deal-ladder.test.ts：新增 4 项），引擎 1352 项 + arena 262 项 + CLI 87 项 + client 201 项 = 1902 项通过。
+
+- **影响文件**：`packages/arena/src/probe.ts`、`packages/arena/src/probe-check.ts`、`packages/arena/src/deal-arena.ts`、`packages/arena/src/deal-ladder.ts`、`packages/arena/src/deal-run.ts`、`packages/arena/src/deal-child-run.ts`、`packages/arena/src/__tests__/probe.test.ts`、`packages/arena/src/__tests__/deal-ladder.test.ts`、`packages/arena/src/__tests__/fixtures/probe-fixture.mjs`、`README.md`
+
 ## 2026-11-15 15:41
 
 ### 第二家吊主单张：能盖过才出最大主牌，盖不过时按结构选牌

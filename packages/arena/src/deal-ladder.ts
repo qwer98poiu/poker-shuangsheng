@@ -43,6 +43,10 @@ export interface DealLadderDeps {
   elapsedMs(): number;
   /** 进度行与显著性行的输出端。 */
   lines: ProgressLines;
+  /** probe 模式：受影响发牌已显著（99% 下界 > 0.5）。 */
+  probeStopSignificant?(): boolean;
+  /** probe 模式下受影响子集的进度行；null/未提供 = 不打印。 */
+  probeStatus?(): string | null;
 }
 
 /** 过滤器通过率先验：无过滤器 100%，长花色约 50%。 */
@@ -101,6 +105,18 @@ export function shouldStopAfterCheck(
   minDeals: number,
 ): boolean {
   return outcome.significant && acc.acceptedDeals >= minDeals;
+}
+
+/**
+ * probe 模式是否应停止：已满最小样本且受影响发牌显著。
+ * 受影响子集为空时 checkSignificance 返回不显著，不会误停。
+ */
+export function shouldStopForProbe(
+  acc: DealStats,
+  minDeals: number,
+  probeStopSignificant?: () => boolean,
+): boolean {
+  return acc.acceptedDeals >= minDeals && probeStopSignificant?.() === true;
 }
 
 /** 安全上限：即使通过率低到 5%，也不让尝试数无限增长。 */
@@ -171,16 +187,26 @@ export async function runDealLadder(
       const status = state.outcome.significant
         ? (state.acc.acceptedDeals >= args.minDeals ? '★ 显著' : '★ 显著（未达最小样本，继续）')
         : '未显著，继续';
+      const probeLine = deps.probeStatus?.();
       lines.sticky(
         `${progress} | leader=${state.outcome.leader ?? '—'} p̂=${state.outcome.pHat.toFixed(4)} `
-        + `| 99% CI 下界=${state.outcome.ciLower.toFixed(4)} | ${status}`,
+        + `| 99% CI 下界=${state.outcome.ciLower.toFixed(4)} | ${status}`
+        + (probeLine ? ` | ${probeLine}` : ''),
       );
       if (shouldStopAfterCheck(state.outcome, state.acc, args.minDeals)) break;
+      if (shouldStopForProbe(state.acc, args.minDeals, deps.probeStopSignificant)) {
+        lines.sticky(`probe 受影响发牌已显著（99% 下界 > 0.5），提前停止：有效发牌 ${state.acc.acceptedDeals} 副`);
+        return;
+      }
     }
 
     if (state.interrupted) break;
     state.outcome = dealOutcome(state.acc);
     if (shouldStopAfterCheck(state.outcome, state.acc, args.minDeals)) break;
+    if (shouldStopForProbe(state.acc, args.minDeals, deps.probeStopSignificant)) {
+      lines.sticky(`probe 受影响发牌已显著（99% 下界 > 0.5），提前停止：有效发牌 ${state.acc.acceptedDeals} 副`);
+      break;
+    }
     if (state.target >= args.maxDeals) break;
     const proj = projectTarget(state.acc, args.stepDeals, args.maxDeals);
     if (proj.target <= state.target) break; // 推算不再增长，别空转

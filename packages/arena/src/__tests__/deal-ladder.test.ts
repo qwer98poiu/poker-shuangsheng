@@ -4,7 +4,7 @@ import type { DealStats } from '../deal-arena.js';
 import { ProgressLines } from '../progress.js';
 import {
   dealOutcome, estimateAttempts, projectTarget, runDealLadder,
-  shouldStopAfterCheck,
+  shouldStopAfterCheck, shouldStopForProbe,
 } from '../deal-ladder.js';
 import type { DealLadderState } from '../deal-ladder.js';
 
@@ -55,6 +55,70 @@ describe('发牌口径显著性', () => {
     expect(r.significant).toBe(true);
     expect(shouldStopAfterCheck(r, acc, 110)).toBe(true);
     expect(shouldStopAfterCheck(r, acc, 111)).toBe(false);
+  });
+});
+
+describe('probe-aware 早停', () => {
+  it('shouldStopForProbe：达最小样本且 probe 显著才停', () => {
+    const acc = statsWith(60, 40, 0);
+    expect(shouldStopForProbe(acc, 101, () => true)).toBe(false);
+    expect(shouldStopForProbe(acc, 100, () => true)).toBe(true);
+    expect(shouldStopForProbe(acc, 100, () => false)).toBe(false);
+    expect(shouldStopForProbe(acc, 100, undefined)).toBe(false);
+  });
+
+  it('整体未显著、probe 达最小样本后显著 → 提前停止', async () => {
+    const { lines, out } = sink();
+    const acc = createDealStats([2]);
+    const state: DealLadderState = { acc, outcome: dealOutcome(acc), target: 0, interrupted: false };
+    await runDealLadder(
+      { workers: 1, minDeals: 20, stepDeals: 10, maxDeals: 40, untilSignificant: false, priorPassRate: 1 },
+      state,
+      {
+        runBatch: async (_start, count) => statsWith(0, 0, count),
+        elapsedMs: () => 0,
+        lines,
+        probeStopSignificant: () => true,
+      },
+    );
+    expect(state.acc.acceptedDeals).toBe(20);
+    expect(dealOutcome(state.acc).significant).toBe(false);
+    expect(out.join('\n')).toContain('probe 受影响发牌已显著');
+  });
+
+  it('未达最小样本前不因 probe 停止', async () => {
+    const { lines } = sink();
+    const acc = createDealStats([2]);
+    const state: DealLadderState = { acc, outcome: dealOutcome(acc), target: 0, interrupted: false };
+    await runDealLadder(
+      { workers: 1, minDeals: 50, stepDeals: 10, maxDeals: 50, untilSignificant: false, priorPassRate: 1 },
+      state,
+      {
+        runBatch: async (_start, count) => statsWith(0, 0, count),
+        elapsedMs: () => 0,
+        lines,
+        probeStopSignificant: () => true,
+      },
+    );
+    expect(state.acc.acceptedDeals).toBe(50);
+  });
+
+  it('probeStatus 行进入显著性输出', async () => {
+    const { lines, out } = sink();
+    const acc = createDealStats([2]);
+    const state: DealLadderState = { acc, outcome: dealOutcome(acc), target: 0, interrupted: false };
+    await runDealLadder(
+      { workers: 1, minDeals: 50, stepDeals: 10, maxDeals: 50, untilSignificant: false, priorPassRate: 1 },
+      state,
+      {
+        runBatch: async (_start, count) => statsWith(0, 0, count),
+        elapsedMs: () => 0,
+        lines,
+        probeStopSignificant: () => false,
+        probeStatus: () => 'probe 受影响发牌 3/20',
+      },
+    );
+    expect(out.join('\n')).toContain('probe 受影响发牌 3/20');
   });
 });
 

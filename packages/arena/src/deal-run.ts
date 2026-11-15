@@ -30,6 +30,9 @@ import type { DealLadderState } from './deal-ladder.js';
 import {
   DEFAULT_LEVELS, availableFilterNames, parseLevels, resolveDealFilters,
 } from './deal-filter.js';
+import { loadProbeModule, probeSignificance } from './probe.js';
+import type { ProbeCheckStats, ProbeModule } from './probe.js';
+import { runProbeCheck } from './probe-check.js';
 
 const OUT_DIR = path.join(ARENA_ROOT, 'results');
 
@@ -56,6 +59,10 @@ interface Args {
   out?: string;
   noJson: boolean;
   untilSignificant: boolean;
+  /** 临时 probe 模块路径；undefined = 不启用 probe。 */
+  probeModule?: string;
+  /** 正式跑前的逐决策自检副数；0 = 跳过（仅调试用）。 */
+  probeCheck: number;
 }
 
 function printUsage(): void {
@@ -75,6 +82,10 @@ Deal 竞技场 —— 以发牌为单位，按 --declarer-seats 坐庄；每（�
                        （候选庄家按 33 张池＝25＋底牌 8；主牌门不算）
   --strategy-a NAME    策略 A，默认 ai-latest
   --strategy-b NAME    策略 B，默认 ai-1108
+  --probe-module PATH  启用 probe：临时模块导出 hit(decision) => boolean，
+                       只统计条件命中且 A 实际改牌的发牌/三元组
+  --probe-check N      正式跑前在前 N 副的每个决策对比 A/B，假阴性必须为 0；
+                       默认 200，0 = 跳过（仅调试用）
   --min-deals N        起跑有效发牌数下限，默认 2500
   --until-significant  不设最小样本：任一次检查显著即停（与 --min-deals 互斥）
   --step-deals N       显著性检查间隔与目标取整粒度（单位：副），默认 250
@@ -112,8 +123,10 @@ function parseArgs(argv: string[]): Args {
     maxDeals: 10000,
     noJson: false,
     untilSignificant: false,
+    probeCheck: 200,
   };
   let minDealsGiven = false;
+  let probeCheckGiven = false;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     switch (a) {
@@ -134,6 +147,8 @@ function parseArgs(argv: string[]): Args {
       case '--max-deals': args.maxDeals = parseInt(val(argv, i, a), 10); i++; break;
       case '--out': args.out = val(argv, i, a); i++; break;
       case '--no-json': args.noJson = true; break;
+      case '--probe-module': args.probeModule = val(argv, i, a); i++; break;
+      case '--probe-check': args.probeCheck = parseInt(val(argv, i, a), 10); probeCheckGiven = true; i++; break;
       case '-h': case '--help': printUsage(); process.exit(0); break;
       default: throw new Error(`未知参数: ${a}（--help 查看用法）`);
     }
@@ -147,6 +162,12 @@ function parseArgs(argv: string[]): Args {
   }
   if (args.stepDeals < 1) throw new Error('--step-deals 必须 ≥ 1');
   if (args.maxDeals < args.minDeals) throw new Error('--max-deals 必须 ≥ --min-deals');
+  if (probeCheckGiven && !args.probeModule) {
+    throw new Error('--probe-check 需要同时给 --probe-module');
+  }
+  if (!Number.isInteger(args.probeCheck) || args.probeCheck < 0) {
+    throw new Error('--probe-check 必须 ≥ 0');
+  }
   return args;
 }
 
@@ -162,6 +183,42 @@ async function main(): Promise<void> {
 
   const stratA = strategyByName(args.strategyA);
   const stratB = strategyByName(args.strategyB);
+
+  let probe: ProbeModule | undefined;
+  if (args.probeModule) {
+    try {
+      probe = await loadProbeModule(args.probeModule);
+    } catch (e) {
+      console.error(`❌ ${(e as Error).message}`);
+      process.exit(1);
+      return;
+    }
+  }
+  let checkStats: ProbeCheckStats | null = null;
+  if (probe && args.probeCheck > 0) {
+    console.log(`\nProbe 自检：前 ${args.probeCheck} 副逐决策对比 A/B…`);
+    checkStats = runProbeCheck({
+      seed: args.seed, dealCount: args.probeCheck, levels: args.levels,
+      strategyA: stratA, strategyB: stratB,
+      dealFilters: args.dealFilters, declarerSeats: args.declarerSeats, probe,
+    });
+    console.log(`  自检 ${checkStats.comparisons} 个决策：真阳性 ${checkStats.truePositive}，`
+      + `假阳性 ${checkStats.falsePositive}，假阴性 ${checkStats.falseNegative}`);
+    if (checkStats.falseNegative > 0) {
+      for (const e of checkStats.examples) {
+        console.log(`  ✗ 发牌 ${e.dealIndex} 第 ${e.playCount + 1} 墩 P${e.myIndex}`
+          + `${e.kind === 'lead' ? '领出' : '跟牌'} 领=[${e.lead}] 手=[${e.hand}]`
+          + ` A=[${e.actual}] B=[${e.alternative}]`);
+      }
+      console.error(`❌ probe 条件有 ${checkStats.falseNegative} 个假阴性`
+        + '（A/B 实际改牌但 hit=false）；先修正条件再跑。');
+      process.exit(1);
+      return;
+    }
+  } else if (probe) {
+    console.log('⚠️ 已跳过 probe 自检（--probe-check 0）；条件可能漏判。');
+  }
+
   const levelsArg = args.levels.join(',');
   const levelsLabel = args.levels.map(levelLabel).join(',');
   const filtersArg = args.dealFilters.join(',');
@@ -182,7 +239,7 @@ async function main(): Promise<void> {
         args.workers, 'deal-child-run.ts',
         [
           String(args.seed), args.strategyA, args.strategyB, levelsArg,
-          filtersArg, args.declarerSeats.join(','),
+          filtersArg, args.declarerSeats.join(','), args.probeModule ?? '',
         ],
         { describeTask: t => `发牌 ${t.dealStart}..${t.dealStart + t.dealCount - 1}` },
       )
@@ -198,6 +255,36 @@ async function main(): Promise<void> {
   };
   let verdict = verdictOf(state.acc, args.strategyA, args.strategyB);
 
+  /** 每次显著性检查时附带的 probe 进度行（进度/显著性输出用）。 */
+  const probeLine = (): string | null => {
+    if (!probe) return null;
+    const p = state.acc.probe;
+    const sig = probeSignificance(p);
+    return `probe 受影响发牌 ${p.affectedDeals}/${state.acc.acceptedDeals}`
+      + ` leader=${sig.deal.leader ?? '—'} p̂=${sig.deal.pHat.toFixed(4)}`
+      + ` 99% 下界=${sig.deal.ciLower.toFixed(4)}`
+      + ` ${sig.deal.significant ? '显著' : '未显著'}`;
+  };
+
+  const probeReport = (): Record<string, unknown> | undefined => {
+    if (!probe) return undefined;
+    const p = state.acc.probe;
+    const sig = probeSignificance(p);
+    return {
+      module: args.probeModule, name: probe.name ?? null,
+      check: checkStats,
+      hits: p.hits, changedDecisions: p.changedDecisions,
+      affectedDeals: p.affectedDeals, affectedTriples: p.affectedTriples,
+      affectedRate: state.acc.acceptedDeals > 0 ? p.affectedDeals / state.acc.acceptedDeals : 0,
+      dealOutcome: { a: p.dealA, b: p.dealB, draw: p.dealDraw },
+      dealSignificance: sig.deal,
+      tripleOutcome: { a: p.tripleA, b: p.tripleB, draw: sig.tripleN - p.tripleA - p.tripleB },
+      tripleSignificance: sig.triple,
+      meanTierNorthStar: sig.tripleN > 0 ? p.tierSum / sig.tripleN : 0,
+      meanPtsNorthStar: sig.tripleN > 0 ? p.ptsSum / sig.tripleN : 0,
+    };
+  };
+
   /** 导出结果 JSON；partial=true 表示中断时的部分结果。 */
   const writeJson = (partial: boolean): void => {
     if (args.noJson) return;
@@ -212,11 +299,14 @@ async function main(): Promise<void> {
         maxDeals: args.maxDeals, targetDeals: state.target, priorPassRate,
         untilSignificant: args.untilSignificant, elapsedMs: Date.now() - t0,
         createdAt: new Date().toISOString(), partial,
+        probeModule: args.probeModule ?? null,
+        probeCheckDeals: probe ? args.probeCheck : 0,
       },
       outcome: {
         verdict, leader: state.outcome.leader, significant: state.outcome.significant,
         pHat: state.outcome.pHat, ciLower: state.outcome.ciLower, n: state.outcome.n,
       },
+      probe: probeReport(),
       stats: dealStatsToJSON(state.acc),
     }, null, 2), 'utf-8');
     console.log(`\n📄 JSON 已导出: ${outPath}`);
@@ -232,6 +322,21 @@ async function main(): Promise<void> {
       verdict: partial ? `已中止（SIGINT，部分结果）；${verdictOf(state.acc, args.strategyA, args.strategyB)}` : verdict,
       color: STDOUT_TTY,
     });
+    if (probe) {
+      const p = state.acc.probe;
+      const sig = probeSignificance(p);
+      console.log(`\nProbe: ${args.probeModule}${probe.name ? ` (${probe.name})` : ''}`);
+      console.log(`  命中 ${p.hits}，实际改牌 ${p.changedDecisions}；`
+        + `受影响发牌 ${p.affectedDeals}/${state.acc.acceptedDeals}，三元组 ${p.affectedTriples}`);
+      console.log(`  发牌 A/B/平 ${p.dealA}/${p.dealB}/${p.dealDraw}  `
+        + `p̂=${sig.deal.pHat.toFixed(4)}  99% 下界 ${sig.deal.ciLower.toFixed(4)}  `
+        + `${sig.deal.significant ? '显著' : '未显著'}`);
+      console.log(`  三元组 A/B/平 ${p.tripleA}/${p.tripleB}/${sig.tripleN - p.tripleA - p.tripleB}  `
+        + `p̂=${sig.triple.pHat.toFixed(4)}  99% 下界 ${sig.triple.ciLower.toFixed(4)}  `
+        + `${sig.triple.significant ? '显著' : '未显著'}`);
+      console.log(`  均值 tierNorthStar ${(sig.tripleN > 0 ? p.tierSum / sig.tripleN : 0).toFixed(3)}  `
+        + `ptsNorthStar ${(sig.tripleN > 0 ? p.ptsSum / sig.tripleN : 0).toFixed(2)}`);
+    }
   };
 
   // SIGINT 优雅退出：先打印部分报告 + JSON，再退出，不丢数据。
@@ -255,10 +360,14 @@ async function main(): Promise<void> {
             .then(m => dealStatsFromJSON(m.stats as Record<string, any>))
         : Promise.resolve(runDealDeals(
             args.seed, dealStart, dealCount, args.levels, stratA, stratB, args.dealFilters,
-            args.declarerSeats,
+            args.declarerSeats, probe,
           )),
       elapsedMs: () => Date.now() - t0,
       lines,
+      probeStopSignificant: probe
+        ? () => probeSignificance(state.acc.probe).deal.significant
+        : undefined,
+      probeStatus: probeLine,
     });
   } finally {
     pool?.close();

@@ -39,6 +39,10 @@ import type { TierBucket } from './tier.js';
 import { emptyPaired, addPaired, mergePaired } from './intervals.js';
 import type { PairedBucket } from './intervals.js';
 import { passesDealFilters } from './deal-filter.js';
+import {
+  ProbeTracker, emptyProbeStats, mergeProbeStats,
+} from './probe.js';
+import type { ProbeModule, ProbeStats } from './probe.js';
 
 export const ALL_DECLARER_SEATS: readonly DeclarerIdx[] = [0, 1, 2, 3];
 /** 默认固定 P0 坐庄：每副每等级 1 个三元组，等手数下有 4 倍独立发牌。 */
@@ -180,6 +184,8 @@ export interface DealRunConfig {
   dealFilters: readonly string[];
   /** 坐庄的座位；默认固定 P0，`ALL_DECLARER_SEATS` = 四庄位轮转。 */
   declarerSeats?: readonly DeclarerIdx[];
+  /** 可选 probe 条件：只统计命中且 A 实际改牌的发牌/三元组。 */
+  probe?: ProbeModule;
 }
 
 export interface DealSweepOptions extends DealRunConfig {
@@ -201,6 +207,8 @@ export interface DealSweepResult {
   settledByBanker: number;
   settledByAttacker: number;
   tricksPlayed: number;
+  /** probe 计数；未启用时为 undefined（测试里的合成结果也可省略）。 */
+  probe?: ProbeStats;
 }
 
 /** 由三条腿的闲家分拼出六项指标与北极星三分类。 */
@@ -278,6 +286,7 @@ function emptySweep(dealIndex: number): DealSweepResult {
     dealIndex, skipReason: null, triples: [],
     handsPlayed: 0, abortedHands: 0, settledHands: 0,
     settledByBanker: 0, settledByAttacker: 0, tricksPlayed: 0,
+    probe: emptyProbeStats(),
   };
 }
 
@@ -287,6 +296,14 @@ export function runDealSweep(o: DealSweepOptions): DealSweepResult {
   const declarerSeats = o.declarerSeats ?? DEFAULT_DECLARER_SEATS;
   if (declarerSeats.length === 0) throw new Error('declarerSeats 不能为空');
   const out = emptySweep(o.dealIndex);
+  const probeStats = emptyProbeStats();
+  out.probe = probeStats;
+  const tracker = o.probe ? new ProbeTracker(o.probe, o.strategyB, probeStats) : null;
+  const stratA = tracker ? tracker.wrap(o.strategyA) : o.strategyA;
+  /** 本副所有三元组的胜负（不受是否改牌影响），供发牌多数决。 */
+  let allTripleA = 0;
+  let allTripleB = 0;
+  let sweepChanged = false;
 
   const hands = o.dealFilters.length > 0 ? dealtHands(deck) : [];
   let keptLevels = 0;
@@ -301,13 +318,13 @@ export function runDealSweep(o: DealSweepOptions): DealSweepResult {
         deck, handIndex: level, declarerIdx, level, attackerLevel: level, isFirstHand: false,
       };
       const eventAB = playHand({
-        ...base, strategies: strategiesForLeg(declarerIdx, 'AB', o.strategyA, o.strategyB),
+        ...base, strategies: strategiesForLeg(declarerIdx, 'AB', stratA, o.strategyB),
       });
       const eventBA = playHand({
-        ...base, strategies: strategiesForLeg(declarerIdx, 'BA', o.strategyA, o.strategyB),
+        ...base, strategies: strategiesForLeg(declarerIdx, 'BA', stratA, o.strategyB),
       });
       const eventBB = playHand({
-        ...base, strategies: strategiesForLeg(declarerIdx, 'BB', o.strategyA, o.strategyB),
+        ...base, strategies: strategiesForLeg(declarerIdx, 'BB', stratA, o.strategyB),
       });
 
       let settledHands = 0;
@@ -325,13 +342,32 @@ export function runDealSweep(o: DealSweepOptions): DealSweepResult {
         out.tricksPlayed += ev.tricksPlayed;
       }
 
+      const metrics = tripleMetrics(eventAB.finalPts, eventBA.finalPts, eventBB.finalPts);
       out.triples.push({
         level, declarerIdx,
         ab: eventAB.finalPts, ba: eventBA.finalPts, bb: eventBB.finalPts,
-        metrics: tripleMetrics(eventAB.finalPts, eventBA.finalPts, eventBB.finalPts),
-        eventAB, eventBA, eventBB, settledHands,
+        metrics, eventAB, eventBA, eventBB, settledHands,
       });
+
+      if (metrics.tierNorthStar > 0) allTripleA += 1;
+      else if (metrics.tierNorthStar < 0) allTripleB += 1;
+
+      if (tracker?.takeChanged()) {
+        sweepChanged = true;
+        probeStats.affectedTriples += 1;
+        if (metrics.tierNorthStar > 0) probeStats.tripleA += 1;
+        else if (metrics.tierNorthStar < 0) probeStats.tripleB += 1;
+        probeStats.tierSum += metrics.tierNorthStar;
+        probeStats.ptsSum += metrics.ptsNorthStar;
+      }
     }
+  }
+
+  if (sweepChanged) {
+    probeStats.affectedDeals += 1;
+    if (allTripleA > allTripleB) probeStats.dealA += 1;
+    else if (allTripleB > allTripleA) probeStats.dealB += 1;
+    else probeStats.dealDraw += 1;
   }
 
   if (keptLevels === 0) out.skipReason = 'deal-filter';
@@ -381,6 +417,8 @@ export interface DealStats {
   winRates: WinRateStats;
   /** 发牌口径：多数决。驱动显著性。 */
   dealOutcome: TierBucket;
+  /** probe 统计；未启用 probe 时为空桶。 */
+  probe: ProbeStats;
   /** 80 分口径，只喂 AB/BA 两腿。 */
   statsA: StrategyStats;
   statsB: StrategyStats;
@@ -444,6 +482,7 @@ export function createDealStats(
     scenarios,
     winRates: emptyWinRates(levels),
     dealOutcome: emptyTier(),
+    probe: emptyProbeStats(),
     statsA: createStats(),
     statsB: createStats(),
     handWinsA: 0,
@@ -619,6 +658,7 @@ export function addDealSweep(acc: DealStats, res: DealSweepResult): void {
     return;
   }
   acc.acceptedDeals += 1;
+  if (res.probe) acc.probe = mergeProbeStats(acc.probe, res.probe);
   acc.handsPlayed += res.handsPlayed;
   acc.abortedHands += res.abortedHands;
   acc.settledHands += res.settledHands;
@@ -682,6 +722,7 @@ export function runDealDeals(
   strategyB: Strategy,
   dealFilters: readonly string[],
   declarerSeats: readonly DeclarerIdx[] = DEFAULT_DECLARER_SEATS,
+  probe?: ProbeModule,
 ): DealStats {
   const acc = createDealStats(levels, declarerSeats);
   // 顺序流：先快进到 dealStart，再连续取牌；与逐 dealIndex 重放等价。
@@ -689,7 +730,8 @@ export function runDealDeals(
   for (let k = 0; k < dealStart; k++) nextDeck();
   for (let k = dealStart; k < dealStart + dealCount; k++) {
     addDealSweep(acc, runDealSweep({
-      seed, dealIndex: k, deck: nextDeck(), levels, strategyA, strategyB, dealFilters, declarerSeats,
+      seed, dealIndex: k, deck: nextDeck(), levels, strategyA, strategyB, dealFilters,
+      declarerSeats, probe,
     }));
   }
   return acc;
@@ -768,6 +810,7 @@ export function mergeDealStats(a: DealStats, b: DealStats): DealStats {
     scenarios: mergeScenarioMap(a.scenarios, b.scenarios),
     winRates: mergeWinRates(a.winRates, b.winRates),
     dealOutcome: mergeTier(a.dealOutcome, b.dealOutcome),
+    probe: mergeProbeStats(a.probe, b.probe),
     statsA: mergeStats(a.statsA, b.statsA),
     statsB: mergeStats(a.statsB, b.statsB),
     handWinsA: a.handWinsA + b.handWinsA,
@@ -896,6 +939,7 @@ export function dealStatsToJSON(
     scenarios: scenarioMapToJSON(s.scenarios),
     ...(options.includeInternal ? { winRates: winRatesToJSON(s.winRates) } : {}),
     dealOutcome: { ...s.dealOutcome },
+    probe: { ...s.probe },
     statsA: statsToJSON(s.statsA),
     statsB: statsToJSON(s.statsB),
     handWinsA: s.handWinsA,
@@ -944,6 +988,7 @@ export function dealStatsFromJSON(j: Record<string, any>): DealStats {
     scenarios,
     winRates: j.winRates ? winRatesFromJSON(j.winRates) : emptyWinRates([...sortedLevels.keys()]),
     dealOutcome: { ...j.dealOutcome },
+    probe: j.probe ? { ...emptyProbeStats(), ...j.probe } : emptyProbeStats(),
     statsA: statsFromJSON(j.statsA),
     statsB: statsFromJSON(j.statsB),
     handWinsA: j.handWinsA,
