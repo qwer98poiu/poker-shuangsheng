@@ -1,13 +1,15 @@
 /**
- * 批量测量 Elo 对决：按 elo-matchups.json 的 seed 与对决列表逐组跑竞技场，
+ * 批量测量 Elo 对决：按 elo-matchups.json 的对决列表逐组跑竞技场，
  * 把每组 p̂ 写回 elo-matches.json。
  *
  * 运行：npx tsx packages/arena/scripts/run-elo-matchups.ts
  *
- * 输入 elo-matchups.json 与脚本同目录，形状 { "seed": 47, "matchups": [["a", "b"], …] }。
+ * 输入 elo-matchups.json 与脚本同目录，形状
+ * { "seed"?: 47, "matchups": [["a", "b"], ["a", "b", 48], …] }。
+ * 每组可在第三项单独指定 seed；缺省时用顶层 seed（顶层也缺省则报错）。
  * 它是本地实验配置（seed 与待测对决随测量变化），不入库，见根 .gitignore。
  *
- * 每组命令：npm run arena -- --strategy-a <a> --strategy-b <b> --seed <seed>
+ * 每组命令：npm run arena -- --strategy-a <a> --strategy-b <b> --seed <该组 seed>
  * 每组跑完打印报告开头（A/B、对局数、结论、leader/p̂/CI）；
  * 运行中只回显带显著性结果的进度行（leader/p̂/CI）与中止提示，不输出普通进度行。
  *
@@ -35,9 +37,15 @@ interface MatchRow {
   pHat: number;
 }
 
-interface MatchupsConfig {
+interface Matchup {
+  a: string;
+  b: string;
+  /** 本组实际使用的 seed（已解析顶层默认值）。 */
   seed: number;
-  matchups: readonly (readonly [string, string])[];
+}
+
+interface MatchupsConfig {
+  matchups: readonly Matchup[];
 }
 
 interface ArenaResult {
@@ -130,25 +138,49 @@ function loadConfig(): MatchupsConfig {
   } catch {
     throw new Error(
       `elo-matchups.json 不存在（${MATCHUPS_PATH}）：` +
-      '请按 { "seed": 47, "matchups": [["a", "b"], …] } 创建（该文件不入库）',
+      '请按 { "matchups": [["a", "b", 47], …] } 或 ' +
+      '{ "seed": 47, "matchups": [["a", "b"], …] } 创建（该文件不入库）',
     );
   }
   const raw: unknown = JSON.parse(text);
-  const { seed, matchups } = (raw ?? {}) as Record<string, unknown>;
-  if (typeof seed !== 'number' || !Number.isInteger(seed)) {
-    throw new Error(`elo-matchups.json：seed 应为整数，实际 ${JSON.stringify(seed)}`);
+  const { seed: rawDefaultSeed, matchups } = (raw ?? {}) as Record<string, unknown>;
+
+  let defaultSeed: number | undefined;
+  if (rawDefaultSeed !== undefined) {
+    if (typeof rawDefaultSeed !== 'number' || !Number.isInteger(rawDefaultSeed)) {
+      throw new Error(`elo-matchups.json：seed 应为整数，实际 ${JSON.stringify(rawDefaultSeed)}`);
+    }
+    defaultSeed = rawDefaultSeed;
   }
+
   if (!Array.isArray(matchups) || matchups.length === 0) {
     throw new Error('elo-matchups.json：matchups 应为非空数组');
   }
   return {
-    seed,
-    matchups: matchups.map((pair: unknown, i): readonly [string, string] => {
-      const [a, b] = Array.isArray(pair) ? pair : [];
+    matchups: matchups.map((pair: unknown, i): Matchup => {
+      // 形状为 [a, b] 或 [a, b, seed]。
+      if (!Array.isArray(pair) || (pair.length !== 2 && pair.length !== 3)) {
+        throw new Error(
+          `elo-matchups.json 第 ${i + 1} 组对决形状不对（应为 [a, b] 或 [a, b, seed]）：` +
+          JSON.stringify(pair),
+        );
+      }
+      const [a, b, pairSeed] = pair;
       if (typeof a !== 'string' || typeof b !== 'string' || !a || !b) {
         throw new Error(`elo-matchups.json 第 ${i + 1} 组对决形状不对：${JSON.stringify(pair)}`);
       }
-      return [a, b];
+      if (pairSeed !== undefined && (typeof pairSeed !== 'number' || !Number.isInteger(pairSeed))) {
+        throw new Error(
+          `elo-matchups.json 第 ${i + 1} 组对决的 seed 应为整数，实际 ${JSON.stringify(pairSeed)}`,
+        );
+      }
+      const seed = pairSeed ?? defaultSeed;
+      if (seed === undefined) {
+        throw new Error(
+          `elo-matchups.json 第 ${i + 1} 组对决未指定 seed，且顶层没有默认 seed`,
+        );
+      }
+      return { a, b, seed };
     }),
   };
 }
@@ -179,23 +211,24 @@ function upsert(rows: MatchRow[], a: string, b: string, pHat: number): void {
 }
 
 async function main(): Promise<void> {
-  const { seed, matchups } = loadConfig();
-  console.log(`Elo 对决测量：${matchups.length} 组，seed=${seed}`);
+  const { matchups } = loadConfig();
+  console.log(`Elo 对决测量：${matchups.length} 组`);
   console.log(`输入：${MATCHUPS_PATH}`);
   console.log(`结果写入：${MATCHES_PATH}\n`);
 
   const matches = loadMatches();
   const failed: string[] = [];
 
-  for (const [i, [a, b]] of matchups.entries()) {
-    console.log(`[${i + 1}/${matchups.length}] ${a} vs ${b} …`);
+  for (const [i, matchup] of matchups.entries()) {
+    const { a, b, seed } = matchup;
+    console.log(`[${i + 1}/${matchups.length}] ${a} vs ${b}（seed=${seed}）…`);
     const t0 = Date.now();
     let result: ArenaResult;
     try {
       result = await runArena(a, b, seed);
     } catch (err) {
       console.error(`  失败：${(err as Error).message}`);
-      failed.push(`${a} vs ${b}`);
+      failed.push(`${a} vs ${b}（seed=${seed}）`);
       continue;
     }
 
