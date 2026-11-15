@@ -24,7 +24,7 @@ import {
 import { annotateReason } from './reason.js';
 import {
   discardNonTrump,
-  canAddPoints, attackerNearThreshold,
+  canAddPoints, attackerNearThreshold, canAddOnTeammateTopLead,
 } from './helpers.js';
 import {
   followTrumpLead,
@@ -268,7 +268,7 @@ function _aiFollowPlay(
     const needed = leadLen - leadSuitCards.length;
     const mode: DiscardMode = position === 'second'
       ? (secondShouldAvoid(hand) ? 'avoid' : 'open')
-      : (tmWin && canAddPoints(tmWin, position, leadCombo, ctx))
+      : (canAddOnTeammateTopLead(tmWin, position, leadCombo, hand, ctx))
         ? ((ctx.isAttacker && attackerNearThreshold(ctx, visibleTrickPoints(ctx, leadCombo.cards))) ? 'full' : 'add')
         : 'avoid';
     const fill = selectFillers(other, needed, ctx, mode,

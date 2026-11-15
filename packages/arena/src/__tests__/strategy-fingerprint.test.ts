@@ -61,8 +61,9 @@ describe('AI 策略指纹', () => {
     // 2026-11-12 加分侧（队友大）不拆对后为 196
     // 2026-11-14 级牌单张保对（副级牌/无主级牌同点平局不拆对）后为 196
     // 2026-11-14 第三/第四家吊主单张盖不过统一垫牌后为 195
-    expect(statsA.matches.oppLevel).toEqual({ n: 195, d: 20 });
-    expect(statsB.matches.oppLevel).toEqual({ n: 195, d: 20 });
+    // 2026-11-15 第三家队友大且凭手牌可证副牌单/对为顶张时不盖后为 194
+    expect(statsA.matches.oppLevel).toEqual({ n: 194, d: 20 });
+    expect(statsB.matches.oppLevel).toEqual({ n: 194, d: 20 });
     expect(statsA.handsPlayed).toBe(statsB.handsPlayed);
     expect(statsA.abortedHands).toBe(0);
     const sig = checkSignificance(statsA.matches.won, statsB.matches.won, statsA.matches.drawn, statsA.matches.played);

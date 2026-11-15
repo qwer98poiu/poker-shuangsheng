@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-11-15 11:33
+
+### 第三家凭手牌可证队友副牌顶张时不再盖队友
+
+**问题**：第三家队友领出副牌单张/对子、第二家没毙时，只有「字面顶张」（A，A 为级时 K）才按加分处理；仅凭自己手牌就能证明领出已是本门顶张的局面仍会盖队友。报告局面（第 7 墩、第三家、级 6、主 D）：领出 ♣K、前序 ♣4，第三家手握两张 ♣A，实际出 ♣A 盖队友——两张 A 都在自己手里，外面已凑不出同花色盖过，出 A 既浪费顶张又拿不到加分。对子同理：领出 ♣K-K 时，每个更高点数只要手里有 1 张（如 1 张 A），外面就凑不出更高对子。
+
+**修复**：新增 `teammateLeadIsTopByHand`，只看**自己手牌**，不查已出牌与底牌：单张要求每个更高非主点数 2 张都在手，对子要求每个更高点数至少 1 张在手；级牌是本门主牌，不参与比较。`canAddOnTeammateTopLead` 在既有 `canAddPoints` 口径上，仅对第三家追加该判据。单张跟牌、对子选择、短门填充统一改用它：判据成立时不再盖队友，按加分（最小分对/分牌）或避分（最小非分）选牌；只有一对 A 时唯一可出，不额外决策。`STRATEGY.md` 总原则 2 与具体牌型第 2/3 条同步。
+
+**验证（只统计实际改牌的发牌）**：发牌竞技场 A=改动后 ai-latest，B=main 上一提交（2026-11-14 22:42 的第三/第四家垫牌修正）的 ai-latest（临时副本，逐字节相同），seed `0x0000000000003002`，4 段各 5000 副共 20000 副；条件命中 19833 次，实际改牌发牌 3225 副（16.1%）、受影响三元组 5219 个。发牌多数决 A/B/平 = 629/301/2295，p̂=0.551，99% Wilson 下界 0.528，显著；受影响三元组 747/355/4117，p̂=0.538；均值 tierNorthStar +0.076、ptsNorthStar +3.21。策略指纹镜像对决 `oppLevel` 195→194。
+
+**新增 8 项测试、修改 1 项测试**（ai-position-follow.test.ts：新增 8 项；strategy-fingerprint.test.ts：修改 1 项），引擎 1343 项 + arena 248 项 + CLI 87 项 + client 201 项 = 1879 项通过。
+
+- **影响文件**：`packages/engine/src/ai-latest/helpers.ts`、`packages/engine/src/ai-latest/follow-offsuit.ts`、`packages/engine/src/ai-latest/index.ts`、`packages/engine/src/ai-latest/STRATEGY.md`、`packages/engine/src/__tests__/ai-position-follow.test.ts`、`packages/arena/src/__tests__/strategy-fingerprint.test.ts`
+
 ## 2026-11-14 22:42
 
 ### 第三/第四家吊主单张盖不过时统一垫牌优先级

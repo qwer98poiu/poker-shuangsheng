@@ -17,6 +17,7 @@ import { annotateReason } from './reason.js';
 import {
   pairKillSort, discardNonTrump, canAddPoints, tryMatchTractorSlots,
   attackerNearThreshold, analyzePairStructure, pickTractorSplitPair,
+  canAddOnTeammateTopLead, teammateLeadIsTopByHand,
   type PairSplitMode,
 } from './helpers.js';
 import { trumpKill, throwKillMode, isBeatingTrumpKill } from './follow-trump.js';
@@ -132,10 +133,10 @@ function followOffSuitSingle(
     const overkill = !!(ctx.bestSoFar && ctx.bestSoFar.cards.some(c => isTrump(c, ctx)));
     const beaters = leadSuitCards.filter(c => getEffectiveRank(c, ctx) > bestRank);
 
-    if (tmWin && leadIsTop) {
-      // 第1条：领出顶张单张、第二家没毙 → 优先加副牌分（不拆对），没分出最小副牌；
-      // 庄家方 70/75 禁分等不可加分时出最小副牌
-      const addOk = canAddPoints(tmWin, position, leadCombo, ctx);
+    if (tmWin && (leadIsTop || teammateLeadIsTopByHand(leadCombo, hand, ctx))) {
+      // 第1条：领出顶张单张（或仅凭自己手牌即可证为本门顶张）、第二家没毙 →
+      // 优先加副牌分（不拆对），没分出最小副牌；庄家方 70/75 禁分等不可加分时出最小副牌
+      const addOk = canAddOnTeammateTopLead(tmWin, position, leadCombo, hand, ctx);
       const cards = addOk
         ? pickDiscards(leadSuitCards, 1, ctx, 'add')
         : pickDiscards(leadSuitCards, 1, ctx, 'avoid');
@@ -376,6 +377,7 @@ function selectFollowPairs(
   tmWin: boolean,
   hand: Card[],
   thirdNoSeize: boolean,
+  leadSafe = false,
 ): Card[][] {
   const count = leadCombo.pairCount;
   if (count <= 0 || myPairs.length === 0) return [];
@@ -384,7 +386,7 @@ function selectFollowPairs(
   const beatingCount = myPairs.filter(anyBeat).length;
 
   let mustBeat = false;
-  if (!thirdNoSeize) {
+  if (!thirdNoSeize && !leadSafe) {
     if (position === 'second' || position === 'third') {
       mustBeat = beatingCount > 0;
     } else if (position === 'fourth') {
@@ -394,10 +396,10 @@ function selectFollowPairs(
     }
   }
 
-  const addPoints = canAddPoints(tmWin, position, leadCombo, ctx);
+  const addPoints = canAddOnTeammateTopLead(tmWin, position, leadCombo, hand, ctx);
   const structure = analyzePairStructure(leadSuitCards, ctx);
   if (count > 1 && structure.standalone.length >= count) {
-    const legacy = legacySelectPairSet(structure.standalone, count, thirdNoSeize,
+    const legacy = legacySelectPairSet(structure.standalone, count, thirdNoSeize || leadSafe,
       position, tmWin, ctx, leadSuitCards);
     if (!mustBeat || canBeat(legacy.flat(), best, ctx)) return legacy;
   }
@@ -426,7 +428,8 @@ function selectFollowPairs(
 
     const standaloneCandidates = pool.filter(p => !structureLeft.chainIndex.has(p[0].id));
     let picked = standaloneCandidates.length > 0
-      ? pickStandalonePair(standaloneCandidates, position, needBeat, thirdNoSeize, addPoints, ctx)
+      ? pickStandalonePair(standaloneCandidates, position, needBeat, thirdNoSeize || leadSafe,
+        addPoints, ctx)
       : pickTractorSplitPair(pool, cardsLeft, ctx, mode);
     if (!picked) picked = minFollowPair(pool, ctx);
 
@@ -439,10 +442,10 @@ function selectFollowPairs(
   }
 
   if (chosen.length < count) {
-    return legacySelectPairSet(myPairs, count, thirdNoSeize, position, tmWin, ctx, leadSuitCards);
+    return legacySelectPairSet(myPairs, count, thirdNoSeize || leadSafe, position, tmWin, ctx, leadSuitCards);
   }
   if (mustBeat && !canBeat(chosen.flat(), best, ctx)) {
-    return legacySelectPairSet(myPairs, count, thirdNoSeize, position, tmWin, ctx, leadSuitCards);
+    return legacySelectPairSet(myPairs, count, thirdNoSeize || leadSafe, position, tmWin, ctx, leadSuitCards);
   }
   return chosen;
 }
@@ -466,6 +469,11 @@ function followOffSuitMulti(
   // 第三家领出更大（队友大）且无强牌 → 不盖（出最小）
   const thirdNoSeize = position === 'third' && tmWin
     && (flushFollow || !hasStrongFollowUp(hand, ctx));
+  // 第三家队友大、且仅凭自己手牌即可证领出副牌单/对为本门顶牌 → 不盖，按加分口径选牌。
+  // 已经是顶张的领出（canAddPoints 为真）沿用原分支，不去改动它既有的选对方式。
+  const thirdLeadSafe = position === 'third' && tmWin
+    && !canAddPoints(tmWin, position, leadCombo, ctx)
+    && teammateLeadIsTopByHand(leadCombo, hand, ctx);
 
   // Tractor lead - try to match with tractor
   if (leadCombo.hasTractor) {
@@ -546,7 +554,7 @@ function followOffSuitMulti(
   // Pair lead / throw-with-pairs - include available pairs.
   if (leadCombo.pairCount > 0 && myPairs.length > 0) {
     const selectedPairs = selectFollowPairs(myPairs, leadSuitCards, leadCombo, ctx,
-      position, tmWin, hand, thirdNoSeize);
+      position, tmWin, hand, thirdNoSeize, thirdLeadSafe);
     const chosen = selectedPairs.flat();
     if (chosen.length < leadLen) {
       const used = new Set(chosen.map(c => c.id));
@@ -572,7 +580,7 @@ function followOffSuitMulti(
   }
 
   // Can't match pattern - play smallest
-  if (canAddPoints(tmWin, position, leadCombo, ctx)) {
+  if (canAddOnTeammateTopLead(tmWin, position, leadCombo, hand, ctx)) {
     leadSuitCards.sort(discardSort(true, ctx, leadSuitCards, ctx));
     const cards = leadSuitCards.slice(0, leadLen);
     const reason = annotateReason('垫同花色', cards, leadSuitCards, [],

@@ -364,6 +364,45 @@ export function canAddPoints(tmWin: boolean, position: string, leadCombo: ComboC
   return false;
 }
 
+/**
+ * 队友领出副牌单张/对子，仅凭**自己手牌**即可断定它已是本门顶牌。
+ *
+ * 两副牌每个点数 2 张；外面想盖过它需要更高的同型牌：
+ * - 单张：每个更高点数我都有 2 张（外面一张都没有）；
+ * - 对子：每个更高点数我至少有 1 张（外面凑不出更高对子）。
+ * 级牌是本门主牌，跳过；拖拉机/甩牌不在此判据。只看手牌，不查已出牌与底牌。
+ */
+export function teammateLeadIsTopByHand(
+  leadCombo: ComboClass, hand: Card[], ctx: AIContext,
+): boolean {
+  const cards = leadCombo.cards;
+  if (cards.length === 0) return false;
+  if (cards.some(c => isTrump(c, ctx))) return false;
+  const suit = cards[0].suit;
+  if (!cards.every(c => c.suit === suit)) return false;
+  const need = leadCombo.type === 'single' ? 2 : leadCombo.type === 'pair' ? 1 : 0;
+  if (need === 0) return false;
+  const leadRank = Math.max(...cards.map(c => c.rank));
+  for (let r = leadRank + 1; r <= Rank.Ace; r++) {
+    if (r === ctx.level) continue;
+    if (hand.filter(c => c.suit === suit && c.rank === r).length < need) return false;
+  }
+  return true;
+}
+
+/**
+ * 第三家队友大、领出副牌单张/对子时的加分判定：既有的顶张口径，或从自己手牌
+ * 可证该领出已是本门顶牌且未被 70/75 禁分。
+ */
+export function canAddOnTeammateTopLead(
+  tmWin: boolean, position: string, leadCombo: ComboClass, hand: Card[], ctx: AIContext,
+): boolean {
+  if (!tmWin) return false;
+  if (canAddPoints(tmWin, position, leadCombo, ctx)) return true;
+  if (position !== 'third') return false;
+  return !addPointsForbidden(ctx, leadCombo) && teammateLeadIsTopByHand(leadCombo, hand, ctx);
+}
+
 // ---- Pattern evaluation ----
 
 /** Whether the lead combo is a max pattern — big card, tractor, or throw.

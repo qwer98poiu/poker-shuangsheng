@@ -346,6 +346,97 @@ describe('第三家：副牌对子领出字面用最大盖过', () => {
   });
 });
 
+describe('第三家：领出大（队友）且凭手牌可证顶张 → 不盖，按加分/避分选牌', () => {
+  const cfgD6: TrumpDeclaration = { declarerIndex: 3, trumpSuit: Suit.Diamonds, level: 6 };
+  const filler = [cc('H', 3, 101), cc('H', 4, 102), cc('H', 7, 103), cc('S', 3, 104), cc('S', 4, 105)];
+  const leadK = [cc('C', 13, 200), cc('C', 13, 201)];
+
+  it('单张：握两张 C-A → 不盖，出最小非分 C3', () => {
+    // 报告局面：第三家、级 6、主 D；P0 领出 C-K，自己握着两张 C-A。
+    const lead: Card[] = [cc('C', 13, 200)];
+    const hand = [
+      cc('C', 3, 0), cc('C', 9, 1), cc('C', 14, 2), cc('C', 14, 3),
+      cc('H', 4, 4), cc('H', 7, 5), cc('H', 8, 6), cc('H', 14, 7),
+      cc('S', 3, 8), cc('S', 4, 9), cc('S', 9, 10), cc('S', 14, 11),
+      cc('S', 12, 12), cc('S', 12, 13),
+    ];
+    const ctx = thirdCtx(cfgD6, lead);
+    const r = aiFollowPlay(hand, lead, Suit.Clubs, ctx);
+    checkFollow(r.cards, hand, lead, 'C', cfgD6);
+    expect(r.cards.map(c => `${c.suit}${c.rank}`)).toEqual(['C3']);
+  });
+
+  it('单张：只握一张 C-A → 仍出 C-A 保护队友', () => {
+    const lead: Card[] = [cc('C', 13, 200)];
+    const hand = [cc('C', 14, 0), cc('C', 3, 1), ...filler];
+    const ctx = thirdCtx(cfgD6, lead);
+    const r = aiFollowPlay(hand, lead, Suit.Clubs, ctx);
+    checkFollow(r.cards, hand, lead, 'C', cfgD6);
+    expect(r.cards.map(c => `${c.suit}${c.rank}`)).toEqual(['C14']);
+  });
+
+  it('对子：握 C-A + C-10 对 + C-3 对 → 加分出 C-10 对', () => {
+    // KK 对由自己的一张 A 证明外面凑不出 AA；不必盖队友，取最小分对加分。
+    const hand = [
+      cc('C', 14, 0), cc('C', 10, 1), cc('C', 10, 2), cc('C', 3, 3), cc('C', 3, 4),
+      ...filler,
+    ];
+    const ctx = thirdCtx(cfgD6, leadK);
+    const r = aiFollowPlay(hand, leadK, Suit.Clubs, ctx);
+    checkFollow(r.cards, hand, leadK, 'C', cfgD6);
+    expect(r.cards.map(c => c.rank)).toEqual([10, 10]);
+  });
+
+  it('对子：握 C-A 对 + C-3 对且有强牌 → 不抢，出 C-3 对', () => {
+    // ♥33♥44 是强牌：旧路径会为了抢权拆 AA 盖队友；判据成立时改为不盖。
+    const hand = [
+      cc('C', 14, 0), cc('C', 14, 1), cc('C', 3, 2), cc('C', 3, 3),
+      cc('H', 3, 4), cc('H', 3, 5), cc('H', 4, 6), cc('H', 4, 7),
+    ];
+    const ctx = thirdCtx(cfgD6, leadK);
+    const r = aiFollowPlay(hand, leadK, Suit.Clubs, ctx);
+    checkFollow(r.cards, hand, leadK, 'C', cfgD6);
+    expect(r.cards.map(c => c.rank)).toEqual([3, 3]);
+  });
+
+  it('对子：只有 C-A 对 → 唯一可出，仍出 C-A 对', () => {
+    const hand = [cc('C', 14, 0), cc('C', 14, 1), ...filler];
+    const ctx = thirdCtx(cfgD6, leadK);
+    const r = aiFollowPlay(hand, leadK, Suit.Clubs, ctx);
+    checkFollow(r.cards, hand, leadK, 'C', cfgD6);
+    expect(r.cards.map(c => c.rank)).toEqual([14, 14]);
+  });
+
+  it('对子：判据不成立（握 J 对，Q/K/A 不在手）→ 仍盖过队友', () => {
+    // 领出 ♣10 对；手里只有 J 对，外面仍可能有 Q/K/A 对 → 出 J 对保护。
+    const lead = [cc('C', 10, 200), cc('C', 10, 201)];
+    const hand = [
+      cc('C', 11, 0), cc('C', 11, 1), cc('C', 3, 2), cc('C', 3, 3),
+      cc('H', 3, 4), cc('H', 3, 5), cc('H', 4, 6), cc('H', 4, 7),
+    ];
+    const ctx = thirdCtx(cfgD6, lead);
+    const r = aiFollowPlay(hand, lead, Suit.Clubs, ctx);
+    checkFollow(r.cards, hand, lead, 'C', cfgD6);
+    expect(r.cards.map(c => c.rank)).toEqual([11, 11]);
+  });
+
+  it('对子：单 A + 无对 → 按加分选两张（C-10 + C-3）', () => {
+    const hand = [cc('C', 14, 0), cc('C', 10, 1), cc('C', 3, 2), ...filler];
+    const ctx = thirdCtx(cfgD6, leadK);
+    const r = aiFollowPlay(hand, leadK, Suit.Clubs, ctx);
+    checkFollow(r.cards, hand, leadK, 'C', cfgD6);
+    expect(r.cards.map(c => c.rank).sort((a, b) => a - b)).toEqual([3, 10]);
+  });
+
+  it('对子：短套只有单 A → 跟 A + 加分填充（♥10）', () => {
+    const hand = [cc('C', 14, 0), cc('H', 10, 1), cc('H', 3, 2), cc('H', 4, 3), cc('S', 3, 4), cc('S', 4, 5)];
+    const ctx = thirdCtx(cfgD6, leadK);
+    const r = aiFollowPlay(hand, leadK, Suit.Clubs, ctx);
+    checkFollow(r.cards, hand, leadK, 'C', cfgD6);
+    expect(r.cards.map(c => `${c.suit}${c.rank}`)).toEqual(['C14', 'H10']);
+  });
+});
+
 describe('第三家：领出大（队友）时缺门不毙', () => {
   it('领出对子 < J → 毙最小', () => {
     // P0 领出 ♥10-10（小于 J）。P2 缺门，有主牌 S-A、S-8 → 毙最小 S-8。
