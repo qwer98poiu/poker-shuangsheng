@@ -3865,12 +3865,37 @@ describe('fourth position reason always carries add/avoid mark', () => {
     expect(r.reason).toBe('同花色出小（盖不过，不加分）');
   });
 
-  it('副牌单张 队友大、70 禁分（庄家方）→ 不加分标注', () => {
+  it('副牌单张 队友大、庄家方 60+10=70（第四家）→ 仍加 10 分（禁分前提不成立）', () => {
     const hand = [c4('H', 13, 0), c4('H', 5, 0), c4('H', 9, 0), c4('S', 7, 0)];
     const lead = [c4('H', 10, 200)];
     const r = aiFollowPlay(hand, lead, Suit.Hearts,
       ctx4({ cards: [c4('H', 12, 0)], playerIndex: 1 }, { isAttacker: false, attackerPoints: 60 }));
-    expect(r.reason).toBe('同花色出小（盖不过，不加分）');
+    expect(r.cards[0].id).toBe('H-13-0'); // HK：加分梯子先于 H5/H9，盖过队友仍是本队赢墩
+    expect(r.reason).toBe('同花色出小（队友已大，加分）');
+  });
+
+  it('缺门垫牌 队友大、庄家方 55+20=75 禁分档（第四家）→ 仍加 10 分', () => {
+    // 第四家出完即结算：队友 S10S10 已赢，垫进本墩的分不进闲家账。
+    const hand = [c4('C', 5, 0), c4('C', 5, 1), c4('C', 9, 0),
+      c4('D', 4, 0), c4('D', 7, 0), c4('D', 12, 0)];
+    const lead = [c4('H', 7, 200), c4('H', 7, 201)];
+    const r = aiFollowPlay(hand, lead, Suit.Hearts,
+      ctx4({ cards: [c4('S', 10, 0), c4('S', 10, 1)], playerIndex: 1 },
+        { isAttacker: false, attackerPoints: 55 }));
+    expect(r.cards.map(c => c.id)).toEqual(['C-5-0', 'C-5-1']);
+    expect(r.reason).toBe('垫牌（队友已大，加分）');
+  });
+
+  it('缺门持主 队友大、庄家方 60+10=70（第四家）→ 垫分不盖毙队友', () => {
+    // 修复前：禁分使加分分支被跳过，void 分支落到 trumpKill，用大王盖队友的 SA。
+    const hand = [c4('C', 9, 0), c4('D', 10, 0), c4('D', 2, 0), c4('D', 4, 0),
+      c4('D', 7, 0), c4('D', 11, 0), c4('D', 12, 0), c4('J', 16, 0)];
+    const lead = [c4('H', 13, 200)];
+    const r = aiFollowPlay(hand, lead, Suit.Hearts,
+      ctx4({ cards: [c4('S', 14, 0)], playerIndex: 1 },
+        { isAttacker: false, attackerPoints: 60 }));
+    expect(r.cards.map(c => c.id)).toEqual(['D-10-0']);
+    expect(r.reason).toBe('垫牌（队友已大，加分）');
   });
 
   it('副牌单张 对手大、能盖过 → 抢分标注', () => {

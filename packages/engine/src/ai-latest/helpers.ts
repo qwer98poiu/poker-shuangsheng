@@ -288,9 +288,12 @@ export function padWithDiscards(
 
 // ---- Point-adding strategy ----
 
-/** 与位置无关的禁分档：庄家方（`!isAttacker`）下，闲家分已接近或正踩台阶时，
- *  即使领出本身可加分也不加——再加 5/10 分可能把闲家直接送过 80。
- *  两档：① 闲家 75–79（5 分即可跨线）；② 闲家得分 + 本墩已出分 = 70 或 75。 */
+/** 禁分档（庄家方，`!isAttacker`）：闲家分已接近或正踩台阶时，即使领出本身可加分
+ *  也不加——再加 5/10 分可能把闲家直接送过 80。
+ *  两档：① 闲家 75–79（5 分即可跨线）；② 闲家得分 + 本墩已出分 = 70 或 75。
+ *
+ *  前提是**本墩还可能被闲家赢走**（后面还有对手出牌，如第三家）。第四家队友大时
+ *  本墩已锁定、加进去的分不进闲家账，由 `canAddPoints` 先行放行，不查本函数。 */
 export function addPointsForbidden(ctx: AIContext, leadCombo: ComboClass): boolean {
   if (!ctx.isAttacker && ctx.attackerPoints >= 75 && ctx.attackerPoints < 80) return true;
   if (!ctx.isAttacker) {
@@ -326,8 +329,12 @@ function playedTrumps(ctx: AIContext): number {
  *  庄家方且闲家得分 + 本墩已出分为 70 或 75 时禁分。 */
 export function canAddPoints(tmWin: boolean, position: string, leadCombo: ComboClass, ctx: AIContext): boolean {
   if (!tmWin) return false;
-  if (addPointsForbidden(ctx, leadCombo)) return false;
+  // 第四家出完即结算：队友已大时本墩必归我队，加进去的分不可能进闲家账，
+  // 70/75/80 的禁分前提不成立（盖过队友也仍是本队赢墩）。
+  // 必须排在禁分之前——否则缺门持主时会因加分被禁而落到 trumpKill，
+  // 平白用主牌盖掉队友已经赢下的墩。
   if (position === 'fourth') return true;
+  if (addPointsForbidden(ctx, leadCombo)) return false;
   if (position === 'third') {
     // 0a/0b 领出：上一墩已验对手该花色对子已绝（0b）或三家整门已绝（0a），
     // 花色内无法被盖；仍可能被毙，按规格接受该风险 → 加分

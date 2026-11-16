@@ -84,7 +84,7 @@ In NT (no-trump) mode, 12 constant trump cards (Big Joker × 2, Small Joker × 2
 
     | Strategy | Elo |
     |---|---|
-    | `ai-latest` | 1363 |
+    | `ai-latest` | TBD |
     | `ai-1108` | 1332 |
     | `ai-1106` | 1304 |
     | `ai-1031` | 1299 |
@@ -356,7 +356,7 @@ MIT — see [LICENSE](LICENSE).
 
     | 策略 | Elo |
     |---|---|
-    | `ai-latest` | 1363 |
+    | `ai-latest` | 待重测 |
     | `ai-1108` | 1332 |
     | `ai-1106` | 1304 |
     | `ai-1031` | 1299 |

@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-11-16 22:11
+
+### 第四家队友大时不再适用 70/75 禁分
+
+**问题**：`addPointsForbidden` 的 70/75/80 禁分以「加进去的分可能被闲家赢走」为前提。第四家出完即结算：队友已大时本墩必归我队，`accumulateAttackerPoints` 只在闲家赢墩时计分，禁分前提不成立。修复前庄家方第四家在闲家 75–79（或闲家分 + 本墩已出分 = 70/75）时会把分留在手里、改走 avoid 梯子；缺门持主时更会因为加分分支被禁而落到 `trumpKill`，用主牌盖掉队友已经赢下的墩（复现场景：队友 SA 已大、闲家 60 + 本墩 10 = 70，实际出大王，而 40 分时正常垫 D10 加 10 分）。第三家的禁分不受影响——第四家对手仍可盖/毙，整墩分连同刚加进去的一起归闲家。
+
+**修复**：`canAddPoints` 把 `position === 'fourth'` 的放行提到 `addPointsForbidden` 之前；不禁分的出法逐字节不变。
+
+**验证（只统计实际改牌的发牌）**：发牌竞技场 A=改动后 ai-latest，B=main 上一提交（2026-11-16 21:23 的 ai-latest，临时副本，逐字节相同），seed `0x1116000000000003`，6 个默认等级（2/5/10/Q/K/A），固定 P0，无 filter，10000 副；条件命中 9719 次，实际改牌 4223 次、涉及发牌 3256 副（32.6%）、受影响三元组 4057 个。发牌多数决 A/B/平 = 483/141/2632，p̂=0.5525，99% Wilson 下界 0.5300，显著；受影响三元组 501/147/3409，胜率 0.5436；均值 tierNorthStar +0.090、ptsNorthStar +3.48。
+
+**新增 2 项测试、修改 2 项测试**（ai-follow.test.ts：新增 2 项、修改 1 项；strategy-fingerprint.test.ts：修改 1 项——镜像对决 oppLevel 189 → 196），引擎 1354 项 + arena 262 项 + CLI 87 项 + client 201 项 = 1904 项通过。
+
+- **影响文件**：`packages/engine/src/ai-latest/helpers.ts`、`packages/engine/src/__tests__/ai-follow.test.ts`、`packages/arena/src/__tests__/strategy-fingerprint.test.ts`、`README.md`
+
 ## 2026-11-15 21:39
 
 ### Elo 批量对决支持每组单独指定 seed

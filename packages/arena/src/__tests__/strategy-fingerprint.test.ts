@@ -63,8 +63,9 @@ describe('AI 策略指纹', () => {
     // 2026-11-14 第三/第四家吊主单张盖不过统一垫牌后为 195
     // 2026-11-15 第三家队友大且凭手牌可证副牌单/对为顶张时不盖后为 194
     // 2026-11-15 第二家吊主单张盖不过时保结构（<=15 四级阶梯、>15 与第四家同选牌）后为 189
-    expect(statsA.matches.oppLevel).toEqual({ n: 189, d: 20 });
-    expect(statsB.matches.oppLevel).toEqual({ n: 189, d: 20 });
+    // 2026-11-16 第四家队友大时不再适用 70/75 禁分（本墩已锁定）后为 196
+    expect(statsA.matches.oppLevel).toEqual({ n: 196, d: 20 });
+    expect(statsB.matches.oppLevel).toEqual({ n: 196, d: 20 });
     expect(statsA.handsPlayed).toBe(statsB.handsPlayed);
     expect(statsA.abortedHands).toBe(0);
     const sig = checkSignificance(statsA.matches.won, statsB.matches.won, statsA.matches.drawn, statsA.matches.played);
