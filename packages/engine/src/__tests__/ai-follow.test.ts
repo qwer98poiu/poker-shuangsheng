@@ -333,6 +333,94 @@ describe('AI follow play compliance', () => {
     });
   });
 
+  describe('third position, off-suit pair/throw lead, opponent wins -> non-point pair first', () => {
+    const cfgSpades2: TrumpDeclaration = { declarerIndex: 0, trumpSuit: Suit.Spades, level: 2 };
+
+    it('pair lead, cannot beat -> plays non-point pair ♥9♥9, not point pair ♥5♥5', () => {
+      // P0（队友）领 ♥5♥5，P1 出 ♥K♥K 盖过；P2 只有 ♥5♥5（分对）与 ♥9♥9（非分对）。
+      // 第三家盖不过、其后只有对手 P3 → 本墩必归对手，出非分对。
+      const hand = [
+        c('H', 5, 0), c('H', 5, 1), c('H', 9, 0), c('H', 9, 1),
+        c('C', 3, 0), c('C', 3, 1), c('D', 4, 0),
+      ];
+      const lead = [c('H', 5, 200), c('H', 5, 201)];
+      const second = [c('H', 13, 100), c('H', 13, 101)];
+      const ctx: AIContext = {
+        declarerIndex: 0, trumpSuit: Suit.Spades, level: 2,
+        myIndex: 2, isDeclarer: false, isDeclarerPartner: true,
+        isAttacker: false, attackerPoints: 20,
+        throwPenalties: [0, 0],
+        handCounts: [7, 7, 7, 7], trickHistory: [], reveals: [],
+        playCount: 2, leadPlayerIndex: 0,
+        trickPlays: [{ cards: lead }, { cards: second }],
+        bestSoFar: { cards: second, playerIndex: 1 },
+        ntState: null, bottomCards: [], debug: false,
+      };
+      const r = aiFollowPlay(hand, lead, Suit.Hearts, ctx);
+      checkFollow(r.cards, hand, lead, 'H', cfgSpades2);
+      expect(r.cards.map(x => `${x.suit}${x.rank}`).sort()).toEqual(['H9', 'H9']);
+      expect(r.reason).toContain('同花色出小');
+    });
+
+    it('throw with two standalone pairs, cannot beat -> takes ♥9♥9 + ♥J♥J, not ♥5♥5', () => {
+      // 甩两对（非拖拉机）：P0 领 ♥9♥9 + ♥6♥6，P1 出 ♥Q♥Q + ♥10♥10 盖过；P2 有
+      // ♥5♥5（分对）、♥9♥9、♥J♥J。按点数升序会取 ♥5♥5 + ♥9♥9，改后取两对非分对。
+      const hand = [
+        c('H', 5, 0), c('H', 5, 1), c('H', 9, 0), c('H', 9, 1),
+        c('H', 11, 0), c('H', 11, 1),
+      ];
+      const lead = [
+        c('H', 9, 200), c('H', 9, 201), c('H', 6, 202), c('H', 6, 203),
+      ];
+      const second = [
+        c('H', 12, 100), c('H', 12, 101), c('H', 10, 102), c('H', 10, 103),
+      ];
+      const ctx: AIContext = {
+        declarerIndex: 0, trumpSuit: Suit.Spades, level: 2,
+        myIndex: 2, isDeclarer: false, isDeclarerPartner: true,
+        isAttacker: false, attackerPoints: 20,
+        throwPenalties: [0, 0],
+        handCounts: [6, 6, 6, 6], trickHistory: [], reveals: [],
+        playCount: 2, leadPlayerIndex: 0,
+        trickPlays: [{ cards: lead }, { cards: second }],
+        bestSoFar: { cards: second, playerIndex: 1 },
+        ntState: null, bottomCards: [], debug: false,
+      };
+      const r = aiFollowPlay(hand, lead, Suit.Hearts, ctx);
+      checkFollow(r.cards, hand, lead, 'H', cfgSpades2);
+      expect(r.cards.map(x => `${x.suit}${x.rank}`).sort()).toEqual(['H11', 'H11', 'H9', 'H9']);
+      expect(r.reason).toContain('垫同花色');
+    });
+
+    it('can beat -> still takes the largest beating pairs（分对 ♥K♥K 照出）', () => {
+      // 能盖过时不属于「盖不过不加分」：仍按最大盖，保留 ♥K♥K 分对。
+      const hand = [
+        c('H', 13, 0), c('H', 13, 1), c('H', 9, 0), c('H', 9, 1),
+        c('H', 5, 0), c('H', 5, 1),
+      ];
+      const lead = [
+        c('H', 6, 200), c('H', 6, 201), c('H', 3, 202), c('H', 3, 203),
+      ];
+      const second = [
+        c('H', 8, 100), c('H', 8, 101), c('H', 7, 102), c('H', 7, 103),
+      ];
+      const ctx: AIContext = {
+        declarerIndex: 0, trumpSuit: Suit.Spades, level: 2,
+        myIndex: 2, isDeclarer: false, isDeclarerPartner: true,
+        isAttacker: false, attackerPoints: 20,
+        throwPenalties: [0, 0],
+        handCounts: [6, 6, 6, 6], trickHistory: [], reveals: [],
+        playCount: 2, leadPlayerIndex: 0,
+        trickPlays: [{ cards: lead }, { cards: second }],
+        bestSoFar: { cards: second, playerIndex: 1 },
+        ntState: null, bottomCards: [], debug: false,
+      };
+      const r = aiFollowPlay(hand, lead, Suit.Hearts, ctx);
+      checkFollow(r.cards, hand, lead, 'H', cfgSpades2);
+      expect(r.cards.map(x => `${x.suit}${x.rank}`).sort()).toEqual(['H13', 'H13', 'H9', 'H9']);
+    });
+  });
+
   describe('second position, single trump lead, avoid points (hand>15) -> 不拆对、非分单先于分单', () => {
     it('hand>15: dumps non-point single before breaking a non-point pair', () => {
       // 手牌 >15 张（第二家避分）：领出 ♥A，第二家只有 ♥6♥6 对 + ♥9 单。

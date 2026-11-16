@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-11-16 23:56
+
+### 第三家盖不过时对子选择改为非分对优先
+
+**问题**：第三家跟副牌对子/含对甩牌，对手（第二家）已大、自己手里没有能盖的对子时，本墩必归对手（其后只有对手第四家），不应再加分。但两条对子选择路径都只按有效点数排序：`pickStandalonePair` 取最小对、`legacySelectPairSet` 在最大对盖不过时改取升序最小对，都不看分对。手里 ♥5♥5（分对，10 分）比 ♥9♥9 小时先出 ♥5♥5，把 10 分送给对手。
+
+**修复**：`selectFollowPairs` 新增 `thirdTrickLost = position === 'third' && !tmWin && beatingCount === 0`，传给 `pickStandalonePair`；前者在同一分支内改为非分对优先，后者在第三家盖不过的分支用「非分对优先、再取最小」排序。能盖过、第二/第四家、`thirdNoSeize`/`leadSafe`、拆拖拉机等路径不变；`STRATEGY.md` 2.2 具体牌型第 3 条同步。
+
+**验证（只统计实际改牌的发牌）**：发牌竞技场 A=改动后 ai-latest，B=改动前 ai-latest（临时副本，逐字节取自 2026-11-16 22:11 的 ai-latest；main 上一提交 2026-11-16 23:28 未改 ai-latest，逐字节相同），seed `0x1116000000000024`，6 个默认等级（2/5/10/Q/K/A），固定 P0，无 filter，26000 副（受影响发牌显著后早停）；条件命中 176280 次，实际改牌 348 次、涉及发牌 245 副（0.94%）、受影响三元组 348 个。发牌多数决 A/B/平 = 56/15/174，p̂=0.5837，99% Wilson 下界 0.5014，显著；受影响三元组 65/21/262，胜率 0.5632；均值 tierNorthStar +0.124、ptsNorthStar +4.73。
+
+**新增 3 项测试**（ai-follow.test.ts：新增 3 项），引擎 1357 项 + arena 262 项 + CLI 87 项 + client 201 项 = 1907 项通过。
+
+- **影响文件**：`packages/engine/src/ai-latest/follow-offsuit.ts`、`packages/engine/src/ai-latest/STRATEGY.md`、`packages/engine/src/__tests__/ai-follow.test.ts`
+
 ## 2026-11-16 23:27
 
 ### 提取 ai-1115 基线、归档 ai-0907

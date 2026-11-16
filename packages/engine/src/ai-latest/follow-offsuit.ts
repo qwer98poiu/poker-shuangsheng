@@ -275,6 +275,7 @@ function pickStandalonePair(
   needBeat: boolean,
   thirdNoSeize: boolean,
   addPoints: boolean,
+  thirdTrickLost: boolean,
   ctx: AIContext,
 ): Card[] {
   if (thirdNoSeize) {
@@ -285,6 +286,11 @@ function pickStandalonePair(
     ) : minFollowPair(candidates, ctx);
   }
   if (position === 'second' || position === 'third') {
+    if (thirdTrickLost) {
+      // 第三家盖不过、对手大：本墩必归对手 → 非分对优先。
+      const nonPoints = candidates.filter(p => !isPointRank(p[0].rank));
+      return minFollowPair(nonPoints.length > 0 ? nonPoints : candidates, ctx);
+    }
     return needBeat ? maxFollowPair(candidates, ctx) : minFollowPair(candidates, ctx);
   }
 
@@ -328,7 +334,17 @@ function legacySelectPairSet(
     sorted.sort((a, b) => getEffectiveRank(b[0], ctx) - getEffectiveRank(a[0], ctx));
     let chosen = sorted.slice(0, count);
     if (!canBeat(chosen.flat(), ctx.bestSoFar, ctx)) {
-      sorted.sort((a, b) => getEffectiveRank(a[0], ctx) - getEffectiveRank(b[0], ctx));
+      if (position === 'third' && !tmWin) {
+        // 第三家盖不过、对手大：其后只有对手第四家，本墩必归对手 → 非分对优先，再取最小。
+        sorted.sort((a, b) => {
+          const aPts = isPointRank(a[0].rank) ? 100 : 0;
+          const bPts = isPointRank(b[0].rank) ? 100 : 0;
+          if (aPts !== bPts) return aPts - bPts;
+          return getEffectiveRank(a[0], ctx) - getEffectiveRank(b[0], ctx);
+        });
+      } else {
+        sorted.sort((a, b) => getEffectiveRank(a[0], ctx) - getEffectiveRank(b[0], ctx));
+      }
       chosen = sorted.slice(0, count);
     }
     return chosen;
@@ -397,6 +413,8 @@ function selectFollowPairs(
   }
 
   const addPoints = canAddOnTeammateTopLead(tmWin, position, leadCombo, hand, ctx);
+  // 第三家、对手大、手里没有能盖的对子：其后只有对手第四家，本墩必归对手，出对不应加分。
+  const thirdTrickLost = position === 'third' && !tmWin && beatingCount === 0;
   const structure = analyzePairStructure(leadSuitCards, ctx);
   if (count > 1 && structure.standalone.length >= count) {
     const legacy = legacySelectPairSet(structure.standalone, count, thirdNoSeize || leadSafe,
@@ -429,7 +447,7 @@ function selectFollowPairs(
     const standaloneCandidates = pool.filter(p => !structureLeft.chainIndex.has(p[0].id));
     let picked = standaloneCandidates.length > 0
       ? pickStandalonePair(standaloneCandidates, position, needBeat, thirdNoSeize || leadSafe,
-        addPoints, ctx)
+        addPoints, thirdTrickLost, ctx)
       : pickTractorSplitPair(pool, cardsLeft, ctx, mode);
     if (!picked) picked = minFollowPair(pool, ctx);
 
