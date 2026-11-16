@@ -35,6 +35,9 @@ import {
 
 const SUIT_SYMBOL: Record<string, string> = { S: '♠', H: '♥', C: '♣', D: '♦' };
 
+/** 扣底决策的输入张数：发到的 25 张 + 拿进手里的 8 张底牌。 */
+export const BOTTOM_DECISION_HAND_SIZE = 33;
+
 export interface BottomVoidDetail {
   suit: Suit;
   /** Discarded cards of this door — the suit's whole non-control remainder. */
@@ -60,7 +63,13 @@ export interface BottomChoiceDetail {
   fillBuckets: number[];
 }
 
-/** Run bottom selection and also return its internal structure (same decision). */
+/**
+ * Run bottom selection and also return its internal structure (same decision).
+ *
+ * 这里是选牌算法本身，对任意手牌形状都成立；「必须 33 张」是对外入口
+ * （`ai/index.ts` 的 aiChooseBottomCards）的契约，不在此处断言——单元测试
+ * 用手工构造的形状手牌直接打这个函数。
+ */
 export function aiChooseBottomCardsDetailed(
   hand: Card[],
   config: AIContext | TrumpDeclaration,
@@ -209,12 +218,12 @@ function chooseNTBottom(
 // ---- Long-suit (长花色) designation (NT only) ----
 
 /** Shape of a long suit candidate: total >= 9 and control cards >= 6. */
-function longShape(info: OffSuitControlInfo): boolean {
+export function longShape(info: OffSuitControlInfo): boolean {
   return info.cards.length >= 9 && info.tier1.length + info.tier2.length >= 6;
 }
 
 /** Choose the single long suit: strongest first (大者优先), SHCD last. */
-function compareLongCandidate(a: OffSuitControlInfo, b: OffSuitControlInfo): number {
+export function compareLongCandidate(a: OffSuitControlInfo, b: OffSuitControlInfo): number {
   const sumDiff = (b.cards.length + b.tier1.length + b.tier2.length)
     - (a.cards.length + a.tier1.length + a.tier2.length);
   if (sumDiff !== 0) return sumDiff;
@@ -709,7 +718,7 @@ function fillSuited(
   const bucket1Ok = (c: Card): boolean => offSuit(c) && !isTier1(c) && pointOf(c) === 0;
   const { singles } = pairUnitsOf(pool);
   const bucket1 = selectBucket1Singles(singles.filter(bucket1Ok), slots, pool, infos, config);
-  for (const c of bucket1) onBucket?.(1);
+  for (const _c of bucket1) onBucket?.(1);
   const junkIds = new Set(bucket1.map(c => c.id));
   const restPool = pool.filter(c => !junkIds.has(c.id));
   const restSlots = slots - bucket1.length;
@@ -826,7 +835,7 @@ function fillNT(
   const bucket1 = selectBucket1Singles(
     singles.filter(nonLongNonCtrlNonPoint), slots, pool, infos, config,
   );
-  for (const c of bucket1) onBucket?.(1);
+  for (const _c of bucket1) onBucket?.(1);
   const junkIds = new Set(bucket1.map(c => c.id));
   const restPool = pool.filter(c => !junkIds.has(c.id));
   const restSlots = slots - bucket1.length;

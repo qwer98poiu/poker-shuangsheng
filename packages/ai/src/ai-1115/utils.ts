@@ -2,7 +2,7 @@
  * AI utility functions - shared helpers used across strategy modules.
  */
 import type { Card, CardSuit } from '../types.js';
-import { Rank, Suit, SpecialSuit, isPointRank } from '../types.js';
+import { Rank, Suit, isPointRank } from '../types.js';
 import type { TrumpDeclaration } from '../types.js';
 import { isTrump, getEffectiveRank } from '../model.js';
 import type { AIContext, PlayPosition } from './types.js';
@@ -109,6 +109,54 @@ function shouldAvoidBreakingPair(card: Card, hand: Card[], ctx: AIContext): bool
   return projTier === currTier;
 }
 
+/** `cards` 中与 `card` 同花色同点数的张数 ≥ 2（这张牌属于对子）。 */
+export function breaksPairIn(cards: Card[], card: Card): boolean {
+  return cards.filter(c => c.suit === card.suit && c.rank === card.rank).length >= 2;
+}
+
+/**
+ * 同有效点数、同为级牌时：不成对的单张先于对子成员（零代价保对）。
+ *
+ * 有主局的副级牌（各门同级、eff 700）与无主局的所有级牌（eff 800）会在排序/
+ * 取最小最大时撞成平局；此时拆对没有任何收益。非级牌或点数不同返回 0，
+ * 由调用方保留原比较结果。`pool` 传当前可判断对子的牌池（通常为主牌全集）。
+ */
+export function levelSingleTiebreak(
+  a: Card, b: Card, pool: Card[], config: TrumpDeclaration,
+): number {
+  if (a.rank !== config.level || b.rank !== config.level) return 0;
+  if (getEffectiveRank(a, config) !== getEffectiveRank(b, config)) return 0;
+  const ap = breaksPairIn(pool, a) ? 1 : 0;
+  const bp = breaksPairIn(pool, b) ? 1 : 0;
+  return ap - bp;
+}
+
+/** 稳定排序：只把同为级牌且同有效点数的单张挪到对子成员之前，其余顺序不变。 */
+export function sortPreferLevelSingle(cards: Card[], config: TrumpDeclaration): Card[] {
+  return [...cards].sort((a, b) => levelSingleTiebreak(a, b, cards, config));
+}
+
+/**
+ * 盖不过 / 必输墩垫一张：按第二家第 5 条 avoid 梯子取最小——
+ * 非分单 > 非分对 > 分单 > 分对；同档内优先不拆对，再取有效点数最小。
+ * 第三家、第四家与缺主垫副共用。
+ */
+export function pickLowestAvoid(cards: Card[], ctx: TrumpDeclaration): Card {
+  const weight = (c: Card): number[] => [
+    isPointRank(c.rank) ? 1 : 0,
+    breaksPairIn(cards, c) ? 1 : 0,
+    getEffectiveRank(c, ctx),
+  ];
+  return cards.reduce((a, b) => {
+    const wa = weight(a);
+    const wb = weight(b);
+    for (let i = 0; i < wa.length; i++) {
+      if (wa[i] !== wb[i]) return wa[i] < wb[i] ? a : b;
+    }
+    return a;
+  });
+}
+
 // ---- Sort helpers ----
 
 /** When adding points, compare two point cards for dump order: 10 > K > 5.
@@ -166,7 +214,13 @@ export function discardSort(
     }
     // When adding points: 10 > K > 5 (dump low-rank 10 first, keep K).
     if (teammateWinning && isPointRank(a.rank) && isPointRank(b.rank)) {
-      return pointDumpPriority(a.rank) - pointDumpPriority(b.rank);
+      const pd = pointDumpPriority(a.rank) - pointDumpPriority(b.rank);
+      if (pd !== 0) return pd;
+    }
+    // 同为级牌且同有效点数（副级牌跨门）：不拆对的单张先出。
+    if (hand && config) {
+      const lv = levelSingleTiebreak(a, b, hand, config);
+      if (lv !== 0) return lv;
     }
     return a.rank - b.rank;
   };
@@ -196,7 +250,8 @@ export function fillerSort(
     }
     // When adding points: 10 > K > 5 (dump low-rank 10 first, keep K).
     if (teammateWinning && isPointRank(a.rank) && isPointRank(b.rank)) {
-      return pointDumpPriority(a.rank) - pointDumpPriority(b.rank);
+      const pd = pointDumpPriority(a.rank) - pointDumpPriority(b.rank);
+      if (pd !== 0) return pd;
     }
     // Prefer non-trump over trump as fillers
     const aTr = isTrump(a, config) ? 100 : 0;
@@ -206,6 +261,11 @@ export function fillerSort(
     const aLvl = a.rank === config.level ? 100 : 0;
     const bLvl = b.rank === config.level ? 100 : 0;
     if (aLvl !== bLvl) return aLvl - bLvl;
+    // 同为级牌且同有效点数：不拆对的单张先出。
+    if (hand) {
+      const lv = levelSingleTiebreak(a, b, hand, config);
+      if (lv !== 0) return lv;
+    }
     return a.rank - b.rank;
   };
 }

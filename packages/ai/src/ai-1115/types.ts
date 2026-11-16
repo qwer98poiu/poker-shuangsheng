@@ -1,7 +1,7 @@
 /**
  * AI strategy types.
  */
-import type { Card, CardSuit, Trick, Reveal, TrumpDeclaration } from '../types.js';
+import type { Card, Trick, Reveal, TrumpDeclaration } from '../types.js';
 
 /** Position in the current trick. */
 export type PlayPosition = 'lead' | 'second' | 'third' | 'fourth';
@@ -65,6 +65,8 @@ export interface AIContext extends TrumpDeclaration {
   readonly isAttacker: boolean;
   /** Current attacking team score. */
   readonly attackerPoints: number;
+  /** 甩牌失败罚分次数：[庄家方, 闲家方] 本局已用次数（每方上限 3 次）。 */
+  readonly throwPenalties: readonly [number, number];
   /** Number of cards remaining in each player's hand. */
   readonly handCounts: readonly [number, number, number, number];
   /** Completed tricks in this round. */
@@ -75,12 +77,22 @@ export interface AIContext extends TrumpDeclaration {
   readonly playCount: number;
   /** Who led the current trick. */
   readonly leadPlayerIndex: number;
+  /** Cards already played in the current trick, in play order: `plays[i]`
+   *  belongs to `(leadPlayerIndex + i) % 4`. Unlike `bestSoFar`, this covers
+   *  the losing plays too — needed to tell whether a middle player has thrown
+   *  points into the trick.
+   *
+   *  完整性契约：`trickPlays.length === playCount` 才算"全知"。`buildAIContext`
+   *  恒满足；手工构造的 ctx（测试/兼容路径）可以留空或只列部分，消费者必须把
+   *  "长度不符"当作**未知**处理，退回改动前的行为，不得把缺项当作"这几家没出分"。 */
+  readonly trickPlays: readonly { cards: Card[] }[];
   /** Current best play in this trick and who played it. */
   readonly bestSoFar: { cards: Card[]; playerIndex: number } | null;
   /** NT trump tracking - precomputed, only non-null in NT mode. */
   readonly ntState: NTTrumpState | null;
-  /** Cards the declarer put in the bottom (if known to this player). */
-  readonly bottomCards: readonly Card[];
+  /** Cards the declarer put in the bottom — only for the declarer himself;
+   *  every other seat (including his partner) gets null. */
+  readonly bottomCards: readonly Card[] | null;
   /** Whether this is a debug game. */
   readonly debug: boolean;
 }
@@ -94,11 +106,13 @@ export function minimalContext(config: TrumpDeclaration): AIContext {
     isDeclarerPartner: false,
     isAttacker: false,
     attackerPoints: 0,
+    throwPenalties: [0, 0] as const,
     handCounts: [25, 25, 25, 25] as const,
     trickHistory: [],
     reveals: [],
     playCount: 0,
     leadPlayerIndex: -1,
+    trickPlays: [],
     bestSoFar: null,
     ntState: null,
     bottomCards: [],

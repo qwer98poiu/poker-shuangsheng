@@ -81,7 +81,7 @@ Deal 竞技场 —— 以发牌为单位，按 --declarer-seats 坐庄；每（�
                        long-suit = 任一座位在该副的候选主牌下有副牌长套即保留
                        （候选庄家按 33 张池＝25＋底牌 8；主牌门不算）
   --strategy-a NAME    策略 A，默认 ai-latest
-  --strategy-b NAME    策略 B，默认 ai-1108
+  --strategy-b NAME    策略 B，默认 ai-1115
   --probe-module PATH  启用 probe：临时模块导出 hit(decision) => boolean，
                        只统计条件命中且 A 实际改牌的发牌/三元组
   --probe-check N      正式跑前在前 N 副的每个决策对比 A/B，假阴性必须为 0；
@@ -114,7 +114,7 @@ function parseArgs(argv: string[]): Args {
     seed: randomSeed(),
     workers: defaultWorkerCount(),
     strategyA: 'ai-latest',
-    strategyB: 'ai-1108',
+    strategyB: 'ai-1115',
     levels: [...DEFAULT_LEVELS],
     declarerSeats: [...DEFAULT_DECLARER_SEATS],
     dealFilters: [],

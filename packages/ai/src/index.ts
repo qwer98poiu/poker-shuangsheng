@@ -1,13 +1,10 @@
 /**
  * `@poker/ai`：历史 AI 策略基线的统一入口。
  *
- * 过渡期（2026-10-25 起；2026-11 包名由 `ai-baselines` 改来）：存量基线
- * 仍位于 `@poker/engine`，这里只做显式 re-export；新提取的基线直接放入本包
- * `src/ai-XXXX/`。归档存量基线后，本包逐渐成为唯一来源。engine 不得反向依赖本包。
+ * 过渡期（2026-10-25 起；2026-11 包名由 `ai-baselines` 改来）：新提取的基线
+ * 直接放入本包 `src/ai-XXXX/`；2026-11-16 归档最后一条 engine 存量基线
+ * ai-0907 后，engine 中已无历史基线。engine 不得反向依赖本包。
  */
-
-// 存量基线：出处与语义见 `packages/engine/src/index.ts` 的导出注释；归档时同步删除这里的对应行。
-export { ai0907 } from '@poker/engine';
 
 /** 快照基线：ai/ 在 be6026c（2026-09-29，NT 记牌器对子扣减修复）时的版本，Elo 刻度锚点。 */
 export * as ai0929 from './ai-0929/index.js';
@@ -23,6 +20,9 @@ export * as ai1106 from './ai-1106/index.js';
 
 /** 快照基线：ai/ 在 086ac7d（2026-11-08，第四家盖不过时不加分）时的版本。 */
 export * as ai1108 from './ai-1108/index.js';
+
+/** 快照基线：ai/ 在 b2b8ef2（2026-11-15，第二家吊主单张：能盖过才出最大，盖不过按结构选牌）时的版本。 */
+export * as ai1115 from './ai-1115/index.js';
 
 // 当前策略（前向兼容）：真实代码仍在 engine，物理搬迁前由 src/ai-latest/ 转出。
 export {

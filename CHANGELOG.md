@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-11-16 23:27
+
+### 提取 ai-1115 基线、归档 ai-0907
+
+**问题**：2026-11-15 15:42 的「第二家吊主单张：能盖过才出最大，盖不过按结构选牌」状态已实测 1363 分（2026-11-15 的 Elo 测量），但尚未冻结为基线；`ai-0907` 是最后一条 engine 存量基线，应由 `@poker/ai` 收口。
+
+**修复**：`git archive` 提取 2026-11-15 15:42 的 `ai-latest/` 为 `packages/ai/src/ai-1115/`（22 文件，含当时的 `STRATEGY.md`，逐字节保持快照），注册 `ai1115` 命名空间与竞技场 `ai1115Strategy`，合法性用例使用 pair 36/37。归档 `ai-0907`：删除 `packages/engine/src/ai-0907/`，移除 engine 命名空间导出、facade 行、竞技场策略/分支、合法性用例，`baseline-facade` 的 engine 集合收窄为空；engine 中已无历史基线。`elo-matches.json` 中 `ai-latest` 的 4 条实测记录改归 `ai-1115`（该分数即 2026-11-15 实测的 1363），并删除所有含 `ai-0907` 的 3 条边；`elo-calc.ts` 重算后剩余图连通，锚点 `ai-0929` 可解（ai-1115 重算 1362.5）。两个竞技场入口（`run.ts` 与 `deal-run.ts`）的 `--strategy-b` 默认值由 `ai-1108` 改为 `ai-1115`，`record.ts` 帮助、README 示例与参数表同步。README 中英历史基线列表、归档列表与 Elo 表同步：`ai-1115` 加入（1363），`ai-0907` 移入已归档移除，历史 Elo 行保留展示；`ai-latest` 因 2026-11-16 的第四家加分修复仍标待重测。
+
+**新增 1 项测试、删除 1 项测试、修改 1 项测试**（historical-strategies.test.ts：新增 1 项、删除 1 项；baseline-facade.test.ts：修改 1 项），引擎 1354 项 + arena 262 项 + CLI 87 项 + client 201 项 = 1904 项通过。
+
+- **影响文件**：`packages/ai/src/ai-1115/`（新目录，22 文件）、`packages/engine/src/ai-0907/`（删除）、`packages/engine/src/index.ts`、`packages/ai/src/index.ts`、`packages/arena/src/strategies.ts`、`packages/arena/src/run.ts`、`packages/arena/src/deal-run.ts`、`packages/arena/src/record.ts`、`packages/arena/src/__tests__/historical-strategies.test.ts`、`packages/arena/src/__tests__/baseline-facade.test.ts`、`packages/arena/scripts/elo-matches.json`、`README.md`
+
 ## 2026-11-16 22:11
 
 ### 第四家队友大时不再适用 70/75 禁分
