@@ -1312,30 +1312,46 @@ function parseTestDelta(text: string): TestDelta | null {
       : null;
   }
 
-  // 每个分解括号归给紧邻在它前面的、尚未被认领的子句；该项数对不上括号合计时，
-  // 说明这个括号横跨了多个子句（如「新增 34 项、重写 9 项、修改 2 项测试（engine 43 + …）」），
-  // 此时无法拆出逐包增量。
+  // 行末的单子包括号覆盖全部子句：`新增 2 项测试、修改 2 项测试（engine）。`
+  // 括号里只有一个裸包名、且位于所有子句之后时，每个子句的项数都归这个包。
+  // 单子句时这与下面的「归给前面最近的子句」等价，不走这个分支。
+  const sole = groups.length === 1 ? groups[0] : null;
   const ambiguous = new Set<Clause>();
-  for (const g of groups) {
-    let target: Clause | null = null;
-    for (let i = clauses.length - 1; i >= 0; i--) {
-      const cl = clauses[i];
-      if (cl.pos < g.start && !cl.claimed) {
-        target = cl;
-        break;
-      }
+  if (
+    sole !== null && sole.bare !== null && clauses.length > 1 &&
+    clauses.every((cl) => cl.pos < sole.start)
+  ) {
+    const pkg = sole.bare;
+    for (const cl of clauses) {
+      cl.claimed = true;
+      cl.per = { [pkg]: cl.count };
+      cl.pkgs = new Set([pkg]);
     }
-    if (!target) continue;
-    target.claimed = true;
-    if (g.bare) {
-      target.per = { [g.bare]: target.count };
-      target.pkgs = new Set([g.bare]);
-    } else {
-      target.pkgs = new Set(Object.keys(g.per) as Pkg[]);
-      if (g.sum === target.count) {
-        target.per = g.per;
+  } else {
+    // 其余情况：每个分解括号归给紧邻在它前面的、尚未被认领的子句；该项数对不上括号合计时，
+    // 说明这个括号横跨了多个子句（如「新增 34 项、重写 9 项、修改 2 项测试（engine 43 + …）」），
+    // 此时无法拆出逐包增量。
+    for (const g of groups) {
+      let target: Clause | null = null;
+      for (let i = clauses.length - 1; i >= 0; i--) {
+        const cl = clauses[i];
+        if (cl.pos < g.start && !cl.claimed) {
+          target = cl;
+          break;
+        }
+      }
+      if (!target) continue;
+      target.claimed = true;
+      if (g.bare) {
+        target.per = { [g.bare]: target.count };
+        target.pkgs = new Set([g.bare]);
       } else {
-        ambiguous.add(target);
+        target.pkgs = new Set(Object.keys(g.per) as Pkg[]);
+        if (g.sum === target.count) {
+          target.per = g.per;
+        } else {
+          ambiguous.add(target);
+        }
       }
     }
   }
@@ -1531,19 +1547,36 @@ function parsePkgList(inner: string): { name: Pkg; count: number | null }[] | nu
   return out;
 }
 
+/** 单个子句的括号校验：单子包不带数量，多子包每个都带数量。 */
+function clauseParenError(cl: TestLineClause): string | null {
+  if (cl.pkgs === null) return null;
+  if (cl.pkgs.length === 1 && cl.pkgs[0].count !== null) {
+    return `「${cl.verb} ${cl.count} 项测试」的括号里只有一个子包，不写数量（写成「（${cl.pkgs[0].name}）」）`;
+  }
+  if (cl.pkgs.length >= 2 && cl.pkgs.some((p) => p.count === null)) {
+    return `「${cl.verb} ${cl.count} 项测试」的括号里列了多个子包，每个子包都要带数量（如「engine 5 + arena 1」）`;
+  }
+  return null;
+}
+
 /**
  * 提交信息的测试增量行（合法返回 null）：
  *   `新增 14 项测试（engine）、删除 40 项测试（engine）、修改 6 项测试（engine 5 + arena 1）。`
- *   `新增 1 项测试、删除 1 项测试、修改 1 项测试（arena）。`
+ *   `新增 2 项测试、修改 2 项测试（engine）。`（行末单括号：全部子句都归这一个子包）
  *   `无新增测试。`
  *
- * 约束：不写总量；各子句后的子包括号可有可无，但至少有一个；括号里列 ≥2 个子包时
- * 每个子包都要带数量；只有一个子包时不写数量（写 `（engine）`，不写 `（engine 6）`）。
+ * 约束：必须以全角句号「。」结尾；不写总量。括号有两种合法形态——
+ *   ① 行末只有一个子包（不写数量），表示**所有**子句的增量都归这个子包；
+ *   ② 每个子句后各写一个括号，括号内列 ≥2 个子包时每个都要带数量，
+ *      只有一个子包时不写数量。
+ * 单子句时两种形态重合，单个括号内仍可写多子包分解（如 `（engine 2 + arena 2）`）；
+ * 多子句共用一个括号时则不能拆包——否则无法判断各动词分别属于哪些子包。
  */
 function messageTestLineError(line: string): string | null {
-  if (/^无新增测试[。.]?$/.test(line)) return null;
+  if (!line.endsWith('。')) return '测试数行须以全角句号「。」结尾';
+  if (/^无新增测试。$/.test(line)) return null;
   if (/项通过|合计|总数|总量/.test(line)) return '提交信息不写测试总数（总量只写在 Changelog）';
-  const text = line.replace(/[。.]$/, '');
+  const text = line.slice(0, -1);
   const clauses: TestLineClause[] = [];
   let rest = text;
   while (rest.length > 0) {
@@ -1570,16 +1603,36 @@ function messageTestLineError(line: string): string | null {
     if (rest.length === 0) return '测试数行末尾多了一个分隔符';
   }
   if (clauses.length === 0) return '缺少测试增量子句';
-  if (!clauses.some((cl) => cl.pkgs !== null)) {
+  const withParen = clauses.filter((cl) => cl.pkgs !== null);
+  if (withParen.length === 0) {
     return '至少一个子句要用括号注明涉及的子包（如「（engine）」）';
   }
+  // 单子句：括号只能属于它，按常规逐子句规则校验（允许 `（engine 2 + arena 2）`）。
+  if (clauses.length === 1) return clauseParenError(clauses[0]);
+  // 多子句共用一个括号：该括号必须写在行末、只含一个子包、不写数量，
+  // 语义是「所有子句的增量都归这个子包」。
+  if (withParen.length === 1) {
+    const only = withParen[0];
+    const pkgs = only.pkgs;
+    if (pkgs === null) return null;
+    if (only !== clauses[clauses.length - 1]) {
+      return '多个子句共用一个括号时，括号须写在行末（否则无法区分它属于哪一项）';
+    }
+    if (pkgs.length > 1) {
+      return '多个子句共用一个括号时，括号内只能有一个子包——要逐包归属请在每个子句后分别写括号';
+    }
+    if (pkgs[0].count !== null) {
+      return `多个子句共用一个括号时不写数量（写成「（${pkgs[0].name}）」）`;
+    }
+    return null;
+  }
+  // 有括号时每个子句都必须带一个（不允许部分子句带、部分不带）。
+  if (withParen.length !== clauses.length) {
+    return '有多个括号时每个子句后都要写括号（或只在行末写一个覆盖全部子句的单子包括号）';
+  }
   for (const cl of clauses) {
-    if (cl.pkgs !== null && cl.pkgs.length === 1 && cl.pkgs[0].count !== null) {
-      return `「${cl.verb} ${cl.count} 项测试」的括号里只有一个子包，不写数量（写成「（${cl.pkgs[0].name}）」）`;
-    }
-    if (cl.pkgs !== null && cl.pkgs.length >= 2 && cl.pkgs.some((p) => p.count === null)) {
-      return `「${cl.verb} ${cl.count} 项测试」的括号里列了多个子包，每个子包都要带数量（如「engine 5 + arena 1」）`;
-    }
+    const err = clauseParenError(cl);
+    if (err !== null) return err;
   }
   return null;
 }
@@ -1652,8 +1705,8 @@ function checkDocNoTestLine(c: CommitInfo): void {
 
 /**
  * T9：提交信息的测试增量行必须是正文最后一行（`Co-Authored-By` 之前）、单独占一行、
- * 不写总量；子包括号至少有一个，括号里列 ≥2 个子包时每个都要带数量，只有一个子包时
- * 不写数量。
+ * 不写总量、以全角句号「。」结尾；括号要么是行末单子包括号（不写数量，覆盖全部
+ * 子句），要么每个子句后各写一个（≥2 个子包时每个带数量，单子包不写数量）。
  *
  * T10：Changelog 的测试增量行必须按文件列出改动，项数与加粗部分一致；末小节同时给出
  * 子包总量（与测试数行同一行）。
