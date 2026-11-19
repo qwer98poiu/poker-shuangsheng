@@ -46,6 +46,7 @@ description: 把某历史提交时刻的 AI 策略冻结为竞技场基线（ai-
    ```
 
 4. **注册竞技场策略**（`packages/arena/src/strategies.ts`）：从 `@poker/ai` import 命名空间 + `aiXXXXStrategy`（四方法委托）+ `strategyByName` 分支 + 抛错信息可选列表。
+   - **同步竞技场默认策略 B**：`packages/arena/src/run.ts` 与 `deal-run.ts` 的 `--strategy-b` usage 文本和 `strategyB` 默认值都应指向**最新基线**；README 的默认行与示例命令一并同步。该默认值没有测试覆盖（`parseArgs` 未导出），漏改 `deal-run.ts` 不会被任何测试抓到。CLAUDE.md 的规则不依赖这个默认值——比较策略改动时必须显式传 `--strategy-b <改动前基线>`。
 
 5. **补合法性测试**（`packages/arena/src/__tests__/historical-strategies.test.ts`）：import 策略，加用例——`playMatch({ seed: 42, pairIndex: [N, N+1], strategies: [aiXXXXStrategy, engineStrategy], captureEvents: true })`，断言 `abortedHands === 0` 且所有事件 `errors === 0`。pair 号用未占用的（现有：0719=8,9；0801=4,5；0802=10,11；0808=12,13）。
 

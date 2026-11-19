@@ -152,6 +152,8 @@ Changelog：**新增 1 项测试、修改 2 项测试**（ai-follow.test.ts：�
 - 每个提交一行摘要 + 四包实测数；下面缩进列出该提交的每个非 PASS 发现，**失败项都带期望值 vs 实测值**，可直接拿去改。
 - `范围级检查` 是 S7/S8 这类整文件检查（不属于某个提交）。
 - 末尾 `汇总` 按 error/warn 分组，便于一次看完要改什么。
+- **error 与 warn 一并清零**：复查未推送范围时，用户要的是这段历史整体干净，不是「门禁不拦就算过」。汇报时两类都列出并给修复方案。
+- 纯文档提交的 S12 info（`docs:` 缺 `Co-Authored-By`）是预期噪音，不必处理；`skill:` 与其他类型缺失署名是 error。
 
 修复时配合既有技能：Changelog 时间不对用 `fix-changelog-time`；条目与提交对不上用 `gen-changelog-map` 人工核对；要改历史用 `edit-history`。
 
