@@ -11,7 +11,12 @@ description: 把某历史提交时刻的 AI 策略冻结为竞技场基线（ai-
 
 ## 命名与位置
 
-- 按来源提交的**日期**命名：`ai-MMDD`（如来源提交是 08-08 → `ai-0808`）。
+- 名字一般由**用户直接指定**，以用户给的为准。
+- 自行命名时用 `ai-MMDD`，MMDD 取**来源提交 author date 的 UTC 日期**（不是本地日期，也不是提取提交的日期）。如来源提交 2026-11-15 → `ai-1115`。核对：
+
+  ```bash
+  TZ=UTC0 git show -s --format="%ad" --date=format-local:%Y-%m-%d <commit>
+  ```
 - **新基线**目录：`packages/ai/src/ai-XXXX/`；命名空间：`aiXXXX`；竞技场策略名：`ai-XXXX`。
 - **存量基线**（过渡期）仍在 `packages/engine/src/ai-XXXX/`；它们由 `@poker/ai` facade 显式 re-export。每次提取新基线时归档一条最旧的基线（优先 engine 存量）；存量清零后新包成为唯一来源。
 
